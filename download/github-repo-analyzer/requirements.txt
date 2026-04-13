@@ -1,0 +1,3 @@
+# No external dependencies required — uses only the Python standard library.
+# Python 3.10+ is required for the dict | None type hint syntax.
+python>=3.10
