@@ -41,3 +41,62 @@ Created a complete GitHub Dashboard web application for the `timilehin-dev/openc
 ### API Verification
 - Direct GitHub API test with PAT returned successful response (repo id: 1203749237, name: opencode)
 - Dev server not yet running during verification (will start automatically via system)
+
+---
+
+## Task 2: Composio Gmail Integration
+
+**Date**: 2026-04-14
+**Status**: Completed
+
+### Summary
+Integrated Composio's Gmail API into the existing dashboard, transforming it from a GitHub-only tool into a multi-service "Control Hub". The app now allows reading, searching, sending emails, and managing Gmail labels — all from the dashboard.
+
+### Composio API Discovery
+- Discovered the correct Composio HTTP API format:
+  - Endpoint: `POST https://backend.composio.dev/api/v2/actions/{slug}/execute`
+  - Auth header: `x-api-key`
+  - Body field is `"input"` (NOT `"inputParams"`)
+  - Connected account ID required
+- Found valid Gmail tool slugs:
+  - `gmail_get_profile` — Get user Gmail profile (email, total messages, threads)
+  - `gmail_fetch_emails` — Fetch emails with filters (query, label_ids, max_results, pagination)
+  - `gmail_send_email` — Send emails (to, subject, body, cc, bcc, is_html, attachments)
+  - `gmail_list_labels` — List all Gmail labels
+  - `gmail_create_label` — Create a new label
+  - `gmail_remove_label` — Delete a user-created label
+  - `gmail_list_drafts` — List draft emails
+  - `gmail_send_draft` — Send an existing draft
+  - `gmail_delete_message` — Delete/trash a message
+  - `gmail_get_attachment` — Get message attachment
+- Verified Gmail profile fetch: `hinttimi@gmail.com`, 1022 messages, 987 threads
+
+### Files Created/Modified
+
+1. **`.env.local`** — Added `COMPOSIO_API_KEY` and `COMPOSIO_GMAIL_ACCOUNT_ID`
+
+2. **`src/lib/composio.ts`** — Typed Composio HTTP API client:
+   - `executeAction()` — Generic action executor with error handling
+   - `getGmailProfile()` — Fetch Gmail user profile
+   - `fetchEmails()` — Fetch emails with query, labels, pagination
+   - `sendEmail()` — Send email with to, cc, bcc, subject, body
+   - `listLabels()` / `createLabel()` / `deleteLabel()` — Label management
+   - `listDrafts()` / `sendDraft()` — Draft management
+   - `deleteMessage()` — Message deletion
+
+3. **`src/app/api/gmail/route.ts`** — Gmail API route:
+   - GET: profile, inbox, search, labels, drafts
+   - POST: send, createLabel, deleteLabel, sendDraft, deleteMessage
+
+4. **`src/app/page.tsx`** — Completely rewritten as multi-service dashboard:
+   - Service switcher (GitHub / Gmail) in header
+   - GitHub: Issues, PRs, Files, Commits (unchanged functionality)
+   - Gmail: Inbox, Compose, Search, Labels tabs
+   - Inbox: email list with unread indicators, sender extraction, email detail panel, delete action
+   - Compose: send email form with to, subject, body fields
+   - Search: Gmail-style search with operators (from:, subject:, has:attachment)
+   - Labels: list all labels, create new labels, system vs user label badges
+   - Responsive design with mobile support
+   - ESLint clean (0 errors, 0 warnings)
+
+5. **`src/app/layout.tsx`** — Updated title to "OpenCode Control Hub"
