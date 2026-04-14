@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
-import { getAccountId } from "@/lib/composio";
 
 // ---------------------------------------------------------------------------
 // GET handler — returns connection status for all services
 // ---------------------------------------------------------------------------
 
 export async function GET() {
-  const gmailId = getAccountId("gmail");
-  const calendarId = getAccountId("googlecalendar");
-  const driveId = getAccountId("googledrive");
-  const sheetsId = getAccountId("googlesheets");
-  const docsId = getAccountId("googledocs");
+  const gmailId = process.env.COMPOSIO_GMAIL_ACCOUNT_ID;
+  const googleOauth = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN;
   const vercelToken = process.env.VERCEL_API_TOKEN;
 
   const services = {
@@ -19,20 +15,20 @@ export async function GET() {
       accountId: gmailId ? `${gmailId.slice(0, 8)}...` : null,
     },
     googlecalendar: {
-      connected: !!calendarId,
-      accountId: calendarId ? `${calendarId.slice(0, 8)}...` : null,
+      connected: !!googleOauth,
+      accountId: googleOauth ? "Google OAuth" : null,
     },
     googledrive: {
-      connected: !!driveId,
-      accountId: driveId ? `${driveId.slice(0, 8)}...` : null,
+      connected: !!googleOauth,
+      accountId: googleOauth ? "Google OAuth" : null,
     },
     googlesheets: {
-      connected: !!sheetsId,
-      accountId: sheetsId ? `${sheetsId.slice(0, 8)}...` : null,
+      connected: !!googleOauth,
+      accountId: googleOauth ? "Google OAuth" : null,
     },
     googledocs: {
-      connected: !!docsId,
-      accountId: docsId ? `${docsId.slice(0, 8)}...` : null,
+      connected: !!googleOauth,
+      accountId: googleOauth ? "Google OAuth" : null,
     },
     github: {
       connected: !!process.env.GITHUB_PAT,

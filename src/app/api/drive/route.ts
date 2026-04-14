@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  listDriveFiles,
-  createDriveFolder,
-  createDriveFile,
-  getAccountId,
-} from "@/lib/composio";
+  gDriveListFiles,
+  gDriveCreateFolder,
+  gDriveCreateFile,
+  getAccessToken,
+} from "@/lib/google";
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -28,18 +28,20 @@ export async function GET(req: NextRequest) {
 
   try {
     switch (action) {
-      case "files": {
-        const accountId = getAccountId("googledrive");
-        if (!accountId) {
-          return err("Google Drive not connected. Please connect it from the Composio dashboard.", 400);
+      case "status": {
+        try {
+          await getAccessToken();
+          return ok({ connected: true });
+        } catch {
+          return ok({ connected: false });
         }
-        const q = searchParams.get("q") || undefined;
+      }
+
+      case "files": {
+        const q = searchParams.get("q") || "trashed=false";
         const pageSize = Number(searchParams.get("pageSize")) || 50;
-        const orderBy = searchParams.get("orderBy") || undefined;
-        const files = await listDriveFiles(
-          q || pageSize !== 50 || orderBy ? { q, pageSize, orderBy } : undefined,
-          accountId,
-        );
+        const orderBy = searchParams.get("orderBy") || "modifiedTime desc";
+        const files = await gDriveListFiles({ q, pageSize, orderBy });
         return ok(files);
       }
 
@@ -61,11 +63,6 @@ export async function POST(req: NextRequest) {
   const action = searchParams.get("action");
 
   try {
-    const accountId = getAccountId("googledrive");
-    if (!accountId) {
-      return err("Google Drive not connected. Please connect it from the Composio dashboard.", 400);
-    }
-
     const body = await req.json();
 
     switch (action) {
@@ -75,7 +72,10 @@ export async function POST(req: NextRequest) {
           parentId?: string;
         };
         if (!folderName) return err("Missing 'folderName'", 400);
-        const folder = await createDriveFolder(folderName, parentId, accountId);
+        const folder = await gDriveCreateFolder(
+          folderName,
+          parentId ? [parentId] : undefined,
+        );
         return ok(folder);
       }
 
@@ -86,7 +86,11 @@ export async function POST(req: NextRequest) {
           parents?: string[];
         };
         if (!name) return err("Missing 'name'", 400);
-        const file = await createDriveFile(name, mimeType, parents, accountId);
+        const file = await gDriveCreateFile(
+          name,
+          mimeType || "application/vnd.google-apps.document",
+          parents,
+        );
         return ok(file);
       }
 

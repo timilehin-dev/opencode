@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createSpreadsheet,
-  getSpreadsheet,
-  batchGetValues,
-  addSheet,
-  getAccountId,
-} from "@/lib/composio";
+  gSheetsGet,
+  gSheetsGetValues,
+  gSheetsCreate,
+  gSheetsAddSheet,
+  gSheetsAppendValues,
+  getAccessToken,
+} from "@/lib/google";
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -28,25 +29,30 @@ export async function GET(req: NextRequest) {
   const action = searchParams.get("action");
 
   try {
-    const accountId = getAccountId("googlesheets");
-    if (!accountId) {
-      return err("Google Sheets not connected. Please connect it from the Composio dashboard.", 400);
-    }
-
     switch (action) {
+      case "status": {
+        try {
+          await getAccessToken();
+          return ok({ connected: true });
+        } catch {
+          return ok({ connected: false });
+        }
+      }
+
       case "get": {
         const spreadsheetId = searchParams.get("id") || searchParams.get("spreadsheetId");
         if (!spreadsheetId) return err("Missing spreadsheet ID", 400);
-        const ranges = searchParams.get("ranges") || undefined;
-        const data = await getSpreadsheet(spreadsheetId, ranges, accountId);
+        const data = await gSheetsGet(spreadsheetId);
         return ok(data);
       }
 
       case "values": {
         const spreadsheetId = searchParams.get("id") || searchParams.get("spreadsheetId");
+        const range = searchParams.get("range");
         if (!spreadsheetId) return err("Missing spreadsheet ID", 400);
-        const data = await batchGetValues(spreadsheetId, accountId);
-        return ok(data);
+        if (!range) return err("Missing 'range' parameter (e.g. 'Sheet1!A1:Z100')", 400);
+        const data = await gSheetsGetValues(spreadsheetId, range);
+        return ok(data.values);
       }
 
       default:
@@ -67,28 +73,36 @@ export async function POST(req: NextRequest) {
   const action = searchParams.get("action");
 
   try {
-    const accountId = getAccountId("googlesheets");
-    if (!accountId) {
-      return err("Google Sheets not connected. Please connect it from the Composio dashboard.", 400);
-    }
-
     const body = await req.json();
 
     switch (action) {
       case "create": {
         const { title } = body as { title: string };
         if (!title) return err("Missing 'title'", 400);
-        const data = await createSpreadsheet(title, accountId);
+        const data = await gSheetsCreate(title);
         return ok(data);
       }
 
       case "addSheet": {
-        const { spreadsheetId, properties } = body as {
+        const { spreadsheetId, sheetName } = body as {
           spreadsheetId: string;
-          properties?: Record<string, unknown>;
+          sheetName: string;
         };
-        if (!spreadsheetId) return err("Missing 'spreadsheetId'", 400);
-        const data = await addSheet(spreadsheetId, properties, accountId);
+        if (!spreadsheetId || !sheetName) return err("Missing 'spreadsheetId' or 'sheetName'", 400);
+        const data = await gSheetsAddSheet(spreadsheetId, sheetName);
+        return ok(data);
+      }
+
+      case "append": {
+        const { spreadsheetId, range, values } = body as {
+          spreadsheetId: string;
+          range: string;
+          values: string[][];
+        };
+        if (!spreadsheetId || !range || !values) {
+          return err("Missing 'spreadsheetId', 'range', or 'values'", 400);
+        }
+        const data = await gSheetsAppendValues(spreadsheetId, range, values);
         return ok(data);
       }
 

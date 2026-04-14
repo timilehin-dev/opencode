@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  listCalendars,
-  createEvent,
-  deleteEvent,
-  getAccountId,
-} from "@/lib/composio";
+  gCalListCalendars,
+  gCalListEvents,
+  gCalCreateEvent,
+  gCalDeleteEvent,
+  getAccessToken,
+} from "@/lib/google";
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -28,13 +29,28 @@ export async function GET(req: NextRequest) {
 
   try {
     switch (action) {
-      case "calendars": {
-        const accountId = getAccountId("googlecalendar");
-        if (!accountId) {
-          return err("Google Calendar not connected. Please connect it from the Composio dashboard.", 400);
+      case "status": {
+        // Connection check — try to get a token
+        try {
+          await getAccessToken();
+          return ok({ connected: true });
+        } catch {
+          return ok({ connected: false });
         }
-        const calendars = await listCalendars(accountId);
+      }
+
+      case "calendars": {
+        const calendars = await gCalListCalendars();
         return ok(calendars);
+      }
+
+      case "events": {
+        const calendarId = searchParams.get("calendarId") || "primary";
+        const timeMin = searchParams.get("timeMin") || undefined;
+        const timeMax = searchParams.get("timeMax") || undefined;
+        const maxResults = Number(searchParams.get("maxResults")) || 25;
+        const events = await gCalListEvents(calendarId, timeMin, timeMax, maxResults);
+        return ok(events);
       }
 
       default:
@@ -55,11 +71,6 @@ export async function POST(req: NextRequest) {
   const action = searchParams.get("action");
 
   try {
-    const accountId = getAccountId("googlecalendar");
-    if (!accountId) {
-      return err("Google Calendar not connected. Please connect it from the Composio dashboard.", 400);
-    }
-
     const body = await req.json();
 
     switch (action) {
@@ -67,7 +78,6 @@ export async function POST(req: NextRequest) {
         const {
           summary,
           start_datetime,
-          event_duration_hour,
           event_duration_minutes,
           location,
           description,
@@ -78,7 +88,6 @@ export async function POST(req: NextRequest) {
         } = body as {
           summary?: string;
           start_datetime: string;
-          event_duration_hour?: number;
           event_duration_minutes?: number;
           location?: string;
           description?: string;
@@ -90,20 +99,28 @@ export async function POST(req: NextRequest) {
 
         if (!start_datetime) return err("Missing 'start_datetime'", 400);
 
-        const event = await createEvent(
+        const startDate = new Date(start_datetime);
+        const durationMs = (event_duration_minutes || 60) * 60 * 1000;
+        const endDate = new Date(startDate.getTime() + durationMs);
+        const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        const event = await gCalCreateEvent(
+          calendar_id || "primary",
           {
             summary,
-            start_datetime,
-            event_duration_hour,
-            event_duration_minutes,
+            start: { dateTime: startDate.toISOString(), timeZone: tz },
+            end: { dateTime: endDate.toISOString(), timeZone: tz },
             location,
             description,
-            attendees,
-            calendar_id,
-            create_meeting_room,
-            timezone,
+            attendees: attendees?.map((email) => ({ email })),
+            ...(create_meeting_room
+              ? {
+                  conferenceData: {
+                    createRequest: { requestId: `claw-${Date.now()}` },
+                  },
+                }
+              : {}),
           },
-          accountId,
         );
         return ok(event);
       }
@@ -114,7 +131,7 @@ export async function POST(req: NextRequest) {
           calendarId?: string;
         };
         if (!eventId) return err("Missing 'eventId'", 400);
-        await deleteEvent(eventId, calendarId, accountId);
+        await gCalDeleteEvent(calendarId || "primary", eventId);
         return ok({ deleted: true });
       }
 

@@ -258,3 +258,51 @@ Integrated Vercel API token and team ID. Updated the Vercel client library to in
 - `GET /v9/projects` → Found 1 project: `v0-forextapro` (Next.js)
 - `GET /v9/domains` → 0 custom domains (empty, expected)
 - Token permissions: read access to team resources confirmed
+
+---
+
+## Task 7: Bypass Composio — Direct Google OAuth
+
+**Date**: 2026-04-14
+**Status**: In Progress (waiting for user to create Google OAuth credentials)
+
+### Summary
+Confirmed Composio cannot provide proper OAuth scopes for Google services (Calendar, Drive, Sheets, Docs) — all Google apps share the same Gmail-only OAuth client. Built a complete direct Google API client that uses OAuth2 refresh tokens with full scope control.
+
+### Files Created/Modified
+
+1. **`src/lib/google.ts`** — NEW: Direct Google API client (bypasses Composio):
+   - `getAccessToken()` — Refresh token → access token exchange with in-memory cache
+   - `googleFetch()` — Authenticated fetch wrapper for any Google API
+   - Calendar: `gCalListCalendars()`, `gCalListEvents()`, `gCalCreateEvent()`, `gCalDeleteEvent()`
+   - Drive: `gDriveListFiles()`, `gDriveCreateFolder()`, `gDriveCreateFile()`
+   - Sheets: `gSheetsGet()`, `gSheetsGetValues()`, `gSheetsBatchGetValues()`, `gSheetsAppendValues()`, `gSheetsUpdateValues()`, `gSheetsAddSheet()`, `gSheetsCreate()`
+   - Docs: `gDocsList()`, `gDocsGet()`, `gDocsCreate()`, `gDocsAppendText()`
+   - Gmail: `gGmailProfile()` (kept for migration option)
+
+2. **`src/app/api/calendar/route.ts`** — REWRITTEN: Now uses direct Google Calendar API
+   - GET: status, calendars, events
+   - POST: createEvent, deleteEvent
+   - Added Google Meet conference support via `conferenceData`
+
+3. **`src/app/api/drive/route.ts`** — REWRITTEN: Now uses direct Google Drive API v3
+   - GET: status, files
+   - POST: createFolder, createFile
+
+4. **`src/app/api/sheets/route.ts`** — REWRITTEN: Now uses direct Google Sheets API v4
+   - GET: status, get (full spreadsheet), values (range)
+   - POST: create, addSheet, append
+
+5. **`src/app/api/docs/route.ts`** — REWRITTEN: Now uses direct Google Docs API v1 + Drive API
+   - GET: status, list, read
+   - POST: create, append
+
+6. **`src/app/api/services/route.ts`** — Updated: Google services now check for `GOOGLE_CLIENT_ID` + `GOOGLE_REFRESH_TOKEN` instead of Composio IDs
+
+7. **`.env.local`** — Removed Composio Google account IDs, added placeholders for:
+   - `GOOGLE_CLIENT_ID=`
+   - `GOOGLE_CLIENT_SECRET=`
+   - `GOOGLE_REFRESH_TOKEN=`
+
+### Awaiting From User
+User needs to create Google Cloud OAuth credentials and generate a refresh token with all required scopes

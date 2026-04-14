@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  listDocs,
-  createDoc,
-  readDoc,
-  appendDocText,
-  getAccountId,
-} from "@/lib/composio";
+  gDocsList,
+  gDocsGet,
+  gDocsCreate,
+  gDocsAppendText,
+  getAccessToken,
+} from "@/lib/google";
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -29,23 +29,24 @@ export async function GET(req: NextRequest) {
 
   try {
     switch (action) {
-      case "list": {
-        const accountId = getAccountId("googledocs");
-        if (!accountId) {
-          return err("Google Docs not connected. Please connect it from the Composio dashboard.", 400);
+      case "status": {
+        try {
+          await getAccessToken();
+          return ok({ connected: true });
+        } catch {
+          return ok({ connected: false });
         }
-        const docs = await listDocs(accountId);
+      }
+
+      case "list": {
+        const docs = await gDocsList();
         return ok(docs);
       }
 
       case "read": {
-        const accountId = getAccountId("googledocs");
-        if (!accountId) {
-          return err("Google Docs not connected. Please connect it from the Composio dashboard.", 400);
-        }
         const documentId = searchParams.get("id");
         if (!documentId) return err("Missing 'id' parameter", 400);
-        const content = await readDoc(documentId, accountId);
+        const content = await gDocsGet(documentId);
         return ok(content);
       }
 
@@ -67,18 +68,13 @@ export async function POST(req: NextRequest) {
   const action = searchParams.get("action");
 
   try {
-    const accountId = getAccountId("googledocs");
-    if (!accountId) {
-      return err("Google Docs not connected. Please connect it from the Composio dashboard.", 400);
-    }
-
     const body = await req.json();
 
     switch (action) {
       case "create": {
         const { title } = body as { title: string };
         if (!title) return err("Missing 'title'", 400);
-        const doc = await createDoc(title, accountId);
+        const doc = await gDocsCreate(title);
         return ok(doc);
       }
 
@@ -88,7 +84,7 @@ export async function POST(req: NextRequest) {
           text: string;
         };
         if (!documentId || !text) return err("Missing 'documentId' or 'text'", 400);
-        const result = await appendDocText(documentId, text, accountId);
+        const result = await gDocsAppendText(documentId, text);
         return ok(result);
       }
 
