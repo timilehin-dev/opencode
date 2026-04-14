@@ -564,48 +564,39 @@ export async function appendDocText(
   return res.data;
 }
 
-/** Create a spreadsheet */
+/** Create a spreadsheet (via Drive with Sheets MIME type) */
 export async function createSpreadsheet(
   title: string,
   accountId?: string,
 ): Promise<unknown> {
   const acct = accountId || getAccountId("googlesheets");
   const res = await executeAction(
-    "googlesheets_create_spreadsheet",
-    { title },
+    "googledrive_create_file",
+    { name: title, mime_type: "application/vnd.google-apps.spreadsheet" },
     acct,
   );
   return res.data;
 }
 
-/** Get spreadsheet data */
-export async function getSpreadsheet(
-  spreadsheetId: string,
-  ranges?: string,
-  accountId?: string,
-): Promise<unknown> {
-  const acct = accountId || getAccountId("googlesheets");
-  const input: Record<string, unknown> = { spreadsheetId };
-  if (ranges) input.ranges = ranges;
-  const res = await executeAction(
-    "googlesheets_get_spreadsheet",
-    input,
-    acct,
-  );
-  return res.data;
-}
-
-/** Batch get values from spreadsheet */
+/** Batch get values from a spreadsheet */
 export async function batchGetValues(
   spreadsheetId: string,
-  ranges: string[],
   accountId?: string,
 ): Promise<unknown> {
   const acct = accountId || getAccountId("googlesheets");
   const res = await executeAction(
-    "googlesheets_batch_get_values",
-    { spreadsheetId, ranges },
+    "googlesheets_batch_get",
+    { spreadsheet_id: spreadsheetId },
     acct,
   );
   return res.data;
+}
+
+/** Get spreadsheet data (alias for batchGetValues) */
+export async function getSpreadsheet(
+  spreadsheetId: string,
+  _ranges?: string,
+  accountId?: string,
+): Promise<unknown> {
+  return batchGetValues(spreadsheetId, accountId);
 }

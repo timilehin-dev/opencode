@@ -35,20 +35,17 @@ export async function GET(req: NextRequest) {
 
     switch (action) {
       case "get": {
-        const spreadsheetId = searchParams.get("id");
-        if (!spreadsheetId) return err("Missing 'id' parameter", 400);
+        const spreadsheetId = searchParams.get("id") || searchParams.get("spreadsheetId");
+        if (!spreadsheetId) return err("Missing spreadsheet ID", 400);
         const ranges = searchParams.get("ranges") || undefined;
         const data = await getSpreadsheet(spreadsheetId, ranges, accountId);
         return ok(data);
       }
 
       case "values": {
-        const spreadsheetId = searchParams.get("id");
-        if (!spreadsheetId) return err("Missing 'id' parameter", 400);
-        const rangesStr = searchParams.get("ranges");
-        if (!rangesStr) return err("Missing 'ranges' parameter", 400);
-        const ranges = rangesStr.split(",");
-        const data = await batchGetValues(spreadsheetId, ranges, accountId);
+        const spreadsheetId = searchParams.get("id") || searchParams.get("spreadsheetId");
+        if (!spreadsheetId) return err("Missing spreadsheet ID", 400);
+        const data = await batchGetValues(spreadsheetId, accountId);
         return ok(data);
       }
 

@@ -188,3 +188,54 @@ Added Vercel (direct API), Google Docs (Composio), and Google Sheets (Composio) 
 ### Pending Items
 - User needs to provide: Vercel API token + Google service Connected Account IDs with correct OAuth scopes
 - Once provided, update .env.local and test all services end-to-end
+
+---
+
+## Task 5: Connection Verification & Code Fixes
+
+**Date**: 2026-04-14
+**Status**: In Progress (waiting for user OAuth completion)
+
+### Summary
+Verified all Composio connected accounts via REST API. Found and fixed several code issues. Generated fresh OAuth links for all Google services. Identified root cause of 403 errors (OAuth scope mismatch).
+
+### Connected Account Status (via Composio v1 API)
+- Gmail (`28c7ddbe...`) — ACTIVE ✅
+- Google Calendar (`55606aba...`) — ACTIVE but 403 (insufficient scopes)
+- Google Drive (`be1c1ea3...`) — ACTIVE but 403 (insufficient scopes)
+- Google Sheets (`e920e722...`) — ACTIVE but 403 (insufficient scopes)
+- Google Docs (`4c4b31f2...`) — EXPIRED ❌
+- Vercel — Not found on Composio ❌ (no Composio integration exists)
+
+### Root Cause Analysis
+All Google connections route through Composio's Gmail auth config (`9db8f49e-0382-4291-a451-24952d3ed3ea`), which only requests `mail.google.com` + contacts scopes. Calendar/Drive/Sheets/Docs need their own OAuth scopes, which this shared config doesn't include.
+
+### Composio Action Slug Discovery
+- Confirmed existing: `GOOGLECALENDAR_LIST_CALENDARS`, `GOOGLECALENDAR_CREATE_EVENT`, `GOOGLECALENDAR_DELETE_EVENT`, `GOOGLEDOCS_CREATE_DOCUMENT`, `GOOGLEDRIVE_LIST_FILES`, `GOOGLEDRIVE_CREATE_FILE`, `GOOGLEDRIVE_CREATE_FOLDER`
+- Found working Sheets actions: `GOOGLESHEETS_ADD_SHEET`, `GOOGLESHEETS_BATCH_GET`, `GOOGLESHEETS_BATCH_UPDATE`, `GOOGLESHEETS_DELETE_SHEET`
+- NOT FOUND (removed): `GOOGLESHEETS_CREATE_SPREADSHEET`, `GOOGLESHEETS_GET_SPREADSHEET`, `GOOGLESHEETS_BATCH_GET_VALUES`
+
+### Code Fixes Applied
+1. **`src/lib/composio.ts`**:
+   - `createSpreadsheet()` → now uses `googledrive_create_file` with Sheets MIME type (workaround for missing slug)
+   - `batchGetValues()` → now uses `googlesheets_batch_get` with `spreadsheet_id` param
+   - `getSpreadsheet()` → simplified as alias for `batchGetValues()`
+
+2. **`src/app/api/sheets/route.ts`**:
+   - Fixed param name mismatch: route now accepts both `id` and `spreadsheetId`
+   - Removed `ranges` param from `batchGetValues` call (not supported by Composio action)
+
+3. **`.env.local`**:
+   - Updated with new OAuth connection IDs: Calendar (`7fa0dd45`), Drive (`ad6d800d`), Sheets (`75cbdee0`), Docs (`5ee83aed`)
+   - Added `VERCEL_API_TOKEN=` placeholder
+
+### Fresh OAuth Links Generated
+- Calendar: `https://backend.composio.dev/api/v3/s/VZjMevzz`
+- Drive: `https://backend.composio.dev/api/v3/s/h-D-s7iR`
+- Sheets: `https://backend.composio.dev/api/v3/s/ISCBZ1y5`
+- Docs: `https://backend.composio.dev/api/v3/s/2ILQXM_3`
+
+### Awaiting From User
+1. Vercel API token (from vercel.com/account/tokens)
+2. OAuth completion for Google services (may need alternative approach if scopes still insufficient)
+3. Confirmation of what scopes Google shows during OAuth authorization
