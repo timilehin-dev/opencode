@@ -2,6 +2,11 @@
 // Uses Vercel API tokens: https://vercel.com/docs/rest-api/introduction
 
 const BASE_URL = "https://api.vercel.com";
+const TEAM_ID = process.env.VERCEL_TEAM_ID || "";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function headers(): HeadersInit {
   const token = process.env.VERCEL_API_TOKEN || "";
@@ -9,6 +14,13 @@ function headers(): HeadersInit {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
+}
+
+/** Append team_id query param to a URL if we have a team ID */
+function withTeam(url: string): string {
+  if (!TEAM_ID) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}teamId=${TEAM_ID}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,9 +89,8 @@ export interface VercelEnvVar {
 // ---------------------------------------------------------------------------
 
 export async function listProjects(limit = 20): Promise<VercelProject[]> {
-  const res = await fetch(`${BASE_URL}/v9/projects?limit=${limit}`, {
-    headers: headers(),
-  });
+  const url = withTeam(`${BASE_URL}/v9/projects?limit=${limit}`);
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Vercel API error: ${res.status} — ${err}`);
@@ -89,9 +100,8 @@ export async function listProjects(limit = 20): Promise<VercelProject[]> {
 }
 
 export async function getProject(projectIdOrName: string): Promise<VercelProject> {
-  const res = await fetch(`${BASE_URL}/v9/projects/${projectIdOrName}`, {
-    headers: headers(),
-  });
+  const url = withTeam(`${BASE_URL}/v9/projects/${projectIdOrName}`);
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Vercel API error: ${res.status} — ${err}`);
@@ -108,10 +118,10 @@ export async function listDeployments(
   limit = 20,
 ): Promise<VercelDeployment[]> {
   const params = new URLSearchParams({ limit: String(limit) });
-  const res = await fetch(
+  const url = withTeam(
     `${BASE_URL}/v6/deployments?projectId=${projectIdOrName}&${params}`,
-    { headers: headers() },
   );
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Vercel API error: ${res.status} — ${err}`);
@@ -121,9 +131,8 @@ export async function listDeployments(
 }
 
 export async function getDeployment(deploymentId: string): Promise<VercelDeployment> {
-  const res = await fetch(`${BASE_URL}/v13/deployments/${deploymentId}`, {
-    headers: headers(),
-  });
+  const url = withTeam(`${BASE_URL}/v13/deployments/${deploymentId}`);
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Vercel API error: ${res.status} — ${err}`);
@@ -136,10 +145,10 @@ export async function getDeployment(deploymentId: string): Promise<VercelDeploym
 // ---------------------------------------------------------------------------
 
 export async function listDomains(projectId?: string): Promise<VercelDomain[]> {
-  const params = projectId ? `?projectId=${projectId}` : "";
-  const res = await fetch(`${BASE_URL}/v9/domains${params}`, {
-    headers: headers(),
-  });
+  let url = `${BASE_URL}/v9/domains`;
+  if (projectId) url += `?projectId=${projectId}`;
+  url = withTeam(url);
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Vercel API error: ${res.status} — ${err}`);
@@ -155,10 +164,8 @@ export async function listDomains(projectId?: string): Promise<VercelDomain[]> {
 export async function listEnvVars(
   projectIdOrName: string,
 ): Promise<VercelEnvVar[]> {
-  const res = await fetch(
-    `${BASE_URL}/v9/projects/${projectIdOrName}/env`,
-    { headers: headers() },
-  );
+  const url = withTeam(`${BASE_URL}/v9/projects/${projectIdOrName}/env`);
+  const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Vercel API error: ${res.status} — ${err}`);

@@ -236,6 +236,25 @@ All Google connections route through Composio's Gmail auth config (`9db8f49e-038
 - Docs: `https://backend.composio.dev/api/v3/s/2ILQXM_3`
 
 ### Awaiting From User
-1. Vercel API token (from vercel.com/account/tokens)
-2. OAuth completion for Google services (may need alternative approach if scopes still insufficient)
+1. ~~Vercel API token~~ ✅ RECEIVED
+2. OAuth completion for Google services
 3. Confirmation of what scopes Google shows during OAuth authorization
+
+---
+
+## Task 6: Vercel Integration Complete
+
+**Date**: 2026-04-14
+**Status**: Completed
+
+### Summary
+Integrated Vercel API token and team ID. Updated the Vercel client library to include `teamId` query parameter on all API calls. Verified connection — successfully listed 1 project (`v0-forextapro`, Next.js framework).
+
+### Changes
+1. **`.env.local`** — Added `VERCEL_API_TOKEN` and `VERCEL_TEAM_ID`
+2. **`src/lib/vercel.ts`** — Added `withTeam()` helper that appends `teamId` query param to all API URLs. Updated all fetch calls.
+
+### API Verification
+- `GET /v9/projects` → Found 1 project: `v0-forextapro` (Next.js)
+- `GET /v9/domains` → 0 custom domains (empty, expected)
+- Token permissions: read access to team resources confirmed
