@@ -100,3 +100,43 @@ Integrated Composio's Gmail API into the existing dashboard, transforming it fro
    - ESLint clean (0 errors, 0 warnings)
 
 5. **`src/app/layout.tsx`** — Updated title to "OpenCode Control Hub"
+
+---
+
+## Task 3: Multi-Service Dashboard Expansion
+
+**Date**: 2026-04-14
+**Status**: Completed
+
+### Summary
+Expanded the dashboard from 2 services (GitHub, Gmail) to 6 services (GitHub, Gmail, Google Calendar, Google Drive, Google Sheets, Slack). Each service has its own API routes, Composio integration functions, and tab UI in the dashboard. Services that aren't connected show a "Connect" card with instructions.
+
+### OAuth Scope Discovery
+- Gmail OAuth only has `mail.google.com` scope
+- Google Calendar, Drive, Sheets each need their OWN connected accounts on Composio with appropriate scopes
+- Found tool slugs for: Calendar (create/list/delete events), Drive (list/create folder/file), Sheets (add sheet)
+- Slack needs separate OAuth app setup on Composio (no auth config yet)
+
+### Files Created/Modified
+
+1. **`src/lib/composio.ts`** — Expanded with:
+   - Calendar/Drive/Sheets type interfaces
+   - `getAccountId(service)` — per-service account ID resolution
+   - `checkConnection(accountId)` — validates Composio connections
+   - Calendar functions: listCalendars, createEvent, deleteEvent
+   - Drive functions: listDriveFiles, createDriveFolder, createDriveFile
+   - Sheets function: addSheet
+
+2. **`src/app/api/calendar/route.ts`** — Calendar API route (GET: calendars; POST: createEvent, deleteEvent)
+
+3. **`src/app/api/drive/route.ts`** — Drive API route (GET: files; POST: createFolder, createFile)
+
+4. **`src/app/api/services/route.ts`** — Connection status endpoint for all 6 services
+
+5. **`src/app/page.tsx`** — 2032-line multi-service dashboard:
+   - 6-service switcher (GitHub, Gmail, Calendar, Drive, Sheets, Slack)
+   - Connection status auto-check via /api/services
+   - Calendar: Upcoming events, Create Event (datetime, duration, location, Meet toggle), Calendars list
+   - Drive: Files list, Create folder/file
+   - Sheets/Slack: Connect info cards
+   - ESLint clean (0 errors, 0 warnings)

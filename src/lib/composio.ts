@@ -257,3 +257,217 @@ export async function deleteMessage(messageId: string): Promise<void> {
     user_id: "me",
   });
 }
+
+// ---------------------------------------------------------------------------
+// Calendar Types
+// ---------------------------------------------------------------------------
+
+export interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
+  location?: string;
+  description?: string;
+  attendees?: { email: string }[];
+  htmlLink?: string;
+}
+
+export interface CalendarInfo {
+  id: string;
+  summary: string;
+  primary?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Drive Types
+// ---------------------------------------------------------------------------
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  modifiedTime?: string;
+  createdTime?: string;
+  webViewLink?: string;
+  kind: string;
+}
+
+// ---------------------------------------------------------------------------
+// Multi-Service Account ID Helper
+// ---------------------------------------------------------------------------
+
+type ServiceKey = "gmail" | "googlecalendar" | "googledrive" | "googlesheets";
+
+/** Get the Composio connected account ID for a given service */
+export function getAccountId(service: ServiceKey): string {
+  switch (service) {
+    case "gmail":
+      return process.env.COMPOSIO_GMAIL_ACCOUNT_ID || "";
+    case "googlecalendar":
+      return process.env.COMPOSIO_GOOGLECALENDAR_ACCOUNT_ID || "";
+    case "googledrive":
+      return process.env.COMPOSIO_GOOGLEDRIVE_ACCOUNT_ID || "";
+    case "googlesheets":
+      return process.env.COMPOSIO_GOOGLESHEETS_ACCOUNT_ID || "";
+  }
+}
+
+/** Check if a Composio connection is valid by trying a lightweight action */
+export async function checkConnection(accountId: string): Promise<boolean> {
+  if (!accountId) return false;
+  try {
+    // Use gmail_get_profile as a lightweight connectivity check
+    await executeAction("gmail_get_profile", {}, accountId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Calendar API Functions (via Composio)
+// ---------------------------------------------------------------------------
+
+/** List all calendars for the connected Google account */
+export async function listCalendars(
+  accountId?: string,
+): Promise<CalendarInfo[]> {
+  const acct = accountId || getAccountId("googlecalendar");
+  const res = await executeAction<{ items?: CalendarInfo[] }>(
+    "googlecalendar_list_calendars",
+    {},
+    acct,
+  );
+  return res.data.items || [];
+}
+
+/** Create a calendar event */
+export async function createEvent(
+  params: {
+    summary?: string;
+    start_datetime: string;
+    event_duration_hour?: number;
+    event_duration_minutes?: number;
+    location?: string;
+    description?: string;
+    attendees?: string[];
+    calendar_id?: string;
+    create_meeting_room?: boolean;
+    timezone?: string;
+  },
+  accountId?: string,
+): Promise<CalendarEvent> {
+  const acct = accountId || getAccountId("googlecalendar");
+  const input: Record<string, unknown> = {
+    start_datetime: params.start_datetime,
+  };
+  if (params.summary) input.summary = params.summary;
+  if (params.event_duration_hour) input.event_duration_hour = params.event_duration_hour;
+  if (params.event_duration_minutes) input.event_duration_minutes = params.event_duration_minutes;
+  if (params.location) input.location = params.location;
+  if (params.description) input.description = params.description;
+  if (params.attendees?.length) input.attendees_emails = params.attendees;
+  if (params.calendar_id) input.calendar_id = params.calendar_id;
+  if (params.create_meeting_room) input.create_meeting_room = params.create_meeting_room;
+  if (params.timezone) input.timezone = params.timezone;
+
+  const res = await executeAction<CalendarEvent>(
+    "googlecalendar_create_event",
+    input,
+    acct,
+  );
+  return res.data;
+}
+
+/** Delete a calendar event */
+export async function deleteEvent(
+  eventId: string,
+  calendarId?: string,
+  accountId?: string,
+): Promise<void> {
+  const acct = accountId || getAccountId("googlecalendar");
+  const input: Record<string, unknown> = { event_id: eventId };
+  if (calendarId) input.calendar_id = calendarId;
+  await executeAction("googlecalendar_delete_event", input, acct);
+}
+
+// ---------------------------------------------------------------------------
+// Drive API Functions (via Composio)
+// ---------------------------------------------------------------------------
+
+/** List files and folders in Google Drive */
+export async function listDriveFiles(
+  params?: { q?: string; pageSize?: number; orderBy?: string },
+  accountId?: string,
+): Promise<DriveFile[]> {
+  const acct = accountId || getAccountId("googledrive");
+  const input: Record<string, unknown> = {};
+  if (params?.q) input.query = params.q;
+  if (params?.pageSize) input.page_size = params.pageSize;
+  if (params?.orderBy) input.order_by = params.orderBy;
+
+  const res = await executeAction<{ files?: DriveFile[] }>(
+    "googledrive_list_files",
+    input,
+    acct,
+  );
+  return res.data.files || [];
+}
+
+/** Create a folder in Google Drive */
+export async function createDriveFolder(
+  folderName: string,
+  parentId?: string,
+  accountId?: string,
+): Promise<DriveFile> {
+  const acct = accountId || getAccountId("googledrive");
+  const input: Record<string, unknown> = { folder_name: folderName };
+  if (parentId) input.parent_id = parentId;
+
+  const res = await executeAction<DriveFile>(
+    "googledrive_create_folder",
+    input,
+    acct,
+  );
+  return res.data;
+}
+
+/** Create a file or folder in Google Drive */
+export async function createDriveFile(
+  name: string,
+  mimeType?: string,
+  parents?: string[],
+  accountId?: string,
+): Promise<DriveFile> {
+  const acct = accountId || getAccountId("googledrive");
+  const input: Record<string, unknown> = { name };
+  if (mimeType) input.mime_type = mimeType;
+  if (parents?.length) input.parents = parents;
+
+  const res = await executeAction<DriveFile>(
+    "googledrive_create_file",
+    input,
+    acct,
+  );
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
+// Sheets API Functions (via Composio)
+// ---------------------------------------------------------------------------
+
+/** Add a new sheet to a Google Spreadsheet */
+export async function addSheet(
+  spreadsheetId: string,
+  properties?: Record<string, unknown>,
+  accountId?: string,
+): Promise<unknown> {
+  const acct = accountId || getAccountId("googlesheets");
+  const input: Record<string, unknown> = { spreadsheetId };
+  if (properties) input.properties = properties;
+
+  const res = await executeAction("googlesheets_add_sheet", input, acct);
+  return res.data;
+}

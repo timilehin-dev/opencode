@@ -100,6 +100,58 @@ interface GmailLabel {
 type GmailTab = "inbox" | "compose" | "labels" | "search";
 
 // ---------------------------------------------------------------------------
+// Calendar Types
+// ---------------------------------------------------------------------------
+
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
+  location?: string;
+  description?: string;
+  attendees?: { email: string }[];
+  htmlLink?: string;
+}
+
+interface CalendarInfo {
+  id: string;
+  summary: string;
+  primary?: boolean;
+}
+
+type CalendarTab = "upcoming" | "create" | "calendars";
+
+// ---------------------------------------------------------------------------
+// Drive Types
+// ---------------------------------------------------------------------------
+
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  modifiedTime?: string;
+  createdTime?: string;
+  webViewLink?: string;
+}
+
+type DriveTab = "files" | "create";
+
+// ---------------------------------------------------------------------------
+// Services Status Type
+// ---------------------------------------------------------------------------
+
+interface ServiceStatus {
+  gmail: { connected: boolean; accountId: string | null };
+  googlecalendar: { connected: boolean; accountId: string | null };
+  googledrive: { connected: boolean; accountId: string | null };
+  googlesheets: { connected: boolean; accountId: string | null };
+  github: { connected: boolean; accountId: string | null };
+  slack: { connected: boolean; accountId: string | null };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -151,6 +203,12 @@ function truncate(str: string, len: number): string {
   return str.length > len ? str.slice(0, len) + "..." : str;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 // ---------------------------------------------------------------------------
 // Icons (inline SVG to avoid external deps)
 // ---------------------------------------------------------------------------
@@ -179,26 +237,32 @@ function IssuesIcon() {
   );
 }
 
-function FolderIcon() {
+function FolderIcon({ className = "" }: { className?: string }) {
   return (
-    <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+    <svg className={`w-4 h-4 ${className}`} fill="currentColor" viewBox="0 0 20 20">
       <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
     </svg>
   );
 }
 
-function FileIcon() {
+function FileIcon({ className = "" }: { className?: string }) {
   return (
-    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <svg className={`w-4 h-4 ${className}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   );
 }
 
-function Spinner() {
+function Spinner({ color = "emerald" }: { color?: string }) {
+  const colorMap: Record<string, string> = {
+    emerald: "border-emerald-500",
+    red: "border-red-500",
+    blue: "border-blue-500",
+    green: "border-green-500",
+  };
   return (
     <div className="flex items-center justify-center py-12">
-      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      <div className={`w-8 h-8 border-2 ${colorMap[color] || colorMap.emerald} border-t-transparent rounded-full animate-spin`} />
     </div>
   );
 }
@@ -251,13 +315,116 @@ function TagIcon() {
   );
 }
 
+function CalendarIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  );
+}
+
+function DriveIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+    </svg>
+  );
+}
+
+function SheetsIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm10 0a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z" />
+    </svg>
+  );
+}
+
+function SlackIcon() {
+  return (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.163 0a2.528 2.528 0 012.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.163 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 01-2.52-2.523 2.527 2.527 0 012.52-2.52h6.315A2.528 2.528 0 0124 15.163a2.528 2.528 0 01-2.522 2.523h-6.315z" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Connection Card Component
+// ---------------------------------------------------------------------------
+
+function ConnectServiceCard({
+  serviceName,
+  description,
+  accentColor,
+  icon,
+}: {
+  serviceName: string;
+  description: string;
+  accentColor: string;
+  icon: React.ReactNode;
+}) {
+  const bgColors: Record<string, string> = {
+    blue: "from-blue-500/10 to-blue-600/5 border-blue-500/30",
+    green: "from-green-500/10 to-green-600/5 border-green-500/30",
+    amber: "from-amber-500/10 to-amber-600/5 border-amber-500/30",
+  };
+  const textColors: Record<string, string> = {
+    blue: "text-blue-400",
+    green: "text-green-400",
+    amber: "text-amber-400",
+  };
+  const buttonColors: Record<string, string> = {
+    blue: "bg-blue-600 hover:bg-blue-500 text-white",
+    green: "bg-green-600 hover:bg-green-500 text-white",
+    amber: "bg-amber-600 hover:bg-amber-500 text-white",
+  };
+
+  return (
+    <div className={`bg-gradient-to-br ${bgColors[accentColor]} border rounded-xl p-8 text-center max-w-lg mx-auto`}>
+      <div className={`mx-auto mb-4 ${textColors[accentColor]}`}>
+        {icon}
+      </div>
+      <h2 className="text-xl font-bold text-white mb-2">Connect {serviceName}</h2>
+      <p className="text-slate-400 text-sm mb-6">{description}</p>
+      <a
+        href="https://app.composio.dev"
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${buttonColors[accentColor]}`}
+      >
+        Open Composio Dashboard <ExternalLinkIcon />
+      </a>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
+type ServiceKey = "github" | "gmail" | "calendar" | "drive" | "sheets" | "slack";
+
 export default function Dashboard() {
   // Service-level navigation
-  const [activeService, setActiveService] = useState<"github" | "gmail">("github");
+  const [activeService, setActiveService] = useState<ServiceKey>("github");
+
+  // Services connection status
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
 
   // GitHub state
   const [ghTab, setGhTab] = useState<GitHubTab>("issues");
@@ -294,9 +461,49 @@ export default function Dashboard() {
   const [newLabelName, setNewLabelName] = useState("");
   const [creatingLabel, setCreatingLabel] = useState(false);
 
+  // Calendar state
+  const [calTab, setCalTab] = useState<CalendarTab>("upcoming");
+  const [calendars, setCalendars] = useState<CalendarInfo[]>([]);
+  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([]);
+  // Create event form
+  const [evtSummary, setEvtSummary] = useState("");
+  const [evtStart, setEvtStart] = useState("");
+  const [evtDuration, setEvtDuration] = useState("60");
+  const [evtLocation, setEvtLocation] = useState("");
+  const [evtDescription, setEvtDescription] = useState("");
+  const [evtAttendees, setEvtAttendees] = useState("");
+  const [evtMeet, setEvtMeet] = useState(false);
+  const [creatingEvent, setCreatingEvent] = useState(false);
+  const [evtSuccess, setEvtSuccess] = useState(false);
+  const [evtError, setEvtError] = useState<string | null>(null);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+
+  // Drive state
+  const [drvTab, setDrvTab] = useState<DriveTab>("files");
+  const [drvFiles, setDrvFiles] = useState<DriveFile[]>([]);
+  // Create folder form
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [folderSuccess, setFolderSuccess] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
+
   // Shared state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Services status
+  // ---------------------------------------------------------------------------
+
+  const fetchServiceStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/services?action=status");
+      const json = await res.json();
+      if (json.success) setServiceStatus(json.data);
+    } catch {
+      /* silent */
+    }
+  }, []);
 
   // ---------------------------------------------------------------------------
   // GitHub Data Fetching
@@ -452,13 +659,54 @@ export default function Dashboard() {
   };
 
   // ---------------------------------------------------------------------------
+  // Calendar Data Fetching
+  // ---------------------------------------------------------------------------
+
+  const fetchCalendars = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/calendar?action=calendars");
+      const json = await res.json();
+      if (json.success) {
+        setCalendars(json.data);
+      } else {
+        setError(json.error);
+      }
+    } catch {
+      setError("Failed to load calendars");
+    }
+    setLoading(false);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Drive Data Fetching
+  // ---------------------------------------------------------------------------
+
+  const fetchDriveFiles = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/drive?action=files&pageSize=50");
+      const json = await res.json();
+      if (json.success) {
+        setDrvFiles(json.data);
+      } else {
+        setError(json.error);
+      }
+    } catch {
+      setError("Failed to load Drive files");
+    }
+    setLoading(false);
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Initial loads
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
+    fetchServiceStatus();
     fetchRepo();
     fetchGmailProfile();
-  }, [fetchRepo, fetchGmailProfile]);
+  }, [fetchServiceStatus, fetchRepo, fetchGmailProfile]);
 
   // GitHub tab switching
   useEffect(() => {
@@ -489,6 +737,35 @@ export default function Dashboard() {
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gmTab, activeService]);
+
+  // Calendar tab switching
+  useEffect(() => {
+    if (activeService !== "calendar") return;
+    if (!serviceStatus?.googlecalendar.connected) return;
+    const controller = new AbortController();
+    (async () => {
+      switch (calTab) {
+        case "upcoming": await fetchCalendars(); break;
+        case "calendars": await fetchCalendars(); break;
+      }
+    })();
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calTab, activeService, serviceStatus]);
+
+  // Drive tab switching
+  useEffect(() => {
+    if (activeService !== "drive") return;
+    if (!serviceStatus?.googledrive.connected) return;
+    const controller = new AbortController();
+    (async () => {
+      switch (drvTab) {
+        case "files": await fetchDriveFiles(); break;
+      }
+    })();
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drvTab, activeService, serviceStatus]);
 
   // ---------------------------------------------------------------------------
   // GitHub Handlers
@@ -616,6 +893,100 @@ export default function Dashboard() {
   };
 
   // ---------------------------------------------------------------------------
+  // Calendar Handlers
+  // ---------------------------------------------------------------------------
+
+  const handleCreateEvent = async () => {
+    if (!evtStart) return;
+    setCreatingEvent(true);
+    setEvtSuccess(false);
+    setEvtError(null);
+    try {
+      const attendeeList = evtAttendees.split(",").map((a) => a.trim()).filter(Boolean);
+      const body: Record<string, unknown> = {
+        start_datetime: evtStart,
+        event_duration_minutes: Number(evtDuration) || 60,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+      if (evtSummary) body.summary = evtSummary;
+      if (evtLocation) body.location = evtLocation;
+      if (evtDescription) body.description = evtDescription;
+      if (attendeeList.length > 0) body.attendees = attendeeList;
+      if (evtMeet) body.create_meeting_room = true;
+
+      const res = await fetch("/api/calendar?action=createEvent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setEvtSuccess(true);
+        setEvtSummary("");
+        setEvtStart("");
+        setEvtLocation("");
+        setEvtDescription("");
+        setEvtAttendees("");
+        setEvtMeet(false);
+      } else {
+        setEvtError(json.error);
+      }
+    } catch {
+      setEvtError("Failed to create event");
+    }
+    setCreatingEvent(false);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    setDeletingEventId(eventId);
+    try {
+      const res = await fetch("/api/calendar?action=deleteEvent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCalEvents((prev) => prev.filter((e) => e.id !== eventId));
+      } else {
+        setError(json.error);
+      }
+    } catch {
+      setError("Failed to delete event");
+    }
+    setDeletingEventId(null);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Drive Handlers
+  // ---------------------------------------------------------------------------
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    setCreatingFolder(true);
+    setFolderSuccess(false);
+    setFolderError(null);
+    try {
+      const res = await fetch("/api/drive?action=createFolder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderName: newFolderName }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setFolderSuccess(true);
+        setNewFolderName("");
+        fetchDriveFiles();
+      } else {
+        setFolderError(json.error);
+      }
+    } catch {
+      setFolderError("Failed to create folder");
+    }
+    setCreatingFolder(false);
+  };
+
+  // ---------------------------------------------------------------------------
   // Tab definitions
   // ---------------------------------------------------------------------------
 
@@ -631,6 +1002,27 @@ export default function Dashboard() {
     { key: "compose", label: "Compose" },
     { key: "search", label: "Search" },
     { key: "labels", label: "Labels" },
+  ];
+
+  const calTabs: { key: CalendarTab; label: string }[] = [
+    { key: "upcoming", label: "Upcoming" },
+    { key: "create", label: "Create Event" },
+    { key: "calendars", label: "Calendars" },
+  ];
+
+  const drvTabs: { key: DriveTab; label: string }[] = [
+    { key: "files", label: "Files" },
+    { key: "create", label: "Create" },
+  ];
+
+  // Service switcher config
+  const serviceButtons: { key: ServiceKey; label: string; icon: React.ReactNode; activeClass: string }[] = [
+    { key: "github", label: "GitHub", icon: <GitHubIcon />, activeClass: "bg-slate-700 text-white shadow-sm" },
+    { key: "gmail", label: "Gmail", icon: <MailIcon />, activeClass: "bg-red-600/90 text-white shadow-sm" },
+    { key: "calendar", label: "Calendar", icon: <CalendarIcon />, activeClass: "bg-blue-600/90 text-white shadow-sm" },
+    { key: "drive", label: "Drive", icon: <DriveIcon />, activeClass: "bg-green-600/90 text-white shadow-sm" },
+    { key: "sheets", label: "Sheets", icon: <SheetsIcon />, activeClass: "bg-green-600/90 text-white shadow-sm" },
+    { key: "slack", label: "Slack", icon: <SlackIcon />, activeClass: "bg-amber-600/90 text-white shadow-sm" },
   ];
 
   // ---------------------------------------------------------------------------
@@ -654,29 +1046,21 @@ export default function Dashboard() {
             </div>
 
             {/* Service Switcher */}
-            <div className="flex items-center gap-1 bg-[#1a2332] rounded-lg p-1">
-              <button
-                onClick={() => { setActiveService("github"); setError(null); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeService === "github"
-                    ? "bg-slate-700 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <GitHubIcon />
-                <span className="hidden sm:inline">GitHub</span>
-              </button>
-              <button
-                onClick={() => { setActiveService("gmail"); setError(null); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeService === "gmail"
-                    ? "bg-red-600/90 text-white shadow-sm"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                <MailIcon />
-                <span className="hidden sm:inline">Gmail</span>
-              </button>
+            <div className="flex items-center gap-1 bg-[#1a2332] rounded-lg p-1 overflow-x-auto max-w-[calc(100vw-2rem)] sm:max-w-none">
+              {serviceButtons.map((svc) => (
+                <button
+                  key={svc.key}
+                  onClick={() => { setActiveService(svc.key); setError(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md text-sm font-medium transition-colors flex-shrink-0 ${
+                    activeService === svc.key
+                      ? svc.activeClass
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {svc.icon}
+                  <span className="hidden sm:inline">{svc.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -729,6 +1113,32 @@ export default function Dashboard() {
                 <span className="text-purple-400">{gmProfile.threadsTotal.toLocaleString()}</span>
                 <span className="text-slate-500">threads</span>
               </div>
+            </div>
+          )}
+
+          {activeService === "calendar" && serviceStatus?.googlecalendar.connected && (
+            <div className="flex items-center gap-5 mt-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-slate-300">
+                <CalendarIcon />
+                <span className="font-semibold">Google Calendar</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                Connected
+              </span>
+            </div>
+          )}
+
+          {activeService === "drive" && serviceStatus?.googledrive.connected && (
+            <div className="flex items-center gap-5 mt-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-slate-300">
+                <DriveIcon />
+                <span className="font-semibold">Google Drive</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                Connected
+              </span>
             </div>
           )}
         </div>
@@ -929,7 +1339,7 @@ export default function Dashboard() {
                               <button key={item.path} onClick={() => item.type === "tree" ? handleFolderClick(item.path) : handleFileClick(item.path)}
                                 className="w-full grid grid-cols-[1fr_auto] px-5 py-2.5 hover:bg-[#1e293b] transition-colors text-left border-b border-slate-700/30 last:border-b-0">
                                 <span className="flex items-center gap-2.5 text-sm">
-                                  {item.type === "tree" ? <FolderIcon /> : <FileIcon />}
+                                  {item.type === "tree" ? <FolderIcon className="text-amber-400" /> : <FileIcon className="text-slate-400" />}
                                   <span className={item.type === "tree" ? "text-white font-medium" : "text-slate-300 font-mono"}>{item.path}{item.type === "tree" ? "/" : ""}</span>
                                 </span>
                                 <span className="text-xs text-slate-500 text-right">{item.size != null ? formatFileSize(item.size) : ""}</span>
@@ -1003,7 +1413,7 @@ export default function Dashboard() {
               </div>
             </nav>
 
-            {loading && gmTab !== "compose" && <Spinner />}
+            {loading && gmTab !== "compose" && <Spinner color="red" />}
 
             {/* Inbox Tab */}
             {gmTab === "inbox" && !loading && (
@@ -1157,7 +1567,7 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {loading && <Spinner />}
+                {loading && <Spinner color="red" />}
 
                 {!loading && searchResults.length > 0 && (
                   <div className="space-y-1 max-h-[600px] overflow-y-auto custom-scrollbar">
@@ -1241,6 +1651,362 @@ export default function Dashboard() {
             )}
           </>
         )}
+
+        {/* ===================== CALENDAR VIEW ===================== */}
+        {activeService === "calendar" && (
+          <>
+            {!serviceStatus?.googlecalendar.connected ? (
+              <ConnectServiceCard
+                serviceName="Google Calendar"
+                description="Connect your Google Calendar to manage events, create meetings, and view your schedule directly from this dashboard."
+                accentColor="blue"
+                icon={<CalendarIcon />}
+              />
+            ) : (
+              <>
+                {/* Calendar Tab Navigation */}
+                <nav className="border-b border-slate-800 mb-6">
+                  <div className="flex gap-0 overflow-x-auto">
+                    {calTabs.map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => { setCalTab(tab.key); setError(null); }}
+                        className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                          calTab === tab.key
+                            ? "border-blue-500 text-blue-400"
+                            : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </nav>
+
+                {loading && <Spinner color="blue" />}
+
+                {/* Upcoming Tab */}
+                {calTab === "upcoming" && !loading && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-white mb-3">Upcoming Events</h2>
+                    {calEvents.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+                        <CalendarIcon />
+                        <p className="mt-3 text-sm">No upcoming events found. Your calendar events will appear here.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
+                        {calEvents.map((evt) => (
+                          <div key={evt.id} className="bg-[#1a2332] border border-slate-700/50 rounded-lg px-5 py-4 hover:border-slate-600 transition-colors group">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                                  <span className="text-white font-medium truncate">{evt.summary || "(No title)"}</span>
+                                </div>
+                                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 flex-wrap">
+                                  {evt.start.dateTime && (
+                                    <span>{new Date(evt.start.dateTime).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                                  )}
+                                  {evt.start.date && (
+                                    <span>{new Date(evt.start.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" })}</span>
+                                  )}
+                                  {evt.location && <span>📍 {evt.location}</span>}
+                                </div>
+                                {evt.description && (
+                                  <p className="text-xs text-slate-500 mt-1.5 truncate">{evt.description}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {evt.htmlLink && (
+                                  <a href={evt.htmlLink} target="_blank" rel="noopener noreferrer"
+                                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded hover:bg-blue-500/10">
+                                    Open
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteEvent(evt.id)}
+                                  disabled={deletingEventId === evt.id}
+                                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
+                                >
+                                  {deletingEventId === evt.id ? "..." : <TrashIcon />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Create Event Tab */}
+                {calTab === "create" && (
+                  <div className="max-w-2xl">
+                    <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-5">
+                      <h2 className="text-lg font-semibold text-white mb-4">Create New Event</h2>
+                      {evtSuccess && (
+                        <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg text-sm">
+                          Event created successfully!
+                          <button onClick={() => setEvtSuccess(false)} className="ml-3 underline hover:text-emerald-300">Dismiss</button>
+                        </div>
+                      )}
+                      {evtError && (
+                        <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+                          {evtError}
+                          <button onClick={() => setEvtError(null)} className="ml-3 underline hover:text-red-300">Dismiss</button>
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-400 mb-1 block">Event Title</label>
+                          <input type="text" placeholder="Team standup" value={evtSummary} onChange={(e) => setEvtSummary(e.target.value)}
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-medium text-slate-400 mb-1 block">Start Date & Time</label>
+                            <input type="datetime-local" value={evtStart} onChange={(e) => setEvtStart(e.target.value)}
+                              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-slate-400 mb-1 block">Duration (minutes)</label>
+                            <select value={evtDuration} onChange={(e) => setEvtDuration(e.target.value)}
+                              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500">
+                              <option value="15">15 min</option>
+                              <option value="30">30 min</option>
+                              <option value="60">1 hour</option>
+                              <option value="90">1.5 hours</option>
+                              <option value="120">2 hours</option>
+                              <option value="180">3 hours</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-400 mb-1 block">Location</label>
+                          <input type="text" placeholder="Office / Zoom link" value={evtLocation} onChange={(e) => setEvtLocation(e.target.value)}
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-400 mb-1 block">Description</label>
+                          <textarea placeholder="Add event details..." rows={3} value={evtDescription} onChange={(e) => setEvtDescription(e.target.value)}
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-y" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-400 mb-1 block">Attendees (comma-separated)</label>
+                          <input type="text" placeholder="john@example.com, jane@example.com" value={evtAttendees} onChange={(e) => setEvtAttendees(e.target.value)}
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500" />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={evtMeet} onChange={(e) => setEvtMeet(e.target.checked)}
+                              className="sr-only peer" />
+                            <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                          <span className="text-sm text-slate-300">Add Google Meet video conferencing</span>
+                        </div>
+                        <button onClick={handleCreateEvent} disabled={creatingEvent || !evtStart}
+                          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                          {creatingEvent && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                          {creatingEvent ? "Creating..." : "Create Event"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Calendars Tab */}
+                {calTab === "calendars" && !loading && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-white mb-3">
+                      Your Calendars <span className="ml-2 text-sm font-normal text-slate-400">({calendars.length})</span>
+                    </h2>
+                    {calendars.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">No calendars found</div>
+                    ) : (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+                        {calendars.map((cal) => (
+                          <div key={cal.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0">
+                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${cal.primary ? "bg-blue-500" : "bg-slate-500"}`} />
+                            <span className="text-sm text-white font-medium">{cal.summary}</span>
+                            {cal.primary && (
+                              <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-medium">Primary</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ===================== DRIVE VIEW ===================== */}
+        {activeService === "drive" && (
+          <>
+            {!serviceStatus?.googledrive.connected ? (
+              <ConnectServiceCard
+                serviceName="Google Drive"
+                description="Connect your Google Drive to browse, manage, and create files and folders directly from this dashboard."
+                accentColor="green"
+                icon={<DriveIcon />}
+              />
+            ) : (
+              <>
+                {/* Drive Tab Navigation */}
+                <nav className="border-b border-slate-800 mb-6">
+                  <div className="flex gap-0 overflow-x-auto">
+                    {drvTabs.map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => { setDrvTab(tab.key); setError(null); }}
+                        className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                          drvTab === tab.key
+                            ? "border-green-500 text-green-400"
+                            : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </nav>
+
+                {loading && drvTab === "files" && <Spinner color="green" />}
+
+                {/* Files Tab */}
+                {drvTab === "files" && !loading && (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-lg font-semibold text-white">
+                        Files & Folders <span className="ml-2 text-sm font-normal text-slate-400">({drvFiles.length})</span>
+                      </h2>
+                      <button
+                        onClick={() => setDrvTab("create")}
+                        className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <PlusIcon /> New
+                      </button>
+                    </div>
+                    {drvFiles.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+                        <DriveIcon />
+                        <p className="mt-3 text-sm">No files found in your Drive.</p>
+                      </div>
+                    ) : (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+                        <div className="grid grid-cols-[1fr_auto_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          <span>Name</span>
+                          <span className="text-right w-24">Modified</span>
+                          <span className="text-right w-20">Size</span>
+                        </div>
+                        <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                          {drvFiles.map((file) => {
+                            const isFolder = file.mimeType === "application/vnd.google-apps.folder";
+                            return (
+                              <div key={file.id} className="grid grid-cols-[1fr_auto_auto] px-5 py-2.5 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0 items-center">
+                                <div className="flex items-center gap-2.5 text-sm min-w-0">
+                                  {isFolder ? <FolderIcon className="text-green-400" /> : <FileIcon className="text-slate-400" />}
+                                  {file.webViewLink ? (
+                                    <a href={file.webViewLink} target="_blank" rel="noopener noreferrer"
+                                      className="text-white font-medium hover:text-green-400 transition-colors truncate">
+                                      {file.name}
+                                    </a>
+                                  ) : (
+                                    <span className="text-white font-medium truncate">{file.name}</span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-slate-500 text-right w-24">
+                                  {file.modifiedTime ? timeAgo(file.modifiedTime) : ""}
+                                </span>
+                                <span className="text-xs text-slate-500 text-right w-20">
+                                  {file.size ? formatFileSize(Number(file.size)) : ""}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Create Tab */}
+                {drvTab === "create" && (
+                  <div className="max-w-2xl">
+                    <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-5">
+                      <h2 className="text-lg font-semibold text-white mb-4">Create Folder</h2>
+                      {folderSuccess && (
+                        <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg text-sm">
+                          Folder created successfully!
+                          <button onClick={() => setFolderSuccess(false)} className="ml-3 underline hover:text-emerald-300">Dismiss</button>
+                        </div>
+                      )}
+                      {folderError && (
+                        <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+                          {folderError}
+                          <button onClick={() => setFolderError(null)} className="ml-3 underline hover:text-red-300">Dismiss</button>
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-400 mb-1 block">Folder Name</label>
+                          <input type="text" placeholder="My New Folder" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)}
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500" />
+                        </div>
+                        <button onClick={handleCreateFolder} disabled={creatingFolder || !newFolderName.trim()}
+                          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                          {creatingFolder && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                          {creatingFolder ? "Creating..." : "Create Folder"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ===================== SHEETS VIEW ===================== */}
+        {activeService === "sheets" && (
+          <>
+            {!serviceStatus?.googlesheets.connected ? (
+              <ConnectServiceCard
+                serviceName="Google Sheets"
+                description="Connect your Google Sheets to manage spreadsheets, add sheets, and work with data directly from this dashboard."
+                accentColor="green"
+                icon={<SheetsIcon />}
+              />
+            ) : (
+              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+                <SheetsIcon />
+                <p className="mt-3 text-sm">Google Sheets is connected. Sheet management features coming soon.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ===================== SLACK VIEW ===================== */}
+        {activeService === "slack" && (
+          <div className="max-w-lg mx-auto">
+            <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/30 rounded-xl p-8 text-center">
+              <div className="mx-auto mb-4 text-amber-400">
+                <SlackIcon />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Slack Integration</h2>
+              <p className="text-slate-400 text-sm mb-4">
+                Slack messaging is coming soon! To prepare, you&apos;ll need to set up a Slack OAuth connection in your Composio project with the appropriate bot token scopes.
+              </p>
+              <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-2 rounded-lg text-sm">
+                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
+                Coming Soon
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
@@ -1248,26 +2014,19 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-xs text-slate-500">
             OpenCode Control Hub &middot;{" "}
-            {activeService === "github" ? (
+            {activeService === "github" && (
               <>GitHub &middot; Data from{" "}
                 <a href="https://github.com/timilehin-dev/opencode" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors">timilehin-dev/opencode</a>
               </>
-            ) : (
-              <>Gmail &middot; Connected via <span className="text-red-400">Composio</span></>
             )}
+            {activeService === "gmail" && <>Gmail &middot; Connected via <span className="text-red-400">Composio</span></>}
+            {activeService === "calendar" && <>Calendar &middot; Connected via <span className="text-blue-400">Composio</span></>}
+            {activeService === "drive" && <>Drive &middot; Connected via <span className="text-green-400">Composio</span></>}
+            {activeService === "sheets" && <>Sheets &middot; Connected via <span className="text-green-400">Composio</span></>}
+            {activeService === "slack" && <>Slack &middot; <span className="text-amber-400">Coming Soon</span></>}
           </p>
         </div>
       </footer>
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
