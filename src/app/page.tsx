@@ -147,8 +147,9 @@ interface ServiceStatus {
   googlecalendar: { connected: boolean; accountId: string | null };
   googledrive: { connected: boolean; accountId: string | null };
   googlesheets: { connected: boolean; accountId: string | null };
+  googledocs: { connected: boolean; accountId: string | null };
   github: { connected: boolean; accountId: string | null };
-  slack: { connected: boolean; accountId: string | null };
+  vercel: { connected: boolean; accountId: string | null };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,10 +340,18 @@ function SheetsIcon() {
   );
 }
 
-function SlackIcon() {
+function VercelIcon() {
   return (
     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.163 0a2.528 2.528 0 012.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.163 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 01-2.52-2.523 2.527 2.527 0 012.52-2.52h6.315A2.528 2.528 0 0124 15.163a2.528 2.528 0 01-2.522 2.523h-6.315z" />
+      <path d="M12 1L24 19H0L12 1Z" />
+    </svg>
+  );
+}
+
+function DocsIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   );
 }
@@ -417,7 +426,7 @@ function ConnectServiceCard({
 // Main Component
 // ---------------------------------------------------------------------------
 
-type ServiceKey = "github" | "gmail" | "calendar" | "drive" | "sheets" | "slack";
+type ServiceKey = "github" | "gmail" | "calendar" | "drive" | "sheets" | "docs" | "vercel";
 
 export default function Dashboard() {
   // Service-level navigation
@@ -487,9 +496,90 @@ export default function Dashboard() {
   const [folderSuccess, setFolderSuccess] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
 
+  // Vercel state
+  const [vcTab, setVcTab] = useState<"projects" | "domains">("projects");
+  const [vcProjects, setVcProjects] = useState<{ id: string; name: string; framework: string | null; updatedAt: string }[]>([]);
+  const [vcDomains, setVcDomains] = useState<{ name: string; project: { name: string } | null }[]>([]);
+  const [vcLoading, setVcLoading] = useState(false);
+
+  // Docs state
+  const [docList, setDocList] = useState<{ id: string; name: string; modifiedTime: string; webViewLink?: string }[]>([]);
+  const [docLoading, setDocLoading] = useState(false);
+
+  // Sheets state
+  const [sheetsId, setSheetsId] = useState("");
+  const [sheetsData, setSheetsData] = useState<string[][] | null>(null);
+  const [sheetsLoading, setSheetsLoading] = useState(false);
+
   // Shared state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Vercel Data Fetching
+  // ---------------------------------------------------------------------------
+
+  const fetchVercelProjects = useCallback(async () => {
+    setVcLoading(true);
+    try {
+      const res = await fetch("/api/vercel?action=projects");
+      const json = await res.json();
+      if (json.success) setVcProjects(json.data || []);
+      else setError(json.error);
+    } catch {
+      setError("Failed to load Vercel projects");
+    }
+    setVcLoading(false);
+  }, []);
+
+  const fetchVercelDomains = useCallback(async () => {
+    setVcLoading(true);
+    try {
+      const res = await fetch("/api/vercel?action=domains");
+      const json = await res.json();
+      if (json.success) setVcDomains(json.data || []);
+      else setError(json.error);
+    } catch {
+      setError("Failed to load Vercel domains");
+    }
+    setVcLoading(false);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Docs Data Fetching
+  // ---------------------------------------------------------------------------
+
+  const fetchDocs = useCallback(async () => {
+    setDocLoading(true);
+    try {
+      const res = await fetch("/api/docs?action=list");
+      const json = await res.json();
+      if (json.success) setDocList(json.data || []);
+      else setError(json.error);
+    } catch {
+      setError("Failed to load documents");
+    }
+    setDocLoading(false);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Sheets Data Fetching
+  // ---------------------------------------------------------------------------
+
+  const handleFetchSheets = async () => {
+    if (!sheetsId.trim()) return;
+    setSheetsLoading(true);
+    setSheetsData(null);
+    try {
+      const res = await fetch(`/api/sheets?action=get&spreadsheetId=${encodeURIComponent(sheetsId)}`);
+      const json = await res.json();
+      if (json.success) setSheetsData(json.data || []);
+      else setError(json.error);
+    } catch {
+      setError("Failed to load spreadsheet");
+    }
+    setSheetsLoading(false);
+  };
 
   // ---------------------------------------------------------------------------
   // Services status
@@ -767,6 +857,33 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drvTab, activeService, serviceStatus]);
 
+  // Vercel tab auto-load
+  useEffect(() => {
+    if (activeService !== "vercel") return;
+    if (!serviceStatus?.vercel.connected) return;
+    const controller = new AbortController();
+    (async () => {
+      switch (vcTab) {
+        case "projects": await fetchVercelProjects(); break;
+        case "domains": await fetchVercelDomains(); break;
+      }
+    })();
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vcTab, activeService, serviceStatus]);
+
+  // Docs tab auto-load
+  useEffect(() => {
+    if (activeService !== "docs") return;
+    if (!serviceStatus?.googledocs.connected) return;
+    const controller = new AbortController();
+    (async () => {
+      await fetchDocs();
+    })();
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeService, serviceStatus]);
+
   // ---------------------------------------------------------------------------
   // GitHub Handlers
   // ---------------------------------------------------------------------------
@@ -1020,9 +1137,10 @@ export default function Dashboard() {
     { key: "github", label: "GitHub", icon: <GitHubIcon />, activeClass: "bg-slate-700 text-white shadow-sm" },
     { key: "gmail", label: "Gmail", icon: <MailIcon />, activeClass: "bg-red-600/90 text-white shadow-sm" },
     { key: "calendar", label: "Calendar", icon: <CalendarIcon />, activeClass: "bg-blue-600/90 text-white shadow-sm" },
-    { key: "drive", label: "Drive", icon: <DriveIcon />, activeClass: "bg-green-600/90 text-white shadow-sm" },
-    { key: "sheets", label: "Sheets", icon: <SheetsIcon />, activeClass: "bg-green-600/90 text-white shadow-sm" },
-    { key: "slack", label: "Slack", icon: <SlackIcon />, activeClass: "bg-amber-600/90 text-white shadow-sm" },
+    { key: "drive", label: "Drive", icon: <DriveIcon />, activeClass: "bg-yellow-600/90 text-white shadow-sm" },
+    { key: "sheets", label: "Sheets", icon: <SheetsIcon />, activeClass: "bg-emerald-600/90 text-white shadow-sm" },
+    { key: "docs", label: "Docs", icon: <DocsIcon />, activeClass: "bg-blue-500/90 text-white shadow-sm" },
+    { key: "vercel", label: "Vercel", icon: <VercelIcon />, activeClass: "bg-gray-100 text-black shadow-sm" },
   ];
 
   // ---------------------------------------------------------------------------
@@ -1134,6 +1252,45 @@ export default function Dashboard() {
               <div className="flex items-center gap-1.5 text-sm text-slate-300">
                 <DriveIcon />
                 <span className="font-semibold">Google Drive</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                Connected
+              </span>
+            </div>
+          )}
+
+          {activeService === "sheets" && serviceStatus?.googlesheets.connected && (
+            <div className="flex items-center gap-5 mt-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-slate-300">
+                <SheetsIcon />
+                <span className="font-semibold">Google Sheets</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                Connected
+              </span>
+            </div>
+          )}
+
+          {activeService === "docs" && serviceStatus?.googledocs.connected && (
+            <div className="flex items-center gap-5 mt-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-slate-300">
+                <DocsIcon />
+                <span className="font-semibold">Google Docs</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                Connected
+              </span>
+            </div>
+          )}
+
+          {activeService === "vercel" && serviceStatus?.vercel.connected && (
+            <div className="flex items-center gap-5 mt-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-slate-300">
+                <VercelIcon />
+                <span className="font-semibold">Vercel</span>
               </div>
               <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
@@ -1976,36 +2133,236 @@ export default function Dashboard() {
             {!serviceStatus?.googlesheets.connected ? (
               <ConnectServiceCard
                 serviceName="Google Sheets"
-                description="Connect your Google Sheets to manage spreadsheets, add sheets, and work with data directly from this dashboard."
+                description="Connect Google Sheets to manage spreadsheets and data."
                 accentColor="green"
                 icon={<SheetsIcon />}
               />
             ) : (
-              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
-                <SheetsIcon />
-                <p className="mt-3 text-sm">Google Sheets is connected. Sheet management features coming soon.</p>
+              <div className="max-w-4xl">
+                <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-5">
+                  <h2 className="text-lg font-semibold text-white mb-4">View Spreadsheet</h2>
+                  <p className="text-sm text-slate-400 mb-4">Enter a Spreadsheet ID to view its data.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+                      value={sheetsId}
+                      onChange={(e) => setSheetsId(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleFetchSheets()}
+                      className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 font-mono"
+                    />
+                    <button
+                      onClick={handleFetchSheets}
+                      disabled={sheetsLoading || !sheetsId.trim()}
+                      className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      {sheetsLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                      {sheetsLoading ? "Loading..." : "Get"}
+                    </button>
+                  </div>
+                </div>
+
+                {sheetsLoading && <Spinner color="emerald" />}
+
+                {!sheetsLoading && sheetsData && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium text-slate-400 mb-3">Spreadsheet Data</h3>
+                    {sheetsData.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">No data found in this spreadsheet.</div>
+                    ) : (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <tbody>
+                              {sheetsData.map((row, ri) => (
+                                <tr key={ri} className={ri === 0 ? "bg-[#151d2e] border-b border-slate-700/50" : "border-b border-slate-700/30 last:border-b-0"}>
+                                  {row.map((cell, ci) => (
+                                    <td key={ci} className={`px-4 py-2.5 whitespace-nowrap max-w-[200px] truncate ${ri === 0 ? "text-xs font-medium text-slate-400 uppercase" : "text-slate-300"}`}>
+                                      {cell}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </>
         )}
 
-        {/* ===================== SLACK VIEW ===================== */}
-        {activeService === "slack" && (
-          <div className="max-w-lg mx-auto">
-            <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/30 rounded-xl p-8 text-center">
-              <div className="mx-auto mb-4 text-amber-400">
-                <SlackIcon />
+        {/* ===================== DOCS VIEW ===================== */}
+        {activeService === "docs" && (
+          <>
+            {!serviceStatus?.googledocs.connected ? (
+              <ConnectServiceCard
+                serviceName="Google Docs"
+                description="Connect Google Docs to create, read, and edit your documents."
+                accentColor="blue"
+                icon={<DocsIcon />}
+              />
+            ) : (
+              <div>
+                {docLoading && <Spinner color="blue" />}
+                {!docLoading && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-white mb-3">
+                      Documents <span className="ml-2 text-sm font-normal text-slate-400">({docList.length})</span>
+                    </h2>
+                    {docList.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+                        <DocsIcon />
+                        <p className="mt-3 text-sm">No documents found.</p>
+                      </div>
+                    ) : (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+                        <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          <span>Name</span>
+                          <span className="text-right w-32">Modified</span>
+                        </div>
+                        <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                          {docList.map((doc) => (
+                            <div key={doc.id} className="grid grid-cols-[1fr_auto] px-5 py-3 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0 items-center">
+                              <div className="flex items-center gap-2.5 text-sm min-w-0">
+                                <DocsIcon />
+                                {doc.webViewLink ? (
+                                  <a href={doc.webViewLink} target="_blank" rel="noopener noreferrer"
+                                    className="text-white font-medium hover:text-blue-400 transition-colors truncate">
+                                    {doc.name}
+                                  </a>
+                                ) : (
+                                  <span className="text-white font-medium truncate">{doc.name}</span>
+                                )}
+                              </div>
+                              <span className="text-xs text-slate-500 text-right w-32">
+                                {doc.modifiedTime ? timeAgo(doc.modifiedTime) : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Slack Integration</h2>
-              <p className="text-slate-400 text-sm mb-4">
-                Slack messaging is coming soon! To prepare, you&apos;ll need to set up a Slack OAuth connection in your Composio project with the appropriate bot token scopes.
-              </p>
-              <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-2 rounded-lg text-sm">
-                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
-                Coming Soon
-              </div>
-            </div>
-          </div>
+            )}
+          </>
+        )}
+
+        {/* ===================== VERCEL VIEW ===================== */}
+        {activeService === "vercel" && (
+          <>
+            {!serviceStatus?.vercel.connected ? (
+              <ConnectServiceCard
+                serviceName="Vercel"
+                description="Connect your Vercel account to manage deployments, projects, and environment variables."
+                accentColor="blue"
+                icon={<VercelIcon />}
+              />
+            ) : (
+              <>
+                {/* Vercel Tab Navigation */}
+                <nav className="border-b border-slate-800 mb-6">
+                  <div className="flex gap-0 overflow-x-auto">
+                    <button
+                      onClick={() => { setVcTab("projects"); setError(null); }}
+                      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        vcTab === "projects"
+                          ? "border-slate-300 text-white"
+                          : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600"
+                      }`}
+                    >
+                      Projects
+                    </button>
+                    <button
+                      onClick={() => { setVcTab("domains"); setError(null); }}
+                      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        vcTab === "domains"
+                          ? "border-slate-300 text-white"
+                          : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600"
+                      }`}
+                    >
+                      Domains
+                    </button>
+                  </div>
+                </nav>
+
+                {vcLoading && <Spinner color="blue" />}
+
+                {/* Projects Tab */}
+                {vcTab === "projects" && !vcLoading && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-white mb-3">
+                      Projects <span className="ml-2 text-sm font-normal text-slate-400">({vcProjects.length})</span>
+                    </h2>
+                    {vcProjects.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+                        <VercelIcon />
+                        <p className="mt-3 text-sm">No projects found in your Vercel account.</p>
+                      </div>
+                    ) : (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+                        <div className="grid grid-cols-[1fr_auto_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          <span>Project</span>
+                          <span className="text-right w-24">Framework</span>
+                          <span className="text-right w-32">Last Updated</span>
+                        </div>
+                        <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                          {vcProjects.map((project) => (
+                            <div key={project.id} className="grid grid-cols-[1fr_auto_auto] px-5 py-3 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0 items-center">
+                              <div className="flex items-center gap-2.5 text-sm min-w-0">
+                                <VercelIcon />
+                                <span className="text-white font-medium truncate">{project.name}</span>
+                              </div>
+                              <span className="text-xs text-slate-400 text-right w-24">
+                                {project.framework || "—"}
+                              </span>
+                              <span className="text-xs text-slate-500 text-right w-32">
+                                {project.updatedAt ? timeAgo(project.updatedAt) : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Domains Tab */}
+                {vcTab === "domains" && !vcLoading && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-white mb-3">
+                      Domains <span className="ml-2 text-sm font-normal text-slate-400">({vcDomains.length})</span>
+                    </h2>
+                    {vcDomains.length === 0 ? (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">No domains found.</div>
+                    ) : (
+                      <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+                        <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          <span>Domain</span>
+                          <span className="text-right">Project</span>
+                        </div>
+                        <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                          {vcDomains.map((domain) => (
+                            <div key={domain.name} className="grid grid-cols-[1fr_auto] px-5 py-3 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0 items-center">
+                              <span className="text-sm text-white font-medium font-mono">{domain.name}</span>
+                              <span className="text-xs text-slate-400 text-right">
+                                {domain.project?.name || "—"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </main>
 
@@ -2022,8 +2379,9 @@ export default function Dashboard() {
             {activeService === "gmail" && <>Gmail &middot; Connected via <span className="text-red-400">Composio</span></>}
             {activeService === "calendar" && <>Calendar &middot; Connected via <span className="text-blue-400">Composio</span></>}
             {activeService === "drive" && <>Drive &middot; Connected via <span className="text-green-400">Composio</span></>}
-            {activeService === "sheets" && <>Sheets &middot; Connected via <span className="text-green-400">Composio</span></>}
-            {activeService === "slack" && <>Slack &middot; <span className="text-amber-400">Coming Soon</span></>}
+            {activeService === "sheets" && <>Sheets &middot; Connected via <span className="text-emerald-400">Composio</span></>}
+            {activeService === "docs" && <>Docs &middot; Connected via <span className="text-blue-400">Composio</span></>}
+            {activeService === "vercel" && <>Vercel &middot; Connected via <span className="text-slate-300">Composio</span></>}
           </p>
         </div>
       </footer>

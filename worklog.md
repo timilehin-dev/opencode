@@ -133,10 +133,58 @@ Expanded the dashboard from 2 services (GitHub, Gmail) to 6 services (GitHub, Gm
 
 4. **`src/app/api/services/route.ts`** — Connection status endpoint for all 6 services
 
-5. **`src/app/page.tsx`** — 2032-line multi-service dashboard:
-   - 6-service switcher (GitHub, Gmail, Calendar, Drive, Sheets, Slack)
-   - Connection status auto-check via /api/services
-   - Calendar: Upcoming events, Create Event (datetime, duration, location, Meet toggle), Calendars list
-   - Drive: Files list, Create folder/file
-   - Sheets/Slack: Connect info cards
+5. **`src/app/page.tsx`** — Multi-service dashboard with 7 services
    - ESLint clean (0 errors, 0 warnings)
+
+---
+
+## Task 4: Vercel + Docs + Sheets Integration
+
+**Date**: 2026-04-14
+**Status**: In Progress (waiting for user credentials)
+
+### Summary
+Added Vercel (direct API), Google Docs (Composio), and Google Sheets (Composio) integrations to the dashboard. Replaced Slack with Vercel and Docs. Built API routes, client libraries, and full dashboard UI panels for all 3 new services.
+
+### OAuth Scope Issue Discovery
+- Composio's shared Gmail integrationId only requests Gmail OAuth scopes
+- Calendar/Drive/Sheets connections created via API show ACTIVE but return 403 (insufficient scopes)
+- Google OAuth redirect URL analysis confirmed: scopes include `mail.google.com/` + contacts but NOT `calendar`, `drive`, `sheets`, `docs`
+- User needs to connect these services via Composio Dashboard (app.composio.dev) where proper scope selection occurs, OR provide Connected Account IDs created with correct scopes
+- Vercel uses API token auth (not OAuth) — no Composio auth config found
+
+### Files Created/Modified
+
+1. **`src/lib/vercel.ts`** — Direct Vercel REST API client:
+   - `listProjects()` / `getProject()` — Project management
+   - `listDeployments()` / `getDeployment()` — Deployment tracking
+   - `listDomains()` — Custom domain management
+   - `listEnvVars()` — Environment variable listing
+   - Full TypeScript types for all Vercel API responses
+
+2. **`src/lib/composio.ts`** — Expanded with:
+   - Google Docs types (GoogleDoc, GoogleDocContent)
+   - `listDocs()` / `createDoc()` / `getDocContent()` / `readDoc()` / `appendDocText()`
+   - `createSpreadsheet()` / `getSpreadsheet()` / `batchGetValues()`
+   - `getAccountId("googledocs")` support
+
+3. **`src/app/api/vercel/route.ts`** — Vercel API route (GET: projects, project, deployments, domains, env)
+
+4. **`src/app/api/docs/route.ts`** — Google Docs API route (GET: list, read; POST: create, append)
+
+5. **`src/app/api/sheets/route.ts`** — Google Sheets API route (GET: get, values; POST: create, addSheet)
+
+6. **`src/app/api/services/route.ts`** — Updated with vercel and googledocs status fields
+
+7. **`.env.local`** — Added Calendar/Drive/Sheets Connected Account IDs
+
+8. **`src/app/page.tsx`** — Updated to 7 services:
+   - Replaced Slack with Docs and Vercel
+   - Vercel: Projects list with framework/updated info + Domains tab
+   - Docs: Document list with name/modified/link
+   - Sheets: Spreadsheet ID input + data viewer
+   - ESLint clean
+
+### Pending Items
+- User needs to provide: Vercel API token + Google service Connected Account IDs with correct OAuth scopes
+- Once provided, update .env.local and test all services end-to-end

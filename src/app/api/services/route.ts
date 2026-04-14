@@ -10,6 +10,8 @@ export async function GET() {
   const calendarId = getAccountId("googlecalendar");
   const driveId = getAccountId("googledrive");
   const sheetsId = getAccountId("googlesheets");
+  const docsId = getAccountId("googledocs");
+  const vercelToken = process.env.VERCEL_API_TOKEN;
 
   const services = {
     gmail: {
@@ -28,13 +30,17 @@ export async function GET() {
       connected: !!sheetsId,
       accountId: sheetsId ? `${sheetsId.slice(0, 8)}...` : null,
     },
+    googledocs: {
+      connected: !!docsId,
+      accountId: docsId ? `${docsId.slice(0, 8)}...` : null,
+    },
     github: {
       connected: !!process.env.GITHUB_PAT,
       accountId: process.env.GITHUB_PAT ? `${process.env.GITHUB_PAT.slice(0, 8)}...` : null,
     },
-    slack: {
-      connected: false,
-      accountId: null,
+    vercel: {
+      connected: !!vercelToken,
+      accountId: vercelToken ? `${vercelToken.slice(0, 8)}...` : null,
     },
   };
 

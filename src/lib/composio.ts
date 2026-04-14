@@ -298,7 +298,7 @@ export interface DriveFile {
 // Multi-Service Account ID Helper
 // ---------------------------------------------------------------------------
 
-type ServiceKey = "gmail" | "googlecalendar" | "googledrive" | "googlesheets";
+type ServiceKey = "gmail" | "googlecalendar" | "googledrive" | "googlesheets" | "googledocs";
 
 /** Get the Composio connected account ID for a given service */
 export function getAccountId(service: ServiceKey): string {
@@ -311,6 +311,8 @@ export function getAccountId(service: ServiceKey): string {
       return process.env.COMPOSIO_GOOGLEDRIVE_ACCOUNT_ID || "";
     case "googlesheets":
       return process.env.COMPOSIO_GOOGLESHEETS_ACCOUNT_ID || "";
+    case "googledocs":
+      return process.env.COMPOSIO_GOOGLEDOCS_ACCOUNT_ID || "";
   }
 }
 
@@ -469,5 +471,141 @@ export async function addSheet(
   if (properties) input.properties = properties;
 
   const res = await executeAction("googlesheets_add_sheet", input, acct);
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
+// Docs API Functions (via Composio)
+// ---------------------------------------------------------------------------
+
+export interface GoogleDoc {
+  id: string;
+  name: string;
+  mimeType: string;
+  createdTime?: string;
+  modifiedTime?: string;
+  webViewLink?: string;
+}
+
+export interface GoogleDocContent {
+  title: string;
+  body: {
+    content: unknown[];
+  };
+}
+
+/** List Google Docs documents */
+export async function listDocs(
+  accountId?: string,
+): Promise<GoogleDoc[]> {
+  const acct = accountId || getAccountId("googledocs");
+  const res = await executeAction<{ documents?: GoogleDoc[] }>(
+    "googledocs_list_documents",
+    {},
+    acct,
+  );
+  return res.data.documents || [];
+}
+
+/** Create a new Google Doc */
+export async function createDoc(
+  title: string,
+  accountId?: string,
+): Promise<GoogleDoc> {
+  const acct = accountId || getAccountId("googledocs");
+  const res = await executeAction<GoogleDoc>(
+    "googledocs_create_document",
+    { title },
+    acct,
+  );
+  return res.data;
+}
+
+/** Get a Google Doc's content */
+export async function getDocContent(
+  documentId: string,
+  accountId?: string,
+): Promise<GoogleDocContent> {
+  const acct = accountId || getAccountId("googledocs");
+  const res = await executeAction<GoogleDocContent>(
+    "googledocs_get_document",
+    { document_id: documentId },
+    acct,
+  );
+  return res.data;
+}
+
+/** Read a Google Doc as text */
+export async function readDoc(
+  documentId: string,
+  accountId?: string,
+): Promise<{ text: string }> {
+  const acct = accountId || getAccountId("googledocs");
+  const res = await executeAction<{ text: string }>(
+    "googledocs_read_document",
+    { document_id: documentId },
+    acct,
+  );
+  return res.data;
+}
+
+/** Append text to a Google Doc */
+export async function appendDocText(
+  documentId: string,
+  text: string,
+  accountId?: string,
+): Promise<unknown> {
+  const acct = accountId || getAccountId("googledocs");
+  const res = await executeAction(
+    "googledocs_append_text",
+    { document_id: documentId, text },
+    acct,
+  );
+  return res.data;
+}
+
+/** Create a spreadsheet */
+export async function createSpreadsheet(
+  title: string,
+  accountId?: string,
+): Promise<unknown> {
+  const acct = accountId || getAccountId("googlesheets");
+  const res = await executeAction(
+    "googlesheets_create_spreadsheet",
+    { title },
+    acct,
+  );
+  return res.data;
+}
+
+/** Get spreadsheet data */
+export async function getSpreadsheet(
+  spreadsheetId: string,
+  ranges?: string,
+  accountId?: string,
+): Promise<unknown> {
+  const acct = accountId || getAccountId("googlesheets");
+  const input: Record<string, unknown> = { spreadsheetId };
+  if (ranges) input.ranges = ranges;
+  const res = await executeAction(
+    "googlesheets_get_spreadsheet",
+    input,
+    acct,
+  );
+  return res.data;
+}
+
+/** Batch get values from spreadsheet */
+export async function batchGetValues(
+  spreadsheetId: string,
+  ranges: string[],
+  accountId?: string,
+): Promise<unknown> {
+  const acct = accountId || getAccountId("googlesheets");
+  const res = await executeAction(
+    "googlesheets_batch_get_values",
+    { spreadsheetId, ranges },
+    acct,
+  );
   return res.data;
 }
