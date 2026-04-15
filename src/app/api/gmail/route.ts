@@ -9,6 +9,7 @@ import {
   gGmailListDrafts,
   gGmailSendDraft,
   gGmailDeleteMessage,
+  gGmailGetMessage,
   getAccessToken,
 } from "@/lib/google";
 
@@ -57,6 +58,56 @@ export async function GET(req: NextRequest) {
           pageToken: page,
         });
         return ok(data);
+      }
+
+      case "read": {
+        const messageId = searchParams.get("id");
+        if (!messageId) return err("Missing 'id' parameter", 400);
+        const msg = await gGmailGetMessage(messageId, "full");
+        // Extract headers
+        const headers = msg.payload?.headers || [];
+        const get = (name: string) => headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+        
+        // Extract body text from payload
+        function extractBody(part: typeof msg.payload): string {
+          if (!part) return "";
+          // If this part has a body with data
+          if (part.body?.data) {
+            const decoded = Buffer.from(part.body.data, "base64url").toString("utf-8");
+            // If it's HTML, return as-is for rendering
+            if (part.mimeType?.includes("html")) return decoded;
+            // If it's plain text, return it
+            if (part.mimeType?.includes("plain")) return decoded;
+          }
+          // Recurse into parts
+          if (part.parts?.length) {
+            // Prefer HTML over plain text
+            let html = "";
+            let text = "";
+            for (const sub of part.parts) {
+              const content = extractBody(sub);
+              if (!content) continue;
+              if (sub.mimeType?.includes("html")) html = content;
+              else if (sub.mimeType?.includes("plain")) text = content;
+            }
+            return html || text;
+          }
+          return "";
+        }
+        
+        const messageHtml = extractBody(msg.payload);
+
+        return ok({
+          ...msg,
+          from: get("From"),
+          to: get("To"),
+          subject: get("Subject") || "(No subject)",
+          date: get("Date"),
+          messageHtml,
+          messageText: messageHtml
+            ? messageHtml.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim()
+            : msg.snippet || "",
+        });
       }
 
       case "search": {

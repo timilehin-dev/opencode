@@ -7,6 +7,10 @@ import {
   SearchIcon,
   TagIcon,
   Spinner,
+  SendIcon,
+  TrashIcon,
+  MailIcon,
+  X,
 } from "@/components/icons";
 import {
   extractSender,
@@ -14,11 +18,57 @@ import {
   truncate,
   timeAgoMs,
 } from "@/lib/helpers";
+import { cn } from "@/lib/utils";
 import type {
   GmailMessage,
   GmailLabel,
   GmailTab,
 } from "@/lib/types";
+
+// ---------------------------------------------------------------------------
+// Avatar color generator — deterministic from sender name
+// ---------------------------------------------------------------------------
+
+const AVATAR_COLORS = [
+  "bg-blue-600",
+  "bg-emerald-600",
+  "bg-amber-600",
+  "bg-rose-600",
+  "bg-violet-600",
+  "bg-cyan-600",
+  "bg-orange-600",
+  "bg-teal-600",
+  "bg-pink-600",
+  "bg-lime-600",
+];
+
+function avatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function avatarInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// Extended type for full email detail (includes HTML body)
+// ---------------------------------------------------------------------------
+
+interface GmailMessageFull extends GmailMessage {
+  messageHtml?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
 
 const gmTabs: { key: GmailTab; label: string }[] = [
   { key: "inbox", label: "Inbox" },
@@ -27,11 +77,17 @@ const gmTabs: { key: GmailTab; label: string }[] = [
   { key: "labels", label: "Labels" },
 ];
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function GmailView() {
   const [gmTab, setGmTab] = useState<GmailTab>("inbox");
   const [emails, setEmails] = useState<GmailMessage[]>([]);
   const [labels, setLabels] = useState<GmailLabel[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<GmailMessage | null>(null);
+  const [emailDetail, setEmailDetail] = useState<GmailMessageFull | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GmailMessage[]>([]);
   // Compose form
@@ -46,9 +102,14 @@ export function GmailView() {
   const [creatingLabel, setCreatingLabel] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // -----------------------------------------------------------------------
+  // Data fetchers
+  // -----------------------------------------------------------------------
+
   const fetchInbox = useCallback(async () => {
     setLoading(true);
     setSelectedEmail(null);
+    setEmailDetail(null);
     try {
       const res = await fetch("/api/gmail?action=inbox&max=20");
       const json = await res.json();
@@ -71,6 +132,21 @@ export function GmailView() {
     setLoading(false);
   }, []);
 
+  const fetchEmailDetail = useCallback(async (messageId: string) => {
+    setDetailLoading(true);
+    setEmailDetail(null);
+    try {
+      const res = await fetch(`/api/gmail?action=read&id=${encodeURIComponent(messageId)}`);
+      const json = await res.json();
+      if (json.success) {
+        setEmailDetail(json.data as GmailMessageFull);
+      }
+    } catch {
+      /* silent */
+    }
+    setDetailLoading(false);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -82,6 +158,35 @@ export function GmailView() {
     return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gmTab]);
+
+  // -----------------------------------------------------------------------
+  // Handlers
+  // -----------------------------------------------------------------------
+
+  const handleSelectEmail = (email: GmailMessage) => {
+    setSelectedEmail(email);
+    setEmailDetail(null);
+    fetchEmailDetail(email.id);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedEmail(null);
+    setEmailDetail(null);
+  };
+
+  const handleReply = () => {
+    if (!selectedEmail) return;
+    setComposeTo(selectedEmail.from || "");
+    setComposeSubject(
+      selectedEmail.subject?.startsWith("Re: ")
+        ? selectedEmail.subject
+        : `Re: ${selectedEmail.subject || ""}`
+    );
+    setComposeBody("");
+    setGmTab("compose");
+    setSelectedEmail(null);
+    setEmailDetail(null);
+  };
 
   const handleGmailSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -154,11 +259,78 @@ export function GmailView() {
       if (json.success) {
         setEmails((prev) => prev.filter((e) => e.id !== messageId));
         setSelectedEmail(null);
+        setEmailDetail(null);
       }
     } catch {
       /* silent */
     }
   };
+
+  // -----------------------------------------------------------------------
+  // Helper to render an email row (inbox + search)
+  // -----------------------------------------------------------------------
+
+  const renderEmailRow = (email: GmailMessage, clickable = true) => {
+    const isUnread = email.labelIds?.includes("UNREAD");
+    const isSent = email.labelIds?.includes("SENT");
+    const senderName = extractSender(email.from);
+
+    return (
+      <div
+        key={email.id}
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? () => handleSelectEmail(email) : undefined}
+        onKeyDown={clickable ? (e) => { if (e.key === "Enter") handleSelectEmail(email); } : undefined}
+        className={cn(
+          "flex items-start gap-3 px-4 py-3.5 rounded-xl transition-all duration-200",
+          "border border-transparent",
+          clickable && "cursor-pointer hover:bg-[#1e293b] hover:border-slate-700/50",
+        )}
+      >
+        {/* Avatar */}
+        <div className={cn(
+          "w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white",
+          avatarColor(senderName),
+        )}>
+          {avatarInitials(senderName)}
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {isUnread && (
+              <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            )}
+            <span className={cn(
+              "text-sm truncate",
+              isUnread ? "font-bold text-white" : "font-medium text-slate-300",
+            )}>
+              {isSent ? "To: " : ""}{senderName}
+            </span>
+          </div>
+          <p className={cn(
+            "text-sm truncate mt-0.5",
+            isUnread ? "text-slate-100 font-medium" : "text-slate-400",
+          )}>
+            {email.subject || "(No subject)"}
+          </p>
+          <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+            {email.snippet ? truncate(stripHtml(email.snippet), 120) : ""}
+          </p>
+        </div>
+
+        {/* Time */}
+        <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0 mt-0.5">
+          {timeAgoMs(Number(email.internalDate))}
+        </span>
+      </div>
+    );
+  };
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
 
   return (
     <motion.div
@@ -167,18 +339,19 @@ export function GmailView() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
     >
-      {/* Gmail Tab Navigation */}
+      {/* Tab Navigation */}
       <nav className="border-b border-slate-800 mb-6">
         <div className="flex gap-0 overflow-x-auto">
           {gmTabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => { setGmTab(tab.key); setSelectedEmail(null); setSearchResults([]); }}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              onClick={() => { setGmTab(tab.key); setSelectedEmail(null); setEmailDetail(null); setSearchResults([]); }}
+              className={cn(
+                "px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                 gmTab === tab.key
                   ? "border-red-500 text-red-400"
-                  : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600"
-              }`}
+                  : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600",
+              )}
             >
               {tab.label}
             </button>
@@ -188,87 +361,154 @@ export function GmailView() {
 
       {loading && gmTab !== "compose" && <Spinner color="red" />}
 
-      {/* Inbox Tab */}
+      {/* ================================================================= */}
+      {/* INBOX TAB                                                         */}
+      {/* ================================================================= */}
       {gmTab === "inbox" && !loading && (
         <div className="flex gap-4 flex-col lg:flex-row">
           {/* Email list */}
-          <div className={`flex-1 min-w-0 ${selectedEmail ? "hidden lg:block" : ""}`}>
-            <h2 className="text-lg font-semibold text-white mb-3">
-              Inbox <span className="ml-2 text-sm font-normal text-slate-400">({emails.length})</span>
-            </h2>
+          <div className={cn("flex-1 min-w-0", selectedEmail && "hidden lg:block")}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Inbox
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  {emails.length}
+                </span>
+              </h2>
+              <button
+                onClick={fetchInbox}
+                className="text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e293b]"
+              >
+                Refresh
+              </button>
+            </div>
+
             {emails.length === 0 ? (
-              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">Inbox is empty</div>
+              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
+                <MailIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-sm text-slate-400">Your inbox is empty</p>
+              </div>
             ) : (
-              <div className="space-y-1 max-h-[700px] overflow-y-auto custom-scrollbar">
-                {emails.map((email) => {
-                  const isUnread = email.labelIds?.includes("UNREAD");
-                  const isSent = email.labelIds?.includes("SENT");
-                  return (
-                    <button
-                      key={email.id}
-                      onClick={() => setSelectedEmail(email)}
-                      className={`w-full text-left bg-[#1a2332] border border-slate-700/50 rounded-lg px-4 py-3 hover:border-slate-600 hover:bg-[#1e293b] transition-colors ${isUnread ? "border-l-2 border-l-red-500" : ""}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm truncate ${isUnread ? "font-bold text-white" : "text-slate-300"}`}>
-                              {isSent ? "To: " : ""}{extractSender(email.from)}
-                            </span>
-                          </div>
-                          <p className={`text-sm truncate mt-0.5 ${isUnread ? "text-white font-medium" : "text-slate-400"}`}>
-                            {email.subject || "(No subject)"}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate mt-1">
-                            {email.snippet ? truncate(stripHtml(email.snippet), 100) : ""}
-                          </p>
-                        </div>
-                        <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
-                          {timeAgoMs(Number(email.internalDate))}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="bg-[#151d2e] border border-slate-700/50 rounded-xl overflow-hidden">
+                <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
+                  {emails.map((email) => renderEmailRow(email))}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Email detail */}
-          {selectedEmail && (
-            <div className="flex-1 min-w-0 bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-[#151d2e] border-b border-slate-700/50">
-                <button onClick={() => setSelectedEmail(null)} className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors lg:hidden">
-                  <ChevronLeftIcon /> Back
+          {/* Email detail panel */}
+          {(selectedEmail || detailLoading) && (
+            <div className="flex-1 min-w-0 bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-[#151d2e] border-b border-slate-700/50 flex-shrink-0">
+                <button
+                  onClick={handleCloseDetail}
+                  className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors lg:hidden"
+                >
+                  <ChevronLeftIcon className="w-4 h-4" />
+                  <span>Back</span>
                 </button>
-                <div className="flex items-center gap-2 ml-auto">
+
+                <div className="flex items-center gap-1 ml-auto">
+                  {/* Reply */}
                   <button
-                    onClick={() => handleDeleteMessage(selectedEmail.id)}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
+                    onClick={handleReply}
+                    className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e293b]"
+                    title="Reply"
                   >
-                    Delete
+                    <SendIcon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Reply</span>
                   </button>
-                  <button onClick={() => setSelectedEmail(null)} className="text-xs text-slate-400 hover:text-white transition-colors px-2 py-1">
-                    Close
+
+                  {/* Delete */}
+                  <button
+                    onClick={() => selectedEmail && handleDeleteMessage(selectedEmail.id)}
+                    className="inline-flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-500/10"
+                    title="Delete"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+
+                  {/* Close (desktop) */}
+                  <button
+                    onClick={handleCloseDetail}
+                    className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#1e293b] hidden lg:block"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <div className="p-5">
-                <h3 className="text-lg font-semibold text-white">{selectedEmail.subject || "(No subject)"}</h3>
-                <div className="flex items-center gap-3 mt-3 text-sm text-slate-400">
-                  <span className="font-medium text-white">{extractSender(selectedEmail.from)}</span>
-                  <span className="text-slate-600">&lt;{selectedEmail.from}&gt;</span>
-                  <span className="ml-auto text-xs">{selectedEmail.date}</span>
-                </div>
-                <div className="mt-4 text-sm text-slate-300 leading-relaxed max-h-[400px] overflow-y-auto custom-scrollbar whitespace-pre-wrap break-words">
-                  {selectedEmail.messageText ? stripHtml(selectedEmail.messageText) : selectedEmail.snippet || "No content"}
-                </div>
-                {selectedEmail.attachmentList && selectedEmail.attachmentList.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-700/50">
-                    <span className="text-xs font-medium text-slate-400">
-                      {selectedEmail.attachmentList.length} attachment(s)
-                    </span>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
+                {detailLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-7 h-7 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
                   </div>
+                ) : (
+                  <>
+                    {/* Subject */}
+                    <h3 className="text-lg font-semibold text-white leading-snug">
+                      {emailDetail?.subject || selectedEmail?.subject || "(No subject)"}
+                    </h3>
+
+                    {/* Sender info */}
+                    <div className="flex items-center gap-3 mt-4">
+                      <div className={cn(
+                        "w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white",
+                        avatarColor(extractSender(emailDetail?.from || selectedEmail?.from)),
+                      )}>
+                        {avatarInitials(extractSender(emailDetail?.from || selectedEmail?.from))}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-white truncate">
+                          {extractSender(emailDetail?.from || selectedEmail?.from)}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {emailDetail?.from || selectedEmail?.from}
+                        </p>
+                      </div>
+                      <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
+                        {emailDetail?.date || selectedEmail?.date}
+                      </span>
+                    </div>
+
+                    {/* To line */}
+                    <p className="text-xs text-slate-500 mt-2">
+                      <span className="text-slate-400 font-medium">To:</span>{" "}
+                      {emailDetail?.to || selectedEmail?.to}
+                    </p>
+
+                    {/* Attachments */}
+                    {((emailDetail?.attachmentList?.length ?? 0) > 0) && (
+                      <div className="mt-4 flex items-center gap-2 text-xs text-slate-400 bg-[#151d2e] px-3 py-2 rounded-lg border border-slate-700/50">
+                        <MailIcon className="w-3.5 h-3.5" />
+                        <span>
+                          {(emailDetail?.attachmentList?.length ?? 0)} attachment(s)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Email body */}
+                    <div className="mt-5 text-sm text-slate-300 leading-relaxed">
+                      {emailDetail?.messageHtml ? (
+                        <div
+                          className="prose prose-invert prose-sm max-w-none [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_blockquote]:border-l-slate-500 [&_blockquote]:text-slate-400 [&_pre]:bg-[#0f172a] [&_pre]:rounded-lg [&_pre]:p-4 [&_table]:border-collapse [&_td]:border [&_td]:border-slate-700/50 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-slate-700/50 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-[#151d2e] [&_th]:text-slate-300 [&_img]:max-w-full [&_img]:rounded-lg"
+                          dangerouslySetInnerHTML={{ __html: emailDetail.messageHtml }}
+                        />
+                      ) : emailDetail?.messageText ? (
+                        <div className="whitespace-pre-wrap break-words">{emailDetail.messageText}</div>
+                      ) : selectedEmail?.snippet ? (
+                        <div className="whitespace-pre-wrap break-words text-slate-400 italic">
+                          {stripHtml(selectedEmail.snippet)}
+                        </div>
+                      ) : (
+                        <div className="text-slate-500 italic">No content available</div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -276,42 +516,81 @@ export function GmailView() {
         </div>
       )}
 
-      {/* Compose Tab */}
+      {/* ================================================================= */}
+      {/* COMPOSE TAB                                                       */}
+      {/* ================================================================= */}
       {gmTab === "compose" && (
         <div className="max-w-2xl">
-          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-5">
-            <h2 className="text-lg font-semibold text-white mb-4">Compose Email</h2>
-            {sendSuccess && (
-              <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg text-sm">
-                Email sent successfully!
-                <button onClick={() => setSendSuccess(false)} className="ml-3 underline hover:text-emerald-300">Dismiss</button>
-              </div>
-            )}
-            {sendError && (
-              <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
-                {sendError}
-                <button onClick={() => setSendError(null)} className="ml-3 underline hover:text-red-300">Dismiss</button>
-              </div>
-            )}
-            <div className="space-y-3">
+          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 bg-[#151d2e] border-b border-slate-700/50">
+              <h2 className="text-lg font-semibold text-white">Compose Email</h2>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Success / Error banners */}
+              {sendSuccess && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+                  <span>Email sent successfully!</span>
+                  <button onClick={() => setSendSuccess(false)} className="underline hover:text-emerald-300 text-xs">
+                    Dismiss
+                  </button>
+                </div>
+              )}
+              {sendError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+                  <span>{sendError}</span>
+                  <button onClick={() => setSendError(null)} className="underline hover:text-red-300 text-xs">
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* To */}
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1 block">To</label>
-                <input type="email" placeholder="recipient@example.com" value={composeTo} onChange={(e) => setComposeTo(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500" />
+                <label className="text-xs font-medium text-slate-400 mb-1.5 block">To</label>
+                <input
+                  type="email"
+                  placeholder="recipient@example.com"
+                  value={composeTo}
+                  onChange={(e) => setComposeTo(e.target.value)}
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                />
               </div>
+
+              {/* Subject */}
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1 block">Subject</label>
-                <input type="text" placeholder="Email subject" value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500" />
+                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Subject</label>
+                <input
+                  type="text"
+                  placeholder="Email subject"
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                />
               </div>
+
+              {/* Body */}
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1 block">Body</label>
-                <textarea placeholder="Write your email..." rows={10} value={composeBody} onChange={(e) => setComposeBody(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y" />
+                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Body</label>
+                <textarea
+                  placeholder="Write your email..."
+                  rows={10}
+                  value={composeBody}
+                  onChange={(e) => setComposeBody(e.target.value)}
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y transition-colors"
+                />
               </div>
-              <button onClick={handleSendEmail} disabled={sendingEmail || !composeTo.trim() || !composeBody.trim()}
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                {sendingEmail && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+
+              {/* Send button */}
+              <button
+                onClick={handleSendEmail}
+                disabled={sendingEmail || !composeTo.trim() || !composeBody.trim()}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                {sendingEmail && (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                )}
+                <SendIcon className="w-4 h-4" />
                 {sendingEmail ? "Sending..." : "Send Email"}
               </button>
             </div>
@@ -319,106 +598,163 @@ export function GmailView() {
         </div>
       )}
 
-      {/* Search Tab */}
+      {/* ================================================================= */}
+      {/* SEARCH TAB                                                        */}
+      {/* ================================================================= */}
       {gmTab === "search" && (
         <div>
-          <div className="flex gap-2 mb-6">
-            <div className="flex-1 relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><SearchIcon /></div>
-              <input
-                type="text"
-                placeholder="Search emails (e.g. from:john subject:meeting)"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleGmailSearch()}
-                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500"
-              />
+          {/* Search bar */}
+          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-4 mb-6">
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                  <SearchIcon className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search emails (e.g. from:john subject:meeting)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleGmailSearch()}
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                />
+              </div>
+              <button
+                onClick={handleGmailSearch}
+                disabled={!searchQuery.trim()}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                Search
+              </button>
             </div>
-            <button onClick={handleGmailSearch} disabled={!searchQuery.trim()}
-              className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
-              Search
-            </button>
           </div>
 
           {loading && <Spinner color="red" />}
 
+          {/* Results */}
           {!loading && searchResults.length > 0 && (
-            <div className="space-y-1 max-h-[600px] overflow-y-auto custom-scrollbar">
-              {searchResults.map((email) => (
-                <div key={email.id} className="bg-[#1a2332] border border-slate-700/50 rounded-lg px-4 py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-white truncate">{extractSender(email.from)}</span>
-                      </div>
-                      <p className="text-sm text-white truncate mt-0.5">{email.subject || "(No subject)"}</p>
-                      <p className="text-xs text-slate-500 truncate mt-1">
-                        {email.snippet ? truncate(stripHtml(email.snippet), 120) : ""}
-                      </p>
-                    </div>
-                    <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
-                      {timeAgoMs(Number(email.internalDate))}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="bg-[#151d2e] border border-slate-700/50 rounded-xl overflow-hidden">
+              <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                {searchResults.map((email) => renderEmailRow(email))}
+              </div>
             </div>
           )}
 
           {!loading && searchQuery && searchResults.length === 0 && (
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
-              No results found for &quot;{searchQuery}&quot;
+            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
+              <SearchIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-sm text-slate-400">
+                No results found for &quot;{searchQuery}&quot;
+              </p>
             </div>
           )}
 
           {!searchQuery && !loading && (
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
-              Enter a search query to find emails. Supports Gmail search operators like <code className="bg-[#0f172a] px-1.5 py-0.5 rounded text-xs">from:</code>, <code className="bg-[#0f172a] px-1.5 py-0.5 rounded text-xs">subject:</code>, <code className="bg-[#0f172a] px-1.5 py-0.5 rounded text-xs">has:attachment</code>
+            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
+              <SearchIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-sm text-slate-400 mb-3">
+                Enter a search query to find emails.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {["from:", "subject:", "has:attachment", "is:unread"].map((op) => (
+                  <code
+                    key={op}
+                    className="bg-[#0f172a] px-2 py-1 rounded text-xs text-slate-400 border border-slate-700/50"
+                  >
+                    {op}
+                  </code>
+                ))}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Labels Tab */}
+      {/* ================================================================= */}
+      {/* LABELS TAB                                                        */}
+      {/* ================================================================= */}
       {gmTab === "labels" && !loading && (
         <div className="max-w-2xl space-y-6">
-          {/* Create label form */}
-          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-5">
-            <h2 className="text-lg font-semibold text-white mb-4">Create Label</h2>
-            <div className="flex gap-2">
-              <input type="text" placeholder="Label name" value={newLabelName} onChange={(e) => setNewLabelName(e.target.value)}
-                className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500" />
-              <button onClick={handleCreateLabel} disabled={creatingLabel || !newLabelName.trim()}
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                {creatingLabel ? "Creating..." : "Create"}
-              </button>
+          {/* Create label */}
+          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 bg-[#151d2e] border-b border-slate-700/50">
+              <h2 className="text-lg font-semibold text-white">Create Label</h2>
+            </div>
+            <div className="p-5">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Label name"
+                  value={newLabelName}
+                  onChange={(e) => setNewLabelName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateLabel()}
+                  className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                />
+                <button
+                  onClick={handleCreateLabel}
+                  disabled={creatingLabel || !newLabelName.trim()}
+                  className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {creatingLabel ? "Creating..." : "Create"}
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Labels list */}
           <div>
-            <h2 className="text-lg font-semibold text-white mb-3">
-              Labels <span className="ml-2 text-sm font-normal text-slate-400">({labels.length})</span>
-            </h2>
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                <span>Name</span><span>Type</span>
-              </div>
-              {labels.map((label) => (
-                <div key={label.id} className="grid grid-cols-[1fr_auto] px-5 py-2.5 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0">
-                  <span className="flex items-center gap-2 text-sm">
-                    <TagIcon />
-                    {label.color && (
-                      <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: label.color.backgroundColor, borderColor: label.color.textColor, borderWidth: 1, borderStyle: "solid" }} />
-                    )}
-                    <span className="text-white font-medium">{label.name}</span>
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${label.type === "system" ? "bg-slate-700 text-slate-300" : "bg-blue-500/20 text-blue-400"}`}>
-                    {label.type === "system" ? "System" : "User"}
-                  </span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                Labels
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  {labels.length}
+                </span>
+              </h2>
             </div>
+
+            {labels.length === 0 ? (
+              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
+                <TagIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-sm text-slate-400">No labels found</p>
+              </div>
+            ) : (
+              <div className="bg-[#151d2e] border border-slate-700/50 rounded-xl overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  <span>Name</span>
+                  <span>Type</span>
+                </div>
+                {labels.map((label) => (
+                  <div
+                    key={label.id}
+                    className="grid grid-cols-[1fr_auto] px-5 py-3 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0"
+                  >
+                    <span className="flex items-center gap-2.5 text-sm">
+                      <TagIcon className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                      {label.color && (
+                        <span
+                          className="w-3 h-3 rounded-sm inline-block flex-shrink-0"
+                          style={{
+                            backgroundColor: label.color.backgroundColor,
+                            borderColor: label.color.textColor,
+                            borderWidth: 1,
+                            borderStyle: "solid",
+                          }}
+                        />
+                      )}
+                      <span className="text-white font-medium truncate">{label.name}</span>
+                    </span>
+                    <span className={cn(
+                      "text-xs px-2.5 py-0.5 rounded-full font-medium",
+                      label.type === "system"
+                        ? "bg-slate-700 text-slate-300"
+                        : "bg-blue-500/20 text-blue-400",
+                    )}>
+                      {label.type === "system" ? "System" : "User"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

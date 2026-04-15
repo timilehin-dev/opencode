@@ -107,3 +107,31 @@ Stage Summary:
 - Claw General can delegate to sub-agents via tool
 - Each agent shows relevant suggested actions on empty state
 - Deployed to https://my-project-lilac-pi-90.vercel.app
+
+---
+Task ID: 4
+Agent: Super Z (main)
+Task: Fix email display + redesign Gmail and Calendar dashboard panels
+
+Work Log:
+- Fixed critical bug: Gmail inbox only fetched metadata (no body). Added `/api/gmail?action=read&id={id}` endpoint that fetches full email with body extraction from MIME parts (base64url decode, prefer HTML over plain text)
+- Fixed critical bug: Calendar "Upcoming" tab called `fetchCalendars()` (lists calendars) instead of `fetchEvents()` (fetches actual events). Added proper event fetching with timeMin=now.
+- Redesigned Gmail panel:
+  - Sender avatars with colored initials
+  - Blue unread dot indicator
+  - Click email → fetches full body → renders HTML or plain text
+  - Reply button pre-fills compose form
+  - Modern card design with hover effects
+- Redesigned Calendar panel:
+  - Events grouped by date (Today, Tomorrow, Mon Apr 20...)
+  - Color-coded event dots
+  - Time display with stacked start/end
+  - Location, attendees, description preview
+  - Action buttons (open in Google Calendar, delete)
+- TypeScript clean, deployed to production
+
+Stage Summary:
+- Emails can now be fully read on the platform (not just 2-line snippets)
+- Calendar events actually show up (was completely broken before)
+- Both panels have modern card-based redesigns
+- Deployed to https://my-project-lilac-pi-90.vercel.app
