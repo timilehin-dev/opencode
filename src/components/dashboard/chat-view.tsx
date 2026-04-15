@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
@@ -230,11 +230,19 @@ export function ChatView() {
   const activeAgent = agents.find((a) => a.id === selectedAgent) || DEFAULT_AGENT;
   const colors = colorMap[activeAgent.color] || colorMap.emerald;
 
-  const { messages, sendMessage, setMessages, status, error } = useChat({
-    transport: new DefaultChatTransport({
+  // Transport must be recreated when agent changes so the correct agentId is sent.
+  // This fixes the bug where all messages were routed to Claw General regardless
+  // of which agent the user selected.
+  const transport = useMemo(
+    () => new DefaultChatTransport({
       api: "/api/chat",
       body: { agentId: selectedAgent },
     }),
+    [selectedAgent],
+  );
+
+  const { messages, sendMessage, setMessages, status, error } = useChat({
+    transport,
     onError: (err) => console.error("Chat error:", err),
   });
 

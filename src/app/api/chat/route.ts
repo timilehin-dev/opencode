@@ -91,9 +91,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // Reinforce identity in system prompt for specialist agents.
+    // Ollama/gemma4 models sometimes ignore system prompts, so we inject
+    // the agent identity as a strong prefix at the very top.
+    const systemPrompt =
+      id !== "general"
+        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times. You have exactly these tools: ${agent.tools.join(", ")}. Nothing else.\n\n${agent.systemPrompt}`
+        : agent.systemPrompt;
+
     const result = streamText({
       model,
-      system: agent.systemPrompt,
+      system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
       stopWhen: stepCountIs(5),

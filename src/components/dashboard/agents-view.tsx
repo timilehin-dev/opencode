@@ -147,7 +147,7 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
   const [quickTaskText, setQuickTaskText] = useState("");
   const [dispatching, setDispatching] = useState(false);
 
-  // Fetch agents with status
+  // Fetch agents with status — fetch once on mount, then only on-demand
   const fetchAgents = useCallback(async () => {
     setLoading(true);
     try {
@@ -164,8 +164,8 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
 
   useEffect(() => {
     fetchAgents();
-    const interval = setInterval(fetchAgents, 10000); // refresh every 10s
-    return () => clearInterval(interval);
+    // No auto-polling — agents view fetches once on mount.
+    // Status updates come from the notification system (Phase 2).
   }, [fetchAgents]);
 
   // Handle dispatch quick task
@@ -255,7 +255,7 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
           const colors = colorMap[agent.color] || colorMap.emerald;
 
           return (
-            <motion.div key={agent.id} variants={itemVariants}>
+            <motion.div key={agent.id}>
               <Card className="hover:border-primary/20 transition-all duration-300 hover:shadow-md">
                 <CardContent className="p-5">
                   {/* Top row: Agent info + Status */}
