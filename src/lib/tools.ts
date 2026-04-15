@@ -8,6 +8,9 @@
 import { z } from "zod";
 import { tool, zodSchema } from "ai";
 
+// z-ai-web-dev-sdk for web tools
+import ZAI from 'z-ai-web-dev-sdk';
+
 // Google API imports
 import {
   gGmailSendEmail,
@@ -505,6 +508,22 @@ export const delegateToAgentTool = tool({
   execute: safeJson(async ({ agent_id, task }) => {
     // This tool is executed server-side — we make an internal call to the agent
     // The actual delegation happens via a fetch to /api/chat internally
+    const taskId = `a2a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    // Log the A2A delegation task in Supabase (fire-and-forget)
+    try {
+      const { Pool } = require('pg');
+      const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+      await pool.query(
+        `INSERT INTO a2a_tasks (initiator_agent, assigned_agent, task, context, status, delegation_chain)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        ['general', agent_id, task, 'Delegated by Claw General via delegate_to_agent tool', 'in_progress', ['general', agent_id]]
+      );
+      await pool.end();
+    } catch {
+      // A2A logging is non-critical
+    }
+
     try {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
@@ -515,12 +534,19 @@ export const delegateToAgentTool = tool({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentId: agent_id,
-          messages: [{ role: "user", content: task }],
+          messages: [{ role: "user", content: `[Delegated from Claw General] ${task}` }],
         }),
       });
 
       if (!response.ok) {
         const error = await response.text();
+        // Update A2A task status to failed
+        try {
+          const { Pool } = require('pg');
+          const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+          await pool.query(`UPDATE a2a_tasks SET status = 'failed', result = $1 WHERE id = $2`, [error, taskId]);
+          await pool.end();
+        } catch { /* non-critical */ }
         return { success: false, error: `Agent ${agent_id} failed: ${error}` };
       }
 
@@ -550,9 +576,114 @@ export const delegateToAgentTool = tool({
         }
       }
 
+      // Update A2A task status to completed
+      try {
+        const { Pool } = require('pg');
+        const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+        await pool.query(
+          `UPDATE a2a_tasks SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2`,
+          [fullText.trim().slice(0, 2000), taskId]
+        );
+        await pool.end();
+      } catch { /* non-critical */ }
+
+      return { success: true, agent: agent_id, response: fullText.trim() || "(Agent returned no text response)", taskId };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Delegation failed", taskId };
+    }
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Web Search Tool
+// ---------------------------------------------------------------------------
+
+export const webSearchTool = tool({
+  description: "Search the web for real-time information, news, documentation, market data, trends, competitor analysis, or any current information. Use this when you need up-to-date facts, research topics, look up company details, find documentation, or gather context that goes beyond your training data.",
+  inputSchema: zodSchema(z.object({
+    query: z.string().describe("Search query — be specific and use keywords. Examples: 'Next.js 15 Server Actions docs', 'Q4 2024 SaaS market trends', 'OpenAI GPT-5 release date'"),
+    num_results: z.number().optional().describe("Number of results to return (default: 10, max: 20)"),
+  })),
+  execute: safeJson(async ({ query, num_results }) => {
+    const zai = await ZAI.create();
+    const results = await zai.functions.invoke("web_search", { query, num: num_results || 10 });
+    return results;
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Web Reader Tool
+// ---------------------------------------------------------------------------
+
+export const webReaderTool = tool({
+  description: "Read and extract content from a web page URL. Returns the page title, main content (HTML), publication time, and URL. Use this to read articles, documentation pages, reports, or any web content for detailed analysis. Always use this after web_search when you need the full content of a result.",
+  inputSchema: zodSchema(z.object({
+    url: z.string().describe("The full URL of the web page to read. Must include protocol (https://)"),
+  })),
+  execute: safeJson(async ({ url }) => {
+    const zai = await ZAI.create();
+    const result = await zai.functions.invoke("page_reader", { url });
+    return result;
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Query Agent Tool (A2A — for specialist agents)
+// ---------------------------------------------------------------------------
+
+export const queryAgentTool = tool({
+  description: "Query another specialist agent for information or collaboration. Use this to get input from another agent's domain expertise. Available agents: general (orchestrator), mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning).",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.enum(["general", "mail", "code", "data", "creative"]).describe("The agent to query"),
+    question: z.string().describe("Clear question or request for the other agent"),
+  })),
+  execute: safeJson(async ({ agent_id, question }) => {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000";
+
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: agent_id,
+          messages: [{ role: "user", content: `[Query from peer agent] ${question}` }],
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        return { success: false, error: `Agent ${agent_id} failed: ${error}` };
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) return { success: false, error: "No response from agent" };
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let done = false;
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("0:")) {
+              try {
+                const parsed = JSON.parse(line.slice(2));
+                if (typeof parsed === "string") fullText += parsed;
+              } catch { /* skip */ }
+            }
+          }
+        }
+      }
+
       return { success: true, agent: agent_id, response: fullText.trim() || "(Agent returned no text response)" };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : "Delegation failed" };
+      return { success: false, error: error instanceof Error ? error.message : "Query failed" };
     }
   }),
 });
@@ -608,8 +739,13 @@ export const allTools: Record<string, ToolType> = {
   vercel_projects: vercelProjectsTool,
   vercel_deployments: vercelDeploymentsTool,
   vercel_domains: vercelDomainsTool,
+  // Web Tools
+  web_search: webSearchTool,
+  web_reader: webReaderTool,
   // Agent Delegation
   delegate_to_agent: delegateToAgentTool,
+  // A2A
+  query_agent: queryAgentTool,
 };
 
 // ---------------------------------------------------------------------------

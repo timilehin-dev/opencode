@@ -154,6 +154,89 @@ export async function getConversationHistory(
     .slice(-limit);
 }
 
+/** Get session messages formatted for useChat's initialMessages. */
+export async function getSessionMessages(
+  sessionId: string,
+  agentId: string,
+): Promise<Array<{ role: string; content: string }>> {
+  const history = await getConversationHistory(sessionId, agentId, 100);
+  return history.map((msg) => ({
+    role: msg.role === "assistant" ? "assistant" : "user",
+    content: msg.content,
+  }));
+}
+
+/** Get a list of recent session IDs for an agent (for conversations panel). */
+export async function getAgentSessions(
+  agentId: string,
+  limit: number = 20,
+): Promise<Array<{ sessionId: string; lastMessage: string; lastActivity: string; messageCount: number }>> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("session_id, content, created_at")
+        .eq("agent_id", agentId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (!error && data && data.length > 0) {
+        // Group by session_id
+        const sessions = new Map<string, { messages: string[]; lastActivity: string }>();
+        for (const row of data) {
+          const sid = row.session_id as string;
+          if (!sessions.has(sid)) {
+            sessions.set(sid, { messages: [], lastActivity: row.created_at as string });
+          }
+          sessions.get(sid)!.messages.push(row.content as string);
+        }
+
+        const result: Array<{ sessionId: string; lastMessage: string; lastActivity: string; messageCount: number }> = [];
+        for (const [sessionId, info] of sessions) {
+          const lastMsg = info.messages[info.messages.length - 1] || "";
+          result.push({
+            sessionId,
+            lastMessage: lastMsg.slice(0, 100),
+            lastActivity: info.lastActivity,
+            messageCount: info.messages.length,
+          });
+        }
+
+        // Sort by last activity descending
+        result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+        return result.slice(0, limit);
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Fallback: localStorage
+  const all = loadJSON<ConversationMessage[]>(CONV_KEY, []);
+  const agentMsgs = all.filter((m) => m.agentId === agentId);
+  const sessions = new Map<string, { messages: string[]; lastActivity: string }>();
+  for (const msg of agentMsgs) {
+    if (!sessions.has(msg.sessionId)) {
+      sessions.set(msg.sessionId, { messages: [], lastActivity: msg.createdAt });
+    }
+    sessions.get(msg.sessionId)!.messages.push(msg.content);
+  }
+
+  const result: Array<{ sessionId: string; lastMessage: string; lastActivity: string; messageCount: number }> = [];
+  for (const [sessionId, info] of sessions) {
+    result.push({
+      sessionId,
+      lastMessage: (info.messages[info.messages.length - 1] || "").slice(0, 100),
+      lastActivity: info.lastActivity,
+      messageCount: info.messages.length,
+    });
+  }
+  result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+  return result.slice(0, limit);
+}
+
 /** Get recent conversations across all agents (for the dashboard). */
 export async function getRecentConversations(limit: number = 20): Promise<ConversationMessage[]> {
   const supabase = getSupabase();

@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
-import { SendIcon, Loader2, WrenchIcon, SparklesIcon, ChevronDown, ChevronUp } from "@/components/icons";
+import {
+  SendIcon,
+  Loader2,
+  WrenchIcon,
+  SparklesIcon,
+  ChevronDown,
+  ChevronUp,
+  PlusIcon,
+  HistoryIcon,
+  XIcon,
+  MessageSquareIcon,
+} from "@/components/icons";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
+import { getSessionMessages, getAgentSessions } from "@/lib/memory";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -113,6 +125,35 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
 };
 
 // ---------------------------------------------------------------------------
+// localStorage helpers for session tracking
+// ---------------------------------------------------------------------------
+
+const SESSION_MAP_KEY = "claw-agent-sessions";
+
+function loadSessionMap(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(SESSION_MAP_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionMap(map: Record<string, string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(SESSION_MAP_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+function generateSessionId(): string {
+  return `session-${Date.now()}`;
+}
+
+// ---------------------------------------------------------------------------
 // Tool Call Card Component
 // ---------------------------------------------------------------------------
 
@@ -172,45 +213,166 @@ function getMessageText(parts: Array<{ type: string; text?: string }>): string {
 }
 
 // ---------------------------------------------------------------------------
-// AgentChatSession — ISOLATED useChat session per agent
+// Conversation Session Item (for the sidebar panel)
 // ---------------------------------------------------------------------------
-//
-// CRITICAL FIX: This component is rendered with `key={agentId}` in the parent.
-// When the user switches agents, React COMPLETELY UNMOUNTS the old session
-// and MOUNTS A FRESH ONE. This guarantees:
-//   1. A brand-new DefaultChatTransport with the correct agentId in body
-//   2. A fresh useChat hook with no residual state from the previous agent
-//   3. No identity bleed — the API always receives the correct agentId
-//
-// Previous approach (useMemo transport + setMessages([])) failed because
-// useChat stores the transport in a ref on first render and ignores prop
-// changes, so it kept sending agentId="general" even after switching.
+
+interface SessionItem {
+  sessionId: string;
+  lastMessage: string;
+  lastActivity: string;
+  messageCount: number;
+}
+
+function ConversationsPanel({
+  agentId,
+  currentSessionId,
+  onSelectSession,
+  onClose,
+}: {
+  agentId: string;
+  currentSessionId: string;
+  onSelectSession: (sessionId: string) => void;
+  onClose: () => void;
+}) {
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getAgentSessions(agentId, 30)
+      .then(setSessions)
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, [agentId, currentSessionId]);
+
+  const formatTime = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
+    } catch {
+      return "";
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <HistoryIcon className="w-4 h-4" />
+          Conversations
+        </h3>
+        <button
+          onClick={onClose}
+          className="p-1 rounded-md hover:bg-accent transition-colors"
+        >
+          <XIcon className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <MessageSquareIcon className="w-8 h-8 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">No conversations yet</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Start chatting to see your history</p>
+          </div>
+        ) : (
+          <div className="py-2">
+            {sessions.map((session) => (
+              <button
+                key={session.sessionId}
+                onClick={() => onSelectSession(session.sessionId)}
+                className={cn(
+                  "w-full text-left px-4 py-3 transition-colors hover:bg-accent/50 border-b border-border/30",
+                  session.sessionId === currentSessionId && "bg-accent"
+                )}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-muted-foreground">
+                    {formatTime(session.lastActivity)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/70">
+                    {session.messageCount} msgs
+                  </span>
+                </div>
+                <p className="text-xs text-foreground truncate">
+                  {session.lastMessage || "Empty conversation"}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AgentChatSession — ISOLATED useChat session per sessionId
 // ---------------------------------------------------------------------------
 
 function AgentChatSession({
   agentId,
   agentInfo,
+  sessionId,
 }: {
   agentId: string;
   agentInfo: AgentInfo;
+  sessionId: string;
 }) {
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
-  // Each mount creates a fresh transport locked to this specific agent.
-  // This is the definitive fix for the identity bleed bug.
+  // Each mount creates a fresh transport locked to this specific agent + session.
   const transport = new DefaultChatTransport({
     api: "/api/chat",
-    body: { agentId },
+    body: { agentId, sessionId },
   });
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, status, error, setMessages } = useChat({
     transport,
     onError: (err) => console.error(`[Chat ${agentId}] Error:`, err),
   });
+
+  // Load previous messages on mount and inject them
+  useEffect(() => {
+    let cancelled = false;
+    getSessionMessages(sessionId, agentId).then((msgs) => {
+      if (!cancelled && msgs.length > 0) {
+        // Convert plain messages to UIMessages
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const uiMsgs = msgs.map((m: any, i: number) => ({
+          id: `hist-${sessionId}-${i}`,
+          role: m.role,
+          parts: [{ type: 'text' as const, text: m.content }],
+          createdAt: new Date().toISOString(),
+        }));
+        setMessages(uiMsgs);
+      }
+      setHistoryLoaded(true);
+    }).catch(() => {
+      setHistoryLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [sessionId, agentId, setMessages]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -246,7 +408,6 @@ function AgentChatSession({
   // Handle send
   const handleSend = () => {
     if (!inputText.trim() || isLoading) return;
-    // Track the user's message for analytics
     trackChatMessage(agentId, agentInfo.name, inputText.length);
     sendMessage({ text: inputText });
     setInputText("");
@@ -271,9 +432,6 @@ function AgentChatSession({
 
   // Filter visible messages (exclude system)
   const visibleMessages = messages.filter((m) => m.role !== "system");
-
-  // Expose sendMessage for suggested actions from parent (via ref callback or direct prop)
-  // We handle it internally since suggested actions are part of this session.
 
   return (
     <>
@@ -327,11 +485,6 @@ function AgentChatSession({
                 (message.parts as any[]) || [],
               );
 
-              // Extract tool invocations from parts.
-              // AI SDK v6 tool parts:
-              //   Static tools: type = "tool-{toolName}" (e.g. "tool-gmail_fetch")
-              //   Dynamic tools: type = "dynamic-tool"
-              //   States: input-streaming | input-available | output-available
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const toolParts = ((message.parts || []) as any[]).filter(
                 (p: any) =>
@@ -380,11 +533,9 @@ function AgentChatSession({
                       <div className="mt-1 space-y-1">
                         {toolParts.map((tool: Record<string, unknown>, idx: number) => {
                           const toolType = tool.type as string;
-                          // Extract tool name: "tool-gmail_fetch" → "gmail_fetch", "dynamic-tool" → tool.toolName
                           const toolName = toolType === "dynamic-tool"
                             ? (tool.toolName as string) || "unknown"
                             : toolType.replace(/^tool-/, "");
-                          // AI SDK v6 states: input-streaming, input-available, output-available
                           const state = tool.state as string;
                           const hasOutput = state === "output-available" && tool.output != null;
                           const resultStr = hasOutput
@@ -403,7 +554,6 @@ function AgentChatSession({
                             );
                           }
 
-                          // Show loading spinner while tool is executing
                           return (
                             <div
                               key={`${message.id}-tool-${idx}`}
@@ -508,7 +658,26 @@ export function ChatView() {
   const [agents, setAgents] = useState<AgentInfo[]>([DEFAULT_AGENT]);
   const [selectedAgent, setSelectedAgent] = useState("general");
   const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const [showConversations, setShowConversations] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => generateSessionId());
+  const [sessionMap, setSessionMap] = useState<Record<string, string>>({});
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Load session map from localStorage on mount
+  useEffect(() => {
+    const map = loadSessionMap();
+    setSessionMap(map);
+    // If there's a stored session for the current agent, use it
+    if (map["general"]) {
+      setCurrentSessionId(map["general"]);
+    }
+  }, []);
+
+  // Persist session map when it changes
+  const updateSessionMap = useCallback((map: Record<string, string>) => {
+    setSessionMap(map);
+    saveSessionMap(map);
+  }, []);
 
   // Fetch agents on mount
   useEffect(() => {
@@ -557,20 +726,49 @@ export function ChatView() {
   const activeAgent = agents.find((a) => a.id === selectedAgent) || DEFAULT_AGENT;
   const colors = colorMap[activeAgent.color] || colorMap.emerald;
 
-  // Handle agent change — just update state, the `key` prop on AgentChatSession
-  // handles the complete session reset (unmount old, mount fresh).
+  // Handle agent change — save current session, load the agent's session
   const handleAgentChange = (agentId: string) => {
     // Track agent switch for analytics
     const targetAgent = agents.find((a) => a.id === agentId);
     if (targetAgent && agentId !== selectedAgent) {
       trackAgentSwitch(selectedAgent, agentId, targetAgent.name);
     }
+
+    // Save current session for current agent
+    const newMap = { ...sessionMap, [selectedAgent]: currentSessionId };
+    updateSessionMap(newMap);
+
+    // Load the target agent's session (or create new)
+    const targetSession = newMap[agentId] || generateSessionId();
+    // Also save the target session for the target agent
+    newMap[agentId] = targetSession;
+    updateSessionMap(newMap);
+
+    setCurrentSessionId(targetSession);
     setSelectedAgent(agentId);
     setShowAgentPicker(false);
+    setShowConversations(false);
+  };
+
+  // Handle new chat
+  const handleNewChat = () => {
+    const newSessionId = generateSessionId();
+    const newMap = { ...sessionMap, [selectedAgent]: newSessionId };
+    updateSessionMap(newMap);
+    setCurrentSessionId(newSessionId);
+    setShowConversations(false);
+  };
+
+  // Handle selecting a conversation from history
+  const handleSelectSession = (sessionId: string) => {
+    const newMap = { ...sessionMap, [selectedAgent]: sessionId };
+    updateSessionMap(newMap);
+    setCurrentSessionId(sessionId);
+    setShowConversations(false);
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] lg:h-[calc(100vh-3rem)]">
+    <div className="flex flex-col h-[calc(100vh-5rem)] lg:h-[calc(100vh-3rem)] relative">
       {/* Header with Agent Selector */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
         <div className="relative" ref={pickerRef}>
@@ -625,24 +823,59 @@ export function ChatView() {
           </AnimatePresence>
         </div>
 
-        {/* Status indicator */}
+        {/* Header Actions */}
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] gap-1">
             <span className={cn("w-1.5 h-1.5 rounded-full", colors.dot)} />
             {activeAgent.model}
           </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowConversations(true)}
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            title="Conversation history"
+          >
+            <HistoryIcon className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleNewChat}
+            className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1"
+            title="New chat"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span className="text-xs hidden sm:inline">New</span>
+          </Button>
         </div>
       </div>
 
-      {/* ================================================================ */}
-      {/* KEY FIX: `key={selectedAgent}` forces React to completely        */}
-      {/* unmount and remount the chat session when the agent changes.     */}
-      {/* This guarantees a fresh useChat hook with the correct agentId.   */}
-      {/* ================================================================ */}
+      {/* Conversations Panel (overlay) */}
+      <AnimatePresence>
+        {showConversations && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <ConversationsPanel
+              agentId={selectedAgent}
+              currentSessionId={currentSessionId}
+              onSelectSession={handleSelectSession}
+              onClose={() => setShowConversations(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Session — key={sessionId} preserves session across re-renders, resets on new chat */}
       <AgentChatSession
-        key={selectedAgent}
+        key={currentSessionId}
         agentId={selectedAgent}
         agentInfo={activeAgent}
+        sessionId={currentSessionId}
       />
     </div>
   );

@@ -35,3 +35,95 @@ Work Log:
 Stage Summary:
 - 4 automated cron jobs active (plus 2 pre-existing: Morning Briefing + Background Tasks)
 - Product owner operating rhythm established: research → improve → deploy → audit cycle
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Implement Web Search/Reader Tools, Conversation Persistence, and A2A Inter-Agent Communication
+
+Work Log:
+
+### TASK 1: Web Search + Web Reader Tools
+- Added `z-ai-web-dev-sdk` package (v0.0.17) to project dependencies
+- Created `web_search` tool in tools.ts — uses zai.functions.invoke("web_search") for real-time web search
+- Created `web_reader` tool in tools.ts — uses zai.functions.invoke("page_reader") for web page content extraction
+- Added both tools to the allTools registry with keys `web_search` and `web_reader`
+- Updated ALL 5 agent configs (general, mail, code, data, creative) to include web_search and web_reader in their tools arrays
+- Updated ALL 5 agent system prompts to mention web search and web reader capabilities with usage guidance
+
+### TASK 2: Conversation Persistence
+- Added `getSessionMessages()` to memory.ts — returns messages formatted for useChat, tries Supabase first with localStorage fallback
+- Added `getAgentSessions()` to memory.ts — returns list of recent session IDs with metadata for each agent
+- Completely rewrote chat-view.tsx with session management:
+  - Added "New Chat" button in the header (Plus icon)
+  - Added "Conversations" panel button (History icon) showing recent sessions from Supabase
+  - Tracks `sessionId` in state, generates with Date.now() for new sessions
+  - Stores agentId -> sessionId map in localStorage (key: claw-agent-sessions)
+  - Loads previous messages on mount via useEffect + setMessages (since AI SDK v6 uses `messages` not `initialMessages`)
+  - Uses `key={sessionId}` on AgentChatSession instead of `key={selectedAgent}`
+  - Each agent maintains its own sessionId; switching agents saves current and loads target session
+  - Conversations panel overlays the chat view with session history
+
+### TASK 3: A2A Inter-Agent Communication
+- Created /src/lib/a2a.ts with full A2A protocol:
+  - A2AMessage interface (id, fromAgent, toAgent, type, topic, payload, timestamp, status)
+  - A2ATask interface (id, initiatorAgent, assignedAgent, task, context, status, result, delegationChain)
+  - sendA2AMessage() — persists messages to Supabase via pg
+  - getA2AMessages() — retrieves messages between two agents
+  - getAgentA2AMessages() — retrieves all messages for an agent
+  - createA2ATask() — creates delegation tasks in Supabase
+  - updateA2ATaskStatus() — updates task status and result
+  - getAgentA2ATasks() — retrieves tasks for an agent with optional status filter
+- Created Supabase tables via direct SQL (pg):
+  - `a2a_messages` (id, from_agent, to_agent, type, topic, payload JSONB, status, created_at)
+  - `a2a_tasks` (id, initiator_agent, assigned_agent, task, context, status, result, delegation_chain TEXT[], created_at, completed_at)
+  - Performance indexes on agent pairs and task status
+  - RLS enabled with permissive policies
+- Enhanced `delegate_to_agent` tool:
+  - Logs delegation in a2a_tasks before calling
+  - Tracks delegation chain
+  - Updates task status to completed/failed after execution
+  - Returns taskId in response
+- Created `query_agent` tool for specialist agents:
+  - Lighter-weight inter-agent communication (just asks a question)
+  - Available agents: general, mail, code, data, creative
+  - Added to all specialist agents (mail, code, data, creative)
+- Updated agent system prompts to mention query_agent capability
+
+### Additional Changes
+- Added HistoryIcon, XIcon, MessageSquareIcon exports to icons.tsx
+- Cleaned up duplicate/stray code (dataCalculateTool) from tools.ts
+
+Stage Summary:
+- All agents now have web search and web reader capabilities
+- Chat conversations persist across agent switches and page reloads
+- A2A protocol enables inter-agent communication with full tracking in Supabase
+- Build passes cleanly (Next.js 16.2.3 + Turbopack)
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Professional Agent Upgrade, Design Skill, Data Analyst Tools
+
+Work Log:
+- Rewrote ALL 5 agent system prompts with Decision Frameworks and Web Research Protocols
+- Claw General: Strategic advisor with 8-row decision matrix and 4-step research protocol
+- Mail Agent: Elevated to Executive Assistant with 7-row decision framework
+- Code Agent: Elevated to Senior Software Engineer with 8-row decision framework
+- Data Agent: Elevated to Senior Data Analyst with 10-row decision framework, analytical methodology, statistical analysis guidance
+- Creative Agent: Elevated to Content Strategist & Creative Director with 9-row decision framework
+- Created `data_calculate` tool for mathematical/statistical analysis
+- Added to Data Agent tools array
+- Created /skills/claw-designer.md design system document (~500 lines)
+  - Color philosophy (emerald primary, amber accent, warm surfaces)
+  - Typography (Inter font, 1.25 type scale)
+  - Glass morphism card system, neural pulse animation
+  - Spring physics motion curves, gradient ring avatars
+  - Responsive breakpoints, accessibility guidelines
+- Deployed to production
+
+Stage Summary:
+- All 5 agents elevated to professional-grade with decision frameworks
+- Data Agent now has calculation capabilities for proper analysis
+- Design system document ready for UI overhaul
+- Total platform tools: 35 (31 original + web_search + web_reader + data_calculate + query_agent)
