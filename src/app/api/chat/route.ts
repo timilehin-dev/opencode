@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------
-// Chat API Route — Streaming LLM responses with tool calling
+// Chat API Route — Streaming LLM responses with tool calling (AI SDK v6)
 // ---------------------------------------------------------------------------
 
-import { streamText, stepCountIs } from "ai";
+import { streamText, stepCountIs, convertToModelMessages } from "ai";
+import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
 
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { messages, agentId } = body as {
-      messages: { role: string; content: string }[];
+      messages: UIMessage[];
       agentId?: string;
     };
 
@@ -34,23 +35,32 @@ export async function POST(req: Request) {
       }
     }
 
+    // Extract last user message for status display
+    const lastMsg = messages[messages.length - 1];
+    const lastContent = lastMsg?.parts
+      ? lastMsg.parts
+          .filter((p) => p.type === "text")
+          .map((p) => p.text)
+          .join("")
+      : null;
+
     // Update agent status
     updateAgentStatus(id, {
       status: "busy",
-      currentTask: messages[messages.length - 1]?.content?.slice(0, 100) || null,
+      currentTask: lastContent?.slice(0, 100) || null,
       lastActivity: new Date().toISOString(),
     });
 
     // Get the model
     const model = getProvider(agent);
 
+    // Convert UI messages to model-compatible format
+    const modelMessages = await convertToModelMessages(messages);
+
     const result = streamText({
       model,
       system: agent.systemPrompt,
-      messages: messages.map((m) => ({
-        role: m.role as "user" | "assistant" | "system",
-        content: m.content,
-      })),
+      messages: modelMessages,
       tools: agentTools,
       stopWhen: stepCountIs(5),
       onFinish: ({ steps }) => {
@@ -68,15 +78,6 @@ export async function POST(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
     console.error("Chat API error:", error);
-
-    // Update agent status to error
-    try {
-      const body = await req.json().catch(() => ({}));
-      const agentId = (body as { agentId?: string })?.agentId || "general";
-      updateAgentStatus(agentId, { status: "error", lastActivity: new Date().toISOString() });
-    } catch {
-      /* ignore status update failure */
-    }
 
     return new Response(
       JSON.stringify({ error: message }),

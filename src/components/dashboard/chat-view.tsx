@@ -26,11 +26,11 @@ interface AgentInfo {
 const DEFAULT_AGENT: AgentInfo = {
   id: "general",
   name: "Claw General",
-  role: "General-purpose AI assistant",
+  role: "Chief AI Orchestrator & General Manager",
   emoji: "🤵",
   color: "emerald",
-  provider: "openrouter",
-  model: "openai/gpt-4o-mini",
+  provider: "aihubmix",
+  model: "glm-5-turbo-free",
 };
 
 const SUGGESTED_ACTIONS = [

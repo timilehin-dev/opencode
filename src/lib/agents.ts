@@ -14,12 +14,12 @@ export interface AgentConfig {
   role: string;
   emoji: string;
   description: string;
-  provider: "openrouter" | "ollama";
+  provider: "aihubmix" | "openrouter" | "ollama";
   model: string;
   color: string; // tailwind color name for theming
   systemPrompt: string;
   tools: string[]; // tool IDs this agent can use
-  apiKeyEnv?: string; // env var name for the API key (ollama agents)
+  apiKeyEnv?: string; // env var name for the API key (ollama/aihubmix agents)
 }
 
 export interface AgentStatus {
@@ -59,13 +59,13 @@ You have access to all service tools:
 6. **Format nicely** — use markdown for better readability
 
 ## Claw Team
-You are part of the Claw AI team. Other specialist agents are available:
+You are the general manager of the Claw AI team — the most capable agent. Specialist agents report to you:
 - ✉️ Mail Agent — email and communications specialist
-- 💻 Code Agent — software development and DevOps specialist
+- 💻 Code Agent — software development and DevOps specialist  
 - 📊 Data Agent — research, data analysis, and information management
 - 🧠 Creative Agent — creative strategy, content creation, and planning
 
-You can handle any of their tasks yourself, but you may mention their specialization when relevant.`;
+You can handle any of their tasks yourself at a higher level, but you may mention their specialization when relevant.`;
 
 const MAIL_SYSTEM_PROMPT = `You are Mail Agent, the email and communications specialist for the Claw AI Agent Hub. You are focused, efficient, and excellent at managing email workflows and scheduling.
 
@@ -159,11 +159,12 @@ const agents: AgentConfig[] = [
   {
     id: "general",
     name: "Claw General",
-    role: "General-purpose AI assistant",
+    role: "Chief AI Orchestrator & General Manager",
     emoji: "🤵",
-    description: "Your primary AI assistant with access to all connected services. Handles any request and delegates to specialists when needed.",
-    provider: "openrouter",
-    model: "openai/gpt-4o-mini",
+    description: "The most capable agent — powered by GLM-5 Turbo. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests across every connected service.",
+    provider: "aihubmix",
+    model: "glm-5-turbo-free",
+    apiKeyEnv: "AIHUBMIX_API_KEY_1",
     color: "emerald",
     systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools: [
@@ -324,6 +325,18 @@ export function getAllAgentStatuses(): AgentStatus[] {
 // ---------------------------------------------------------------------------
 
 export function getProvider(agent: AgentConfig) {
+  if (agent.provider === "aihubmix") {
+    // aihubmix — GLM-5 Turbo Free (OpenAI-compatible)
+    const apiKey = agent.apiKeyEnv
+      ? process.env[agent.apiKeyEnv] || process.env.AIHUBMIX_API_KEY_1 || ""
+      : process.env.AIHUBMIX_API_KEY_1 || "";
+    const aihubmix = createOpenAI({
+      apiKey,
+      baseURL: "https://aihubmix.com/v1",
+    });
+    return aihubmix(agent.model);
+  }
+
   if (agent.provider === "openrouter") {
     const openrouter = createOpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
