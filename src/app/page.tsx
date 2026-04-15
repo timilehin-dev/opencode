@@ -99,7 +99,7 @@ export default function Dashboard() {
         onPageChange={handlePageChange}
         serviceStatus={serviceStatus}
         mobileOpen={mobileSidebarOpen}
-        onMobileClose={() => setMobileSidebarOpen(false)}
+        onMobileToggle={() => setMobileSidebarOpen(prev => !prev)}
       />
 
       {/* Main Content */}

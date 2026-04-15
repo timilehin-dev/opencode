@@ -38,9 +38,9 @@ export async function isSupabaseReady(): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase) return false;
   try {
-    const { error } = await supabase.from("health_check").select("id").limit(1);
-    // If the table doesn't exist, it's an error but Supabase IS connected
-    return !error || error.code === "42P01"; // 42P01 = undefined table
+    // Query an actual table that exists — agent_memory
+    const { error } = await supabase.from("agent_memory").select("id").limit(1);
+    return !error;
   } catch {
     return false;
   }

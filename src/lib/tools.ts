@@ -175,7 +175,7 @@ export const calendarEventsTool = tool({
 });
 
 export const calendarCreateTool = tool({
-  description: "Create a new Google Calendar event.",
+  description: "Create a new Google Calendar event. Supports adding attendees who will receive email invitations. Always use this for scheduling meetings with others.",
   inputSchema: zodSchema(z.object({
     summary: z.string().optional().describe("Event title"),
     calendarId: z.string().optional().describe("Calendar ID (default: 'primary')"),
@@ -183,9 +183,10 @@ export const calendarCreateTool = tool({
     end: z.string().describe("End time in ISO 8601 or date string"),
     location: z.string().optional().describe("Event location"),
     description: z.string().optional().describe("Event description"),
-    attendees: z.array(z.object({ email: z.string() })).optional().describe("List of attendee email addresses"),
+    attendees: z.array(z.object({ email: z.string() })).optional().describe("List of attendee email addresses — they WILL receive calendar invitations"),
+    addMeetLink: z.boolean().optional().describe("If true, automatically adds a Google Meet video conference link to the event"),
   })),
-  execute: safeJson(async ({ summary, calendarId, start, end, location, description, attendees }) => {
+  execute: safeJson(async ({ summary, calendarId, start, end, location, description, attendees, addMeetLink }) => {
     return await gCalCreateEvent(calendarId || "primary", {
       summary,
       start: { dateTime: start.includes("T") ? start : undefined, date: start.includes("T") ? undefined : start },
@@ -193,6 +194,7 @@ export const calendarCreateTool = tool({
       location,
       description,
       attendees,
+      conferenceData: addMeetLink ? { createRequest: { requestId: `claw-meet-${Date.now()}` } } : undefined,
     });
   }),
 });

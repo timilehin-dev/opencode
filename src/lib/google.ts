@@ -164,8 +164,9 @@ export async function gCalCreateEvent(
     conferenceData?: { createRequest: { requestId: string } };
   },
 ): Promise<GoogleCalendarEvent> {
+  const params = new URLSearchParams({ conferenceDataVersion: "1", sendUpdates: "all" });
   const res = await googleFetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1`,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`,
     {
       method: "POST",
       body: JSON.stringify(event),
@@ -579,7 +580,7 @@ export async function gGmailFetchEmails(options?: {
   return { messages, nextPageToken: list.nextPageToken };
 }
 
-/** Send an email via Gmail API */
+/** Send an email via Gmail API — auto-formats to professional HTML */
 export async function gGmailSendEmail(options: {
   to: string;
   subject?: string;
@@ -588,6 +589,12 @@ export async function gGmailSendEmail(options: {
   cc?: string[];
   bcc?: string[];
 }): Promise<{ id: string; threadId: string; labelIds: string[] }> {
+  // Auto-convert plain text to professional HTML if not already HTML
+  let htmlBody = options.body;
+  if (!options.isHtml) {
+    htmlBody = plainTextToHtml(options.body);
+  }
+
   // Build RFC 2822 message
   let message = "";
   message += `To: ${options.to}\r\n`;
@@ -597,7 +604,7 @@ export async function gGmailSendEmail(options: {
   message += "Content-Type: text/html; charset=utf-8\r\n";
   message += "MIME-Version: 1.0\r\n";
   message += "\r\n";
-  message += options.body;
+  message += htmlBody;
 
   // Base64url encode
   const encoded = Buffer.from(message).toString("base64url");
@@ -611,6 +618,134 @@ export async function gGmailSendEmail(options: {
     throw new Error(`Gmail send error: ${res.status} — ${err}`);
   }
   return res.json() as Promise<{ id: string; threadId: string; labelIds: string[] }>;
+}
+
+/**
+ * Convert plain text to professional HTML email.
+ * Handles: line breaks, bullet lists, numbered lists, bold, italic,
+ * headers (# ## ###), horizontal rules (---), and code blocks.
+ */
+function plainTextToHtml(text: string): string {
+  const lines = text.split("\n");
+  const htmlLines: string[] = [];
+  let inList = false;
+  let inOrderedList = false;
+  let inCodeBlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Code blocks
+    if (trimmed.startsWith("```")) {
+      if (inCodeBlock) {
+        htmlLines.push("</code></pre>");
+        inCodeBlock = false;
+      } else {
+        htmlLines.push('<pre style="background:#f5f5f5;padding:12px;border-radius:6px;font-size:13px;overflow-x:auto;margin:8px 0;"><code style="font-family:monospace;">');
+        inCodeBlock = true;
+      }
+      continue;
+    }
+    if (inCodeBlock) {
+      htmlLines.push(escapeHtml(line));
+      continue;
+    }
+
+    // Close lists if we're done with them
+    if (inList && !trimmed.startsWith("- ") && !trimmed.startsWith("* ") && trimmed !== "") {
+      htmlLines.push("</ul>");
+      inList = false;
+    }
+    if (inOrderedList && !/^\d+\.\s/.test(trimmed) && trimmed !== "") {
+      htmlLines.push("</ol>");
+      inOrderedList = false;
+    }
+
+    // Headers
+    if (trimmed.startsWith("### ")) {
+      htmlLines.push(`<h3 style="font-size:16px;font-weight:700;margin:16px 0 8px 0;color:#1a1a1a;">${formatInline(trimmed.slice(4))}</h3>`);
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      htmlLines.push(`<h2 style="font-size:18px;font-weight:700;margin:18px 0 8px 0;color:#1a1a1a;">${formatInline(trimmed.slice(3))}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      htmlLines.push(`<h1 style="font-size:22px;font-weight:700;margin:20px 0 10px 0;color:#1a1a1a;">${formatInline(trimmed.slice(2))}</h1>`);
+      continue;
+    }
+
+    // Horizontal rule
+    if (trimmed === "---" || trimmed === "***") {
+      htmlLines.push('<hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">');
+      continue;
+    }
+
+    // Bullet lists
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      if (!inList) { htmlLines.push('<ul style="margin:8px 0;padding-left:20px;color:#333;">'); inList = true; }
+      htmlLines.push(`<li style="margin:4px 0;font-size:14px;line-height:1.6;">${formatInline(trimmed.slice(2))}</li>`);
+      continue;
+    }
+
+    // Numbered lists
+    const olMatch = trimmed.match(/^(\d+)\.\s(.+)/);
+    if (olMatch) {
+      if (!inOrderedList) { htmlLines.push('<ol style="margin:8px 0;padding-left:20px;color:#333;">'); inOrderedList = true; }
+      htmlLines.push(`<li style="margin:4px 0;font-size:14px;line-height:1.6;">${formatInline(olMatch[2])}</li>`);
+      continue;
+    }
+
+    // Empty line = paragraph break
+    if (trimmed === "") {
+      htmlLines.push('<br>');
+      continue;
+    }
+
+    // Table rows (simple | col | col | format)
+    if (trimmed.includes("|") && trimmed.startsWith("|")) {
+      const cells = trimmed.split("|").filter(c => c.trim() !== "").map(c => c.trim());
+      const isSeparator = cells.every(c => /^[-:]+$/.test(c));
+      if (isSeparator) continue;
+      const tag = "td";
+      htmlLines.push(`<tr>${cells.map(c => `<${tag} style="border:1px solid #e0e0e0;padding:8px 12px;font-size:13px;">${formatInline(c)}</${tag}>`).join("")}</tr>`);
+      continue;
+    }
+
+    // Regular paragraph
+    htmlLines.push(`<p style="margin:4px 0;font-size:14px;line-height:1.7;color:#333;">${formatInline(trimmed)}</p>`);
+  }
+
+  // Close any open lists
+  if (inList) htmlLines.push("</ul>");
+  if (inOrderedList) htmlLines.push("</ol>");
+
+  // Wrap in a professional email container
+  return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:640px;margin:0 auto;padding:20px 24px;color:#333;line-height:1.6;">
+${htmlLines.join("\n")}
+</body></html>`;
+}
+
+/** Format inline markdown: **bold**, *italic*, `code`, [link](url) */
+function formatInline(text: string): string {
+  let result = escapeHtml(text);
+  // Bold
+  result = result.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  result = result.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  // Inline code
+  result = result.replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:13px;font-family:monospace;">$1</code>');
+  return result;
+}
+
+/** Escape HTML special characters */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /** List drafts */

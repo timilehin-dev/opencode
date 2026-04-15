@@ -53,7 +53,7 @@ interface SidebarProps {
   onPageChange: (key: PageKey) => void;
   serviceStatus: ServiceStatus | null;
   mobileOpen: boolean;
-  onMobileClose: () => void;
+  onMobileToggle: () => void;
 }
 
 function getStatusDot(serviceKey: ServiceKey | undefined, serviceStatus: ServiceStatus | null) {
@@ -155,13 +155,13 @@ export function Sidebar({
   onPageChange,
   serviceStatus,
   mobileOpen,
-  onMobileClose,
+  onMobileToggle,
 }: SidebarProps) {
   return (
     <>
       {/* Mobile hamburger button */}
       <button
-        onClick={() => !mobileOpen && onMobileClose()}
+        onClick={onMobileToggle}
         className={cn(
           "fixed top-4 left-4 z-50 lg:hidden p-2 rounded-lg bg-card border border-border shadow-lg transition-colors",
           mobileOpen && "hidden"
@@ -180,7 +180,7 @@ export function Sidebar({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-            onClick={onMobileClose}
+            onClick={onMobileToggle}
           />
         )}
       </AnimatePresence>
@@ -195,7 +195,7 @@ export function Sidebar({
         {/* Mobile close button */}
         <div className="flex items-center justify-end px-4 pt-3 lg:hidden">
           <button
-            onClick={onMobileClose}
+            onClick={onMobileToggle}
             className="p-1.5 rounded-lg hover:bg-accent transition-colors"
             aria-label="Close navigation"
           >
@@ -207,7 +207,7 @@ export function Sidebar({
           activePage={activePage}
           onPageChange={onPageChange}
           serviceStatus={serviceStatus}
-          onItem={onMobileClose}
+          onItem={onMobileToggle}
         />
       </aside>
     </>
