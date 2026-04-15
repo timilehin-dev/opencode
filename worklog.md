@@ -51,3 +51,24 @@ Stage Summary:
 - All agents should now work: Claw General (aihubmix/GLM-5 Turbo), 4 specialist agents (Ollama/gemma4)
 - Deployed to https://my-project-lilac-pi-90.vercel.app
 - Key rotation system active: aihubmix (2 keys), ollama (5 keys)
+
+---
+Task ID: 2
+Agent: Super Z (main)
+Task: Fix "Tool result is missing" error and tool spinner "keeps rolling" bug
+
+Work Log:
+- Diagnosed root causes:
+  1. Custom toModelMessages() didn't pair ToolCallParts with ToolResultParts — when a tool had state="result", only a ToolResultPart was created, missing the ToolCallPart that tells the LLM "I called this tool"
+  2. Frontend checked for state === "result" but AI SDK v6 uses state === "output-available" for completed tools, so the spinner never stopped
+- Fix 1 (chat route): Replaced custom toModelMessages() with AI SDK v6's built-in convertToModelMessages() which correctly pairs tool calls with results across multi-turn conversations
+- Fix 2 (chat-view frontend): Updated tool state detection from "result" to "output-available" to match AI SDK v6's actual state values
+- Also improved tool name extraction: "tool-gmail_fetch" → "gmail_fetch" using proper regex
+- Added support for both static tools (type: "tool-{name}") and dynamic tools (type: "dynamic-tool")
+- TypeScript clean build, deployed to production
+
+Stage Summary:
+- "Tool result is missing" error fixed — SDK converter handles tool call/result pairing
+- Tool spinner fixed — now uses correct AI SDK v6 state "output-available"
+- Both fixes apply to all 5 agents equally (same code path)
+- Deployed to https://my-project-lilac-pi-90.vercel.app

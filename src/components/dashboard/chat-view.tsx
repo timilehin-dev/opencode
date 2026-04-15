@@ -371,10 +371,16 @@ export function ChatView() {
                 (message.parts as any[]) || [],
               );
 
-              // Extract tool invocations from parts
+              // Extract tool invocations from parts.
+              // AI SDK v6 tool parts:
+              //   Static tools: type = "tool-{toolName}" (e.g. "tool-gmail_fetch")
+              //   Dynamic tools: type = "dynamic-tool"
+              //   States: input-streaming | input-available | output-available
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const toolParts = ((message.parts || []) as any[]).filter(
-                (p: any) => p.type && p.type.startsWith("tool-"),
+                (p: any) =>
+                  (p.type && p.type.startsWith("tool-")) ||
+                  p.type === "dynamic-tool",
               );
 
               if (!textContent && toolParts.length === 0) return null;
@@ -414,22 +420,31 @@ export function ChatView() {
                       <div className="mt-1 space-y-1">
                         {toolParts.map((tool: Record<string, unknown>, idx: number) => {
                           const toolType = tool.type as string;
-                          const toolName = toolType.replace("tool-", "").replace("dynamic-tool", (tool.toolName as string) || "unknown");
+                          // Extract tool name: "tool-gmail_fetch" → "gmail_fetch", "dynamic-tool" → tool.toolName
+                          const toolName = toolType === "dynamic-tool"
+                            ? (tool.toolName as string) || "unknown"
+                            : toolType.replace(/^tool-/, "");
+                          // AI SDK v6 states: input-streaming, input-available, output-available
                           const state = tool.state as string;
-                          const resultStr =
-                            typeof tool.output === "string"
+                          const hasOutput = state === "output-available" && tool.output != null;
+                          const resultStr = hasOutput
+                            ? typeof tool.output === "string"
                               ? tool.output
-                              : tool.output
-                                ? JSON.stringify(tool.output)
-                                : "";
+                              : JSON.stringify(tool.output)
+                            : "";
 
-                          return state === "result" ? (
-                            <ToolCallCard
-                              key={`${message.id}-tool-${idx}`}
-                              toolName={toolName}
-                              result={resultStr}
-                            />
-                          ) : (
+                          if (hasOutput) {
+                            return (
+                              <ToolCallCard
+                                key={`${message.id}-tool-${idx}`}
+                                toolName={toolName}
+                                result={resultStr}
+                              />
+                            );
+                          }
+
+                          // Show loading spinner while tool is executing
+                          return (
                             <div
                               key={`${message.id}-tool-${idx}`}
                               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-accent/30"
