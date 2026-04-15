@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,7 +28,7 @@ const DEFAULT_AGENT: AgentInfo = {
   id: "general",
   name: "Claw General",
   role: "Chief AI Orchestrator & General Manager",
-  emoji: "🤵",
+  emoji: "\uD83E\uDDD4",
   color: "emerald",
   provider: "aihubmix",
   model: "coding-glm-5-turbo-free",
@@ -171,89 +171,47 @@ function getMessageText(parts: Array<{ type: string; text?: string }>): string {
 }
 
 // ---------------------------------------------------------------------------
-// Chat View Component
+// AgentChatSession — ISOLATED useChat session per agent
+// ---------------------------------------------------------------------------
+//
+// CRITICAL FIX: This component is rendered with `key={agentId}` in the parent.
+// When the user switches agents, React COMPLETELY UNMOUNTS the old session
+// and MOUNTS A FRESH ONE. This guarantees:
+//   1. A brand-new DefaultChatTransport with the correct agentId in body
+//   2. A fresh useChat hook with no residual state from the previous agent
+//   3. No identity bleed — the API always receives the correct agentId
+//
+// Previous approach (useMemo transport + setMessages([])) failed because
+// useChat stores the transport in a ref on first render and ignores prop
+// changes, so it kept sending agentId="general" even after switching.
 // ---------------------------------------------------------------------------
 
-export function ChatView() {
-  const [agents, setAgents] = useState<AgentInfo[]>([DEFAULT_AGENT]);
-  const [selectedAgent, setSelectedAgent] = useState("general");
-  const [showAgentPicker, setShowAgentPicker] = useState(false);
+function AgentChatSession({
+  agentId,
+  agentInfo,
+}: {
+  agentId: string;
+  agentInfo: AgentInfo;
+}) {
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch agents on mount
-  useEffect(() => {
-    async function fetchAgents() {
-      try {
-        const res = await fetch("/api/agents");
-        const json = await res.json();
-        if (json.success && json.data) {
-          const agentList: AgentInfo[] = json.data.map((a: Record<string, unknown>) => ({
-            id: a.id as string,
-            name: a.name as string,
-            role: a.role as string,
-            emoji: a.emoji as string,
-            color: a.color as string,
-            provider: a.provider as string,
-            model: a.model as string,
-          }));
-          setAgents(agentList);
-        }
-      } catch {
-        /* use defaults */
-      }
-    }
+  const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
-    // Check localStorage for pre-selected agent
-    const stored = localStorage.getItem("claw-selected-agent");
-    if (stored) {
-      setSelectedAgent(stored);
-      localStorage.removeItem("claw-selected-agent");
-    }
+  // Each mount creates a fresh transport locked to this specific agent.
+  // This is the definitive fix for the identity bleed bug.
+  const transport = new DefaultChatTransport({
+    api: "/api/chat",
+    body: { agentId },
+  });
 
-    fetchAgents();
-  }, []);
-
-  // Close agent picker on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setShowAgentPicker(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  const activeAgent = agents.find((a) => a.id === selectedAgent) || DEFAULT_AGENT;
-  const colors = colorMap[activeAgent.color] || colorMap.emerald;
-
-  // Transport must be recreated when agent changes so the correct agentId is sent.
-  // This fixes the bug where all messages were routed to Claw General regardless
-  // of which agent the user selected.
-  const transport = useMemo(
-    () => new DefaultChatTransport({
-      api: "/api/chat",
-      body: { agentId: selectedAgent },
-    }),
-    [selectedAgent],
-  );
-
-  const { messages, sendMessage, setMessages, status, error } = useChat({
+  const { messages, sendMessage, status, error } = useChat({
     transport,
-    onError: (err) => console.error("Chat error:", err),
+    onError: (err) => console.error(`[Chat ${agentId}] Error:`, err),
   });
 
   const isLoading = status === "submitted" || status === "streaming";
-
-  // Clear messages when agent changes
-  const handleAgentChange = (agentId: string) => {
-    setSelectedAgent(agentId);
-    setShowAgentPicker(false);
-    setMessages([]);
-  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -287,77 +245,11 @@ export function ChatView() {
   // Filter visible messages (exclude system)
   const visibleMessages = messages.filter((m) => m.role !== "system");
 
+  // Expose sendMessage for suggested actions from parent (via ref callback or direct prop)
+  // We handle it internally since suggested actions are part of this session.
+
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] lg:h-[calc(100vh-3rem)]">
-      {/* Header with Agent Selector */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
-        <div className="relative" ref={pickerRef}>
-          <button
-            onClick={() => setShowAgentPicker(!showAgentPicker)}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all duration-200 hover:border-primary/30",
-              "border-border bg-card"
-            )}
-          >
-            <span className="text-xl">{activeAgent.emoji}</span>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-foreground">{activeAgent.name}</p>
-              <p className="text-[11px] text-muted-foreground">{activeAgent.role}</p>
-            </div>
-            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showAgentPicker && "rotate-180")} />
-          </button>
-
-          {/* Agent Dropdown */}
-          <AnimatePresence>
-            {showAgentPicker && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden"
-              >
-                <div className="py-1">
-                  {agents.map((agent) => (
-                    <button
-                      key={agent.id}
-                      onClick={() => handleAgentChange(agent.id)}
-                      className={cn(
-                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-accent",
-                        agent.id === selectedAgent && "bg-accent"
-                      )}
-                    >
-                      <span className="text-lg">{agent.emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{agent.name}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">{agent.role}</p>
-                      </div>
-                      {agent.id === selectedAgent && (
-                        <div className={cn("w-2 h-2 rounded-full", colorMap[agent.color]?.dot || "bg-emerald-400")} />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Status indicator */}
-        <div className="flex items-center gap-2">
-          {isLoading && (
-            <Badge variant="secondary" className="text-[10px] gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Thinking
-            </Badge>
-          )}
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <span className={cn("w-1.5 h-1.5 rounded-full", colors.dot)} />
-            {activeAgent.model}
-          </Badge>
-        </div>
-      </div>
-
+    <>
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
         {visibleMessages.length === 0 ? (
@@ -369,18 +261,18 @@ export function ChatView() {
               transition={{ duration: 0.4 }}
             >
               <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center mb-4", colors.bg)}>
-                <span className="text-3xl">{activeAgent.emoji}</span>
+                <span className="text-3xl">{agentInfo.emoji}</span>
               </div>
               <h2 className="text-xl font-bold text-foreground mb-1">
-                Chat with {activeAgent.name}
+                Chat with {agentInfo.name}
               </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                {activeAgent.role}. Connected to your services and ready to help.
+                {agentInfo.role}. Connected to your services and ready to help.
               </p>
             </motion.div>
 
             <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-              {(SUGGESTED_ACTIONS[selectedAgent] || DEFAULT_SUGGESTED).map((action, i) => (
+              {(SUGGESTED_ACTIONS[agentId] || DEFAULT_SUGGESTED).map((action, i) => (
                 <motion.button
                   key={action.label}
                   initial={{ opacity: 0, y: 8 }}
@@ -433,7 +325,7 @@ export function ChatView() {
                   {/* Agent Avatar */}
                   {!isUser && (
                     <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", colors.bg)}>
-                      <span className="text-sm">{activeAgent.emoji}</span>
+                      <span className="text-sm">{agentInfo.emoji}</span>
                     </div>
                   )}
 
@@ -544,7 +436,7 @@ export function ChatView() {
               value={inputText}
               onChange={handleTextareaInput}
               onKeyDown={handleKeyDown}
-              placeholder={`Message ${activeAgent.name}...`}
+              placeholder={`Message ${agentInfo.name}...`}
               rows={1}
               className={cn(
                 "w-full resize-none rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground",
@@ -577,6 +469,149 @@ export function ChatView() {
           AI responses may be inaccurate. Tools provide real data from connected services.
         </p>
       </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Chat View Component (parent — handles agent selection, header, layout)
+// ---------------------------------------------------------------------------
+
+export function ChatView() {
+  const [agents, setAgents] = useState<AgentInfo[]>([DEFAULT_AGENT]);
+  const [selectedAgent, setSelectedAgent] = useState("general");
+  const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch agents on mount
+  useEffect(() => {
+    async function fetchAgents() {
+      try {
+        const res = await fetch("/api/agents");
+        const json = await res.json();
+        if (json.success && json.data) {
+          const agentList: AgentInfo[] = json.data.map((a: Record<string, unknown>) => ({
+            id: a.id as string,
+            name: a.name as string,
+            role: a.role as string,
+            emoji: a.emoji as string,
+            color: a.color as string,
+            provider: a.provider as string,
+            model: a.model as string,
+          }));
+          setAgents(agentList);
+        }
+      } catch {
+        /* use defaults */
+      }
+    }
+
+    // Check localStorage for pre-selected agent
+    const stored = localStorage.getItem("claw-selected-agent");
+    if (stored) {
+      setSelectedAgent(stored);
+      localStorage.removeItem("claw-selected-agent");
+    }
+
+    fetchAgents();
+  }, []);
+
+  // Close agent picker on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowAgentPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const activeAgent = agents.find((a) => a.id === selectedAgent) || DEFAULT_AGENT;
+  const colors = colorMap[activeAgent.color] || colorMap.emerald;
+
+  // Handle agent change — just update state, the `key` prop on AgentChatSession
+  // handles the complete session reset (unmount old, mount fresh).
+  const handleAgentChange = (agentId: string) => {
+    setSelectedAgent(agentId);
+    setShowAgentPicker(false);
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-5rem)] lg:h-[calc(100vh-3rem)]">
+      {/* Header with Agent Selector */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
+        <div className="relative" ref={pickerRef}>
+          <button
+            onClick={() => setShowAgentPicker(!showAgentPicker)}
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all duration-200 hover:border-primary/30",
+              "border-border bg-card"
+            )}
+          >
+            <span className="text-xl">{activeAgent.emoji}</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground">{activeAgent.name}</p>
+              <p className="text-[11px] text-muted-foreground">{activeAgent.role}</p>
+            </div>
+            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showAgentPicker && "rotate-180")} />
+          </button>
+
+          {/* Agent Dropdown */}
+          <AnimatePresence>
+            {showAgentPicker && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden"
+              >
+                <div className="py-1">
+                  {agents.map((agent) => (
+                    <button
+                      key={agent.id}
+                      onClick={() => handleAgentChange(agent.id)}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-accent",
+                        agent.id === selectedAgent && "bg-accent"
+                      )}
+                    >
+                      <span className="text-lg">{agent.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{agent.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{agent.role}</p>
+                      </div>
+                      {agent.id === selectedAgent && (
+                        <div className={cn("w-2 h-2 rounded-full", colorMap[agent.color]?.dot || "bg-emerald-400")} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Status indicator */}
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px] gap-1">
+            <span className={cn("w-1.5 h-1.5 rounded-full", colors.dot)} />
+            {activeAgent.model}
+          </Badge>
+        </div>
+      </div>
+
+      {/* ================================================================ */}
+      {/* KEY FIX: `key={selectedAgent}` forces React to completely        */}
+      {/* unmount and remount the chat session when the agent changes.     */}
+      {/* This guarantees a fresh useChat hook with the correct agentId.   */}
+      {/* ================================================================ */}
+      <AgentChatSession
+        key={selectedAgent}
+        agentId={selectedAgent}
+        agentInfo={activeAgent}
+      />
     </div>
   );
 }

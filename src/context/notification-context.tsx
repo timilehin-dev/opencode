@@ -103,6 +103,9 @@ export function NotificationProvider({
 
   // Deduplication state — tracks what the server has already told us about
   const seenIdsRef = useRef<SeenIds>({ email: [], calendar: [], github: [] });
+  // Tracks source IDs that have been dismissed/cleared by the user.
+  // These are excluded from re-appearing even if the server somehow returns them.
+  const dismissedSourceIdsRef = useRef<Set<string>>(new Set());
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTabVisibleRef = useRef(true);
 
@@ -167,11 +170,13 @@ export function NotificationProvider({
         };
       }
 
-      // Add new notifications (avoid duplicates by sourceId)
+      // Add new notifications (avoid duplicates by sourceId and dismissed)
       if (json.notifications?.length > 0) {
         const existingSourceIds = new Set(notifications.map((n) => n.sourceId));
         const trulyNew = json.notifications.filter(
-          (n: AppNotification) => !existingSourceIds.has(n.sourceId),
+          (n: AppNotification) =>
+            !existingSourceIds.has(n.sourceId) &&
+            !dismissedSourceIdsRef.current.has(n.sourceId),
         );
 
         if (trulyNew.length > 0) {
@@ -254,16 +259,37 @@ export function NotificationProvider({
     );
   }, []);
 
+  // Mark all as read AND clear the notification list.
+  // The user expects notifications to disappear when marked as read.
+  // seenIdsRef prevents the server from re-sending them on next poll.
+  // dismissedSourceIdsRef is an extra client-side safety net.
   const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => {
+      // Track all current source IDs as dismissed
+      for (const n of prev) {
+        dismissedSourceIdsRef.current.add(n.sourceId);
+      }
+      return [];
+    });
   }, []);
 
   const dismiss = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => {
+      const notif = prev.find((n) => n.id === id);
+      if (notif) {
+        dismissedSourceIdsRef.current.add(notif.sourceId);
+      }
+      return prev.filter((n) => n.id !== id);
+    });
   }, []);
 
   const clearAll = useCallback(() => {
-    setNotifications([]);
+    setNotifications((prev) => {
+      for (const n of prev) {
+        dismissedSourceIdsRef.current.add(n.sourceId);
+      }
+      return [];
+    });
   }, []);
 
   const togglePanel = useCallback(() => setIsOpen((p) => !p), []);

@@ -72,6 +72,8 @@ export async function POST(req: Request) {
     const modelMessages = await convertToModelMessages(messages);
 
     console.log(`[Chat] Agent: ${agent.name} (${agent.provider}/${agent.model})`);
+    console.log(`[Chat] Received agentId: "${id}" (raw: "${agentId || 'undefined'}")`);
+    console.log(`[Chat] Tools available: ${Object.keys(agentTools).join(', ')}`);
     console.log(`[Chat] Messages: ${modelMessages.length}`);
     for (let i = 0; i < modelMessages.length; i++) {
       const m = modelMessages[i];
