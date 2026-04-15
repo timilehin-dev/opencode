@@ -347,3 +347,40 @@ Stage Summary:
 - Service audit complete: identified gaps for dashboard build (shadcn/ui, component decomposition, etc.)
 - Awaiting: user's STITCH_API_KEY to test integration
 - Dashboard build planning deferred until Stitch key is provided
+
+---
+
+## Task 8: Decompose Monolithic page.tsx into Modular Components
+
+**Date**: 2026-04-15
+**Status**: Completed
+**Build**: ✅ Clean (0 new errors)
+
+### Summary
+Decomposed the 2,390-line monolithic `src/app/page.tsx` into 13 focused modules. Each service view is now a self-contained component with its own state management, data fetching, and rendering. The orchestrator page.tsx was reduced from 2,390 lines to 145 lines.
+
+### Files Created
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `src/lib/types.ts` | 155 | All TypeScript interfaces and types (RepoInfo, Issue, PullRequest, GmailMessage, CalendarEvent, DriveFile, ServiceStatus, etc.) |
+| `src/lib/helpers.ts` | 59 | Utility functions (formatDate, timeAgo, timeAgoMs, labelColor, extractSender, stripHtml, truncate, formatFileSize) |
+| `src/components/icons.tsx` | 66 | Lucide-react icon re-exports (Star, GitFork, CircleAlert, Folder, FileText, etc.) + custom GitHubIcon SVG + Spinner component |
+| `src/components/connect-service-card.tsx` | 49 | ConnectServiceCard component for unconnected services |
+| `src/components/dashboard/header.tsx` | 196 | Header with service switcher, service-specific stats bar, and ThemeToggle button |
+| `src/components/dashboard/github-view.tsx` | 425 | Full GitHub section: Issues, Pull Requests, Files, Commits tabs |
+| `src/components/dashboard/gmail-view.tsx` | 427 | Full Gmail section: Inbox, Compose, Search, Labels tabs |
+| `src/components/dashboard/calendar-view.tsx` | 333 | Calendar section: Upcoming events, Create event, Calendars tabs |
+| `src/components/dashboard/drive-view.tsx` | 227 | Drive section: Files listing, Create folder |
+| `src/components/dashboard/vercel-view.tsx` | 179 | Vercel section: Projects, Domains tabs |
+| `src/components/dashboard/docs-view.tsx` | 110 | Docs section: Document listing |
+| `src/components/dashboard/sheets-view.tsx` | 112 | Sheets section: Spreadsheet ID input + data viewer |
+| `src/app/page.tsx` | 145 | Slim orchestrator: service navigation, initial data fetch, conditional view rendering |
+
+### Key Design Decisions
+1. **Self-contained views**: Each service view manages its own state, data fetching (via useEffect + useCallback), and error handling internally — no shared loading/error state between views.
+2. **Framer Motion**: Added `motion.div` with fade-in animation (opacity 0→1, y 8→0) to each service view for smooth transitions when switching.
+3. **Lucide-react**: Replaced 18 inline SVG icon functions with lucide-react imports. GitHub brand icon kept as custom SVG (not in lucide-react).
+4. **ThemeToggle**: Added to header alongside service switcher.
+5. **Dark theme preserved**: All original hardcoded dark theme colors (`#0c1322`, `#1a2332`, `#0f172a`, `#151d2e`, `#1e293b`) maintained for pixel-perfect visual parity.
+6. **No functionality changes**: Pure refactoring — all API calls, state transitions, and UI behavior preserved exactly.
