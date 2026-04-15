@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Header } from "@/components/dashboard/header";
+import { AnimatePresence, motion } from "framer-motion";
+import { Sidebar, type PageKey } from "@/components/dashboard/sidebar";
+import { OverviewPage } from "@/components/dashboard/overview";
 import { GitHubView } from "@/components/dashboard/github-view";
 import { GmailView } from "@/components/dashboard/gmail-view";
 import { CalendarView } from "@/components/dashboard/calendar-view";
@@ -10,18 +12,17 @@ import { VercelView } from "@/components/dashboard/vercel-view";
 import { DocsView } from "@/components/dashboard/docs-view";
 import { SheetsView } from "@/components/dashboard/sheets-view";
 import type {
-  ServiceKey,
   ServiceStatus,
   RepoInfo,
   GmailProfile,
 } from "@/lib/types";
 
 export default function Dashboard() {
-  const [activeService, setActiveService] = useState<ServiceKey>("github");
+  const [activePage, setActivePage] = useState<PageKey>("overview");
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
   const [repo, setRepo] = useState<RepoInfo | null>(null);
   const [gmProfile, setGmProfile] = useState<GmailProfile | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Service-level data fetching
@@ -58,88 +59,282 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchServiceStatus();
-    fetchRepo();
-    fetchGmailProfile();
+    const controller = new AbortController();
+    (async () => {
+      await fetchServiceStatus();
+      await fetchRepo();
+      await fetchGmailProfile();
+    })();
+    return () => controller.abort();
   }, [fetchServiceStatus, fetchRepo, fetchGmailProfile]);
+
+  // ---------------------------------------------------------------------------
+  // Page change handler
+  // ---------------------------------------------------------------------------
+
+  const handlePageChange = (key: PageKey) => {
+    setActivePage(key);
+  };
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <Header
-        activeService={activeService}
+    <div className="min-h-screen flex bg-background text-foreground">
+      {/* Sidebar */}
+      <Sidebar
+        activePage={activePage}
+        onPageChange={handlePageChange}
         serviceStatus={serviceStatus}
-        repo={repo}
-        gmProfile={gmProfile}
-        onServiceChange={setActiveService}
-        onClearError={() => setError(null)}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-        {/* Error Banner */}
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
-            {error}
-            <button onClick={() => setError(null)} className="ml-3 underline hover:text-red-300">
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {/* Service Views */}
-        {activeService === "github" && (
-          <GitHubView />
-        )}
-
-        {activeService === "gmail" && (
-          <GmailView />
-        )}
-
-        {activeService === "calendar" && (
-          <CalendarView serviceStatus={serviceStatus} />
-        )}
-
-        {activeService === "drive" && (
-          <DriveView serviceStatus={serviceStatus} />
-        )}
-
-        {activeService === "sheets" && (
-          <SheetsView serviceStatus={serviceStatus} />
-        )}
-
-        {activeService === "docs" && (
-          <DocsView serviceStatus={serviceStatus} />
-        )}
-
-        {activeService === "vercel" && (
-          <VercelView serviceStatus={serviceStatus} />
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-800 bg-[#0c1322] mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <p className="text-center text-xs text-slate-500">
-            OpenCode Control Hub &middot;{" "}
-            {activeService === "github" && (
-              <>GitHub &middot; Data from{" "}
-                <a href="https://github.com/timilehin-dev/opencode" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors">timilehin-dev/opencode</a>
-              </>
+      <main className="flex-1 min-w-0 overflow-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pt-16 lg:pt-6">
+          <AnimatePresence mode="wait">
+            {activePage === "overview" && (
+              <OverviewPage
+                key="overview"
+                onNavigate={handlePageChange}
+              />
             )}
-            {activeService === "gmail" && <>Gmail &middot; Connected via <span className="text-red-400">Composio</span></>}
-            {activeService === "calendar" && <>Calendar &middot; Connected via <span className="text-blue-400">Composio</span></>}
-            {activeService === "drive" && <>Drive &middot; Connected via <span className="text-green-400">Composio</span></>}
-            {activeService === "sheets" && <>Sheets &middot; Connected via <span className="text-emerald-400">Composio</span></>}
-            {activeService === "docs" && <>Docs &middot; Connected via <span className="text-blue-400">Composio</span></>}
-            {activeService === "vercel" && <>Vercel &middot; Connected via <span className="text-slate-300">Composio</span></>}
-          </p>
+
+            {activePage === "github" && (
+              <motion.div
+                key="github-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* Service header for GitHub */}
+                <ServicePageHeader
+                  title="GitHub"
+                  icon={<GitHubIcon />}
+                  repo={repo}
+                />
+                <GitHubView />
+              </motion.div>
+            )}
+
+            {activePage === "gmail" && (
+              <motion.div
+                key="gmail-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ServicePageHeader
+                  title="Gmail"
+                  icon={<MailIcon />}
+                  gmProfile={gmProfile}
+                />
+                <GmailView />
+              </motion.div>
+            )}
+
+            {activePage === "calendar" && (
+              <motion.div
+                key="calendar-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ServicePageHeader
+                  title="Calendar"
+                  icon={<CalendarIcon />}
+                  serviceStatus={serviceStatus}
+                  serviceKey="googlecalendar"
+                />
+                <CalendarView serviceStatus={serviceStatus} />
+              </motion.div>
+            )}
+
+            {activePage === "drive" && (
+              <motion.div
+                key="drive-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ServicePageHeader
+                  title="Drive"
+                  icon={<DriveIcon />}
+                  serviceStatus={serviceStatus}
+                  serviceKey="googledrive"
+                />
+                <DriveView serviceStatus={serviceStatus} />
+              </motion.div>
+            )}
+
+            {activePage === "sheets" && (
+              <motion.div
+                key="sheets-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ServicePageHeader
+                  title="Sheets"
+                  icon={<SheetsIcon />}
+                  serviceStatus={serviceStatus}
+                  serviceKey="googlesheets"
+                />
+                <SheetsView serviceStatus={serviceStatus} />
+              </motion.div>
+            )}
+
+            {activePage === "docs" && (
+              <motion.div
+                key="docs-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ServicePageHeader
+                  title="Docs"
+                  icon={<DocsIcon />}
+                  serviceStatus={serviceStatus}
+                  serviceKey="googledocs"
+                />
+                <DocsView serviceStatus={serviceStatus} />
+              </motion.div>
+            )}
+
+            {activePage === "vercel" && (
+              <motion.div
+                key="vercel-page"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ServicePageHeader
+                  title="Vercel"
+                  icon={<VercelIcon />}
+                  serviceStatus={serviceStatus}
+                  serviceKey="vercel"
+                />
+                <VercelView serviceStatus={serviceStatus} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </footer>
+      </main>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Service Page Header — compact header shown above each service view
+// ---------------------------------------------------------------------------
+
+import {
+  GitHubIcon,
+  MailIcon,
+  CalendarIcon,
+  DriveIcon,
+  SheetsIcon,
+  DocsIcon,
+  VercelIcon,
+} from "@/components/icons";
+
+function ServicePageHeader({
+  title,
+  icon,
+  repo,
+  gmProfile,
+  serviceStatus,
+  serviceKey,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  repo?: RepoInfo | null;
+  gmProfile?: GmailProfile | null;
+  serviceStatus?: ServiceStatus | null;
+  serviceKey?: string;
+}) {
+  // Determine connection status
+  let connected = false;
+  if (serviceStatus && serviceKey) {
+    const svc = serviceStatus[serviceKey as keyof ServiceStatus];
+    if (svc && "connected" in svc) {
+      connected = svc.connected;
+    }
+  }
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-3 mb-1">
+        <span className="text-muted-foreground">{icon}</span>
+        <h2 className="text-xl font-bold text-foreground">{title}</h2>
+        {serviceKey && (
+          <span
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
+              connected
+                ? "bg-emerald-500/20 text-emerald-400"
+                : "bg-red-500/20 text-red-400"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                connected ? "bg-emerald-400" : "bg-red-400"
+              }`}
+            />
+            {connected ? "Connected" : "Disconnected"}
+          </span>
+        )}
+      </div>
+
+      {/* GitHub specific stats */}
+      {repo && title === "GitHub" && (
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+          <span>
+            <span className="text-amber-400 font-semibold">{repo.stargazers_count.toLocaleString()}</span> stars
+          </span>
+          <span>
+            <span className="text-slate-400 font-semibold">{repo.forks_count.toLocaleString()}</span> forks
+          </span>
+          <span>
+            <span className="text-emerald-400 font-semibold">{repo.open_issues_count}</span> open issues
+          </span>
+          {repo.language && (
+            <span>
+              <span className="w-3 h-3 rounded-full bg-orange-400 inline-block mr-1" />
+              {repo.language}
+            </span>
+          )}
+          <a
+            href={repo.html_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-primary hover:text-primary/80 transition-colors ml-auto"
+          >
+            View on GitHub
+          </a>
+        </div>
+      )}
+
+      {/* Gmail specific stats */}
+      {gmProfile && title === "Gmail" && (
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{gmProfile.emailAddress}</span>
+          <span>
+            <span className="text-blue-400 font-semibold">{gmProfile.messagesTotal.toLocaleString()}</span> messages
+          </span>
+          <span>
+            <span className="text-purple-400 font-semibold">{gmProfile.threadsTotal.toLocaleString()}</span> threads
+          </span>
+        </div>
+      )}
     </div>
   );
 }

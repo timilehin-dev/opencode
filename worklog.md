@@ -384,3 +384,33 @@ Decomposed the 2,390-line monolithic `src/app/page.tsx` into 13 focused modules.
 4. **ThemeToggle**: Added to header alongside service switcher.
 5. **Dark theme preserved**: All original hardcoded dark theme colors (`#0c1322`, `#1a2332`, `#0f172a`, `#151d2e`, `#1e293b`) maintained for pixel-perfect visual parity.
 6. **No functionality changes**: Pure refactoring — all API calls, state transitions, and UI behavior preserved exactly.
+
+---
+
+## Task 9: Sidebar Navigation + Overview Dashboard
+
+**Date**: 2026-04-15
+**Status**: Completed
+**Lint**: ✅ Clean (0 new errors, pre-existing errors in theme-toggle.tsx + stitch.ts untouched)
+
+### Summary
+Transformed the dashboard from a horizontal tab-based layout into a professional sidebar navigation system with a comprehensive overview/home page. The sidebar provides persistent navigation across all 8 service pages, while the overview page aggregates stats from all connected services into a unified dashboard view.
+
+### Files Created/Modified
+
+| File | Lines | Type | Description |
+|------|-------|------|-------------|
+| `src/app/api/overview/route.ts` | ~200 | NEW | Aggregated stats API endpoint that calls GitHub, Gmail, Calendar, and Vercel lib functions directly (per-service try/catch isolation) |
+| `src/components/dashboard/sidebar.tsx` | ~203 | NEW | Collapsible sidebar with brand logo, nav items with connection status dots, theme toggle, mobile hamburger menu + overlay with framer-motion animations |
+| `src/components/dashboard/overview.tsx` | ~565 | NEW | Full overview page: Service Status Grid (4 cards), Quick Stats Row (4 stat cards), Quick Actions Bar (3 action buttons), Recent Activity Timeline (combined feed from all services), Upcoming Events mini-calendar |
+| `src/app/page.tsx` | ~341 | REWRITTEN | New sidebar layout orchestrator with AnimatePresence page transitions + ServicePageHeader component for service-specific context |
+
+### Key Design Decisions
+1. **PageKey type**: Extended ServiceKey union with `"overview"` for the new home page
+2. **Direct lib calls in API**: The `/api/overview` route calls lib functions (github.ts, composio.ts, vercel.ts, google.ts) directly on the server side rather than fetching from localhost API routes
+3. **Per-service error isolation**: Each service data fetch in the overview API is wrapped in try/catch so one failure doesn't block others
+4. **Sidebar responsiveness**: Desktop sidebar is always visible (static positioning), mobile sidebar slides in from left with overlay backdrop and framer-motion transitions
+5. **Theme-aware styling**: Used CSS custom properties (bg-sidebar-background, text-foreground, etc.) for proper light/dark mode support
+6. **Animation patterns**: framer-motion stagger animations on card grids, page transitions with fade+slide, hover scale effects on service cards
+7. **Zero modification to existing service views**: All 7 service views (github, gmail, calendar, drive, sheets, docs, vercel) remain completely unchanged
+8. **ServicePageHeader**: Compact service-specific header component shown above each service view with connection badge, GitHub stars/forks, Gmail profile info
