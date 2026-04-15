@@ -128,6 +128,7 @@ export {
   BellOff as BellOffIcon,
   CheckCheck,
   CheckCheck as CheckCheckIcon,
+  CircleAlert as AlertCircle,
   Inbox,
   Inbox as InboxIcon,
   MonitorUp,

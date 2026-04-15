@@ -10,6 +10,7 @@ import { ChatView } from "@/components/dashboard/chat-view";
 import { AgentsView } from "@/components/dashboard/agents-view";
 import { AnalyticsView } from "@/components/dashboard/analytics-view";
 import { AutomationsView } from "@/components/dashboard/automations-view";
+import { MemoryView } from "@/components/dashboard/memory-view";
 import { GitHubView } from "@/components/dashboard/github-view";
 import { GmailView } from "@/components/dashboard/gmail-view";
 import { CalendarView } from "@/components/dashboard/calendar-view";
@@ -133,6 +134,12 @@ export default function Dashboard() {
             {activePage === "automations" && (
               <motion.div key="automations-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
                 <AutomationsView key="automations" onNavigate={handlePageChange} />
+              </motion.div>
+            )}
+
+            {activePage === "memory" && (
+              <motion.div key="memory-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
+                <MemoryView key="memory" onNavigate={handlePageChange} />
               </motion.div>
             )}
 

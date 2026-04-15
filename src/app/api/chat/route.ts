@@ -14,6 +14,7 @@ import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
+import { getMemorySummary, saveMessage } from "@/lib/memory";
 
 export const maxDuration = 60;
 
@@ -74,6 +75,25 @@ export async function POST(req: Request) {
     // Note: Analytics tracking is now client-side (localStorage).
     // Server-side trackEvent removed — it required SQLite which doesn't work on Vercel serverless.
 
+    // Load agent memory for context injection
+    let memoryContext = "";
+    try {
+      memoryContext = await getMemorySummary(id);
+    } catch {
+      // Memory loading is non-critical
+    }
+
+    // Save the user's message to conversation history (fire-and-forget)
+    if (lastContent) {
+      const sessionId = body.sessionId || `session-${Date.now()}`;
+      saveMessage({
+        sessionId,
+        agentId: id,
+        role: "user",
+        content: lastContent,
+      }).catch(() => {});
+    }
+
     console.log(`[Chat] Agent: ${agent.name} (${agent.provider}/${agent.model})`);
     for (let i = 0; i < modelMessages.length; i++) {
       const m = modelMessages[i];
@@ -96,10 +116,14 @@ export async function POST(req: Request) {
     // Reinforce identity in system prompt for specialist agents.
     // Ollama/gemma4 models sometimes ignore system prompts, so we inject
     // the agent identity as a strong prefix at the very top.
+    // Also inject agent memory if available for persistent context.
+    const memoryBlock = memoryContext
+      ? `\n\n[MEMORY — Persistent context you remember]\n${memoryContext}\n[END MEMORY]`
+      : "";
     const systemPrompt =
       id !== "general"
-        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times. You have exactly these tools: ${agent.tools.join(", ")}. Nothing else.\n\n${agent.systemPrompt}`
-        : agent.systemPrompt;
+        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times. You have exactly these tools: ${agent.tools.join(", ")}. Nothing else.${memoryBlock}\n\n${agent.systemPrompt}`
+        : `${agent.systemPrompt}${memoryBlock}`;
 
     const result = streamText({
       model,
@@ -109,6 +133,19 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(5),
       onFinish: ({ steps }) => {
         console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}`);
+        // Save assistant response to conversation history
+        const assistantText = steps
+          .map((s) => s.text)
+          .join("");
+        if (assistantText) {
+          const sessionId = body.sessionId || `session-${Date.now()}`;
+          saveMessage({
+            sessionId,
+            agentId: id,
+            role: "assistant",
+            content: assistantText,
+          }).catch(() => {});
+        }
         // Tool call tracking is handled client-side via analytics-store
         updateAgentStatus(id, {
           status: "idle",
