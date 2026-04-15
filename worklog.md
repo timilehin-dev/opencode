@@ -72,3 +72,38 @@ Stage Summary:
 - Tool spinner fixed — now uses correct AI SDK v6 state "output-available"
 - Both fixes apply to all 5 agents equally (same code path)
 - Deployed to https://my-project-lilac-pi-90.vercel.app
+
+---
+Task ID: 3
+Agent: Super Z (main)
+Task: Agent identity specialization, markdown rendering, LaTeX, delegation tool, per-agent suggestions
+
+Work Log:
+- Rewrote all 5 agent system prompts with strong, distinct identities:
+  - Claw General: confident orchestrator, ALL tools + delegate_to_agent
+  - Mail Agent: professional inbox guardian, email/calendar ONLY
+  - Code Agent: analytical DevOps expert, GitHub/Vercel ONLY
+  - Data Agent: methodical data wrangler, Drive/Sheets/Docs ONLY
+  - Creative Agent: imaginative content strategist, Docs/Drive/limited Gmail/Calendar
+  - Each prompt explicitly states "You are NOT Claw General" and "NEVER claim to have tools you don't have"
+- Added `delegate_to_agent` tool — Claw General can now dispatch tasks to specialist agents
+- Added `suggestedActions` per agent in AgentConfig
+- Created MarkdownRenderer component with:
+  - react-markdown + remark-gfm (tables, strikethrough, task lists)
+  - remark-math + rehype-katex (LaTeX $inline$ and $$block$$ math)
+  - Styled tables with borders, hover effects, header backgrounds
+  - Styled code blocks with dark background, syntax-ready
+  - Styled headings, lists, blockquotes, links, images
+- Updated chat-view.tsx:
+  - Assistant messages use MarkdownRenderer (user messages stay plain text)
+  - Per-agent suggested actions (4 unique prompts per agent)
+  - Added SUGGESTED_ACTIONS map keyed by agent ID
+- Installed packages: react-markdown, remark-gfm, remark-math, rehype-katex, katex
+- TypeScript clean, deployed
+
+Stage Summary:
+- All 5 agents now have unique identities and will refuse out-of-domain requests
+- Markdown properly rendered: tables, code, headers, bold, lists, LaTeX math
+- Claw General can delegate to sub-agents via tool
+- Each agent shows relevant suggested actions on empty state
+- Deployed to https://my-project-lilac-pi-90.vercel.app

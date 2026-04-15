@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
 import { SendIcon, Loader2, WrenchIcon, SparklesIcon, ChevronDown, ChevronUp } from "@/components/icons";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -33,12 +34,40 @@ const DEFAULT_AGENT: AgentInfo = {
   model: "coding-glm-5-turbo-free",
 };
 
-const SUGGESTED_ACTIONS = [
-  { label: "Check my inbox", prompt: "Show me my latest emails" },
-  { label: "Upcoming events", prompt: "What events do I have coming up?" },
-  { label: "GitHub issues", prompt: "List the open GitHub issues" },
-  { label: "List files", prompt: "Show me the files in my Google Drive" },
-];
+const SUGGESTED_ACTIONS: Record<string, { label: string; prompt: string }[]> = {
+  general: [
+    { label: "Check my inbox", prompt: "Show me my latest unread emails" },
+    { label: "GitHub status", prompt: "Give me a status update on my GitHub repo" },
+    { label: "Upcoming events", prompt: "What's on my calendar this week?" },
+    { label: "Drive files", prompt: "Show me my recent Google Drive files" },
+  ],
+  mail: [
+    { label: "Check inbox", prompt: "Show me my latest unread emails" },
+    { label: "Compose email", prompt: "Help me draft a professional email" },
+    { label: "Search emails", prompt: "Search my emails from the last week" },
+    { label: "My schedule", prompt: "What events do I have coming up?" },
+  ],
+  code: [
+    { label: "Open issues", prompt: "List all open GitHub issues" },
+    { label: "PR status", prompt: "Show me the latest pull requests" },
+    { label: "Recent commits", prompt: "What are the recent commits?" },
+    { label: "Deployments", prompt: "Check my latest Vercel deployments" },
+  ],
+  data: [
+    { label: "My files", prompt: "Show me all my Google Drive files and folders" },
+    { label: "Read sheet", prompt: "Show me what spreadsheets I have" },
+    { label: "My docs", prompt: "List all my Google Documents" },
+    { label: "Create folder", prompt: "Create a new folder in my Drive" },
+  ],
+  creative: [
+    { label: "Draft document", prompt: "Help me draft a new document" },
+    { label: "Content plan", prompt: "Create a content calendar for this month" },
+    { label: "My docs", prompt: "Show me my Google Documents" },
+    { label: "Brainstorm", prompt: "Help me brainstorm ideas for a project" },
+  ],
+};
+
+const DEFAULT_SUGGESTED = SUGGESTED_ACTIONS.general;
 
 // ---------------------------------------------------------------------------
 // Color map for agent themes
@@ -343,7 +372,7 @@ export function ChatView() {
             </motion.div>
 
             <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-              {SUGGESTED_ACTIONS.map((action, i) => (
+              {(SUGGESTED_ACTIONS[selectedAgent] || DEFAULT_SUGGESTED).map((action, i) => (
                 <motion.button
                   key={action.label}
                   initial={{ opacity: 0, y: 8 }}
@@ -405,13 +434,17 @@ export function ChatView() {
                     {textContent && (
                       <div
                         className={cn(
-                          "px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words",
+                          "px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words",
                           isUser
-                            ? "bg-primary text-primary-foreground rounded-br-md"
+                            ? "bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap"
                             : "bg-card border border-border rounded-bl-md text-foreground"
                         )}
                       >
-                        {textContent}
+                        {isUser ? (
+                          textContent
+                        ) : (
+                          <MarkdownRenderer content={textContent} />
+                        )}
                       </div>
                     )}
 

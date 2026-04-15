@@ -493,6 +493,71 @@ export const vercelDomainsTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Agent Delegation Tool (Claw General only)
+// ---------------------------------------------------------------------------
+
+export const delegateToAgentTool = tool({
+  description: "Delegate a task to a specialist agent. Only use when the task is clearly within one specialist's domain and doesn't require cross-domain reasoning. Available agents: mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning/docs). Returns the specialist agent's response.",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.enum(["mail", "code", "data", "creative"]).describe("The specialist agent to delegate to"),
+    task: z.string().describe("Clear, specific task description with all necessary context"),
+  })),
+  execute: safeJson(async ({ agent_id, task }) => {
+    // This tool is executed server-side — we make an internal call to the agent
+    // The actual delegation happens via a fetch to /api/chat internally
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000";
+
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: agent_id,
+          messages: [{ role: "user", content: task }],
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        return { success: false, error: `Agent ${agent_id} failed: ${error}` };
+      }
+
+      // Read the streaming response and collect the text
+      const reader = response.body?.getReader();
+      if (!reader) return { success: false, error: "No response from agent" };
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let done = false;
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          // Parse SSE-like lines for text content
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("0:")) {
+              try {
+                const parsed = JSON.parse(line.slice(2));
+                if (typeof parsed === "string") fullText += parsed;
+              } catch { /* skip malformed chunks */ }
+            }
+          }
+        }
+      }
+
+      return { success: true, agent: agent_id, response: fullText.trim() || "(Agent returned no text response)" };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Delegation failed" };
+    }
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // All Tools Registry
 // ---------------------------------------------------------------------------
 
@@ -543,6 +608,8 @@ export const allTools: Record<string, ToolType> = {
   vercel_projects: vercelProjectsTool,
   vercel_deployments: vercelDeploymentsTool,
   vercel_domains: vercelDomainsTool,
+  // Agent Delegation
+  delegate_to_agent: delegateToAgentTool,
 };
 
 // ---------------------------------------------------------------------------
