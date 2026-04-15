@@ -14,7 +14,6 @@ import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
-import { trackEvent } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -72,8 +71,8 @@ export async function POST(req: Request) {
     // "Tool result is missing for tool call" errors on follow-up messages.
     const modelMessages = await convertToModelMessages(messages);
 
-    // Track the user message as an analytics event
-    trackEvent({ type: "chat_message", agentId: id, agentName: agent.name, data: { messageLength: lastContent?.length || 0 } });
+    // Note: Analytics tracking is now client-side (localStorage).
+    // Server-side trackEvent removed — it required SQLite which doesn't work on Vercel serverless.
 
     console.log(`[Chat] Agent: ${agent.name} (${agent.provider}/${agent.model})`);
     for (let i = 0; i < modelMessages.length; i++) {
@@ -110,14 +109,7 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(5),
       onFinish: ({ steps }) => {
         console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}`);
-        // Track tool calls from each step
-        for (const step of steps) {
-          if (step.toolCalls) {
-            for (const tc of step.toolCalls) {
-              trackEvent({ type: "tool_call", agentId: id, agentName: agent.name, data: { toolName: tc.toolName, args: (tc as Record<string, unknown>).args } });
-            }
-          }
-        }
+        // Tool call tracking is handled client-side via analytics-store
         updateAgentStatus(id, {
           status: "idle",
           currentTask: null,

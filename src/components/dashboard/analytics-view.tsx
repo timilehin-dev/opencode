@@ -10,7 +10,7 @@ import {
   Bot,
   Clock,
   Sparkles,
-  Loader2,
+  RefreshCw,
   Users,
 } from "@/components/icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,37 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/helpers";
+import {
+  type AnalyticsSummary,
+  getAnalyticsSummary,
+  clearAnalytics,
+} from "@/lib/analytics-store";
 import type { PageKey } from "@/components/dashboard/sidebar";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface AnalyticsData {
-  totalMessages: number;
-  totalToolCalls: number;
-  agentUsage: {
-    agentId: string;
-    agentName: string;
-    messages: number;
-    toolCalls: number;
-  }[];
-  recentActivity: {
-    type: string;
-    agentId: string;
-    agentName: string;
-    data: Record<string, unknown>;
-    createdAt: string;
-  }[];
-  dailyMessageCounts: {
-    date: string;
-    count: number;
-  }[];
-  toolUsage: {
-    toolName: string;
-    count: number;
-  }[];
-}
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -86,6 +61,8 @@ function getActivityIcon(type: string) {
       return <Bot className="w-3.5 h-3.5 text-purple-400" />;
     case "page_view":
       return <Activity className="w-3.5 h-3.5 text-blue-400" />;
+    case "automation_run":
+      return <Sparkles className="w-3.5 h-3.5 text-rose-400" />;
     default:
       return <Activity className="w-3.5 h-3.5 text-muted-foreground" />;
   }
@@ -101,6 +78,8 @@ function getActivityLabel(type: string): string {
       return "Agent Switch";
     case "page_view":
       return "Page View";
+    case "automation_run":
+      return "Automation Run";
     default:
       return type.replace(/_/g, " ");
   }
@@ -115,52 +94,58 @@ interface AnalyticsViewProps {
 }
 
 export function AnalyticsView({ onNavigate: _onNavigate }: AnalyticsViewProps) {
-  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [days, setDays] = useState(7);
 
-  const fetchAnalytics = useCallback(async () => {
+  const refresh = useCallback(() => {
     setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/analytics?days=7");
-      const json = await res.json();
-      if (json.success) {
-        setData(json.data);
-      } else {
-        setError(json.error || "Failed to load analytics");
+    // Use requestAnimationFrame to ensure we're in the browser
+    requestAnimationFrame(() => {
+      try {
+        const summary = getAnalyticsSummary(days);
+        setData(summary);
+      } catch (e) {
+        console.error("[Analytics] Error:", e);
       }
-    } catch {
-      setError("Network error — unable to load analytics");
-    }
-    setLoading(false);
-  }, []);
+      setLoading(false);
+    });
+  }, [days]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
-      await fetchAnalytics();
-    })();
-    return () => controller.abort();
-  }, [fetchAnalytics]);
+    refresh();
+  }, [refresh]);
+
+  // Also refresh every 10 seconds to pick up new activity
+  useEffect(() => {
+    const interval = setInterval(refresh, 10000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  const handleClear = () => {
+    if (window.confirm("Clear all analytics data? This cannot be undone.")) {
+      clearAnalytics();
+      refresh();
+    }
+  };
 
   // ---------------------------------------------------------------------------
-  // Loading / Error states
+  // Loading state
   // ---------------------------------------------------------------------------
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">{error || "No data available"}</p>
-        <Button variant="outline" size="sm" onClick={fetchAnalytics}>
+        <p className="text-muted-foreground mb-4">No data available</p>
+        <Button variant="outline" size="sm" onClick={refresh}>
           Retry
         </Button>
       </div>
@@ -192,14 +177,42 @@ export function AnalyticsView({ onNavigate: _onNavigate }: AnalyticsViewProps) {
       transition={{ duration: 0.25 }}
     >
       {/* Page Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <Activity className="w-5 h-5 text-muted-foreground" />
-          <h2 className="text-xl font-bold text-foreground">Analytics</h2>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Activity className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-xl font-bold text-foreground">Analytics</h2>
+          </div>
+          <p className="text-sm text-muted-foreground ml-8">
+            Activity overview — tracked locally in your browser
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground ml-8">
-          Activity overview for the last 7 days
-        </p>
+        <div className="flex items-center gap-2">
+          {/* Period selector */}
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-0.5">
+            {[3, 7, 14, 30].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDays(d)}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-md transition-colors",
+                  days === d
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleClear} className="text-xs text-muted-foreground hover:text-red-400">
+            Clear
+          </Button>
+        </div>
       </div>
 
       {/* A. Summary Cards */}
@@ -270,13 +283,13 @@ export function AnalyticsView({ onNavigate: _onNavigate }: AnalyticsViewProps) {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
                   <ActivityIcon className="w-4 h-4 text-muted-foreground" />
-                  Daily Messages (Last 7 Days)
+                  Daily Messages (Last {days} Days)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {data.dailyMessageCounts.length === 0 ? (
                   <div className="text-center py-8 text-sm text-muted-foreground">
-                    No messages in the selected period.
+                    No messages in the selected period. Start chatting with your agents!
                   </div>
                 ) : (
                   <div className="flex items-end gap-3 h-48">
@@ -439,9 +452,9 @@ export function AnalyticsView({ onNavigate: _onNavigate }: AnalyticsViewProps) {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-                  {data.recentActivity.slice(0, 20).map((event, i) => (
+                  {data.recentActivity.map((event, i) => (
                     <div
-                      key={`${event.type}-${event.createdAt}-${i}`}
+                      key={`${event.id || `${event.type}-${i}`}`}
                       className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-accent/30 border border-border/30 hover:border-primary/20 transition-colors"
                     >
                       <div className="w-7 h-7 rounded-full bg-background/60 border border-border/40 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -462,7 +475,11 @@ export function AnalyticsView({ onNavigate: _onNavigate }: AnalyticsViewProps) {
                               ? event.data.detail
                               : typeof event.data.toolName === "string"
                                 ? `Tool: ${event.data.toolName}`
-                                : JSON.stringify(event.data).slice(0, 80)}
+                                : typeof event.data.messageLength === "number"
+                                  ? `Message: ${event.data.messageLength} chars`
+                                  : typeof event.data.fromAgentId === "string"
+                                    ? `From: ${event.data.fromAgentId}`
+                                    : JSON.stringify(event.data).slice(0, 80)}
                           </p>
                         )}
                         <p className="text-[10px] text-muted-foreground/60 mt-0.5">

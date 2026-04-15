@@ -7,7 +7,6 @@ import {
   Plus,
   Pencil,
   TrashIcon,
-  Loader2,
   Clock,
   Bot,
   CheckCheck,
@@ -21,33 +20,31 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/helpers";
+import {
+  type AutomationItem,
+  getAllAutomations,
+  createAutomation,
+  updateAutomation,
+  deleteAutomation,
+} from "@/lib/automations-store";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 // ---------------------------------------------------------------------------
-// Types
+// Agent options (hardcoded from agent definitions)
 // ---------------------------------------------------------------------------
-
-interface AutomationItem {
-  id: number;
-  name: string;
-  description: string;
-  triggerType: "schedule" | "event" | "manual";
-  triggerConfig: Record<string, unknown>;
-  actionType: string;
-  actionConfig: Record<string, unknown>;
-  agentId: string | null;
-  enabled: boolean;
-  lastRunAt: string | null;
-  lastStatus: string | null;
-  runCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface AgentOption {
   id: string;
   name: string;
 }
+
+const KNOWN_AGENTS: AgentOption[] = [
+  { id: "general", name: "Claw General" },
+  { id: "mail", name: "Mail Agent" },
+  { id: "code", name: "Code Agent" },
+  { id: "data", name: "Data Agent" },
+  { id: "creative", name: "Creative Agent" },
+];
 
 // ---------------------------------------------------------------------------
 // Form state type
@@ -125,7 +122,6 @@ interface AutomationsViewProps {
 
 export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProps) {
   const [automations, setAutomations] = useState<AutomationItem[]>([]);
-  const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -134,44 +130,24 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
-  // Fetch automations
+  // Load automations from localStorage
   // ---------------------------------------------------------------------------
 
-  const fetchAutomations = useCallback(async () => {
+  const loadAutomations = useCallback(() => {
     setLoading(true);
-    try {
-      const res = await fetch("/api/automations");
-      const json = await res.json();
-      if (json.success) {
-        setAutomations(json.data);
+    requestAnimationFrame(() => {
+      try {
+        setAutomations(getAllAutomations());
+      } catch {
+        // empty
       }
-    } catch {
-      /* silent */
-    }
-    setLoading(false);
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // Fetch agents (for the agent selector)
-  // ---------------------------------------------------------------------------
-
-  const fetchAgents = useCallback(async () => {
-    try {
-      const res = await fetch("/api/agents");
-      const json = await res.json();
-      if (json.success && json.data) {
-        setAgents(json.data.map((a: { id: string; name: string }) => ({ id: a.id, name: a.name })));
-      }
-    } catch {
-      /* silent */
-    }
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => {
-    (async () => {
-      await Promise.all([fetchAutomations(), fetchAgents()]);
-    })();
-  }, [fetchAutomations, fetchAgents]);
+    loadAutomations();
+  }, [loadAutomations]);
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -202,84 +178,77 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
     setPanelOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!form.name.trim() || !form.triggerType || !form.actionType) return;
     setSaving(true);
 
     try {
-      const body: Record<string, unknown> = {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        triggerType: form.triggerType,
-        actionType: form.actionType,
-        enabled: form.enabled,
-        agentId: form.agentId || null,
-      };
-
       // Build trigger config
+      const triggerConfig: Record<string, unknown> = {};
       if (form.triggerType === "schedule") {
-        body.triggerConfig = { schedule: form.triggerConfig };
+        triggerConfig.schedule = form.triggerConfig;
       } else if (form.triggerType === "event") {
-        body.triggerConfig = { event: form.triggerConfig };
-      } else {
-        body.triggerConfig = {};
+        triggerConfig.event = form.triggerConfig;
       }
 
       // Build action config
+      const actionConfig: Record<string, unknown> = {};
       if (form.actionType === "agent_task") {
-        body.actionConfig = { prompt: form.actionConfig };
+        actionConfig.prompt = form.actionConfig;
       } else {
-        body.actionConfig = { message: form.actionConfig };
+        actionConfig.message = form.actionConfig;
       }
 
-      const url = editingId ? "/api/automations" : "/api/automations";
-      const method = editingId ? "PUT" : "POST";
-      if (editingId) body.id = editingId;
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setPanelOpen(false);
-        setEditingId(null);
-        setForm(emptyForm);
-        await fetchAutomations();
+      if (editingId) {
+        updateAutomation(editingId, {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          triggerType: form.triggerType,
+          triggerConfig,
+          actionType: form.actionType,
+          actionConfig,
+          agentId: form.agentId || undefined,
+          enabled: form.enabled,
+        });
+      } else {
+        createAutomation({
+          name: form.name.trim(),
+          description: form.description.trim(),
+          triggerType: form.triggerType,
+          triggerConfig,
+          actionType: form.actionType,
+          actionConfig,
+          agentId: form.agentId || undefined,
+          enabled: form.enabled,
+        });
       }
+
+      setPanelOpen(false);
+      setEditingId(null);
+      setForm(emptyForm);
+      loadAutomations();
     } catch {
-      /* silent */
+      // silent
     }
     setSaving(false);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     try {
-      const res = await fetch(`/api/automations?id=${id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        setDeleteConfirm(null);
-        await fetchAutomations();
-      }
+      deleteAutomation(id);
+      setDeleteConfirm(null);
+      loadAutomations();
     } catch {
-      /* silent */
+      // silent
     }
   };
 
-  const handleToggle = async (auto: AutomationItem) => {
+  const handleToggle = (auto: AutomationItem) => {
     try {
-      const res = await fetch("/api/automations", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: auto.id, enabled: !auto.enabled }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        await fetchAutomations();
-      }
+      updateAutomation(auto.id, { enabled: !auto.enabled });
+      loadAutomations();
     } catch {
-      /* silent */
+      // silent
     }
   };
 
@@ -290,7 +259,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -399,7 +368,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                         {auto.agentId && (
                           <div className="flex items-center gap-1.5">
                             <Bot className="w-3 h-3" />
-                            <span>{agents.find((a) => a.id === auto.agentId)?.name ?? auto.agentId}</span>
+                            <span>{KNOWN_AGENTS.find((a) => a.id === auto.agentId)?.name ?? auto.agentId}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1.5">
@@ -687,7 +656,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                     className="w-full h-10 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <option value="">No agent assigned</option>
-                    {agents.map((agent) => (
+                    {KNOWN_AGENTS.map((agent) => (
                       <option key={agent.id} value={agent.id}>
                         {agent.name}
                       </option>
@@ -737,7 +706,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                   className="gap-2"
                 >
                   {saving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <CheckCheck className="w-4 h-4" />
                   )}

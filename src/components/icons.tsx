@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  RefreshCw,
   Star,
   GitFork,
   CircleAlert,
@@ -131,6 +132,7 @@ export {
   Inbox as InboxIcon,
   MonitorUp,
   MonitorUp as MonitorUpIcon,
+  RefreshCw,
 };
 
 // GitHub brand icon — not available in lucide-react, so we keep a custom SVG

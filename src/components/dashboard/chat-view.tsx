@@ -9,6 +9,7 @@ import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -213,14 +214,40 @@ function AgentChatSession({
 
   const isLoading = status === "submitted" || status === "streaming";
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom + track tool calls for analytics
+  const prevMessageCountRef = useRef(0);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+
+    // Detect new messages with tool calls and track them
+    if (messages.length > prevMessageCountRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (let i = prevMessageCountRef.current; i < messages.length; i++) {
+        const msg = messages[i];
+        if (msg.role === "assistant") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const parts = (msg as any).parts || [];
+          for (const part of parts) {
+            if ((part.type && part.type.startsWith("tool-")) || part.type === "dynamic-tool") {
+              const toolName = part.type === "dynamic-tool"
+                ? (part.toolName || "unknown")
+                : part.type.replace(/^tool-/, "");
+              if (part.state === "output-available") {
+                trackToolCall(agentId, agentInfo.name, toolName);
+              }
+            }
+          }
+        }
+      }
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages, agentId, agentInfo.name]);
 
   // Handle send
   const handleSend = () => {
     if (!inputText.trim() || isLoading) return;
+    // Track the user's message for analytics
+    trackChatMessage(agentId, agentInfo.name, inputText.length);
     sendMessage({ text: inputText });
     setInputText("");
     if (textareaRef.current) {
@@ -533,6 +560,11 @@ export function ChatView() {
   // Handle agent change — just update state, the `key` prop on AgentChatSession
   // handles the complete session reset (unmount old, mount fresh).
   const handleAgentChange = (agentId: string) => {
+    // Track agent switch for analytics
+    const targetAgent = agents.find((a) => a.id === agentId);
+    if (targetAgent && agentId !== selectedAgent) {
+      trackAgentSwitch(selectedAgent, agentId, targetAgent.name);
+    }
     setSelectedAgent(agentId);
     setShowAgentPicker(false);
   };
