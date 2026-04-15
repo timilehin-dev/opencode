@@ -135,3 +135,26 @@ Stage Summary:
 - Calendar events actually show up (was completely broken before)
 - Both panels have modern card-based redesigns
 - Deployed to https://my-project-lilac-pi-90.vercel.app
+
+---
+Task ID: 5
+Agent: Super Z (main)
+Task: Phase 2 — Real-Time Notifications System
+
+Work Log:
+- Created src/lib/notifications.ts — Types (AppNotification, NotificationPreferences), visual style maps, priority config, time formatting, desktop notification helpers (requestDesktopPermission, sendDesktopNotification)
+- Created src/app/api/notifications/route.ts — POST endpoint that checks Gmail (unread), Calendar (events in next 2h), GitHub (issues/PRs). Client sends seenIds for deduplication, server only returns genuinely new notifications. Smart priority: calendar events ≤5min = urgent, ≤30min = high. Important/starred emails = high priority.
+- Created src/context/notification-context.tsx — React context provider with: adaptive polling (60s active tab, 5min hidden), client-side seenIds tracking, Notification.requestPermission() for desktop alerts, auto-push browser notifications for urgent/high priority items, preference persistence to localStorage
+- Created src/components/dashboard/notification-panel.tsx — Slide-out drawer from right (420px wide). Features: filter tabs (All/Email/Calendar/GitHub), time grouping (Recent/Earlier), mark all read, clear all, dismiss individual, unread dot indicator, desktop alerts toggle, empty state, loading state
+- Added NotificationBell component to sidebar (below nav, above theme toggle)
+- Added Bell, BellOff, CheckCheck, Inbox, MonitorUp icons to icons.tsx
+- Wired NotificationProvider in page.tsx wrapping entire dashboard
+- Build clean, deployed to production
+
+Stage Summary:
+- Full notification system deployed with 4 new files + 3 modified files
+- Smart polling: only fetches details for NEW unseen items (efficient on API calls)
+- Desktop push notifications for urgent/high priority alerts
+- Bell in sidebar with animated unread count badge
+- Beautiful slide-out notification panel with filters and time grouping
+- Deployed to https://my-project-lilac-pi-90.vercel.app
