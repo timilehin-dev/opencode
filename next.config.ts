@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: [
+    "z-ai-web-dev-sdk",
+    "@google/stitch-sdk",
+  ],
 };
 
 export default nextConfig;

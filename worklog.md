@@ -306,3 +306,44 @@ Confirmed Composio cannot provide proper OAuth scopes for Google services (Calen
 
 ### Awaiting From User
 User needs to create Google Cloud OAuth credentials and generate a refresh token with all required scopes
+
+---
+Task ID: 20
+Agent: Main Agent
+Task: Upgrade fullstack app building capabilities + integrate Google Stitch
+
+Work Log:
+- Researched Google Stitch (Google Labs product, powered by Gemini 2.5/3.0):
+  - Official SDK: @google/stitch-sdk v0.1.0 on npm
+  - "Vibe design" platform: text prompts → high-fidelity UI designs → HTML/CSS code + screenshots
+  - Supports project management, screen generation, editing, variants, HTML extraction
+  - MCP integration for AI agents, also direct SDK usage
+- Audited current fullstack capabilities:
+  - Solid foundation: Next.js 16, React 19, TypeScript, Tailwind 4
+  - Critical gaps: no component library (shadcn/ui), monolithic page.tsx (2,390 lines), no icons/animations/theming
+  - No src/components/ directory exists
+  - fullstack-dev skill exists but its init script was never run
+- Installed @google/stitch-sdk (70 packages added)
+- Created src/lib/stitch.ts — full Stitch client library:
+  - Project CRUD: createProject, listProjects, getProject
+  - Screen generation: generateScreen, generateDesign (one-shot convenience)
+  - Screen editing: editScreen (natural language modifications)
+  - Variant generation: generateVariants (color/layout/font alternatives, up to 5)
+  - HTML fetching: fetchHtmlContent (download HTML from generated designs)
+  - Configuration helpers: isStitchConfigured, getStitchStatus
+- Created src/app/api/stitch/route.ts — API endpoint:
+  - GET: status, projects, screens, html (fetch HTML content from design URL)
+  - POST: create-project, generate, generate-design, edit, variants
+- Added STITCH_API_KEY to .env.local (awaiting user's key)
+- Added @google/stitch-sdk to serverExternalPackages in next.config.ts
+- Fixed tsconfig.json: re-added skills/ to exclude list
+- Updated services endpoint to include Stitch + LinkedIn status
+- Build passes clean
+
+Stage Summary:
+- GOOGLE STITCH INTEGRATION CODE COMPLETE (awaiting API key from user)
+- Files created: src/lib/stitch.ts, src/app/api/stitch/route.ts
+- Key added to: .env.local (STITCH_API_KEY=), next.config.ts (serverExternalPackages)
+- Service audit complete: identified gaps for dashboard build (shadcn/ui, component decomposition, etc.)
+- Awaiting: user's STITCH_API_KEY to test integration
+- Dashboard build planning deferred until Stitch key is provided

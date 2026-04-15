@@ -34,9 +34,17 @@ export async function GET() {
       connected: !!process.env.GITHUB_PAT,
       accountId: process.env.GITHUB_PAT ? `${process.env.GITHUB_PAT.slice(0, 8)}...` : null,
     },
+    linkedin: {
+      connected: !!process.env.LINKEDIN_ACCESS_TOKEN,
+      accountId: process.env.LINKEDIN_PERSON_ID || null,
+    },
     vercel: {
       connected: !!vercelToken,
       accountId: vercelToken ? `${vercelToken.slice(0, 8)}...` : null,
+    },
+    stitch: {
+      connected: !!process.env.STITCH_API_KEY,
+      accountId: process.env.STITCH_API_KEY ? `${process.env.STITCH_API_KEY.slice(0, 8)}...` : null,
     },
   };
 
