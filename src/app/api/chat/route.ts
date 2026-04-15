@@ -14,6 +14,7 @@ import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
+import { trackEvent } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -71,10 +72,10 @@ export async function POST(req: Request) {
     // "Tool result is missing for tool call" errors on follow-up messages.
     const modelMessages = await convertToModelMessages(messages);
 
+    // Track the user message as an analytics event
+    trackEvent({ type: "chat_message", agentId: id, agentName: agent.name, data: { messageLength: lastContent?.length || 0 } });
+
     console.log(`[Chat] Agent: ${agent.name} (${agent.provider}/${agent.model})`);
-    console.log(`[Chat] Received agentId: "${id}" (raw: "${agentId || 'undefined'}")`);
-    console.log(`[Chat] Tools available: ${Object.keys(agentTools).join(', ')}`);
-    console.log(`[Chat] Messages: ${modelMessages.length}`);
     for (let i = 0; i < modelMessages.length; i++) {
       const m = modelMessages[i];
       const contentStr = typeof m.content === "string"
@@ -109,6 +110,14 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(5),
       onFinish: ({ steps }) => {
         console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}`);
+        // Track tool calls from each step
+        for (const step of steps) {
+          if (step.toolCalls) {
+            for (const tc of step.toolCalls) {
+              trackEvent({ type: "tool_call", agentId: id, agentName: agent.name, data: { toolName: tc.toolName, args: (tc as Record<string, unknown>).args } });
+            }
+          }
+        }
         updateAgentStatus(id, {
           status: "idle",
           currentTask: null,

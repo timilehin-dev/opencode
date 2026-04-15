@@ -14,13 +14,15 @@ import {
   X,
   ChatIcon,
   AgentsIcon,
+  Activity,
+  Zap,
 } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/dashboard/notification-panel";
 import { cn } from "@/lib/utils";
 import type { ServiceKey, ServiceStatus } from "@/lib/types";
 
-export type PageKey = "overview" | "chat" | "agents" | ServiceKey;
+export type PageKey = "overview" | "chat" | "agents" | "analytics" | "automations" | ServiceKey;
 
 interface NavItem {
   key: PageKey;
@@ -33,6 +35,8 @@ const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: <LayoutDashboard className="w-5 h-5" /> },
   { key: "chat", label: "Chat", icon: <ChatIcon className="w-5 h-5" /> },
   { key: "agents", label: "Agents", icon: <AgentsIcon className="w-5 h-5" /> },
+  { key: "analytics", label: "Analytics", icon: <Activity className="w-5 h-5" /> },
+  { key: "automations", label: "Automations", icon: <Zap className="w-5 h-5" /> },
   { key: "github", label: "GitHub", icon: <GitHubIcon className="w-5 h-5" />, serviceKey: "github" },
   { key: "gmail", label: "Gmail", icon: <MailIcon className="w-5 h-5" />, serviceKey: "gmail" },
   { key: "calendar", label: "Calendar", icon: <CalendarIcon className="w-5 h-5" />, serviceKey: "calendar" },

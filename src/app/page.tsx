@@ -8,6 +8,8 @@ import { Sidebar, type PageKey } from "@/components/dashboard/sidebar";
 import { OverviewPage } from "@/components/dashboard/overview";
 import { ChatView } from "@/components/dashboard/chat-view";
 import { AgentsView } from "@/components/dashboard/agents-view";
+import { AnalyticsView } from "@/components/dashboard/analytics-view";
+import { AutomationsView } from "@/components/dashboard/automations-view";
 import { GitHubView } from "@/components/dashboard/github-view";
 import { GmailView } from "@/components/dashboard/gmail-view";
 import { CalendarView } from "@/components/dashboard/calendar-view";
@@ -119,6 +121,18 @@ export default function Dashboard() {
             {activePage === "agents" && (
               <motion.div key="agents-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
                 <AgentsView key="agents" onNavigate={handlePageChange} />
+              </motion.div>
+            )}
+
+            {activePage === "analytics" && (
+              <motion.div key="analytics-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
+                <AnalyticsView key="analytics" onNavigate={handlePageChange} />
+              </motion.div>
+            )}
+
+            {activePage === "automations" && (
+              <motion.div key="automations-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
+                <AutomationsView key="automations" onNavigate={handlePageChange} />
               </motion.div>
             )}
 
