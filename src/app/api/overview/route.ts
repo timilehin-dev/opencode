@@ -1,36 +1,34 @@
 import { NextResponse } from "next/server";
 import { getRepo, listPullRequests, listCommits } from "@/lib/github";
-import { getGmailProfile, fetchEmails } from "@/lib/composio";
+import { gGmailProfile, gGmailFetchEmails, gCalListCalendars, gCalListEvents } from "@/lib/google";
 import { listProjects } from "@/lib/vercel";
-import { gCalListCalendars, gCalListEvents } from "@/lib/google";
 
 export async function GET() {
   // ---------------------------------------------------------------------------
-  // Service connection status (same logic as /api/services?action=status)
+  // Service connection status
   // ---------------------------------------------------------------------------
-  const gmailId = process.env.COMPOSIO_GMAIL_ACCOUNT_ID;
-  const googleOauth = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN;
+  const googleOauth = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
   const vercelToken = process.env.VERCEL_API_TOKEN;
 
   const services = {
     gmail: {
-      connected: !!gmailId,
-      accountId: gmailId ? `${gmailId.slice(0, 8)}...` : null,
+      connected: googleOauth,
+      accountId: googleOauth ? "Google OAuth" : null,
     },
     googlecalendar: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     googledrive: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     googlesheets: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     googledocs: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     github: {
@@ -95,7 +93,7 @@ export async function GET() {
   }
 
   // ---------------------------------------------------------------------------
-  // Gmail stats
+  // Gmail stats (direct Google API)
   // ---------------------------------------------------------------------------
   const gmailData: {
     profile: Record<string, unknown> | null;
@@ -108,23 +106,23 @@ export async function GET() {
   };
 
   try {
-    const profile = await getGmailProfile();
+    const profile = await gGmailProfile();
     gmailData.profile = {
       emailAddress: profile.emailAddress,
       messagesTotal: profile.messagesTotal,
       threadsTotal: profile.threadsTotal,
     };
 
-    const inbox = await fetchEmails({
-      max_results: 5,
+    const unread = await gGmailFetchEmails({
+      maxResults: 5,
       query: "is:unread",
     });
-    gmailData.unreadCount = inbox.messages?.length || 0;
+    gmailData.unreadCount = unread.messages.length;
 
-    const recent = await fetchEmails({
-      max_results: 3,
+    const recent = await gGmailFetchEmails({
+      maxResults: 3,
     });
-    gmailData.recentEmails = (recent.messages || []).slice(0, 3).map((m) => ({
+    gmailData.recentEmails = recent.messages.slice(0, 3).map((m) => ({
       id: m.id,
       from: m.from || "Unknown",
       subject: m.subject || "(No subject)",

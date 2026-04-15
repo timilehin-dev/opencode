@@ -5,29 +5,28 @@ import { NextResponse } from "next/server";
 // ---------------------------------------------------------------------------
 
 export async function GET() {
-  const gmailId = process.env.COMPOSIO_GMAIL_ACCOUNT_ID;
-  const googleOauth = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN;
+  const googleOauth = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
   const vercelToken = process.env.VERCEL_API_TOKEN;
 
   const services = {
     gmail: {
-      connected: !!gmailId,
-      accountId: gmailId ? `${gmailId.slice(0, 8)}...` : null,
+      connected: googleOauth,
+      accountId: googleOauth ? "Google OAuth" : null,
     },
     googlecalendar: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     googledrive: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     googlesheets: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     googledocs: {
-      connected: !!googleOauth,
+      connected: googleOauth,
       accountId: googleOauth ? "Google OAuth" : null,
     },
     github: {

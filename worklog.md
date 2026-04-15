@@ -433,3 +433,23 @@ Stage Summary:
 - Production URL: https://theclaw-hq.vercel.app
 - Build: Next.js 16.2.3 with Turbopack, all 11 routes functional
 - All env vars configured for API routes (Gmail, Calendar, GitHub, Drive, Sheets, Vercel, Stitch)
+
+---
+Task ID: 6
+Agent: Main Agent (Claw)
+Task: Remove all Composio dependencies, migrate Gmail to direct Google API
+
+Work Log:
+- Audited all API routes: Gmail was 100% on Composio, Calendar/Drive/Sheets/Docs already on direct Google API
+- Added full Gmail direct API to google.ts: gGmailProfile, gGmailFetchEmails, gGmailSendEmail, gGmailListLabels, gGmailCreateLabel, gGmailDeleteLabel, gGmailListDrafts, gGmailSendDraft, gGmailDeleteMessage
+- Rewired /api/gmail/route.ts: all imports now from @/lib/google (was @/lib/composio)
+- Rewired /api/overview/route.ts: Gmail stats now use gGmailProfile + gGmailFetchEmails (was Composio)
+- Fixed /api/services/route.ts: Gmail status now checks Google OAuth (was Composio account ID)
+- Fixed connect-service-card.tsx: replaced hardcoded Composio link with per-service configuration links (Google Cloud Console, Vercel Dashboard, GitHub Settings, LinkedIn Developer)
+- Build passes clean, redeployed to https://theclaw-hq.vercel.app
+
+Stage Summary:
+- Zero Composio imports remain in any API route or component
+- All 6 Google services (Gmail, Calendar, Drive, Sheets, Docs, Gmail) now use direct Google API
+- Dashboard "Connect" buttons now link to correct service dashboards (not Composio)
+- BLOCKER: User needs to set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN env vars for any Google service to work

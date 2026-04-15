@@ -427,12 +427,215 @@ export async function gDocsAppendText(
 }
 
 // ---------------------------------------------------------------------------
-// Gmail API (direct) — kept for completeness, still using Composio for now
+// Gmail API (direct)
 // ---------------------------------------------------------------------------
+
+export interface GmailMessage {
+  id: string;
+  threadId: string;
+  labelIds: string[];
+  snippet: string;
+  historyId: string;
+  internalDate: string;
+  payload?: {
+    headers?: { name: string; value: string }[];
+    mimeType?: string;
+    parts?: GmailPart[];
+    body?: { data: string; size: number };
+  };
+  sizeEstimate?: number;
+}
+
+export interface GmailPart {
+  partId: string;
+  mimeType: string;
+  filename: string;
+  headers?: { name: string; value: string }[];
+  body?: { data: string; size: number };
+  parts?: GmailPart[];
+}
+
+export interface GmailLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
+  messageListVisibility?: string;
+  labelListVisibility?: string;
+  color?: { textColor: string; backgroundColor: string };
+}
+
+export interface GmailDraft {
+  id: string;
+  message: GmailMessage;
+}
+
+export interface GmailListResponse {
+  messages?: { id: string; threadId: string }[];
+  nextPageToken?: string;
+  resultSizeEstimate?: number;
+}
 
 /** Get Gmail profile */
 export async function gGmailProfile(): Promise<{ emailAddress: string; messagesTotal: number; threadsTotal: number }> {
   const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/profile");
   if (!res.ok) throw new Error(`Gmail profile error: ${res.status}`);
   return res.json() as Promise<{ emailAddress: string; messagesTotal: number; threadsTotal: number }>;
+}
+
+/** List labels */
+export async function gGmailListLabels(): Promise<GmailLabel[]> {
+  const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/labels");
+  if (!res.ok) throw new Error(`Gmail list labels error: ${res.status}`);
+  const data = (await res.json()) as { labels?: GmailLabel[] };
+  return data.labels || [];
+}
+
+/** Create a label */
+export async function gGmailCreateLabel(name: string): Promise<GmailLabel> {
+  const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/labels", {
+    method: "POST",
+    body: JSON.stringify({ name, labelListVisibility: "labelShow", messageListVisibility: "show" }),
+  });
+  if (!res.ok) throw new Error(`Gmail create label error: ${res.status}`);
+  return res.json() as Promise<GmailLabel>;
+}
+
+/** Delete a label */
+export async function gGmailDeleteLabel(labelId: string): Promise<void> {
+  const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/labels/${labelId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Gmail delete label error: ${res.status}`);
+}
+
+/** List message IDs matching a query */
+export async function gGmailListMessages(
+  query?: string,
+  labelIds?: string[],
+  maxResults = 15,
+  pageToken?: string,
+): Promise<GmailListResponse> {
+  const sp = new URLSearchParams({ maxResults: String(maxResults) });
+  if (query) sp.set("q", query);
+  if (labelIds?.length) sp.set("labelIds", labelIds.join(","));
+  if (pageToken) sp.set("pageToken", pageToken);
+
+  const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/messages?${sp}`);
+  if (!res.ok) throw new Error(`Gmail list messages error: ${res.status}`);
+  return res.json() as Promise<GmailListResponse>;
+}
+
+/** Get a full message by ID */
+export async function gGmailGetMessage(messageId: string, format: "full" | "metadata" | "minimal" | "raw" = "full"): Promise<GmailMessage> {
+  const res = await googleFetch(
+    `https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=${format}`,
+  );
+  if (!res.ok) throw new Error(`Gmail get message error: ${res.status}`);
+  return res.json() as Promise<GmailMessage>;
+}
+
+/** Fetch emails (list + get full details) */
+export async function gGmailFetchEmails(options?: {
+  maxResults?: number;
+  query?: string;
+  labelIds?: string[];
+  pageToken?: string;
+}): Promise<{ messages: (GmailMessage & { from: string; to: string; subject: string; date: string })[]; nextPageToken?: string }> {
+  const list = await gGmailListMessages(options?.query, options?.labelIds, options?.maxResults, options?.pageToken);
+
+  if (!list.messages?.length) {
+    return { messages: [] };
+  }
+
+  // Fetch full details for each message (batch up to 5 concurrent)
+  const chunks: typeof list.messages[] = [];
+  for (let i = 0; i < list.messages.length; i += 5) {
+    chunks.push(list.messages.slice(i, i + 5));
+  }
+
+  const allMessages: GmailMessage[] = [];
+  for (const chunk of chunks) {
+    const results = await Promise.allSettled(
+      chunk.map((m) => gGmailGetMessage(m.id, "metadata")),
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") allMessages.push(r.value);
+    }
+  }
+
+  // Extract common headers
+  const messages = allMessages.map((msg) => {
+    const headers = msg.payload?.headers || [];
+    const get = (name: string) => headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+    return {
+      ...msg,
+      from: get("From"),
+      to: get("To"),
+      subject: get("Subject") || "(No subject)",
+      date: get("Date"),
+    };
+  });
+
+  return { messages, nextPageToken: list.nextPageToken };
+}
+
+/** Send an email via Gmail API */
+export async function gGmailSendEmail(options: {
+  to: string;
+  subject?: string;
+  body: string;
+  isHtml?: boolean;
+  cc?: string[];
+  bcc?: string[];
+}): Promise<{ id: string; threadId: string; labelIds: string[] }> {
+  // Build RFC 2822 message
+  let message = "";
+  message += `To: ${options.to}\r\n`;
+  if (options.cc?.length) message += `Cc: ${options.cc.join(", ")}\r\n`;
+  if (options.bcc?.length) message += `Bcc: ${options.bcc.join(", ")}\r\n`;
+  if (options.subject) message += `Subject: ${options.subject}\r\n`;
+  message += "Content-Type: text/html; charset=utf-8\r\n";
+  message += "MIME-Version: 1.0\r\n";
+  message += "\r\n";
+  message += options.body;
+
+  // Base64url encode
+  const encoded = Buffer.from(message).toString("base64url");
+
+  const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    body: JSON.stringify({ raw: encoded }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail send error: ${res.status} — ${err}`);
+  }
+  return res.json() as Promise<{ id: string; threadId: string; labelIds: string[] }>;
+}
+
+/** List drafts */
+export async function gGmailListDrafts(maxResults = 20, pageToken?: string): Promise<{ drafts: GmailDraft[]; nextPageToken?: string }> {
+  const sp = new URLSearchParams({ maxResults: String(maxResults) });
+  if (pageToken) sp.set("pageToken", pageToken);
+  const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/drafts?${sp}`);
+  if (!res.ok) throw new Error(`Gmail list drafts error: ${res.status}`);
+  return res.json() as Promise<{ drafts: GmailDraft[]; nextPageToken?: string }>;
+}
+
+/** Send a draft */
+export async function gGmailSendDraft(draftId: string): Promise<{ id: string; threadId: string; labelIds: string[] }> {
+  const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/drafts/${draftId}/send`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(`Gmail send draft error: ${res.status}`);
+  return res.json() as Promise<{ id: string; threadId: string; labelIds: string[] }>;
+}
+
+/** Delete (trash) a message */
+export async function gGmailDeleteMessage(messageId: string): Promise<void> {
+  const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Gmail delete message error: ${res.status}`);
 }
