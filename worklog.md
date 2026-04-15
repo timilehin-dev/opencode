@@ -26,3 +26,28 @@ Stage Summary:
 - Chat interface with agent selector, streaming responses, tool call visualization
 - Agent management dashboard with status monitoring
 - All deployed at https://my-project-lilac-pi-90.vercel.app
+---
+Task ID: 1
+Agent: Super Z (main)
+Task: Fix "Input cannot be empty" error from aihubmix for all Claw agents
+
+Work Log:
+- Diagnosed root cause: TWO issues found
+  1. @ai-sdk/openai v3 default `provider(model)` uses OpenAI **Responses API** format, which aihubmix/ollama don't support. Fixed by using `provider.chat(model)` which uses **Chat Completions** format.
+  2. All 21 env vars (API keys, tokens) were on the OLD Vercel project (`claw-hq`, prj_0M7dHlcS) but deployments were going to the NEW project (`my-project`, prj_M7jxNbvQ) which had 0 env vars.
+- Rewrote `src/app/api/chat/route.ts`:
+  - Replaced `convertToModelMessages()` with custom `toModelMessages()` function that ensures simple string content format compatible with all providers
+  - Fixed AI SDK v6 type usage: `ModelMessage`, `ToolCallPart`, `ToolResultPart` with correct `input`/`output`/`ToolResultOutput` types
+  - Added detailed logging for debugging
+  - Added safety check for empty messages
+- Updated `src/lib/agents.ts`:
+  - Changed `provider(agent.model)` → `provider.chat(agent.model)` for all 3 providers (aihubmix, openrouter, ollama)
+  - This forces Chat Completions API format instead of Responses API
+- Copied all 21 env vars from old project to new project via Vercel REST API
+- Redeployed to production
+
+Stage Summary:
+- Fixed two critical bugs: wrong API format (Responses vs Chat Completions) and missing env vars
+- All agents should now work: Claw General (aihubmix/GLM-5 Turbo), 4 specialist agents (Ollama/gemma4)
+- Deployed to https://my-project-lilac-pi-90.vercel.app
+- Key rotation system active: aihubmix (2 keys), ollama (5 keys)

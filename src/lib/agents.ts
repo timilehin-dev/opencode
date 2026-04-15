@@ -376,7 +376,9 @@ export function getProvider(agent: AgentConfig) {
       apiKey,
       baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
     });
-    return provider(agent.model);
+    // CRITICAL: Use .chat() not provider() — provider() uses OpenAI Responses API
+    // which aihubmix/ollama don't support. .chat() uses Chat Completions format.
+    return provider.chat(agent.model);
   }
 
   if (agent.provider === "openrouter") {
@@ -384,7 +386,7 @@ export function getProvider(agent: AgentConfig) {
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: "https://openrouter.ai/api/v1",
     });
-    return openrouter(agent.model);
+    return openrouter.chat(agent.model);
   }
 
   // Ollama provider with key rotation
@@ -396,7 +398,8 @@ export function getProvider(agent: AgentConfig) {
     apiKey,
     baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
   });
-  return ollama(agent.model);
+  // Use .chat() for Chat Completions format (not Responses API)
+  return ollama.chat(agent.model);
 }
 
 /** Get key rotation stats (for monitoring) */
