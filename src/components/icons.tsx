@@ -40,6 +40,11 @@ import {
   Wrench,
   ChevronDown,
   ChevronUp,
+  Bell,
+  BellOff,
+  CheckCheck,
+  Inbox,
+  MonitorUp,
 } from "lucide-react";
 import type { SVGProps } from "react";
 
@@ -116,6 +121,16 @@ export {
   ChevronDown as ChevronDownIcon,
   ChevronUp,
   ChevronUp as ChevronUpIcon,
+  Bell,
+  Bell as BellIcon,
+  BellOff,
+  BellOff as BellOffIcon,
+  CheckCheck,
+  CheckCheck as CheckCheckIcon,
+  Inbox,
+  Inbox as InboxIcon,
+  MonitorUp,
+  MonitorUp as MonitorUpIcon,
 };
 
 // GitHub brand icon — not available in lucide-react, so we keep a custom SVG

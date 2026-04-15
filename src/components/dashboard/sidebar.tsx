@@ -16,6 +16,7 @@ import {
   AgentsIcon,
 } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/dashboard/notification-panel";
 import { cn } from "@/lib/utils";
 import type { ServiceKey, ServiceStatus } from "@/lib/types";
 
@@ -131,8 +132,9 @@ function SidebarContent({
         })}
       </nav>
 
-      {/* Bottom section — Theme toggle */}
-      <div className="px-3 py-4 border-t border-border/50">
+      {/* Bottom section — Notifications + Theme toggle */}
+      <div className="px-3 py-4 border-t border-border/50 space-y-1">
+        <NotificationBell />
         <div className="flex items-center justify-between px-3 py-2">
           <span className="text-xs text-muted-foreground">Appearance</span>
           <ThemeToggle />

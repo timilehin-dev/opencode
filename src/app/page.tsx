@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { NotificationProvider } from "@/context/notification-context";
+import { NotificationPanel } from "@/components/dashboard/notification-panel";
 import { Sidebar, type PageKey } from "@/components/dashboard/sidebar";
 import { OverviewPage } from "@/components/dashboard/overview";
 import { ChatView } from "@/components/dashboard/chat-view";
@@ -83,7 +85,11 @@ export default function Dashboard() {
   // ---------------------------------------------------------------------------
 
   return (
+    <NotificationProvider onNavigate={handlePageChange}>
     <div className="min-h-screen flex bg-background text-foreground">
+      {/* Notification slide-out panel */}
+      <NotificationPanel />
+
       {/* Sidebar */}
       <Sidebar
         activePage={activePage}
@@ -244,6 +250,7 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
+    </NotificationProvider>
   );
 }
 
