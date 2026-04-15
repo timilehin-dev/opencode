@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sidebar, type PageKey } from "@/components/dashboard/sidebar";
 import { OverviewPage } from "@/components/dashboard/overview";
+import { ChatView } from "@/components/dashboard/chat-view";
+import { AgentsView } from "@/components/dashboard/agents-view";
 import { GitHubView } from "@/components/dashboard/github-view";
 import { GmailView } from "@/components/dashboard/gmail-view";
 import { CalendarView } from "@/components/dashboard/calendar-view";
@@ -100,6 +102,18 @@ export default function Dashboard() {
                 key="overview"
                 onNavigate={handlePageChange}
               />
+            )}
+
+            {activePage === "chat" && (
+              <motion.div key="chat-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
+                <ChatView key="chat" />
+              </motion.div>
+            )}
+
+            {activePage === "agents" && (
+              <motion.div key="agents-page" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.2 }}>
+                <AgentsView key="agents" onNavigate={handlePageChange} />
+              </motion.div>
             )}
 
             {activePage === "github" && (

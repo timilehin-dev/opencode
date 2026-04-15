@@ -153,3 +153,29 @@ export interface ServiceStatus {
   github: { connected: boolean; accountId: string | null };
   vercel: { connected: boolean; accountId: string | null };
 }
+
+// ---------------------------------------------------------------------------
+// Agent Types
+// ---------------------------------------------------------------------------
+
+export interface AgentConfig {
+  id: string;
+  name: string;
+  role: string;
+  emoji: string;
+  description: string;
+  provider: "openrouter" | "ollama";
+  model: string;
+  color: string;
+  systemPrompt: string;
+  tools: string[];
+}
+
+export interface AgentMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  agentId?: string;
+  timestamp: string;
+  toolCalls?: { name: string; args: Record<string, unknown>; result: string }[];
+}
