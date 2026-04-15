@@ -30,7 +30,7 @@ const DEFAULT_AGENT: AgentInfo = {
   emoji: "🤵",
   color: "emerald",
   provider: "aihubmix",
-  model: "glm-5-turbo-free",
+  model: "coding-glm-5-turbo-free",
 };
 
 const SUGGESTED_ACTIONS = [

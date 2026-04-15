@@ -19,7 +19,6 @@ export interface AgentConfig {
   color: string; // tailwind color name for theming
   systemPrompt: string;
   tools: string[]; // tool IDs this agent can use
-  apiKeyEnv?: string; // env var name for the API key (ollama/aihubmix agents)
 }
 
 export interface AgentStatus {
@@ -163,8 +162,7 @@ const agents: AgentConfig[] = [
     emoji: "🤵",
     description: "The most capable agent — powered by GLM-5 Turbo. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests across every connected service.",
     provider: "aihubmix",
-    model: "glm-5-turbo-free",
-    apiKeyEnv: "AIHUBMIX_API_KEY_1",
+    model: "coding-glm-5-turbo-free",
     color: "emerald",
     systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools: [
@@ -190,7 +188,6 @@ const agents: AgentConfig[] = [
     provider: "ollama",
     model: "gemma4:31b-cloud",
     color: "blue",
-    apiKeyEnv: "OLLAMA_CLOUD_KEY_1",
     systemPrompt: MAIL_SYSTEM_PROMPT,
     tools: [
       "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
@@ -207,7 +204,6 @@ const agents: AgentConfig[] = [
     provider: "ollama",
     model: "gemma4:31b-cloud",
     color: "purple",
-    apiKeyEnv: "OLLAMA_CLOUD_KEY_2",
     systemPrompt: CODE_SYSTEM_PROMPT,
     tools: [
       "github_issues", "github_create_issue",
@@ -225,7 +221,6 @@ const agents: AgentConfig[] = [
     provider: "ollama",
     model: "gemma4:31b-cloud",
     color: "amber",
-    apiKeyEnv: "OLLAMA_CLOUD_KEY_3",
     systemPrompt: DATA_SYSTEM_PROMPT,
     tools: [
       "drive_list", "drive_create_folder", "drive_create_file",
@@ -243,7 +238,6 @@ const agents: AgentConfig[] = [
     provider: "ollama",
     model: "gemma4:31b-cloud",
     color: "rose",
-    apiKeyEnv: "OLLAMA_CLOUD_KEY_4",
     systemPrompt: CREATIVE_SYSTEM_PROMPT,
     tools: [
       "gmail_send", "gmail_fetch",
@@ -321,20 +315,68 @@ export function getAllAgentStatuses(): AgentStatus[] {
 }
 
 // ---------------------------------------------------------------------------
-// Provider Factory
+// API Key Rotation — Round-robin across multiple keys per provider
+// ---------------------------------------------------------------------------
+
+/** Rotates through a list of API keys using atomic round-robin */
+class KeyRotator {
+  private counter = 0;
+
+  constructor(
+    private keys: string[],
+    private label: string,
+  ) {}
+
+  /** Get the next key in rotation */
+  next(): string {
+    if (this.keys.length === 0) return "";
+    if (this.keys.length === 1) return this.keys[0];
+    const key = this.keys[this.counter % this.keys.length];
+    this.counter++;
+    return key;
+  }
+
+  /** Total keys available */
+  get total(): number {
+    return this.keys.length;
+  }
+}
+
+// Collect all aihubmix keys from env
+const aihubmixKeys: string[] = [
+  process.env.AIHUBMIX_API_KEY_1 || "",
+  process.env.AIHUBMIX_API_KEY_2 || "",
+].filter(Boolean);
+
+// Collect all ollama keys from env
+const ollamaKeys: string[] = [
+  process.env.OLLAMA_CLOUD_KEY_1 || "",
+  process.env.OLLAMA_CLOUD_KEY_2 || "",
+  process.env.OLLAMA_CLOUD_KEY_3 || "",
+  process.env.OLLAMA_CLOUD_KEY_4 || "",
+  process.env.OLLAMA_CLOUD_KEY_5 || "",
+].filter(Boolean);
+
+// One rotator per provider
+const aihubmixRotator = new KeyRotator(aihubmixKeys, "aihubmix");
+const ollamaRotator = new KeyRotator(ollamaKeys, "ollama");
+
+// ---------------------------------------------------------------------------
+// Provider Factory (with key rotation)
 // ---------------------------------------------------------------------------
 
 export function getProvider(agent: AgentConfig) {
   if (agent.provider === "aihubmix") {
-    // aihubmix — GLM-5 Turbo Free (OpenAI-compatible)
-    const apiKey = agent.apiKeyEnv
-      ? process.env[agent.apiKeyEnv] || process.env.AIHUBMIX_API_KEY_1 || ""
-      : process.env.AIHUBMIX_API_KEY_1 || "";
-    const aihubmix = createOpenAI({
+    // aihubmix — GLM-5 Turbo Free (OpenAI-compatible) with key rotation
+    const apiKey = aihubmixRotator.next();
+    if (!apiKey) {
+      throw new Error("No aihubmix API keys configured. Set AIHUBMIX_API_KEY_1 and/or AIHUBMIX_API_KEY_2 in environment.");
+    }
+    const provider = createOpenAI({
       apiKey,
-      baseURL: "https://aihubmix.com/v1",
+      baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
     });
-    return aihubmix(agent.model);
+    return provider(agent.model);
   }
 
   if (agent.provider === "openrouter") {
@@ -345,11 +387,22 @@ export function getProvider(agent: AgentConfig) {
     return openrouter(agent.model);
   }
 
-  // Ollama provider
-  const apiKey = agent.apiKeyEnv ? process.env[agent.apiKeyEnv] : undefined;
+  // Ollama provider with key rotation
+  const apiKey = ollamaRotator.next();
+  if (!apiKey) {
+    throw new Error("No Ollama API keys configured. Set OLLAMA_CLOUD_KEY_1 through OLLAMA_CLOUD_KEY_5 in environment.");
+  }
   const ollama = createOpenAI({
-    apiKey: apiKey || "",
+    apiKey,
     baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
   });
   return ollama(agent.model);
+}
+
+/** Get key rotation stats (for monitoring) */
+export function getKeyRotationStats() {
+  return {
+    aihubmix: { availableKeys: aihubmixRotator.total },
+    ollama: { availableKeys: ollamaRotator.total },
+  };
 }
