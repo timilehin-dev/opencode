@@ -623,7 +623,8 @@ export async function gGmailSendEmail(options: {
 /**
  * Convert plain text to professional HTML email.
  * Handles: line breaks, bullet lists, numbered lists, bold, italic,
- * headers (# ## ###), horizontal rules (---), and code blocks.
+ * headers (# through ######, with or without space), horizontal rules (---),
+ * code blocks, inline code, and tables.
  */
 function plainTextToHtml(text: string): string {
   const lines = text.split("\n");
@@ -662,17 +663,14 @@ function plainTextToHtml(text: string): string {
       inOrderedList = false;
     }
 
-    // Headers
-    if (trimmed.startsWith("### ")) {
-      htmlLines.push(`<h3 style="font-size:16px;font-weight:700;margin:16px 0 8px 0;color:#1a1a1a;">${formatInline(trimmed.slice(4))}</h3>`);
-      continue;
-    }
-    if (trimmed.startsWith("## ")) {
-      htmlLines.push(`<h2 style="font-size:18px;font-weight:700;margin:18px 0 8px 0;color:#1a1a1a;">${formatInline(trimmed.slice(3))}</h2>`);
-      continue;
-    }
-    if (trimmed.startsWith("# ")) {
-      htmlLines.push(`<h1 style="font-size:22px;font-weight:700;margin:20px 0 10px 0;color:#1a1a1a;">${formatInline(trimmed.slice(2))}</h1>`);
+    // Headers (# through ###### with or without space after hashes)
+    const headingMatch = trimmed.match(/^(#{1,6})\s*(.+)/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const headingText = headingMatch[2];
+      const fontSize = Math.max(14, 24 - (level - 1) * 2);
+      const marginTop = Math.max(10, 22 - (level - 1) * 2);
+      htmlLines.push(`<h${level} style="font-size:${fontSize}px;font-weight:700;margin:${marginTop}px 0 8px 0;color:#1a1a1a;">${formatInline(headingText)}</h${level}>`);
       continue;
     }
 

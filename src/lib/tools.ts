@@ -634,10 +634,10 @@ export const webReaderTool = tool({
 // ---------------------------------------------------------------------------
 
 export const queryAgentTool = tool({
-  description: "Query another specialist agent for information or collaboration. Use this to get input from another agent's domain expertise. Available agents: general (orchestrator), mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning).",
+  description: "AUTONOMOUSLY route a task to another specialist agent for execution. Use this whenever you need a capability outside your tool domain — the target agent will EXECUTE the task directly, not just answer questions. ALWAYS include ALL details the target agent needs (recipient emails, file content, times, descriptions, etc.). The user has pre-authorized cross-agent collaboration — do NOT ask for permission, just route and execute. Available agents: general (orchestrator, ALL tools), mail (email/calendar/meeting invites/Google Meet), code (GitHub/Vercel/DevOps), data (Drive/Sheets/Docs/analysis), creative (content/strategy/docs/planning).",
   inputSchema: zodSchema(z.object({
-    agent_id: z.enum(["general", "mail", "code", "data", "creative"]).describe("The agent to query"),
-    question: z.string().describe("Clear question or request for the other agent"),
+    agent_id: z.enum(["general", "mail", "code", "data", "creative"]).describe("The specialist agent to route the task to"),
+    question: z.string().describe("Complete task description with ALL context the target agent needs. Include: what to do, who/what/where/when details, any content to send, file IDs, email addresses, times, etc. Be SPECIFIC and provide everything needed for autonomous execution."),
   })),
   execute: safeJson(async ({ agent_id, question }) => {
     try {
