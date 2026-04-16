@@ -111,6 +111,22 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     dot: "bg-rose-400",
     ring: "ring-rose-500/20",
   },
+  teal: {
+    bg: "bg-teal-500/10",
+    text: "text-teal-400",
+    border: "border-teal-500/30",
+    badge: "bg-teal-500/20 text-teal-400",
+    dot: "bg-teal-400",
+    ring: "ring-teal-500/20",
+  },
+  orange: {
+    bg: "bg-orange-500/10",
+    text: "text-orange-400",
+    border: "border-orange-500/30",
+    badge: "bg-orange-500/20 text-orange-400",
+    dot: "bg-orange-400",
+    ring: "ring-orange-500/20",
+  },
 };
 
 // ---------------------------------------------------------------------------
