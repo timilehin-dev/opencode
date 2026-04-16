@@ -204,3 +204,30 @@ Stage Summary:
 - All 7 agents now have proper LLM key routing with dedicated pools for Research and Ops
 - Credentials stored locally in .env.local and in Vercel production environment
 - GitHub PAT updated to full admin scope on Vercel
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Switch Code Agent to GLM-5, save credentials permanently, send test email, investigate slowness
+
+Work Log:
+- Switched Code Agent from ollama/gemma4 to aihubmix/coding-glm-5-turbo-free with dedicated key 5
+- Created CLAW_CREDENTIALS.md as permanent credential reference (survives context resets)
+- Updated .env.local with ALL keys including AIHUBMIX_API_KEY_5
+- Added AIHUBMIX_API_KEY_5 to Vercel production + preview env vars
+- Sent test email via Mail agent API: "Claw Access Verification" to timilehinolajide32@gmail.com — SUCCESS (msg ID: 19d95c5624301734)
+- Investigated slow response times: Found sequential awaits in chat route (convertToModelMessages → getMemorySummary). Fixed by running them in parallel with Promise.all
+- Deployed all changes to production
+- Production URL: https://my-project-tau-two-70.vercel.app
+
+Stage Summary:
+- Code Agent now runs on GLM-5 Turbo (dedicated aihubmix key 5) — significantly better for coding tasks
+- All credentials permanently stored in CLAW_CREDENTIALS.md and .env.local
+- Test email confirmed Gmail access is fully functional
+- Response time improved by parallelizing message conversion and memory loading
+- Final agent model mapping:
+  - General: GLM-5 Turbo (aihubmix shared pool keys 1-2)
+  - Research: GLM-5 Turbo (aihubmix dedicated keys 3-4)
+  - Code: GLM-5 Turbo (aihubmix dedicated key 5)
+  - Ops: Gemma 4 (ollama dedicated key 6)
+  - Mail/Data/Creative: Gemma 4 (ollama shared pool keys 1-5)

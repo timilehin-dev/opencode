@@ -467,8 +467,9 @@ const agents: AgentConfig[] = [
     role: "Senior Software Engineer — Code & DevOps",
     emoji: "💻",
     description: "Staff-level code review, repository management, CI/CD monitoring, and technical architecture with real-time documentation research.",
-    provider: "ollama",
-    model: "gemma4:31b-cloud",
+    provider: "aihubmix",
+    model: "coding-glm-5-turbo-free",
+    keyEnvVars: ["AIHUBMIX_API_KEY_5"],
     color: "purple",
     systemPrompt: CODE_SYSTEM_PROMPT,
     tools: [

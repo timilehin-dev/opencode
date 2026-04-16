@@ -67,21 +67,11 @@ export async function POST(req: Request) {
     // Get the model (with key rotation) — uses .chat() for Chat Completions API
     const model = getProvider(agent);
 
-    // Convert UI messages to model messages using the SDK's built-in converter.
-    // This correctly pairs tool calls with tool results across turns, preventing
-    // "Tool result is missing for tool call" errors on follow-up messages.
-    const modelMessages = await convertToModelMessages(messages);
-
-    // Note: Analytics tracking is now client-side (localStorage).
-    // Server-side trackEvent removed — it required SQLite which doesn't work on Vercel serverless.
-
-    // Load agent memory for context injection
-    let memoryContext = "";
-    try {
-      memoryContext = await getMemorySummary(id);
-    } catch {
-      // Memory loading is non-critical
-    }
+    // Run these in parallel to reduce time-to-first-token
+    const [modelMessages, memoryContext] = await Promise.all([
+      convertToModelMessages(messages),
+      getMemorySummary(id).catch(() => ""),
+    ]);
 
     // Save the user's message to conversation history (fire-and-forget)
     if (lastContent) {
