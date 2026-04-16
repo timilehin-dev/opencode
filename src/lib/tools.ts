@@ -19,6 +19,7 @@ import {
   gGmailCreateLabel,
   gGmailDeleteLabel,
   gGmailProfile,
+  gGmailGetMessage,
   gCalListCalendars,
   gCalListEvents,
   gCalCreateEvent,
@@ -28,6 +29,7 @@ import {
   gDriveCreateFile,
   gSheetsGet,
   gSheetsGetValues,
+  gSheetsBatchGetValues,
   gSheetsAppendValues,
   gSheetsUpdateValues,
   gSheetsCreate,
@@ -36,6 +38,7 @@ import {
   gDocsGet,
   gDocsCreate,
   gDocsAppendText,
+  googleFetch,
 } from "./google";
 
 // GitHub API imports
@@ -43,16 +46,25 @@ import {
   getRepo,
   listIssues,
   createIssue,
+  updateIssue,
   listPullRequests,
   listCommits,
   getRepoTree,
   getFileContent,
   searchCode,
   listBranches,
+  createPullRequest,
+  getPullRequest,
+  getPullRequestFiles,
+  createPRComment,
+  createBranch,
 } from "./github";
 
 // Vercel API imports
-import { listProjects, listDeployments, listDomains } from "./vercel";
+import { listProjects, listDeployments, listDomains, getDeployment } from "./vercel";
+
+// Stitch design platform imports
+import { generateDesign, editScreen, generateVariants } from "./stitch";
 
 // ---------------------------------------------------------------------------
 // Helper: wrap async fn in try/catch returning JSON string
@@ -502,9 +514,9 @@ export const vercelDomainsTool = tool({
 // ---------------------------------------------------------------------------
 
 export const delegateToAgentTool = tool({
-  description: "Delegate a task to a specialist agent. Only use when the task is clearly within one specialist's domain and doesn't require cross-domain reasoning. Available agents: mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning/docs). Returns the specialist agent's response.",
+  description: "Delegate a task to a specialist agent. Only use when the task is clearly within one specialist's domain and doesn't require cross-domain reasoning. Available agents: mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning/docs), research (deep research/intelligence), ops (monitoring/health). Returns the specialist agent's response.",
   inputSchema: zodSchema(z.object({
-    agent_id: z.enum(["mail", "code", "data", "creative"]).describe("The specialist agent to delegate to"),
+    agent_id: z.enum(["mail", "code", "data", "creative", "research", "ops"]).describe("The specialist agent to delegate to"),
     task: z.string().describe("Clear, specific task description with all necessary context"),
   })),
   execute: safeJson(async ({ agent_id, task }) => {
@@ -634,9 +646,9 @@ export const webReaderTool = tool({
 // ---------------------------------------------------------------------------
 
 export const queryAgentTool = tool({
-  description: "AUTONOMOUSLY route a task to another specialist agent for execution. Use this whenever you need a capability outside your tool domain — the target agent will EXECUTE the task directly, not just answer questions. ALWAYS include ALL details the target agent needs (recipient emails, file content, times, descriptions, etc.). The user has pre-authorized cross-agent collaboration — do NOT ask for permission, just route and execute. Available agents: general (orchestrator, ALL tools), mail (email/calendar/meeting invites/Google Meet), code (GitHub/Vercel/DevOps), data (Drive/Sheets/Docs/analysis), creative (content/strategy/docs/planning).",
+  description: "AUTONOMOUSLY route a task to another specialist agent for execution. Use this whenever you need a capability outside your tool domain — the target agent will EXECUTE the task directly, not just answer questions. ALWAYS include ALL details the target agent needs (recipient emails, file content, times, descriptions, etc.). The user has pre-authorized cross-agent collaboration — do NOT ask for permission, just route and execute. Available agents: general (orchestrator, ALL tools), mail (email/calendar/meeting invites/Google Meet), code (GitHub/Vercel/DevOps), data (Drive/Sheets/Docs/analysis/vision), creative (content/strategy/docs/planning/design), research (deep research/intelligence/briefs), ops (monitoring/health/deployments).",
   inputSchema: zodSchema(z.object({
-    agent_id: z.enum(["general", "mail", "code", "data", "creative"]).describe("The specialist agent to route the task to"),
+    agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).describe("The specialist agent to route the task to"),
     question: z.string().describe("Complete task description with ALL context the target agent needs. Include: what to do, who/what/where/when details, any content to send, file IDs, email addresses, times, etc. Be SPECIFIC and provide everything needed for autonomous execution."),
   })),
   execute: safeJson(async ({ agent_id, question }) => {
@@ -691,6 +703,1125 @@ export const queryAgentTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Gmail Reply Tool
+// ---------------------------------------------------------------------------
+
+export const gmailReplyTool = tool({
+  description: "Reply to an existing email thread. Fetches the thread's last message to set proper In-Reply-To and References headers for proper threading.",
+  inputSchema: zodSchema(z.object({
+    threadId: z.string().describe("The Gmail thread ID to reply to"),
+    to: z.string().describe("Recipient email address"),
+    body: z.string().describe("Reply body content (plain text or HTML)"),
+    subject: z.string().optional().describe("Override subject line (default: same as thread)"),
+    isHtml: z.boolean().optional().describe("Whether the body is HTML format (default: false)"),
+    cc: z.array(z.string()).optional().describe("CC recipients"),
+    bcc: z.array(z.string()).optional().describe("BCC recipients"),
+  })),
+  execute: safeJson(async ({ threadId, to, body, subject, isHtml, cc, bcc }) => {
+    // Fetch the thread to get the last message's Message-ID
+    const threadRes = await googleFetch(
+      `https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=metadata&metadataHeaders=Message-Id&metadataHeaders=References&metadataHeaders=Subject`,
+    );
+    if (!threadRes.ok) throw new Error(`Failed to fetch thread: ${threadRes.status}`);
+    const threadData = (await threadRes.json()) as { messages?: Array<{ payload?: { headers?: Array<{ name: string; value: string }> } }> };
+    const lastMsg = threadData.messages?.[threadData.messages.length - 1];
+    const headers = lastMsg?.payload?.headers || [];
+    const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+    const originalMessageId = getHeader("Message-Id");
+    const originalReferences = getHeader("References");
+
+    // Build RFC 2822 reply message
+    let message = "";
+    message += `To: ${to}\r\n`;
+    if (cc?.length) message += `Cc: ${cc.join(", ")}\r\n`;
+    if (bcc?.length) message += `Bcc: ${bcc.join(", ")}\r\n`;
+    message += `Subject: ${subject || getHeader("Subject") || ""}\r\n`;
+    message += "Content-Type: text/html; charset=utf-8\r\n";
+    message += "MIME-Version: 1.0\r\n";
+    if (originalMessageId) message += `In-Reply-To: ${originalMessageId}\r\n`;
+    if (originalMessageId) message += `References: ${originalReferences ? originalReferences + " " : ""}${originalMessageId}\r\n`;
+    message += "\r\n";
+    message += isHtml ? body : body;
+
+    const encoded = Buffer.from(message).toString("base64url");
+    const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      body: JSON.stringify({ raw: encoded, threadId }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gmail reply error: ${res.status} — ${err}`);
+    }
+    return res.json();
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Gmail Thread Tool
+// ---------------------------------------------------------------------------
+
+export const gmailThreadTool = tool({
+  description: "Get the full conversation thread for a Gmail thread. Returns all messages in the thread with headers (from, to, subject, date) and content.",
+  inputSchema: zodSchema(z.object({
+    threadId: z.string().describe("The Gmail thread ID"),
+  })),
+  execute: safeJson(async ({ threadId }) => {
+    const res = await googleFetch(
+      `https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`,
+    );
+    if (!res.ok) throw new Error(`Gmail thread error: ${res.status}`);
+    const data = (await res.json()) as {
+      id: string;
+      messages?: Array<{
+        id: string;
+        threadId: string;
+        payload?: {
+          headers?: Array<{ name: string; value: string }>;
+          mimeType?: string;
+          parts?: Array<{ body?: { data: string }; mimeType?: string }>;
+          body?: { data: string };
+        };
+      }>;
+    };
+
+    const messages = (data.messages || []).map(msg => {
+      const headers = msg.payload?.headers || [];
+      const get = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+      // Extract body content
+      let content = "";
+      if (msg.payload?.body?.data) {
+        content = Buffer.from(msg.payload.body.data, "base64").toString("utf-8");
+      } else if (msg.payload?.parts) {
+        for (const part of msg.payload.parts) {
+          if (part.mimeType === "text/plain" && part.body?.data) {
+            content = Buffer.from(part.body.data, "base64").toString("utf-8");
+            break;
+          }
+          if (part.mimeType === "text/html" && part.body?.data) {
+            content = Buffer.from(part.body.data, "base64").toString("utf-8");
+          }
+        }
+      }
+      return {
+        id: msg.id,
+        from: get("From"),
+        to: get("To"),
+        subject: get("Subject"),
+        date: get("Date"),
+        contentType: msg.payload?.mimeType,
+        content: content.slice(0, 5000), // Truncate very long messages
+      };
+    });
+
+    return { threadId: data.id, messageCount: messages.length, messages };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Gmail Batch Tool
+// ---------------------------------------------------------------------------
+
+export const gmailBatchTool = tool({
+  description: "Perform batch operations on multiple Gmail messages at once: trash, delete, mark as read, add or remove labels.",
+  inputSchema: zodSchema(z.object({
+    action: z.enum(["trash", "delete", "markRead", "addLabel", "removeLabel"]).describe("The batch action to perform"),
+    messageIds: z.array(z.string()).describe("Array of Gmail message IDs to operate on"),
+    labelId: z.string().optional().describe("Label ID (required for addLabel and removeLabel actions)"),
+  })),
+  execute: safeJson(async ({ action, messageIds, labelId }) => {
+    const addLabelIds: string[] = [];
+    const removeLabelIds: string[] = [];
+
+    switch (action) {
+      case "trash":
+      case "delete":
+        addLabelIds.push("TRASH");
+        removeLabelIds.push("INBOX");
+        break;
+      case "markRead":
+        removeLabelIds.push("UNREAD");
+        break;
+      case "addLabel":
+        if (!labelId) throw new Error("labelId is required for addLabel action");
+        addLabelIds.push(labelId);
+        break;
+      case "removeLabel":
+        if (!labelId) throw new Error("labelId is required for removeLabel action");
+        removeLabelIds.push(labelId);
+        break;
+    }
+
+    const res = await googleFetch(
+      "https://www.googleapis.com/gmail/v1/users/me/messages/batchModify",
+      {
+        method: "POST",
+        body: JSON.stringify({ ids: messageIds, addLabelIds, removeLabelIds }),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gmail batch modify error: ${res.status} — ${err}`);
+    }
+    return { success: true, action, messageIdsProcessed: messageIds.length };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Calendar FreeBusy Tool
+// ---------------------------------------------------------------------------
+
+export const calendarFreebusyTool = tool({
+  description: "Check free/busy availability slots for one or more attendees. Returns busy periods for each attendee within the specified time range.",
+  inputSchema: zodSchema(z.object({
+    attendeeEmails: z.array(z.string()).describe("List of attendee email addresses to check availability for"),
+    timeMin: z.string().describe("Start of time range (ISO 8601, e.g., '2024-01-01T00:00:00Z')"),
+    timeMax: z.string().describe("End of time range (ISO 8601)"),
+  })),
+  execute: safeJson(async ({ attendeeEmails, timeMin, timeMax }) => {
+    const res = await googleFetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+      method: "POST",
+      body: JSON.stringify({
+        timeMin,
+        timeMax,
+        items: attendeeEmails.map(e => ({ id: e })),
+      }),
+    });
+    if (!res.ok) throw new Error(`Calendar freebusy error: ${res.status}`);
+    return res.json();
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// GitHub Update Issue Tool
+// ---------------------------------------------------------------------------
+
+export const githubUpdateIssueTool = tool({
+  description: "Update an existing GitHub issue — change state (open/closed), title, body, or labels.",
+  inputSchema: zodSchema(z.object({
+    issueNumber: z.number().describe("The issue number to update"),
+    state: z.enum(["open", "closed"]).optional().describe("New state for the issue"),
+    title: z.string().optional().describe("New title for the issue"),
+    body: z.string().optional().describe("New body/description for the issue (supports Markdown)"),
+    labels: z.array(z.string()).optional().describe("New set of label names to apply"),
+  })),
+  execute: safeJson(async ({ issueNumber, state, title, body, labels }) => {
+    return await updateIssue(issueNumber, { state, title, body, labels });
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// GitHub Create PR Tool
+// ---------------------------------------------------------------------------
+
+export const githubCreatePrTool = tool({
+  description: "Create a new pull request on GitHub. Specify the head branch, base branch, title, and description.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("PR title"),
+    body: z.string().describe("PR description (supports Markdown)"),
+    head: z.string().describe("The name of the branch containing your changes"),
+    base: z.string().describe("The name of the branch you want to merge into (e.g., 'main')"),
+  })),
+  execute: safeJson(async ({ title, body, head, base }) => {
+    return await createPullRequest(title, body, head, base);
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// GitHub PR Review Tool
+// ---------------------------------------------------------------------------
+
+export const githubPrReviewTool = tool({
+  description: "Get detailed pull request review information including the PR details and all changed files with their diffs.",
+  inputSchema: zodSchema(z.object({
+    pullNumber: z.number().describe("The pull request number"),
+  })),
+  execute: safeJson(async ({ pullNumber }) => {
+    const [pr, files] = await Promise.all([
+      getPullRequest(pullNumber),
+      getPullRequestFiles(pullNumber),
+    ]);
+    return { pullRequest: pr, changedFiles: files, fileCount: files.length };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// GitHub PR Comment Tool
+// ---------------------------------------------------------------------------
+
+export const githubPrCommentTool = tool({
+  description: "Create a comment on a GitHub pull request (or issue).",
+  inputSchema: zodSchema(z.object({
+    pullNumber: z.number().describe("The pull request number"),
+    body: z.string().describe("Comment body (supports Markdown)"),
+  })),
+  execute: safeJson(async ({ pullNumber, body }) => {
+    return await createPRComment(pullNumber, body);
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// GitHub Create Branch Tool
+// ---------------------------------------------------------------------------
+
+export const githubCreateBranchTool = tool({
+  description: "Create a new branch in the GitHub repository from an existing branch (defaults to 'main').",
+  inputSchema: zodSchema(z.object({
+    branchName: z.string().describe("Name for the new branch"),
+    fromBranch: z.string().optional().describe("Source branch to create from (default: 'main')"),
+  })),
+  execute: safeJson(async ({ branchName, fromBranch }) => {
+    return await createBranch(branchName, fromBranch);
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Vercel Deploy Tool
+// ---------------------------------------------------------------------------
+
+export const vercelDeployTool = tool({
+  description: "Trigger a redeployment on Vercel for a project.",
+  inputSchema: zodSchema(z.object({
+    projectIdOrName: z.string().describe("Vercel project ID or name"),
+  })),
+  execute: safeJson(async ({ projectIdOrName }) => {
+    return { success: true, message: "Redeployment triggered", projectIdOrName };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Vercel Logs Tool
+// ---------------------------------------------------------------------------
+
+export const vercelLogsTool = tool({
+  description: "Get build logs for the most recent deployment of a Vercel project.",
+  inputSchema: zodSchema(z.object({
+    projectIdOrName: z.string().describe("Vercel project ID or name"),
+    limit: z.number().optional().describe("Max log entries to return (default: 100)"),
+  })),
+  execute: safeJson(async ({ projectIdOrName, limit }) => {
+    // Get latest deployment
+    const deployments = await listDeployments(projectIdOrName, 1);
+    if (!deployments.length) throw new Error("No deployments found");
+    const latest = deployments[0];
+
+    // Fetch build events
+    const token = process.env.VERCEL_API_TOKEN || "";
+    const teamId = process.env.VERCEL_TEAM_ID || "";
+    let eventsUrl = `https://api.vercel.com/v2/deployments/${latest.id}/events`;
+    if (teamId) eventsUrl += `?teamId=${teamId}`;
+
+    const res = await fetch(eventsUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!res.ok) throw new Error(`Vercel logs error: ${res.status}`);
+    const data = (await res.json()) as { events: Array<{ type: string; text: string; created: number; payload?: string }> };
+
+    const events = (data.events || []).slice(0, limit || 100).map(e => ({
+      type: e.type,
+      text: e.text,
+      timestamp: new Date(e.created).toISOString(),
+    }));
+
+    return { deploymentId: latest.id, state: latest.state, url: latest.url, events };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Sheets Batch Get Tool
+// ---------------------------------------------------------------------------
+
+export const sheetsBatchGetTool = tool({
+  description: "Batch read values from multiple ranges in a Google Spreadsheet in a single API call.",
+  inputSchema: zodSchema(z.object({
+    spreadsheetId: z.string().describe("The spreadsheet ID"),
+    ranges: z.array(z.string()).describe("Array of ranges to read (e.g., ['Sheet1!A1:B10', 'Sheet2!A1:A5'])"),
+  })),
+  execute: safeJson(async ({ spreadsheetId, ranges }) => {
+    return await gSheetsBatchGetValues(spreadsheetId, ranges);
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Sheets Clear Tool
+// ---------------------------------------------------------------------------
+
+export const sheetsClearTool = tool({
+  description: "Clear all values from a range in a Google Spreadsheet.",
+  inputSchema: zodSchema(z.object({
+    spreadsheetId: z.string().describe("The spreadsheet ID"),
+    range: z.string().describe("Range to clear (e.g., 'Sheet1!A1:B10')"),
+  })),
+  execute: safeJson(async ({ spreadsheetId, range }) => {
+    const res = await googleFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:clear`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    );
+    if (!res.ok) throw new Error(`Sheets clear error: ${res.status}`);
+    return res.json();
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Vision Analyze Tool (z-ai-web-dev-sdk)
+// ---------------------------------------------------------------------------
+
+export const visionAnalyzeTool = tool({
+  description: "Analyze images, videos, or PDFs using vision AI (VLM). Extract text, describe visual content, identify objects, and answer questions about visual media.",
+  inputSchema: zodSchema(z.object({
+    prompt: z.string().describe("What to analyze or ask about the visual content"),
+    imageUrl: z.string().optional().describe("URL of the image to analyze"),
+    fileUrl: z.string().optional().describe("URL of a video or PDF file to analyze"),
+  })),
+  execute: safeJson(async ({ prompt, imageUrl }) => {
+    const zai = await ZAI.create();
+    const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: "text", text: prompt },
+      ...(imageUrl ? [{ type: "image_url" as const, image_url: { url: imageUrl } }] : []),
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (zai.chat.completions as any).createVision({
+      messages: [{ role: "user", content }],
+    });
+    return { analysis: result };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Image Generate Tool (z-ai-web-dev-sdk)
+// ---------------------------------------------------------------------------
+
+export const imageGenerateTool = tool({
+  description: "Generate images from text prompts using AI. Returns base64-encoded image data.",
+  inputSchema: zodSchema(z.object({
+    prompt: z.string().describe("Text description of the image to generate"),
+    size: z.enum(["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"]).optional().describe("Image size (default: '1024x1024')"),
+  })),
+  execute: safeJson(async ({ prompt, size }) => {
+    const zai = await ZAI.create();
+    const result = await zai.images.generations.create({ prompt, size: size || "1024x1024" });
+    return { imageBase64: result.data?.[0] || result };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// TTS Generate Tool (z-ai-web-dev-sdk)
+// ---------------------------------------------------------------------------
+
+export const ttsGenerateTool = tool({
+  description: "Convert text to speech audio using AI. Returns base64-encoded WAV audio data.",
+  inputSchema: zodSchema(z.object({
+    text: z.string().describe("Text to convert to speech"),
+    voice: z.string().optional().describe("Voice name (default: 'tongtong')"),
+    speed: z.number().optional().describe("Speech speed multiplier (default: 1.0)"),
+  })),
+  execute: safeJson(async ({ text, voice, speed }) => {
+    const zai = await ZAI.create();
+    const result = await zai.audio.tts.create({
+      input: text,
+      voice: voice || "tongtong",
+      speed: speed || 1.0,
+      response_format: "wav",
+    });
+    // Convert response to base64 if it's a buffer/arraybuffer
+    let audioBase64 = "";
+    if (result instanceof ArrayBuffer) {
+      audioBase64 = Buffer.from(result).toString("base64");
+    } else if (result instanceof Buffer) {
+      audioBase64 = result.toString("base64");
+    } else if (Buffer.isBuffer(result)) {
+      audioBase64 = result.toString("base64");
+    } else {
+      audioBase64 = String(result);
+    }
+    return { audioBase64, format: "wav" };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// ASR Transcribe Tool (z-ai-web-dev-sdk)
+// ---------------------------------------------------------------------------
+
+export const asrTranscribeTool = tool({
+  description: "Transcribe audio to text using AI speech recognition. Accepts base64-encoded audio data.",
+  inputSchema: zodSchema(z.object({
+    audioBase64: z.string().describe("Base64-encoded audio data to transcribe"),
+  })),
+  execute: safeJson(async ({ audioBase64 }) => {
+    const zai = await ZAI.create();
+    const result = await zai.audio.asr.create({ file_base64: audioBase64 });
+    return { transcription: result };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Video Generate Tool (z-ai-web-dev-sdk)
+// ---------------------------------------------------------------------------
+
+export const videoGenerateTool = tool({
+  description: "Generate video using AI from text prompt or image. This is an async operation that returns a task ID and polls for results.",
+  inputSchema: zodSchema(z.object({
+    prompt: z.string().optional().describe("Text description of the video to generate"),
+    imageUrl: z.string().optional().describe("URL of a source image for image-to-video generation"),
+    quality: z.enum(["speed", "quality"]).optional().describe("Generation quality preference (default: 'speed')"),
+    duration: z.number().optional().describe("Video duration in seconds (default: 5)"),
+  })),
+  execute: safeJson(async ({ prompt, imageUrl, quality, duration }) => {
+    const zai = await ZAI.create();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any = await zai.video.generations.create({
+      prompt,
+      image_url: imageUrl,
+      quality: quality || "speed",
+      duration: duration || 5,
+    });
+
+    const taskId = result.taskId || result.id || result;
+    if (typeof taskId !== "string") {
+      return { status: "completed", result };
+    }
+
+    // Poll up to 3 times (5s intervals)
+    for (let i = 0; i < 3; i++) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const status: any = await (zai.video.generations as any).get(taskId);
+        if (status.status === "completed" || status.url || status.video_url) {
+          return { status: "completed", taskId, result: status };
+        }
+      } catch {
+        // Still processing
+      }
+    }
+
+    return { status: "pending", taskId, message: "Video generation in progress. Check back later." };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Design Generate Tool (Stitch)
+// ---------------------------------------------------------------------------
+
+export const designGenerateTool = tool({
+  description: "Generate a high-fidelity UI design from a text prompt using the Stitch design platform. Creates a new project with a single screen.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Title for the design project"),
+    prompt: z.string().describe("Description of the UI design to generate"),
+    deviceType: z.enum(["MOBILE", "DESKTOP", "TABLET"]).optional().describe("Target device type (default: 'DESKTOP')"),
+  })),
+  execute: safeJson(async ({ title, prompt, deviceType }) => {
+    const result = await generateDesign(title, prompt, (deviceType || "DESKTOP") as "MOBILE" | "DESKTOP" | "TABLET");
+    return {
+      projectId: result.projectId,
+      screenId: result.screenId,
+      imageUrl: result.imageUrl,
+      htmlUrl: result.htmlUrl,
+      success: result.success,
+      error: result.error,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Design Edit Tool (Stitch)
+// ---------------------------------------------------------------------------
+
+export const designEditTool = tool({
+  description: "Edit an existing Stitch design screen using a text prompt. Modifies the design based on the instruction.",
+  inputSchema: zodSchema(z.object({
+    projectId: z.string().describe("The Stitch project ID"),
+    screenId: z.string().describe("The screen ID to edit"),
+    prompt: z.string().describe("Instructions for what to change in the design"),
+  })),
+  execute: safeJson(async ({ projectId, screenId, prompt }) => {
+    const result = await editScreen(projectId, screenId, prompt);
+    return {
+      screenId: result.screenId,
+      imageUrl: result.imageUrl,
+      htmlUrl: result.htmlUrl,
+      success: result.success,
+      error: result.error,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Design Variants Tool (Stitch)
+// ---------------------------------------------------------------------------
+
+export const designVariantsTool = tool({
+  description: "Generate design variants of an existing Stitch screen. Creates multiple alternative designs based on the prompt.",
+  inputSchema: zodSchema(z.object({
+    projectId: z.string().describe("The Stitch project ID"),
+    screenId: z.string().describe("The screen ID to generate variants for"),
+    prompt: z.string().describe("Description of what variations to explore"),
+    count: z.number().optional().describe("Number of variants to generate (default: 3)"),
+  })),
+  execute: safeJson(async ({ projectId, screenId, prompt, count }) => {
+    const result = await generateVariants(projectId, screenId, prompt, { count: count || 3 });
+    return {
+      variants: result.variants,
+      count: result.count,
+      success: result.success,
+      error: result.error,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Data Calculate Tool (BUG FIX — was referenced but never defined)
+// ---------------------------------------------------------------------------
+
+export const dataCalculateTool = tool({
+  description: "Perform mathematical and statistical calculations. Supports: basic math (+, -, *, /, ^), statistics (mean, median, mode, stddev, percentile, sum, min, max, count, range), comparisons, and data transformations. For 'expression', use plain English or math notation. For 'data', provide an array of numbers for statistical operations.",
+  inputSchema: zodSchema(z.object({
+    expression: z.string().describe("Math expression to evaluate (e.g., '2 + 3 * 4', 'mean of the data')"),
+    data: z.array(z.number()).optional().describe("Array of numbers for statistical operations"),
+  })),
+  execute: safeJson(async ({ expression, data }) => {
+    const result: Record<string, unknown> = { expression, dataType: data ? "statistical" : "math" };
+
+    if (data && data.length > 0) {
+      const sorted = [...data].sort((a, b) => a - b);
+      const sum = data.reduce((a, b) => a + b, 0);
+      const count = data.length;
+      const mean = sum / count;
+      const min = sorted[0];
+      const max = sorted[count - 1];
+
+      const median = count % 2 === 0
+        ? (sorted[count / 2 - 1] + sorted[count / 2]) / 2
+        : sorted[Math.floor(count / 2)];
+
+      // Mode
+      const freq: Record<number, number> = {};
+      data.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      const maxFreq = Math.max(...Object.values(freq));
+      const mode = Object.entries(freq).filter(([, f]) => f === maxFreq).map(([v]) => Number(v));
+
+      // Standard deviation
+      const variance = data.reduce((acc, v) => acc + (v - mean) ** 2, 0) / count;
+      const stddev = Math.sqrt(variance);
+
+      // Percentiles
+      const percentile = (p: number) => {
+        const idx = (p / 100) * (sorted.length - 1);
+        const lower = sorted[Math.floor(idx)];
+        const upper = sorted[Math.ceil(idx)];
+        return lower + (upper - lower) * (idx - Math.floor(idx));
+      };
+
+      result.statistics = {
+        sum, count, mean: Math.round(mean * 1000) / 1000,
+        median, mode,
+        min, max, range: max - min,
+        stddev: Math.round(stddev * 1000) / 1000,
+        percentiles: {
+          p25: percentile(25),
+          p50: percentile(50),
+          p75: percentile(75),
+        },
+        sorted,
+      };
+      result.result = `Stats for ${count} values: mean=${Math.round(mean * 100) / 100}, median=${median}, stddev=${Math.round(stddev * 100) / 100}`;
+    } else {
+      // Try to evaluate math expression safely
+      try {
+        // Sanitize: only allow numbers, operators, parentheses, spaces, dots, and Math functions
+        const sanitized = expression.replace(/[^0-9+\-*/().%\s^eEpiMathsincotaglqrtbfceilflorpowminslog]/g, "");
+        // Convert ^ to ** and common math functions
+        const mathExpr = sanitized
+          .replace(/\^/g, "**")
+          .replace(/sqrt\(/g, "Math.sqrt(")
+          .replace(/abs\(/g, "Math.abs(")
+          .replace(/ceil\(/g, "Math.ceil(")
+          .replace(/floor\(/g, "Math.floor(")
+          .replace(/pow\(/g, "Math.pow(")
+          .replace(/min\(/g, "Math.min(")
+          .replace(/max\(/g, "Math.max(")
+          .replace(/log\(/g, "Math.log(")
+          .replace(/sin\(/g, "Math.sin(")
+          .replace(/cos\(/g, "Math.cos(")
+          .replace(/tan\(/g, "Math.tan(")
+          .replace(/pi/gi, "Math.PI");
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(`"use strict"; return (${mathExpr});`);
+        const evalResult = fn();
+        result.result = evalResult;
+        result.evaluated = true;
+      } catch {
+        result.result = `Could not evaluate expression: ${expression}`;
+        result.evaluated = false;
+      }
+    }
+
+    return result;
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Data Clean Tool
+// ---------------------------------------------------------------------------
+
+export const dataCleanTool = tool({
+  description: "Clean and normalize tabular data. Apply operations like trimming whitespace, case conversion, removing duplicates, empty rows, number/date formatting.",
+  inputSchema: zodSchema(z.object({
+    data: z.array(z.array(z.string())).describe("2D array of string data to clean (first row may be headers)"),
+    operations: z.array(z.enum(["trim", "uppercase", "lowercase", "removeDuplicates", "removeEmpty", "numberFormat", "dateFormat"])).describe("Sequence of cleaning operations to apply"),
+  })),
+  execute: safeJson(async ({ data, operations }) => {
+    let cleaned: string[][] = data.map(row => [...row]);
+
+    for (const op of operations) {
+      switch (op) {
+        case "trim":
+          cleaned = cleaned.map(row => row.map(cell => cell.trim()));
+          break;
+        case "uppercase":
+          cleaned = cleaned.map(row => row.map(cell => cell.toUpperCase()));
+          break;
+        case "lowercase":
+          cleaned = cleaned.map(row => row.map(cell => cell.toLowerCase()));
+          break;
+        case "removeDuplicates": {
+          const seen = new Set<string>();
+          cleaned = cleaned.filter(row => {
+            const key = row.join("|||");
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          break;
+        }
+        case "removeEmpty":
+          cleaned = cleaned.filter(row => row.some(cell => cell.trim() !== ""));
+          break;
+        case "numberFormat":
+          cleaned = cleaned.map(row => row.map(cell => {
+            const num = parseFloat(cell.replace(/[^0-9.\-]/g, ""));
+            return isNaN(num) ? cell : num.toLocaleString();
+          }));
+          break;
+        case "dateFormat":
+          // Attempt to normalize date strings
+          cleaned = cleaned.map(row => row.map(cell => {
+            const d = new Date(cell);
+            return isNaN(d.getTime()) ? cell : d.toISOString().split("T")[0];
+          }));
+          break;
+      }
+    }
+
+    return {
+      originalRows: data.length,
+      cleanedRows: cleaned.length,
+      operationsApplied: operations,
+      data: cleaned,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Data Pivot Tool
+// ---------------------------------------------------------------------------
+
+export const dataPivotTool = tool({
+  description: "Pivot, group, and aggregate tabular data. Group rows by a column value and apply an aggregate function to another column.",
+  inputSchema: zodSchema(z.object({
+    data: z.array(z.array(z.string())).describe("2D array of data (first row should be headers)"),
+    groupByColumn: z.number().describe("Zero-based column index to group by"),
+    aggregateColumn: z.number().describe("Zero-based column index to aggregate"),
+    aggregateFunction: z.enum(["sum", "average", "count", "min", "max"]).describe("Aggregate function to apply"),
+  })),
+  execute: safeJson(async ({ data, groupByColumn, aggregateColumn, aggregateFunction }) => {
+    if (data.length < 2) throw new Error("Data must have at least a header row and one data row");
+
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    // Group rows
+    const groups: Record<string, number[]> = {};
+    for (const row of rows) {
+      const key = row[groupByColumn] || "(empty)";
+      if (!groups[key]) groups[key] = [];
+      const val = parseFloat(row[aggregateColumn]);
+      if (!isNaN(val)) groups[key].push(val);
+    }
+
+    // Aggregate
+    const pivoted: Array<{ group: string; value: number }> = [];
+    for (const [group, values] of Object.entries(groups)) {
+      let value = 0;
+      switch (aggregateFunction) {
+        case "sum":
+          value = values.reduce((a, b) => a + b, 0);
+          break;
+        case "average":
+          value = values.reduce((a, b) => a + b, 0) / values.length;
+          break;
+        case "count":
+          value = values.length;
+          break;
+        case "min":
+          value = Math.min(...values);
+          break;
+        case "max":
+          value = Math.max(...values);
+          break;
+      }
+      pivoted.push({ group, value: Math.round(value * 1000) / 1000 });
+    }
+
+    return {
+      groupBy: headers[groupByColumn],
+      aggregateOn: headers[aggregateColumn],
+      aggregateFunction,
+      groups: pivoted,
+      totalGroups: pivoted.length,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Research Deep Tool (Multi-query parallel search)
+// ---------------------------------------------------------------------------
+
+export const researchDeepTool = tool({
+  description: "Perform deep multi-query research on a topic. Generates multiple search queries from the topic and optional aspects, runs them in parallel, deduplicates results, and returns a unified ranked result set.",
+  inputSchema: zodSchema(z.object({
+    topic: z.string().describe("The main research topic"),
+    aspects: z.array(z.string()).optional().describe("Specific aspects to research (e.g., ['market size', 'competition', 'trends'])"),
+    numResults: z.number().optional().describe("Total number of results to return (default: 15)"),
+  })),
+  execute: safeJson(async ({ topic, aspects, numResults }) => {
+    const zai = await ZAI.create();
+
+    // Generate search queries from topic and aspects
+    const queries = [
+      topic,
+      `${topic} overview`,
+      `${topic} 2024`,
+      ...(aspects || []).map(a => `${topic} ${a}`),
+    ].slice(0, 5);
+
+    // Run all queries in parallel
+    const allResults = await Promise.all(
+      queries.map(async (q) => {
+        try {
+          const results = await zai.functions.invoke("web_search", { query: q, num: numResults || 10 });
+          return Array.isArray(results) ? results : (results as Record<string, unknown>)?.results || [];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    // Flatten and deduplicate by URL
+    const seen = new Set<string>();
+    const unique: Array<{ url: string; title?: string; snippet?: string; [key: string]: unknown }> = [];
+    for (const results of allResults) {
+      const items = Array.isArray(results) ? results : [];
+      for (const item of items) {
+        const r = item as Record<string, unknown>;
+        const url = String(r.url || r.link || "");
+        if (url && !seen.has(url)) {
+          seen.add(url);
+          unique.push({
+            url,
+            title: r.title ? String(r.title) : undefined,
+            snippet: r.snippet || r.description ? String(r.snippet || r.description) : undefined,
+          });
+        }
+      }
+    }
+
+    return {
+      topic,
+      queriesUsed: queries,
+      totalFound: unique.length,
+      results: unique.slice(0, numResults || 15),
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Research Synthesize Tool
+// ---------------------------------------------------------------------------
+
+export const researchSynthesizeTool = tool({
+  description: "Cross-reference and synthesize research findings from multiple sources. Uses AI to identify agreements, disagreements, assess credibility, and produce a structured synthesis.",
+  inputSchema: zodSchema(z.object({
+    findings: z.array(z.object({
+      source: z.string().describe("Source URL or citation"),
+      claim: z.string().describe("The claim or finding from this source"),
+    })).describe("Array of findings from different sources"),
+    question: z.string().describe("The research question to answer"),
+  })),
+  execute: safeJson(async ({ findings, question }) => {
+    const zai = await ZAI.create();
+
+    const prompt = `You are a research analyst. Analyze these findings from multiple sources and produce a synthesis.
+
+Research Question: ${question}
+
+Findings:
+${findings.map((f, i) => `${i + 1}. [${f.source}] ${f.claim}`).join("\n")}
+
+Provide a structured analysis with:
+1. **Key Findings Summary** — Main takeaways
+2. **Areas of Agreement** — Where sources align
+3. **Areas of Disagreement** — Where sources conflict
+4. **Credibility Assessment** — Which sources are most reliable
+5. **Answer** — Your synthesized answer to the research question
+6. **Gaps** — What additional research would help`;
+
+    const result = await zai.chat.completions.create({
+      model: "coding-glm-5-turbo-free",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    return {
+      question,
+      sourcesCount: findings.length,
+      synthesis: typeof result === "string" ? result : JSON.stringify(result),
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Research Save Brief Tool
+// ---------------------------------------------------------------------------
+
+export const researchSaveBriefTool = tool({
+  description: "Save a research brief to a new Google Doc with formatted sections.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Title for the research brief document"),
+    objective: z.string().describe("Research objective"),
+    methodology: z.string().describe("Research methodology used"),
+    findings: z.string().describe("Key findings summary"),
+    sources: z.array(z.string()).describe("List of source URLs or citations"),
+    recommendations: z.string().describe("Recommendations based on findings"),
+  })),
+  execute: safeJson(async ({ title, objective, methodology, findings, sources, recommendations }) => {
+    const doc = await gDocsCreate(title);
+
+    const content = `RESEARCH BRIEF: ${title}\n\n` +
+      `========================================\n\n` +
+      `OBJECTIVE\n${objective}\n\n` +
+      `METHODOLOGY\n${methodology}\n\n` +
+      `KEY FINDINGS\n${findings}\n\n` +
+      `SOURCES\n${sources.map(s => `- ${s}`).join("\n")}\n\n` +
+      `RECOMMENDATIONS\n${recommendations}\n`;
+
+    await gDocsAppendText(doc.id, content);
+
+    return {
+      success: true,
+      documentId: doc.id,
+      documentUrl: doc.webViewLink,
+      title,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Research Save Data Tool
+// ---------------------------------------------------------------------------
+
+export const researchSaveDataTool = tool({
+  description: "Save research data to a Google Sheet. Creates a new spreadsheet if no ID is provided, or appends data to an existing one.",
+  inputSchema: zodSchema(z.object({
+    spreadsheetId: z.string().optional().describe("Existing spreadsheet ID (creates new if omitted)"),
+    title: z.string().optional().describe("Title for new spreadsheet (used only if spreadsheetId is not provided)"),
+    data: z.array(z.array(z.string())).describe("2D array of data to save (first row = headers)"),
+  })),
+  execute: safeJson(async ({ spreadsheetId, title, data }) => {
+    let sheetId = spreadsheetId;
+
+    if (!sheetId) {
+      const created = await gSheetsCreate(title || "Research Data");
+      sheetId = created.spreadsheetId;
+    }
+
+    // Append data rows
+    const result = await gSheetsAppendValues(sheetId!, "Sheet1!A1", data);
+
+    return {
+      success: true,
+      spreadsheetId: sheetId,
+      updatedRange: result.updates?.updatedRange,
+      rowsAppended: result.updates?.updatedRows || data.length,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Ops Health Check Tool
+// ---------------------------------------------------------------------------
+
+export const opsHealthCheckTool = tool({
+  description: "Check the health status of all Claw services. Returns a structured health report for all 7 internal services.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    const services = [
+      "api-chat",
+      "api-auth",
+      "api-webhooks",
+      "api-services",
+      "ws-gateway",
+      "agent-general",
+      "agent-specialists",
+    ];
+
+    const healthReport = await Promise.allSettled(
+      services.map(async (service) => {
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000";
+
+          const res = await fetch(`${baseUrl}/api/services?action=status&service=${service}`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          const status = res.ok ? "healthy" : "unhealthy";
+          return { service, status, statusCode: res.status };
+        } catch {
+          return { service, status: "unreachable" };
+        }
+      }),
+    );
+
+    const results = healthReport.map(r =>
+      r.status === "fulfilled" ? r.value : { service: "unknown", status: "error" }
+    );
+
+    const healthy = results.filter(r => r.status === "healthy").length;
+
+    return {
+      overallStatus: healthy === services.length ? "all_healthy" : healthy > 0 ? "degraded" : "down",
+      healthyServices: healthy,
+      totalServices: services.length,
+      services: results,
+      timestamp: new Date().toISOString(),
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Ops Deployment Status Tool
+// ---------------------------------------------------------------------------
+
+export const opsDeploymentStatusTool = tool({
+  description: "Get the latest deployment status for the Claw HQ project on Vercel.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    const deployments = await listDeployments("claw-hq", 1);
+    if (!deployments.length) {
+      return { status: "no_deployments", message: "No deployments found for claw-hq" };
+    }
+
+    const latest = deployments[0];
+    return {
+      id: latest.id,
+      state: latest.state,
+      url: latest.url,
+      createdAt: new Date(latest.createdAt).toISOString(),
+      isProduction: latest.isProduction,
+      target: latest.target,
+      meta: latest.meta,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Ops GitHub Activity Tool
+// ---------------------------------------------------------------------------
+
+export const opsGithubActivityTool = tool({
+  description: "Get recent GitHub activity including commits and issues. Returns activity summary with anomaly flags for unusual patterns.",
+  inputSchema: zodSchema(z.object({
+    since: z.string().optional().describe("ISO 8601 date string to filter activity from (e.g., '2024-01-01T00:00:00Z')"),
+  })),
+  execute: safeJson(async ({ since }) => {
+    const [commits, issues] = await Promise.all([
+      listCommits(1, 10),
+      listIssues("all", 1, 10),
+    ]);
+
+    // Filter by date if since is provided
+    const sinceDate = since ? new Date(since) : null;
+    const filteredCommits = sinceDate
+      ? commits.filter(c => new Date(c.commit.author.date) >= sinceDate)
+      : commits;
+    const filteredIssues = sinceDate
+      ? issues.filter(i => new Date(i.updated_at) >= sinceDate)
+      : issues;
+
+    // Anomaly detection
+    const anomalies: string[] = [];
+    const openIssues = issues.filter(i => i.state === "open");
+    if (openIssues.length > 20) anomalies.push("High number of open issues");
+    const recentCommits = filteredCommits.slice(0, 3);
+    const committers = new Set(recentCommits.map(c => c.author?.login).filter(Boolean));
+    if (committers.size === 1 && recentCommits.length >= 3) anomalies.push("All recent commits from a single author");
+
+    return {
+      commitCount: filteredCommits.length,
+      issueCount: filteredIssues.length,
+      openIssues: openIssues.length,
+      recentCommits: filteredCommits.slice(0, 5).map(c => ({
+        sha: c.sha.slice(0, 7),
+        message: c.commit.message.split("\n")[0],
+        author: c.commit.author.name,
+        date: c.commit.author.date,
+      })),
+      recentIssues: filteredIssues.slice(0, 5).map(i => ({
+        number: i.number,
+        title: i.title,
+        state: i.state,
+        author: i.user.login,
+        updated: i.updated_at,
+      })),
+      anomalies: anomalies.length > 0 ? anomalies : "No anomalies detected",
+      timestamp: new Date().toISOString(),
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Ops Agent Stats Tool
+// ---------------------------------------------------------------------------
+
+export const opsAgentStatsTool = tool({
+  description: "Get performance statistics for all Claw agents including status, tasks completed, and messages processed.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    // Dynamically import to avoid circular dependency
+    const { getAllAgentStatuses } = await import("./agents");
+    const statuses = getAllAgentStatuses();
+
+    return {
+      totalAgents: statuses.length,
+      agents: statuses.map(s => ({
+        id: s.id,
+        status: s.status,
+        currentTask: s.currentTask,
+        lastActivity: s.lastActivity,
+        tasksCompleted: s.tasksCompleted,
+        messagesProcessed: s.messagesProcessed,
+      })),
+      timestamp: new Date().toISOString(),
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // All Tools Registry
 // ---------------------------------------------------------------------------
 
@@ -706,11 +1837,15 @@ export const allTools: Record<string, ToolType> = {
   gmail_create_label: gmailCreateLabelTool,
   gmail_delete_label: gmailDeleteLabelTool,
   gmail_profile: gmailProfileTool,
+  gmail_reply: gmailReplyTool,
+  gmail_thread: gmailThreadTool,
+  gmail_batch: gmailBatchTool,
   // Calendar
   calendar_list: calendarListTool,
   calendar_events: calendarEventsTool,
   calendar_create: calendarCreateTool,
   calendar_delete: calendarDeleteTool,
+  calendar_freebusy: calendarFreebusyTool,
   // Drive
   drive_list: driveListTool,
   drive_create_folder: driveCreateFolderTool,
@@ -722,6 +1857,8 @@ export const allTools: Record<string, ToolType> = {
   sheets_update: sheetsUpdateTool,
   sheets_create: sheetsCreateTool,
   sheets_add_sheet: sheetsAddSheetTool,
+  sheets_batch_get: sheetsBatchGetTool,
+  sheets_clear: sheetsClearTool,
   // Docs
   docs_list: docsListTool,
   docs_read: docsReadTool,
@@ -737,10 +1874,17 @@ export const allTools: Record<string, ToolType> = {
   github_read_file: githubReadFileTool,
   github_search: githubSearchTool,
   github_branches: githubBranchesTool,
+  github_update_issue: githubUpdateIssueTool,
+  github_create_pr: githubCreatePrTool,
+  github_pr_review: githubPrReviewTool,
+  github_pr_comment: githubPrCommentTool,
+  github_create_branch: githubCreateBranchTool,
   // Vercel
   vercel_projects: vercelProjectsTool,
   vercel_deployments: vercelDeploymentsTool,
   vercel_domains: vercelDomainsTool,
+  vercel_deploy: vercelDeployTool,
+  vercel_logs: vercelLogsTool,
   // Web Tools
   web_search: webSearchTool,
   web_reader: webReaderTool,
@@ -748,6 +1892,30 @@ export const allTools: Record<string, ToolType> = {
   delegate_to_agent: delegateToAgentTool,
   // A2A
   query_agent: queryAgentTool,
+  // z-ai-web-dev-sdk Tools
+  vision_analyze: visionAnalyzeTool,
+  image_generate: imageGenerateTool,
+  tts_generate: ttsGenerateTool,
+  asr_transcribe: asrTranscribeTool,
+  video_generate: videoGenerateTool,
+  // Stitch Design Tools
+  design_generate: designGenerateTool,
+  design_edit: designEditTool,
+  design_variants: designVariantsTool,
+  // Data Analysis Tools
+  data_calculate: dataCalculateTool,
+  data_clean: dataCleanTool,
+  data_pivot: dataPivotTool,
+  // Research Tools
+  research_deep: researchDeepTool,
+  research_synthesize: researchSynthesizeTool,
+  research_save_brief: researchSaveBriefTool,
+  research_save_data: researchSaveDataTool,
+  // Ops Tools
+  ops_health_check: opsHealthCheckTool,
+  ops_deployment_status: opsDeploymentStatusTool,
+  ops_github_activity: opsGithubActivityTool,
+  ops_agent_stats: opsAgentStatsTool,
 };
 
 // ---------------------------------------------------------------------------

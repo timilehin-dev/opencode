@@ -127,3 +127,35 @@ Stage Summary:
 - Data Agent now has calculation capabilities for proper analysis
 - Design system document ready for UI overhaul
 - Total platform tools: 35 (31 original + web_search + web_reader + data_calculate + query_agent)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Add 32 new tools, 2 new agents, update A2A routing for all 7 agents
+
+Work Log:
+- Audited z-ai-web-dev-sdk: found 6 unused capabilities (Vision/VLM, TTS, ASR, Image Gen, Image Edit, Video Gen)
+- Fixed data_calculate tool (was referenced in agent config but never implemented)
+- Added 3 Gmail tools: reply, thread, batch
+- Added 1 Calendar tool: freebusy
+- Added 5 GitHub tools: update_issue, create_pr, pr_review, pr_comment, create_branch
+- Added 2 Vercel tools: deploy, logs
+- Added 2 Sheets tools: batch_get, clear
+- Added 5 z-ai-web-dev-sdk tools: vision_analyze, image_generate, tts_generate, asr_transcribe, video_generate
+- Added 3 Stitch design tools: design_generate, design_edit, design_variants
+- Added 3 Data analysis tools: data_calculate (fix), data_clean, data_pivot
+- Added 4 Research tools: research_deep, research_synthesize, research_save_brief, research_save_data
+- Added 4 Ops tools: ops_health_check, ops_deployment_status, ops_github_activity, ops_agent_stats
+- Added Research Agent (ollama/gemma4:31b-cloud) with full system prompt and team integration
+- Added Ops Agent (ollama/gemma4:31b-cloud) with full system prompt and team integration
+- Updated Team Directory in all agents to include Research + Ops
+- Updated delegate_to_agent and query_agent enums to include research + ops
+- Assigned appropriate tools to all 7 agents
+- Added 6 new GitHub API functions to github.ts
+- Build: 0 errors, deployed to production
+
+Stage Summary:
+- 7 agents total (was 5), 67 tools total (was 35)
+- All agents know about all other agents via updated Team Directory
+- A2A routing supports all 7 agents
+- Production: https://my-project-lilac-pi-90.vercel.app

@@ -232,3 +232,77 @@ export async function searchCode(query: string): Promise<SearchResult> {
   const q = `${query} repo:${OWNER}/${REPO}`;
   return githubFetch<SearchResult>(`${BASE_URL}/search/code?q=${encodeURIComponent(q)}`);
 }
+
+/** Update an issue (state, title, body, labels) */
+export async function updateIssue(
+  issueNumber: number,
+  updates: { state?: string; title?: string; body?: string; labels?: string[] },
+): Promise<Issue> {
+  return githubFetch<Issue>(repoUrl(`/issues/${issueNumber}`), {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+/** Create a pull request */
+export async function createPullRequest(
+  title: string,
+  body: string,
+  head: string,
+  base: string,
+): Promise<PullRequest> {
+  return githubFetch<PullRequest>(repoUrl("/pulls"), {
+    method: "POST",
+    body: JSON.stringify({ title, body, head, base }),
+  });
+}
+
+/** Get a single pull request */
+export async function getPullRequest(pullNumber: number): Promise<PullRequest> {
+  return githubFetch<PullRequest>(repoUrl(`/pulls/${pullNumber}`));
+}
+
+/** Get files changed in a pull request */
+export interface PRFile {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch: string;
+}
+
+export async function getPullRequestFiles(pullNumber: number): Promise<PRFile[]> {
+  return githubFetch<PRFile[]>(repoUrl(`/pulls/${pullNumber}/files`));
+}
+
+/** Create a comment on an issue or PR */
+export async function createPRComment(
+  issueNumber: number,
+  body: string,
+): Promise<{ id: number; body: string; html_url: string }> {
+  return githubFetch(repoUrl(`/issues/${issueNumber}/comments`), {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+/** Create a new branch from an existing branch */
+export async function createBranch(
+  branchName: string,
+  fromBranch?: string,
+): Promise<{ ref: string; object: { sha: string; type: string; url: string } }> {
+  const sourceBranch = fromBranch || "main";
+  const sourceData = await githubFetch<{ object: { sha: string } }>(
+    repoUrl(`/git/ref/heads/${encodeURIComponent(sourceBranch)}`),
+  );
+  const sha = sourceData.object.sha;
+
+  return githubFetch(repoUrl("/git/refs"), {
+    method: "POST",
+    body: JSON.stringify({
+      ref: `refs/heads/${branchName}`,
+      sha,
+    }),
+  });
+}

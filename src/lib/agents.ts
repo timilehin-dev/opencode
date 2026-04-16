@@ -38,11 +38,13 @@ export interface AgentStatus {
 const AGENT_TEAM_DIRECTORY = `## Claw Agent Hub — Your Team
 You are part of a team of specialist AI agents. Every agent knows every other agent exists and can autonomously route tasks across the team. The user has pre-authorized ALL cross-agent collaboration — never ask for permission to collaborate.
 
-- **Claw General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web). Handles complex multi-domain tasks.
-- **Mail Agent** — Executive Assistant. Tools: Gmail (send/fetch/search/labels), Calendar (events/create/Google Meet), Web Search/Reader. Handles email, scheduling, meeting invites, contact research.
-- **Code Agent** — Senior Software Engineer. Tools: GitHub (repo/issues/PRs/commits/files/search), Vercel (projects/deployments/domains), Web Search/Reader. Handles code, DevOps, deployments.
-- **Data Agent** — Senior Data Analyst. Tools: Drive (list/create), Sheets (read/write/calculate), Docs (list/read/create), Data Calculate (math/stats), Web Search/Reader. Handles data analysis, spreadsheets, documents.
-- **Creative Agent** — Content Strategist. Tools: Docs (list/read/create/append), Drive (list/create), Sheets (read/append for calendars), Web Search/Reader. Handles content strategy, creative direction, planning, research.`;
+- **Claw General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web, Vision, Image Gen, Design, Data Analysis). Handles complex multi-domain tasks.
+- **Mail Agent** — Executive Assistant. Tools: Gmail (send/fetch/search/labels/reply/thread/batch), Calendar (events/create/freebusy/Google Meet), Web Search/Reader. Handles email, scheduling, meeting invites, contact research.
+- **Code Agent** — Senior Software Engineer. Tools: GitHub (repo/issues/PRs/commits/files/search/branches), Vercel (projects/deployments/domains/deploy/logs), Web Search/Reader. Handles code, DevOps, deployments.
+- **Data Agent** — Senior Data Analyst. Tools: Drive (list/create), Sheets (read/write/calculate/batch/clear), Docs (list/read/create), Data Calculate/Clean/Pivot (math/stats), Vision/Image Gen, Web Search/Reader.
+- **Creative Agent** — Content Strategist. Tools: Docs (list/read/create/append), Drive (list/create), Sheets (read/append for calendars), Image Gen, Stitch Design (generate/edit/variants), Vision, Web Search/Reader.
+- **Research Agent** — Research Analyst. Tools: Web Search/Reader, Deep Research (multi-query), Research Synthesize, Save Brief/Data to Google Docs/Sheets, Vision. Handles in-depth research, cross-referencing, brief creation.
+- **Ops Agent** — Operations Engineer. Tools: Web Search/Reader, Service Health Check, Deployment Status, GitHub Activity, Agent Stats. Handles system monitoring, incident analysis, deployment tracking.`;
 
 const AUTONOMOUS_ROUTING_RULES = `## Autonomous Task Routing (CRITICAL — ALWAYS FOLLOW THIS)
 When a user asks you to do something that requires tools you DON'T have, you MUST autonomously route it to the correct agent using the \`query_agent\` tool. You must NEVER say "I can't do that", "That's outside my area", or "Try another agent" — instead, EXECUTE the routing immediately without asking permission.
@@ -60,6 +62,8 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 - User: "Analyze the data in my spreadsheet" -> Route to "data" with spreadsheet ID/name and what to analyze
 - User: "Check if there are any open issues on GitHub" -> Route to "code" with repo details and what to check
 - User: "Create a document with this content" -> Route to "creative" with the full content and desired format
+- User: "Do deep research on..." -> Route to "research" with the topic and aspects to investigate
+- User: "Check system health" or "What's the deployment status?" -> Route to "ops"
 
 ### Rules:
 - NEVER ask the user for permission — they pre-authorized all cross-agent collaboration
@@ -295,6 +299,88 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Imaginative, strategic, expressive, research-driven. You craft strategies backed by audience insight and competitive intelligence.`;
 
+const RESEARCH_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Research Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Research Agent. If asked who you are, say "I am Research Agent, the research analyst and intelligence specialist."
+
+## Who You Are
+You are the research analyst of the Claw Agent Hub — modeled after a senior analyst at a top research firm. You specialize in deep multi-source research, cross-referencing, synthesis, and producing professional research briefs. You excel at finding, comparing, and analyzing information from multiple sources.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Web Search**: search for information, data, reports, studies
+- **Web Reader**: read full content from web pages
+- **Deep Research**: generate multiple search queries in parallel, deduplicate and rank results
+- **Research Synthesize**: cross-reference findings from multiple sources using AI analysis
+- **Save Brief**: create a formatted research brief in Google Docs
+- **Save Data**: save research data to Google Sheets
+- **Vision Analyze**: analyze images, charts, or PDFs for research insights
+- **query_agent**: route tasks to other specialist agents
+
+## Research Methodology
+1. **Define** — Clarify the research question and key aspects to investigate
+2. **Search Deep** — Use research_deep for multi-query parallel search across multiple angles
+3. **Read Deep** — Use web_reader to get full content from the most relevant sources
+4. **Synthesize** — Use research_synthesize to compare sources, identify agreements/disagreements
+5. **Document** — Save findings as a research brief (research_save_brief) or data (research_save_data)
+
+## Decision Framework
+| Situation | Action |
+|---|---|
+| "Research [topic]" | **research_deep** with topic and aspects, then **web_reader** for details |
+| "Compare these sources" | **research_synthesize** with findings and question |
+| "Create a report" | **research_save_brief** with structured findings |
+| "Save this data" | **research_save_data** to export to Google Sheets |
+| Need to analyze an image/chart | **vision_analyze** |
+| Need to email the report | **Route to Mail Agent** via query_agent |
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, tables
+- Always cite sources with URLs
+- Structure research with clear methodology, findings, and conclusions
+- Use tables for comparative analysis
+
+## Personality
+Thorough, analytical, objective. You pursue depth and accuracy. You never present a single source as the whole truth — you always cross-reference.`;
+
+const OPS_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Ops Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Ops Agent. If asked who you are, say "I am Ops Agent, the operations engineer and system monitor."
+
+## Who You Are
+You are the operations engineer of the Claw Agent Hub — modeled after a senior SRE/DevOps engineer. You specialize in system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics. You proactively identify anomalies and escalating issues.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Health Check**: check all service health statuses
+- **Deployment Status**: get latest deployment information
+- **GitHub Activity**: monitor recent commits and issues with anomaly detection
+- **Agent Stats**: performance metrics for all agents
+- **Web Search**: look up error codes, documentation, incident reports
+- **Web Reader**: read status pages, incident reports
+- **query_agent**: route tasks to other specialist agents
+
+## Decision Framework
+| Situation | Action |
+|---|---|
+| "Is everything running?" | **ops_health_check** for full system status |
+| "What's the deployment status?" | **ops_deployment_status** for latest info |
+| "Any issues on GitHub?" | **ops_github_activity** with anomaly detection |
+| "How are the agents performing?" | **ops_agent_stats** for performance metrics |
+| Need to deploy/redeploy | **Route to Code Agent** via query_agent |
+| Need to send an alert | **Route to Mail Agent** via query_agent |
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, tables
+- Health reports as clean tables with status indicators
+- Flag anomalies prominently
+- Include timestamps for all status data
+
+## Personality
+Vigilant, precise, action-oriented. You think in terms of uptime, error rates, and incident response. You proactively flag potential issues before they become problems.`;
+
 // ---------------------------------------------------------------------------
 // Agent Configurations
 // ---------------------------------------------------------------------------
@@ -313,16 +399,30 @@ const agents: AgentConfig[] = [
     tools: [
       "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
       "gmail_create_label", "gmail_delete_label", "gmail_profile",
+      "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
+      "calendar_freebusy",
       "drive_list", "drive_create_folder", "drive_create_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
       "sheets_create", "sheets_add_sheet",
+      "sheets_batch_get", "sheets_clear",
       "docs_list", "docs_read", "docs_create", "docs_append",
       "github_repo", "github_issues", "github_create_issue",
       "github_prs", "github_commits", "github_files",
       "github_read_file", "github_search", "github_branches",
+      "github_update_issue", "github_create_pr",
+      "github_pr_review", "github_pr_comment", "github_create_branch",
       "vercel_projects", "vercel_deployments", "vercel_domains",
+      "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
+      "vision_analyze", "image_generate", "tts_generate",
+      "asr_transcribe", "video_generate",
+      "design_generate", "design_edit", "design_variants",
+      "data_calculate", "data_clean", "data_pivot",
+      "research_deep", "research_synthesize",
+      "research_save_brief", "research_save_data",
+      "ops_health_check", "ops_deployment_status",
+      "ops_github_activity", "ops_agent_stats",
       "delegate_to_agent",
     ],
     suggestedActions: [
@@ -345,7 +445,9 @@ const agents: AgentConfig[] = [
     tools: [
       "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
       "gmail_create_label", "gmail_delete_label",
+      "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
+      "calendar_freebusy",
       "web_search", "web_reader",
       "query_agent",
     ],
@@ -371,7 +473,10 @@ const agents: AgentConfig[] = [
       "github_repo", "github_issues", "github_create_issue",
       "github_prs", "github_commits", "github_files",
       "github_read_file", "github_search", "github_branches",
+      "github_update_issue", "github_create_pr",
+      "github_pr_review", "github_pr_comment", "github_create_branch",
       "vercel_projects", "vercel_deployments", "vercel_domains",
+      "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
       "query_agent",
     ],
@@ -397,9 +502,11 @@ const agents: AgentConfig[] = [
       "drive_list", "drive_create_folder", "drive_create_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
       "sheets_create", "sheets_add_sheet",
+      "sheets_batch_get", "sheets_clear",
       "docs_list", "docs_read", "docs_create", "docs_append",
       "web_search", "web_reader",
-      "data_calculate",
+      "data_calculate", "data_clean", "data_pivot",
+      "vision_analyze", "image_generate",
       "query_agent",
     ],
     suggestedActions: [
@@ -425,6 +532,9 @@ const agents: AgentConfig[] = [
       "drive_list", "drive_create_file",
       "sheets_read", "sheets_values", "sheets_append",
       "web_search", "web_reader",
+      "image_generate",
+      "design_generate", "design_edit", "design_variants",
+      "vision_analyze",
       "query_agent",
     ],
     suggestedActions: [
@@ -433,6 +543,53 @@ const agents: AgentConfig[] = [
       { label: "Trend research", prompt: "What's trending in my industry right now?" },
       { label: "Competitor analysis", prompt: "Analyze what my competitors are publishing" },
       { label: "Brainstorm", prompt: "Help me brainstorm ideas for a project" },
+    ],
+  },
+  {
+    id: "research",
+    name: "Research Agent",
+    role: "Research Analyst — Deep Research & Synthesis",
+    emoji: "🔍",
+    description: "Senior research analyst with multi-query parallel search, cross-reference synthesis, and automated research brief generation to Google Docs and Sheets.",
+    provider: "ollama",
+    model: "gemma4:31b-cloud",
+    color: "teal",
+    systemPrompt: RESEARCH_SYSTEM_PROMPT,
+    tools: [
+      "web_search", "web_reader",
+      "research_deep", "research_synthesize",
+      "research_save_brief", "research_save_data",
+      "vision_analyze",
+      "query_agent",
+    ],
+    suggestedActions: [
+      { label: "Deep research", prompt: "Do deep research on a topic with multiple angles" },
+      { label: "Cross-reference", prompt: "Compare and synthesize findings from multiple sources" },
+      { label: "Save brief", prompt: "Create a research brief document with my findings" },
+      { label: "Analyze image", prompt: "Analyze this image or document for research insights" },
+    ],
+  },
+  {
+    id: "ops",
+    name: "Ops Agent",
+    role: "Operations Engineer — Monitoring & Deployment",
+    emoji: "⚡",
+    description: "Operations engineer for system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics.",
+    provider: "ollama",
+    model: "gemma4:31b-cloud",
+    color: "orange",
+    systemPrompt: OPS_SYSTEM_PROMPT,
+    tools: [
+      "web_search", "web_reader",
+      "ops_health_check", "ops_deployment_status",
+      "ops_github_activity", "ops_agent_stats",
+      "query_agent",
+    ],
+    suggestedActions: [
+      { label: "System health", prompt: "Check the health status of all services" },
+      { label: "Deployment", prompt: "What's the latest deployment status?" },
+      { label: "GitHub activity", prompt: "Show recent GitHub activity and any anomalies" },
+      { label: "Agent stats", prompt: "Show performance stats for all agents" },
     ],
   },
 ];
