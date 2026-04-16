@@ -264,3 +264,29 @@ Stage Summary:
 - Google Drive integration: search and attach Drive files directly from chat
 - Total tools: 73 (67 original + create_pdf_report + create_docx_document + download_drive_file)
 - Production live at: https://my-project-tau-two-70.vercel.app
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix tool specialization — ensure only Claw General has ALL tools, subagents get specialized tools only
+
+Work Log:
+- Read full codebase: agents.ts, chat/route.ts, tools.ts, agents API route, agents-view.tsx
+- Confirmed tool specialization was ALREADY correctly implemented in code:
+  - agents.ts defines per-agent tools[] arrays (specialized per agent)
+  - chat/route.ts builds agentTools subset per agent from allTools
+  - Each specialist only gets their domain tools + query_agent for routing
+- The previous bot message was misleading ("ALL tools" was poorly worded)
+- Strengthened system prompt enforcement in chat/route.ts:
+  - Specialist agents now see "YOUR EXCLUSIVE TOOL INVENTORY" with clear boundary
+  - Explicit instruction: "These are the ONLY tools available to you"
+  - Told to route outside-domain tasks via query_agent
+  - Claw General sees "Complete Tool Inventory" with ALL tools
+- Verified PDF/DOCX tools (create_pdf_report, create_docx_document) exist in code
+- Verified agent page display (provider/model) is correct in agents.ts
+- Deployed to Vercel production: https://my-project-tau-two-70.vercel.app
+
+Stage Summary:
+- Tool specialization is enforced at 3 levels: code (agentTools subset), system prompt (exclusive tool inventory), and agent definitions (per-agent tools array)
+- Creative Agent CANNOT send emails — only route to Mail Agent via query_agent
+- PDF/DOCX creation tools are active for: General, Mail, Code, Data, Creative, Research, Ops agents
+- Build warning for xlsx module (non-critical, upload feature optional)

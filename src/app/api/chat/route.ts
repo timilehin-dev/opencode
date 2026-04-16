@@ -128,8 +128,8 @@ export async function POST(req: Request) {
       ? `\n\n[MEMORY — Persistent context you remember]\n${memoryContext}\n[END MEMORY]`
       : "";
 
-    // Build a complete tool inventory so the LLM is fully aware of every tool
-    // available to it (fixes the ~40 vs ~70 tool awareness mismatch).
+    // Build a tool inventory so the LLM is fully aware of the tools
+    // available to THIS specific agent (per-agent specialization).
     const toolCount = Object.keys(agentTools).length;
     const toolInventory = Object.entries(agentTools)
       .map(([key, t]) => {
@@ -137,7 +137,13 @@ export async function POST(req: Request) {
         return `- **${key}**: ${desc}`;
       })
       .join("\n");
-    const toolBlock = `\n\n## Your Complete Tool Inventory (${toolCount} tools)\nYou have EXACTLY these tools — no more, no less. When asked to list your tools, list ALL ${toolCount} of them:\n${toolInventory}\n`;
+
+    // Tool boundary block differs per agent type:
+    // - Claw General: sees all tools, can delegate
+    // - Specialist agents: ONLY their specialized tools + query_agent for routing
+    const toolBlock = id !== "general"
+      ? `\n\n## YOUR EXCLUSIVE TOOL INVENTORY (${toolCount} tools)\nCRITICAL: These are the ONLY tools available to you — ${agent.name}. You do NOT have access to any other agent's tools. If a user asks you to do something outside your domain, you MUST route it via \\_query\_agent\\_ to the correct specialist. Do NOT attempt to use tools you don't have.\n\nYour ${toolCount} tools:\n${toolInventory}\n`
+      : `\n\n## Your Complete Tool Inventory (${toolCount} tools)\nYou have access to ALL tools across every service. When asked to list your tools, list ALL ${toolCount} of them:\n${toolInventory}\n`;
 
     const systemPrompt =
       id !== "general"
