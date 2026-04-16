@@ -22,12 +22,20 @@ export const maxDuration = 60;
 // Route Handler
 // ---------------------------------------------------------------------------
 
+interface Attachment {
+  name: string;
+  content: string;
+  type: string;
+  mimeType: string;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, agentId } = body as {
+    const { messages, agentId, attachments } = body as {
       messages: UIMessage[];
       agentId?: string;
+      attachments?: Attachment[];
     };
 
     const id = agentId || "general";
@@ -48,8 +56,14 @@ export async function POST(req: Request) {
       }
     }
 
+    // Process attachments — inject file content into the last user message
+    let processedMessages = messages;
+    if (attachments && attachments.length > 0) {
+      processedMessages = injectAttachments(messages, attachments);
+    }
+
     // Extract last user message for status display
-    const lastMsg = messages[messages.length - 1];
+    const lastMsg = processedMessages[processedMessages.length - 1];
     const lastContent = lastMsg?.parts
       ? lastMsg.parts
           .filter((p) => p.type === "text")
@@ -69,7 +83,7 @@ export async function POST(req: Request) {
 
     // Run these in parallel to reduce time-to-first-token
     const [modelMessages, memoryContext] = await Promise.all([
-      convertToModelMessages(messages),
+      convertToModelMessages(processedMessages),
       getMemorySummary(id).catch(() => ""),
     ]);
 
@@ -85,6 +99,9 @@ export async function POST(req: Request) {
     }
 
     console.log(`[Chat] Agent: ${agent.name} (${agent.provider}/${agent.model})`);
+    if (attachments && attachments.length > 0) {
+      console.log(`[Chat] Attachments: ${attachments.map(a => a.name).join(", ")}`);
+    }
     for (let i = 0; i < modelMessages.length; i++) {
       const m = modelMessages[i];
       const contentStr = typeof m.content === "string"
@@ -110,10 +127,22 @@ export async function POST(req: Request) {
     const memoryBlock = memoryContext
       ? `\n\n[MEMORY — Persistent context you remember]\n${memoryContext}\n[END MEMORY]`
       : "";
+
+    // Build a complete tool inventory so the LLM is fully aware of every tool
+    // available to it (fixes the ~40 vs ~70 tool awareness mismatch).
+    const toolCount = Object.keys(agentTools).length;
+    const toolInventory = Object.entries(agentTools)
+      .map(([key, t]) => {
+        const desc = (t as unknown as { description?: string }).description || "";
+        return `- **${key}**: ${desc}`;
+      })
+      .join("\n");
+    const toolBlock = `\n\n## Your Complete Tool Inventory (${toolCount} tools)\nYou have EXACTLY these tools — no more, no less. When asked to list your tools, list ALL ${toolCount} of them:\n${toolInventory}\n`;
+
     const systemPrompt =
       id !== "general"
-        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times. You have exactly these tools: ${agent.tools.join(", ")}. Nothing else.${memoryBlock}\n\n${agent.systemPrompt}`
-        : `${agent.systemPrompt}${memoryBlock}`;
+        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}\n\n${agent.systemPrompt}${toolBlock}`
+        : `${agent.systemPrompt}${memoryBlock}${toolBlock}`;
 
     const result = streamText({
       model,
@@ -164,4 +193,74 @@ export async function POST(req: Request) {
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Attachment Injection
+// ---------------------------------------------------------------------------
+
+/**
+ * Injects file attachment content into the last user message.
+ * - For image attachments: adds as image parts (for vision models).
+ * - For text/structured attachments: prepends content to the user message with a header.
+ */
+function injectAttachments(
+  messages: UIMessage[],
+  attachments: Attachment[],
+): UIMessage[] {
+  if (!messages.length || !attachments.length) return messages;
+
+  // Work with a copy to avoid mutating the original
+  const result: UIMessage[] = JSON.parse(JSON.stringify(messages));
+
+  // Find the last user message to inject into
+  let targetIdx = result.length - 1;
+  while (targetIdx >= 0 && result[targetIdx].role !== "user") {
+    targetIdx--;
+  }
+
+  if (targetIdx < 0) {
+    // No user message found — prepend attachments as a new user message
+    const attachmentText = attachments
+      .map((a) => formatAttachmentHeader(a) + a.content)
+      .join("\n\n");
+
+    result.unshift({
+      id: `attachment-${Date.now()}`,
+      role: "user",
+      parts: [{ type: "text" as const, text: attachmentText }],
+    });
+    return result;
+  }
+
+  const targetMsg = result[targetIdx];
+
+  // Build attachment text and prepend to the message
+  const textAttachments = attachments.filter((a) => a.type !== "image");
+
+  if (textAttachments.length > 0) {
+    const attachmentText = textAttachments
+      .map((a) => formatAttachmentHeader(a) + a.content)
+      .join("\n\n---\n\n");
+
+    // Prepend to the existing message text
+    const existingParts = targetMsg.parts || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const textPart = existingParts.find((p: any) => p.type === "text");
+    if (textPart && "text" in textPart) {
+      textPart.text = attachmentText + "\n\n---\n\n" + textPart.text;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      existingParts.unshift({ type: "text" as const, text: attachmentText });
+    }
+  }
+
+  return result;
+}
+
+function formatAttachmentHeader(attachment: Attachment): string {
+  const sizeStr = attachment.content.length > 5000
+    ? ` (${(attachment.content.length / 1024).toFixed(1)}KB)`
+    : "";
+  return `[Attached file: ${attachment.name}${sizeStr}]\n`;
 }

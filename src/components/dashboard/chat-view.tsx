@@ -15,6 +15,11 @@ import {
   HistoryIcon,
   XIcon,
   MessageSquareIcon,
+  PaperclipIcon,
+  FileDownIcon,
+  DriveIcon,
+  SearchIcon,
+  UploadIcon,
 } from "@/components/icons";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
@@ -122,6 +127,20 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     badge: "bg-rose-500/20 text-rose-400",
     dot: "bg-rose-400",
   },
+  teal: {
+    bg: "bg-teal-500/10",
+    text: "text-teal-400",
+    border: "border-teal-500/30",
+    badge: "bg-teal-500/20 text-teal-400",
+    dot: "bg-teal-400",
+  },
+  orange: {
+    bg: "bg-orange-500/10",
+    text: "text-orange-400",
+    border: "border-orange-500/30",
+    badge: "bg-orange-500/20 text-orange-400",
+    dot: "bg-orange-400",
+  },
 };
 
 // Agent metadata for display in conversation list
@@ -131,6 +150,8 @@ const agentMeta: Record<string, { emoji: string; name: string; color: string }> 
   code: { emoji: "\uD83D\uDCBB", name: "Code Agent", color: "purple" },
   data: { emoji: "\uD83D\uDCCA", name: "Data Agent", color: "amber" },
   creative: { emoji: "\uD83E\uDDE0", name: "Creative Agent", color: "rose" },
+  research: { emoji: "\uD83D\uDD0D", name: "Research Agent", color: "teal" },
+  ops: { emoji: "\u26A1", name: "Ops Agent", color: "orange" },
 };
 
 // ---------------------------------------------------------------------------
@@ -393,6 +414,23 @@ function AgentChatSession({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{
+    name: string;
+    content: string;
+    type: string;
+    mimeType: string;
+  }>>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
+  const [driveSearch, setDriveSearch] = useState("");
+  const [driveFiles, setDriveFiles] = useState<Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    size: number | null;
+  }>>([]);
+  const [driveLoading, setDriveLoading] = useState(false);
 
   const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
@@ -460,12 +498,121 @@ function AgentChatSession({
     prevMessageCountRef.current = messages.length;
   }, [messages, agentId, agentInfo.name]);
 
+  // --- File Upload Handler ---
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    setUploading(true);
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      // Validate size
+      if (file.size > 10 * 1024 * 1024) {
+        console.error(`[Upload] File too large: ${file.name}`);
+        continue;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          console.error(`[Upload] Failed: ${err.error}`);
+          continue;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: data.data.name,
+              content: data.data.content,
+              type: data.data.type,
+              mimeType: data.data.mimeType,
+            },
+          ]);
+        }
+      } catch (err) {
+        console.error("[Upload] Error:", err);
+      }
+    }
+    setUploading(false);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, []);
+
+  // --- Google Drive Search ---
+  const handleDriveSearch = useCallback(async (query: string) => {
+    setDriveLoading(true);
+    try {
+      const res = await fetch(`/api/drive/search?q=${encodeURIComponent(query)}&pageSize=10`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setDriveFiles(data.data);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    setDriveLoading(false);
+  }, []);
+
+  const handleDriveFileSelect = useCallback(async (file: { id: string; name: string; mimeType: string }) => {
+    setShowDrivePicker(false);
+    setDriveLoading(true);
+    try {
+      // Import the file content via the chat by telling the agent about it
+      setAttachments((prev) => [
+        ...prev,
+        {
+          name: file.name,
+          content: `[Google Drive file: ${file.id} — ${file.mimeType}]`,
+          type: "text",
+          mimeType: file.mimeType,
+        },
+      ]);
+    } catch {
+      /* ignore */
+    }
+    setDriveLoading(false);
+  }, []);
+
+  // Remove attachment
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   // Handle send
   const handleSend = () => {
-    if (!inputText.trim() || isLoading) return;
+    if ((!inputText.trim() && attachments.length === 0) || isLoading) return;
+
     trackChatMessage(agentId, agentInfo.name, inputText.length);
-    sendMessage({ text: inputText });
+
+    // Include attachments in the message
+    // We send attachments by prepending them to the text content
+    let messageText = inputText;
+    if (attachments.length > 0) {
+      const attText = attachments
+        .map((a) => `[Attached file: ${a.name}]\n${a.content}`)
+        .join("\n\n---\n\n");
+      messageText = attText + "\n\n---\n\n" + messageText;
+    }
+    sendMessage({ text: messageText });
+
     setInputText("");
+    setAttachments([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -483,6 +630,29 @@ function AgentChatSession({
     const textarea = e.target;
     textarea.style.height = "auto";
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+  };
+
+  // Detect file download URLs in tool results
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const extractDownloadUrl = (result: string): { url: string; filename: string } | null => {
+    try {
+      const data = JSON.parse(result);
+      if (data.success && data.data?.downloadUrl) {
+        return {
+          url: data.data.downloadUrl,
+          filename: data.data.filename || data.data.title || "Download",
+        };
+      }
+    } catch {
+      /* not JSON */
+    }
+    // Also check for /api/files/ pattern in the string
+    const match = result.match(/(\/api\/files\/[a-zA-Z0-9._-]+\.(?:pdf|docx|txt|csv))["'\s]/);
+    if (match) {
+      const filename = match[1].split("/").pop() || "Download";
+      return { url: match[1], filename };
+    }
+    return null;
   };
 
   // Filter visible messages (exclude system)
@@ -599,13 +769,34 @@ function AgentChatSession({
                               : JSON.stringify(tool.output)
                             : "";
 
+                          // Check for file download URL in tool result
+                          const downloadInfo = hasOutput ? extractDownloadUrl(resultStr) : null;
+
                           if (hasOutput) {
                             return (
-                              <ToolCallCard
-                                key={`${message.id}-tool-${idx}`}
-                                toolName={toolName}
-                                result={resultStr}
-                              />
+                              <div key={`${message.id}-tool-${idx}`}>
+                                <ToolCallCard
+                                  key={`${message.id}-tool-card-${idx}`}
+                                  toolName={toolName}
+                                  result={resultStr}
+                                />
+                                {downloadInfo && (
+                                  <motion.a
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    href={downloadInfo.url}
+                                    download={downloadInfo.filename}
+                                    className={cn(
+                                      "flex items-center gap-2 mt-1 px-3 py-2 rounded-lg border transition-all duration-200",
+                                      "border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                    )}
+                                  >
+                                    <FileDownIcon className={cn("w-4 h-4 flex-shrink-0", colors.text)} />
+                                    <span className="text-xs font-medium text-foreground">{downloadInfo.filename}</span>
+                                    <span className="text-[10px] text-muted-foreground ml-auto">Download</span>
+                                  </motion.a>
+                                )}
+                              </div>
                             );
                           }
 
@@ -661,45 +852,199 @@ function AgentChatSession({
 
       {/* Input Area */}
       <div className="border-t border-border/50 px-4 py-3 flex-shrink-0 bg-background">
-        <div className="max-w-3xl mx-auto flex items-end gap-2">
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={inputText}
-              onChange={handleTextareaInput}
-              onKeyDown={handleKeyDown}
-              placeholder={`Message ${agentInfo.name}...`}
-              rows={1}
-              className={cn(
-                "w-full resize-none rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground",
-                "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30",
-                "transition-all duration-200"
+        <div className="max-w-3xl mx-auto">
+          {/* Attachment Previews */}
+          <AnimatePresence>
+            {attachments.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex flex-wrap gap-2 mb-2"
+              >
+                {attachments.map((att, idx) => (
+                  <motion.div
+                    key={`${att.name}-${idx}`}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs",
+                      "border-border bg-card"
+                    )}
+                  >
+                    {att.type === "image" ? (
+                      <span className="text-muted-foreground">🖼️</span>
+                    ) : (
+                      <span className="text-muted-foreground">📄</span>
+                    )}
+                    <span className="text-foreground font-medium truncate max-w-[120px]">{att.name}</span>
+                    <button
+                      onClick={() => removeAttachment(idx)}
+                      className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Google Drive Picker (overlay) */}
+          <AnimatePresence>
+            {showDrivePicker && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="mb-2 rounded-lg border border-border bg-card p-3 shadow-lg"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <DriveIcon className="w-3.5 h-3.5" />
+                    Google Drive Files
+                  </span>
+                  <button
+                    onClick={() => setShowDrivePicker(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="relative mb-2">
+                  <SearchIcon className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={driveSearch}
+                    onChange={(e) => {
+                      setDriveSearch(e.target.value);
+                      if (e.target.value.length >= 2) {
+                        handleDriveSearch(e.target.value);
+                      }
+                    }}
+                    placeholder="Search Drive files..."
+                    className="w-full pl-8 pr-3 py-2 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1">
+                  {driveLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : driveFiles.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">
+                      {driveSearch.length < 2 ? "Type at least 2 characters to search" : "No files found"}
+                    </p>
+                  ) : (
+                    driveFiles.map((file) => (
+                      <button
+                        key={file.id}
+                        onClick={() => handleDriveFileSelect(file)}
+                        className="w-full text-left px-2.5 py-2 rounded-md hover:bg-accent transition-colors flex items-center gap-2"
+                      >
+                        <DriveIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-foreground truncate">{file.name}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {file.mimeType.split("/").pop()?.toUpperCase()}
+                            {file.size ? ` · ${(file.size / 1024).toFixed(0)}KB` : ""}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex items-end gap-2">
+            {/* File upload button */}
+            <Button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent"
+              size="icon"
+              variant="ghost"
+              title="Upload file (PDF, DOCX, CSV, XLSX, TXT, JSON, MD, images)"
+              disabled={uploading}
+            >
+              {uploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <PaperclipIcon className="w-5 h-5" />
               )}
-              style={{ minHeight: "44px", maxHeight: "120px" }}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.docx,.doc,.csv,.xlsx,.xls,.txt,.json,.md,.png,.jpg,.jpeg,.gif,.webp"
+              onChange={handleFileSelect}
+              multiple
             />
+
+            {/* Google Drive button */}
+            <Button
+              type="button"
+              onClick={() => {
+                setShowDrivePicker(!showDrivePicker);
+                setDriveFiles([]);
+                setDriveSearch("");
+              }}
+              className={cn(
+                "rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 hover:bg-accent transition-colors",
+                showDrivePicker
+                  ? "text-foreground bg-accent"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              size="icon"
+              variant="ghost"
+              title="Attach from Google Drive"
+            >
+              <DriveIcon className="w-5 h-5" />
+            </Button>
+
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={inputText}
+                onChange={handleTextareaInput}
+                onKeyDown={handleKeyDown}
+                placeholder={`Message ${agentInfo.name}...`}
+                rows={1}
+                className={cn(
+                  "w-full resize-none rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground",
+                  "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30",
+                  "transition-all duration-200"
+                )}
+                style={{ minHeight: "44px", maxHeight: "120px" }}
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={handleSend}
+              disabled={(!inputText.trim() && attachments.length === 0) || isLoading}
+              className={cn(
+                "rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 transition-all duration-200",
+                colors.bg,
+                colors.text
+              )}
+              size="icon"
+              variant="ghost"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <SendIcon className="w-5 h-5" />
+              )}
+            </Button>
           </div>
-          <Button
-            type="button"
-            onClick={handleSend}
-            disabled={!inputText.trim() || isLoading}
-            className={cn(
-              "rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 transition-all duration-200",
-              colors.bg,
-              colors.text
-            )}
-            size="icon"
-            variant="ghost"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <SendIcon className="w-5 h-5" />
-            )}
-          </Button>
+          <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
+            AI responses may be inaccurate. Tools provide real data from connected services.
+          </p>
         </div>
-        <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
-          AI responses may be inaccurate. Tools provide real data from connected services.
-        </p>
       </div>
     </>
   );

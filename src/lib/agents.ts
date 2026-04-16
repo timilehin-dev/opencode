@@ -89,13 +89,14 @@ You can call them directly using the \`delegate_to_agent\` tool when a task is s
 ## Your Tools — ALL Services
 - **Gmail**: send, fetch, search, labels, profile
 - **Calendar**: list, events, create, delete (with Google Meet support)
-- **Drive**: list, create folders/files
+- **Drive**: list, create folders/files, download files
 - **Sheets**: read, values, append, update, create, add sheet
 - **Docs**: list, read, create, append
 - **GitHub**: repo, issues, PRs, commits, files, search, branches
 - **Vercel**: projects, deployments, domains
 - **Web Search**: search the web for real-time information, documentation, market data, news, trends
 - **Web Reader**: read and extract content from any web page URL
+- **PDF/DOCX Creation**: create professional PDF reports and DOCX documents (downloadable)
 - **Agent Delegation**: delegate tasks to specialist agents
 
 ## Decision Framework — When to Use What
@@ -144,6 +145,7 @@ ${AGENT_TEAM_DIRECTORY}
 - **Calendar**: list calendars, view events, create events (with Google Meet links)
 - **Web Search**: research companies, contacts, meeting context, industry news
 - **Web Reader**: read company websites, press releases, professional profiles
+- **PDF/DOCX Creation**: create professional PDF reports and DOCX documents for download
 - **query_agent**: route tasks to other specialist agents
 
 ## Decision Framework
@@ -153,8 +155,10 @@ ${AGENT_TEAM_DIRECTORY}
 | Meeting tomorrow with a company | **web_search** + **web_reader** to prep talking points |
 | "Who is [person]?" | **web_search** to research their background |
 | Schedule meeting with Google Meet | Use **calendar_create** with addMeetLink=true |
+| Need to generate a PDF report | **create_pdf_report** |
+| Need to create a DOCX document | **create_docx_document** |
 | Need to analyze spreadsheet/data | **Route to Data Agent** via query_agent |
-| Need to create or edit a document | **Route to Creative Agent** via query_agent |
+| Need to create or edit a Google Doc | **Route to Creative Agent** via query_agent |
 | Need to check code or deployments | **Route to Code Agent** via query_agent |
 
 ## Web Research Protocol for Email Excellence
@@ -184,6 +188,7 @@ ${AGENT_TEAM_DIRECTORY}
 - **Vercel**: projects, deployments, domains
 - **Web Search**: documentation, StackOverflow, npm packages, API references
 - **Web Reader**: official docs, GitHub issues, technical articles
+- **PDF Creation**: create professional PDF reports (for code documentation, deployment summaries)
 - **query_agent**: route tasks to other specialist agents
 
 ## Decision Framework
@@ -193,9 +198,10 @@ ${AGENT_TEAM_DIRECTORY}
 | Error message / bug | **web_search** the error then **web_reader** the solution |
 | Review PRs or issues | GitHub tools directly |
 | Check deployment status | Vercel tools directly |
+| Generate a PDF report | **create_pdf_report** |
 | Need to send email/calendar invite | **Route to Mail Agent** via query_agent |
 | Need to analyze data/spreadsheet | **Route to Data Agent** via query_agent |
-| Need to create a document/report | **Route to Creative Agent** via query_agent |
+| Need to create a DOCX document | **Route to Creative Agent** via query_agent |
 
 ## Web Research Protocol for Engineering Excellence
 1. **Before suggesting code** — Search for the latest API/best practices
@@ -221,12 +227,13 @@ You are the senior data analyst of the Claw Agent Hub — modeled after a vetera
 ${AGENT_TEAM_DIRECTORY}
 
 ## Your Direct Tools
-- **Drive**: list files, create folders, create files
+- **Drive**: list files, create folders, create files, download files
 - **Sheets**: read, values, append, update, create, add_sheet
 - **Docs**: list, read, create, append
 - **Web Search**: market data, industry benchmarks, competitor data, trends
 - **Web Reader**: scrape websites, read reports, extract structured info
 - **Data Calculate**: math, statistics, data transformations, computations
+- **PDF/DOCX Creation**: create professional PDF reports and DOCX documents for download
 - **query_agent**: route tasks to other specialist agents
 
 ## Decision Framework
@@ -236,6 +243,8 @@ ${AGENT_TEAM_DIRECTORY}
 | "What's the growth rate?" | **data_calculate** for the math |
 | Industry benchmarks | **web_search** for benchmarks then compare |
 | Scrape data from a website | **web_reader** then **sheets_append** |
+| Generate a data report as PDF | **create_pdf_report** |
+| Create a data summary DOCX | **create_docx_document** |
 | Need to send an email with results | **Route to Mail Agent** via query_agent |
 | Need to schedule a meeting | **Route to Mail Agent** via query_agent |
 | Need code/deployment info | **Route to Code Agent** via query_agent |
@@ -271,6 +280,7 @@ ${AGENT_TEAM_DIRECTORY}
 - **Sheets**: read, values, append (for content calendars, tracking)
 - **Web Search**: trends, competitor content, audience insights, industry news
 - **Web Reader**: analyze articles, read case studies, extract content patterns
+- **PDF/DOCX Creation**: create professional PDF reports and DOCX documents for download
 - **query_agent**: route tasks to other specialist agents
 
 ## Decision Framework
@@ -316,6 +326,7 @@ ${AGENT_TEAM_DIRECTORY}
 - **Save Brief**: create a formatted research brief in Google Docs
 - **Save Data**: save research data to Google Sheets
 - **Vision Analyze**: analyze images, charts, or PDFs for research insights
+- **PDF/DOCX Creation**: create professional PDF reports and DOCX documents for research deliverables
 - **query_agent**: route tasks to other specialist agents
 
 ## Research Methodology
@@ -360,6 +371,7 @@ ${AGENT_TEAM_DIRECTORY}
 - **Agent Stats**: performance metrics for all agents
 - **Web Search**: look up error codes, documentation, incident reports
 - **Web Reader**: read status pages, incident reports
+- **PDF Creation**: generate PDF reports for system status, incident reports, deployment summaries
 - **query_agent**: route tasks to other specialist agents
 
 ## Decision Framework
@@ -405,6 +417,7 @@ const agents: AgentConfig[] = [
       "calendar_list", "calendar_events", "calendar_create",
       "calendar_freebusy",
       "drive_list", "drive_create_folder", "drive_create_file",
+      "download_drive_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
       "sheets_create", "sheets_add_sheet",
       "sheets_batch_get", "sheets_clear",
@@ -425,6 +438,7 @@ const agents: AgentConfig[] = [
       "research_save_brief", "research_save_data",
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
+      "create_pdf_report", "create_docx_document",
       "delegate_to_agent",
     ],
     suggestedActions: [
@@ -451,6 +465,7 @@ const agents: AgentConfig[] = [
       "calendar_list", "calendar_events", "calendar_create",
       "calendar_freebusy",
       "web_search", "web_reader",
+      "create_pdf_report", "create_docx_document",
       "query_agent",
     ],
     suggestedActions: [
@@ -481,6 +496,7 @@ const agents: AgentConfig[] = [
       "vercel_projects", "vercel_deployments", "vercel_domains",
       "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
+      "create_pdf_report",
       "query_agent",
     ],
     suggestedActions: [
@@ -510,6 +526,8 @@ const agents: AgentConfig[] = [
       "web_search", "web_reader",
       "data_calculate", "data_clean", "data_pivot",
       "vision_analyze", "image_generate",
+      "create_pdf_report", "create_docx_document",
+      "download_drive_file",
       "query_agent",
     ],
     suggestedActions: [
@@ -538,6 +556,7 @@ const agents: AgentConfig[] = [
       "image_generate",
       "design_generate", "design_edit", "design_variants",
       "vision_analyze",
+      "create_pdf_report", "create_docx_document",
       "query_agent",
     ],
     suggestedActions: [
@@ -564,6 +583,7 @@ const agents: AgentConfig[] = [
       "research_deep", "research_synthesize",
       "research_save_brief", "research_save_data",
       "vision_analyze",
+      "create_pdf_report", "create_docx_document",
       "query_agent",
     ],
     suggestedActions: [
@@ -588,6 +608,7 @@ const agents: AgentConfig[] = [
       "web_search", "web_reader",
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
+      "create_pdf_report",
       "query_agent",
     ],
     suggestedActions: [

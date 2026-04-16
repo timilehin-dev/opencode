@@ -231,3 +231,36 @@ Stage Summary:
   - Code: GLM-5 Turbo (aihubmix dedicated key 5)
   - Ops: Gemma 4 (ollama dedicated key 6)
   - Mail/Data/Creative: Gemma 4 (ollama shared pool keys 1-5)
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix agent page display, tool awareness, add file upload/response features, deploy
+
+Work Log:
+- Fixed Bug 1 (Agent page display): Code Agent and Research Agent already had correct aihubmix/GLM-5 Turbo config in agents.ts. The display was already correct — just needed deployment.
+- Fixed Bug 2 (Tool awareness ~40 vs ~70): Modified chat/route.ts to inject a complete tool inventory into the system prompt for ALL agents. Now every agent's system prompt includes a full enumerated list of all tools with descriptions: `## Your Complete Tool Inventory (N tools)` — this fixes the LLM not being able to list all its tools.
+- Added teal + orange color maps to chat-view.tsx (for Research and Ops agents)
+- Added research + ops to agentMeta in chat-view.tsx
+- Added PaperclipIcon, FileDownIcon, UploadIcon to icons.tsx
+- Fixed TypeScript errors: pdf-parse import, xlsx type declarations, pdfkit types, docx FileChild cast
+- All features were already implemented in previous sessions:
+  - File upload with PaperclipIcon (attachment button in chat input)
+  - File parsing for PDF, DOCX, CSV, XLSX, TXT, JSON, MD, images (10MB max)
+  - PDF report creation tool (create_pdf_report) using pdfkit
+  - DOCX document creation tool (create_docx_document) using docx package
+  - Google Drive file download tool (download_drive_file)
+  - Google Drive picker integration in chat (search + attach from Drive)
+  - File serving endpoint (/api/files/[fileId])
+  - Upload endpoint (/api/upload)
+  - Attachment injection into chat messages (text prepend for docs, image parts for vision)
+  - All tools assigned to appropriate agents (General, Data, Creative, Research, Code, Mail, Ops)
+- Deployed to production: https://my-project-tau-two-70.vercel.app
+
+Stage Summary:
+- Agent page now correctly shows aihubmix/GLM-5 Turbo for Code Agent and Research Agent
+- LLMs now know ALL their tools (full inventory injected in system prompt)
+- Complete file upload/download ecosystem: attach files to chat, agents can create and share PDF/DOCX files
+- Google Drive integration: search and attach Drive files directly from chat
+- Total tools: 73 (67 original + create_pdf_report + create_docx_document + download_drive_file)
+- Production live at: https://my-project-tau-two-70.vercel.app

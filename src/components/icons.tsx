@@ -49,6 +49,9 @@ import {
   History,
   ChevronRight,
   Plug,
+  Paperclip,
+  FileDown,
+  Upload,
 } from "lucide-react";
 import type { SVGProps } from "react";
 
@@ -145,6 +148,12 @@ export {
   ChevronRight as ChevronRightIcon,
   Plug,
   Plug as ServicesIcon,
+  Paperclip,
+  Paperclip as PaperclipIcon,
+  FileDown,
+  FileDown as FileDownIcon,
+  Upload,
+  Upload as UploadIcon,
 };
 
 // GitHub brand icon — not available in lucide-react, so we keep a custom SVG
