@@ -429,8 +429,12 @@ function AgentChatSession({
     name: string;
     mimeType: string;
     size: number | null;
+    category: string;
+    isGoogleApp: boolean;
+    modifiedTime: string | null;
   }>>([]);
   const [driveLoading, setDriveLoading] = useState(false);
+  const driveSearchTimer = useRef<NodeJS.Timeout | null>(null);
 
   const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
@@ -552,11 +556,15 @@ function AgentChatSession({
     }
   }, []);
 
-  // --- Google Drive Search ---
-  const handleDriveSearch = useCallback(async (query: string) => {
+  // --- Google Drive Search & File Loading ---
+  // Load recent files when picker opens
+  const loadDriveFiles = useCallback(async (query?: string) => {
     setDriveLoading(true);
     try {
-      const res = await fetch(`/api/drive/search?q=${encodeURIComponent(query)}&pageSize=10`);
+      const url = query
+        ? `/api/drive/search?q=${encodeURIComponent(query)}&pageSize=15`
+        : `/api/drive/search?pageSize=15`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
@@ -569,24 +577,54 @@ function AgentChatSession({
     setDriveLoading(false);
   }, []);
 
-  const handleDriveFileSelect = useCallback(async (file: { id: string; name: string; mimeType: string }) => {
-    setShowDrivePicker(false);
+  // Debounced search as user types
+  const handleDriveSearch = useCallback((query: string) => {
+    setDriveSearch(query);
+    if (driveSearchTimer.current) clearTimeout(driveSearchTimer.current);
+    if (query.length < 1) {
+      loadDriveFiles();
+      return;
+    }
+    driveSearchTimer.current = setTimeout(() => {
+      loadDriveFiles(query);
+    }, 300);
+  }, [loadDriveFiles]);
+
+  // Download file content when selected
+  const handleDriveFileSelect = useCallback(async (file: { id: string; name: string; mimeType: string; isGoogleApp?: boolean }) => {
     setDriveLoading(true);
     try {
-      // Import the file content via the chat by telling the agent about it
-      setAttachments((prev) => [
-        ...prev,
-        {
-          name: file.name,
-          content: `[Google Drive file: ${file.id} — ${file.mimeType}]`,
-          type: "text",
+      const res = await fetch(`/api/drive/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileId: file.id,
+          fileName: file.name,
           mimeType: file.mimeType,
-        },
-      ]);
+          isGoogleApp: file.isGoogleApp,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              content: data.data.isBase64
+                ? `[Binary file: ${file.name} (${(data.data.size / 1024).toFixed(1)}KB) — ID: ${file.id}]`
+                : data.data.content,
+              type: data.data.isBase64 ? "file-ref" : "text",
+              mimeType: data.data.mimeType || file.mimeType,
+            },
+          ]);
+        }
+      }
     } catch {
       /* ignore */
     }
     setDriveLoading(false);
+    setShowDrivePicker(false);
   }, []);
 
   // Remove attachment
@@ -903,7 +941,10 @@ function AgentChatSession({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                     <DriveIcon className="w-3.5 h-3.5" />
-                    Google Drive Files
+                    Google Drive
+                    {!driveLoading && driveFiles.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground font-normal">({driveFiles.length} files)</span>
+                    )}
                   </span>
                   <button
                     onClick={() => setShowDrivePicker(false)}
@@ -917,42 +958,60 @@ function AgentChatSession({
                   <input
                     type="text"
                     value={driveSearch}
-                    onChange={(e) => {
-                      setDriveSearch(e.target.value);
-                      if (e.target.value.length >= 2) {
-                        handleDriveSearch(e.target.value);
-                      }
-                    }}
-                    placeholder="Search Drive files..."
+                    onChange={(e) => handleDriveSearch(e.target.value)}
+                    placeholder="Search all Drive files..."
                     className="w-full pl-8 pr-3 py-2 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    autoFocus
                   />
                 </div>
-                <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1">
+                <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-0.5">
                   {driveLoading ? (
-                    <div className="flex items-center justify-center py-4">
+                    <div className="flex items-center justify-center py-6">
                       <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : driveFiles.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-3">
-                      {driveSearch.length < 2 ? "Type at least 2 characters to search" : "No files found"}
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      {driveSearch ? "No files found" : "No files in Drive"}
                     </p>
                   ) : (
-                    driveFiles.map((file) => (
-                      <button
-                        key={file.id}
-                        onClick={() => handleDriveFileSelect(file)}
-                        className="w-full text-left px-2.5 py-2 rounded-md hover:bg-accent transition-colors flex items-center gap-2"
-                      >
-                        <DriveIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs text-foreground truncate">{file.name}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {file.mimeType.split("/").pop()?.toUpperCase()}
-                            {file.size ? ` · ${(file.size / 1024).toFixed(0)}KB` : ""}
-                          </p>
-                        </div>
-                      </button>
-                    ))
+                    driveFiles.map((file) => {
+                      const cat = file.category as string;
+                      const iconEmoji =
+                        cat === "doc" ? "📝" :
+                        cat === "sheet" ? "📊" :
+                        cat === "slide" ? "📽️" :
+                        cat === "pdf" ? "📄" :
+                        cat === "image" ? "🖼️" :
+                        cat === "video" ? "🎬" :
+                        cat === "audio" ? "🎵" : "📁";
+                      const typeLabel =
+                        cat === "doc" ? "Google Doc" :
+                        cat === "sheet" ? "Google Sheet" :
+                        cat === "slide" ? "Google Slide" :
+                        cat === "pdf" ? "PDF" :
+                        cat === "image" ? "Image" :
+                        cat === "video" ? "Video" :
+                        cat === "audio" ? "Audio" :
+                        file.mimeType.split("/").pop()?.toUpperCase() || "File";
+                      const modDate = file.modifiedTime
+                        ? new Date(file.modifiedTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : "";
+                      return (
+                        <button
+                          key={file.id}
+                          onClick={() => handleDriveFileSelect(file)}
+                          className="w-full text-left px-2.5 py-2 rounded-md hover:bg-accent transition-colors flex items-center gap-2.5 group"
+                        >
+                          <span className="text-sm flex-shrink-0 w-5 text-center">{iconEmoji}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs text-foreground truncate group-hover:text-primary transition-colors">{file.name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {typeLabel}{file.size ? ` · ${(file.size / 1024).toFixed(0)}KB` : ""}{modDate ? ` · ${modDate}` : ""}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </motion.div>
@@ -989,9 +1048,13 @@ function AgentChatSession({
             <Button
               type="button"
               onClick={() => {
-                setShowDrivePicker(!showDrivePicker);
-                setDriveFiles([]);
-                setDriveSearch("");
+                const opening = !showDrivePicker;
+                setShowDrivePicker(opening);
+                if (opening) {
+                  setDriveFiles([]);
+                  setDriveSearch("");
+                  loadDriveFiles();
+                }
               }}
               className={cn(
                 "rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 hover:bg-accent transition-colors",
