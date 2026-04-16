@@ -145,17 +145,28 @@ export async function POST(req: Request) {
       ? `\n\n## YOUR EXCLUSIVE TOOL INVENTORY (${toolCount} tools)\nCRITICAL: These are the ONLY tools available to you — ${agent.name}. You do NOT have access to any other agent's tools. If a user asks you to do something outside your domain, you MUST route it via \\_query\_agent\\_ to the correct specialist. Do NOT attempt to use tools you don't have.\n\nYour ${toolCount} tools:\n${toolInventory}\n`
       : `\n\n## Your Complete Tool Inventory (${toolCount} tools)\nYou have access to ALL tools across every service. When asked to list your tools, list ALL ${toolCount} of them:\n${toolInventory}\n`;
 
+    // Universal task completion block — injected into every agent
+    const taskCompletionBlock = `
+
+## TASK COMPLETION RULES (CRITICAL)
+1. **NEVER stop mid-task.** Once you start a task, you MUST complete it fully before stopping. Every user request deserves a complete, thorough response.
+2. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step. Do NOT download then analyze separately for Drive files.
+3. **Combine steps.** When a task requires multiple tool calls, chain them efficiently. For example: download a file → analyze it → report findings — all in one flow.
+4. **Always deliver the final answer.** After all tool calls complete, you MUST provide a clear, complete response to the user. Never end on just a tool result without explanation.
+5. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.`;
+
     const systemPrompt =
       id !== "general"
-        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}\n\n${agent.systemPrompt}${toolBlock}`
-        : `${agent.systemPrompt}${memoryBlock}${toolBlock}`;
+        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
+        : `${agent.systemPrompt}${memoryBlock}${toolBlock}${taskCompletionBlock}`;
 
     const result = streamText({
       model,
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      stopWhen: stepCountIs(5),
+      maxOutputTokens: 16384,
+      stopWhen: stepCountIs(15),
       onFinish: ({ steps }) => {
         console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}`);
         // Save assistant response to conversation history

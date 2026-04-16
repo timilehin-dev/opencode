@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
-import { getSessionMessages, getAgentSessions, getAllRecentSessions } from "@/lib/memory";
+import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage } from "@/lib/memory";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -501,6 +501,36 @@ function AgentChatSession({
     }
     prevMessageCountRef.current = messages.length;
   }, [messages, agentId, agentInfo.name]);
+
+  // Persist messages to localStorage + Supabase client-side
+  // This is critical because server-side saveMessage() is a no-op for localStorage
+  const lastPersistedRef = useRef(0);
+  useEffect(() => {
+    if (messages.length === 0 || !historyLoaded) return;
+    // Only persist new messages (avoid re-saving history on mount)
+    const startIdx = lastPersistedRef.current || 0;
+    for (let i = startIdx; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === "user" || msg.role === "assistant") {
+        // Extract text from parts
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parts = (msg as any).parts || [];
+        const text = parts
+          .filter((p: any) => p.type === "text")
+          .map((p: any) => p.text || "")
+          .join("");
+        if (text) {
+          saveMessage({
+            sessionId,
+            agentId,
+            role: msg.role,
+            content: text,
+          }).catch(() => {});
+        }
+      }
+    }
+    lastPersistedRef.current = messages.length;
+  }, [messages.length, historyLoaded, sessionId, agentId]);
 
   // --- File Upload Handler ---
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -1157,6 +1157,120 @@ export const visionAnalyzeTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Vision Download & Analyze Tool (Ollama Cloud — direct Drive → Vision, no LLM piping)
+// ---------------------------------------------------------------------------
+
+export const visionDownloadAnalyzeTool = tool({
+  description: "Download a file from Google Drive AND analyze it with vision AI in a single step. Use this when you need to analyze a Drive file (image, PDF, etc.). This avoids the inefficiency of downloading first then calling vision separately. The file is downloaded server-side and passed directly to the vision model — the image data never goes through the LLM.",
+  inputSchema: zodSchema(z.object({
+    fileId: z.string().describe("The Google Drive file ID to download and analyze"),
+    prompt: z.string().describe("What to analyze or ask about the file content (e.g., 'Describe this image', 'Extract all text', 'What objects are visible?')"),
+  })),
+  execute: safeJson(async ({ fileId, prompt }) => {
+    const token = await (await import("./google")).getAccessToken();
+
+    // Step 1: Get file metadata
+    const metaRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!metaRes.ok) throw new Error(`Failed to get file metadata: ${metaRes.status}`);
+    const metadata = (await metaRes.json()) as { id: string; name: string; mimeType: string; size?: string };
+
+    const isGoogleApp = metadata.mimeType.startsWith("application/vnd.google-apps");
+
+    // Step 2: Download/export file content
+    let fileContent: string;
+    let actualMimeType: string;
+
+    if (isGoogleApp) {
+      const exportMime = metadata.mimeType.includes("document") ? "text/plain"
+        : metadata.mimeType.includes("sheet") ? "text/csv"
+        : "text/plain";
+      const exportRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMime)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!exportRes.ok) throw new Error(`Failed to export file: ${exportRes.status}`);
+      fileContent = await exportRes.text();
+      actualMimeType = exportMime;
+    } else {
+      const downloadRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!downloadRes.ok) throw new Error(`Failed to download file: ${downloadRes.status}`);
+      const contentType = downloadRes.headers.get("content-type") || "";
+      if (
+        contentType.startsWith("text/") ||
+        contentType.includes("json") ||
+        contentType.includes("xml") ||
+        contentType.includes("csv")
+      ) {
+        fileContent = await downloadRes.text();
+        actualMimeType = contentType;
+      } else {
+        const buffer = Buffer.from(await downloadRes.arrayBuffer());
+        fileContent = buffer.toString("base64");
+        actualMimeType = contentType;
+      }
+    }
+
+    // Step 3: Determine if this is an image that needs vision, or text that can be returned directly
+    const isImage = actualMimeType.startsWith("image/");
+    const isPdf = actualMimeType.includes("pdf");
+
+    if (isImage) {
+      // Pass base64 directly to vision model (no LLM intermediate step)
+      const dataUrl = `data:${actualMimeType};base64,${fileContent.slice(0, 500000)}`;
+      const apiKey = nextOllamaKey();
+      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama3.2-vision",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          }],
+          max_tokens: 2048,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "Unknown error");
+        throw new Error(`Vision API error (${res.status}): ${errText}`);
+      }
+      const data = await res.json();
+      const analysis = data.choices?.[0]?.message?.content || "Vision model returned no analysis.";
+      return {
+        fileName: metadata.name,
+        mimeType: actualMimeType,
+        size: metadata.size,
+        analysis,
+      };
+    }
+
+    // For text/CSV/JSON/XML/PDF-converted files — return content directly
+    return {
+      fileName: metadata.name,
+      mimeType: actualMimeType,
+      size: metadata.size,
+      content: fileContent.slice(0, 50000),
+      contentTruncated: fileContent.length > 50000,
+      note: isPdf
+        ? "PDF text extraction — content may be incomplete for image-heavy PDFs. For visual analysis of PDFs, the file would need to be converted to images first."
+        : "Text file content returned directly.",
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // Image Generate Tool (AIHubMix — DALL-E compatible)
 // ---------------------------------------------------------------------------
 
@@ -2552,8 +2666,9 @@ export const allTools: Record<string, ToolType> = {
   delegate_to_agent: delegateToAgentTool,
   // A2A
   query_agent: queryAgentTool,
-  // z-ai-web-dev-sdk Tools
+  // Vision Tools (Ollama Cloud — FREE)
   vision_analyze: visionAnalyzeTool,
+  vision_download_analyze: visionDownloadAnalyzeTool,
   image_generate: imageGenerateTool,
   tts_generate: ttsGenerateTool,
   asr_transcribe: asrTranscribeTool,

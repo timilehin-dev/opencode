@@ -330,3 +330,24 @@ Stage Summary:
 - Vision analyze now uses FREE Ollama Cloud (llama3.2-vision) instead of AIHubMix
 - Zero cost for vision analysis
 - Production URL: https://my-project-tau-two-70.vercel.app
+
+---
+Task ID: 3
+Agent: main
+Task: Fix three critical issues — agent stopping mid-task, vision tool data loss, chat persistence
+
+Work Log:
+- Investigated three root causes via deep code analysis
+- **Fix 1: Vision data flow** — Created `vision_download_analyze` tool that downloads from Drive AND analyzes in one server-side step. Base64 never goes through the LLM. Uses Ollama Cloud (FREE, llama3.2-vision). Added to General, Data, Creative, and Research agents.
+- **Fix 2: Chat persistence** — Server-side `saveMessage()` was a no-op for localStorage (typeof window === "undefined"). Added client-side `useEffect` in chat-view.tsx that persists both user AND assistant messages to localStorage + Supabase as they arrive.
+- **Fix 3: Agent stopping mid-task** — Three changes:
+  - Increased `stepCountIs(5)` → `stepCountIs(15)` (5 steps too few for multi-tool tasks)
+  - Added `maxOutputTokens: 16384` (prevent token-limit truncation)
+  - Added "TASK COMPLETION RULES" block to every agent's system prompt (NEVER stop mid-task, deliver final answer, use tools efficiently)
+- Build passed, deployed to Vercel
+
+Stage Summary:
+- vision_download_analyze tool: Drive → Vision in 1 step, zero LLM data piping
+- Chat persistence: client-side saveMessage for all messages (localStorage + Supabase)
+- Agent reliability: 15 steps, 16K tokens, task completion rules in every prompt
+- Production URL: https://my-project-tau-two-70.vercel.app
