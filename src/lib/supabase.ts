@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
 // Claw — Supabase Client & Database Layer
+// v2.5 — A2A routing, services sidebar, agent history persistence
 //
 // Hybrid approach: Uses Supabase when configured (NEXT_PUBLIC_SUPABASE_URL +
 // NEXT_PUBLIC_SUPABASE_ANON_KEY env vars), falls back to localStorage when not.
