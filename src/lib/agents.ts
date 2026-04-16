@@ -20,6 +20,8 @@ export interface AgentConfig {
   systemPrompt: string;
   tools: string[];
   suggestedActions: { label: string; prompt: string }[];
+  /** Optional: specific env var keys to use instead of the default pool */
+  keyEnvVars?: string[];
 }
 
 export interface AgentStatus {
@@ -551,8 +553,9 @@ const agents: AgentConfig[] = [
     role: "Research Analyst — Deep Research & Synthesis",
     emoji: "🔍",
     description: "Senior research analyst with multi-query parallel search, cross-reference synthesis, and automated research brief generation to Google Docs and Sheets.",
-    provider: "ollama",
-    model: "gemma4:31b-cloud",
+    provider: "aihubmix",
+    model: "coding-glm-5-turbo-free",
+    keyEnvVars: ["AIHUBMIX_API_KEY_3", "AIHUBMIX_API_KEY_4"],
     color: "teal",
     systemPrompt: RESEARCH_SYSTEM_PROMPT,
     tools: [
@@ -577,6 +580,7 @@ const agents: AgentConfig[] = [
     description: "Operations engineer for system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics.",
     provider: "ollama",
     model: "gemma4:31b-cloud",
+    keyEnvVars: ["OLLAMA_CLOUD_KEY_6"],
     color: "orange",
     systemPrompt: OPS_SYSTEM_PROMPT,
     tools: [
@@ -662,6 +666,10 @@ export function getAllAgentStatuses(): AgentStatus[] {
 // API Key Rotation — Round-robin across multiple keys per provider
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Key Rotation — Shared pools + per-agent dedicated pools
+// ---------------------------------------------------------------------------
+
 class KeyRotator {
   private counter = 0;
 
@@ -683,6 +691,7 @@ class KeyRotator {
   }
 }
 
+// Shared key pools (used by agents without dedicated keyEnvVars)
 const aihubmixKeys: string[] = [
   process.env.AIHUBMIX_API_KEY_1 || "",
   process.env.AIHUBMIX_API_KEY_2 || "",
@@ -699,11 +708,63 @@ const ollamaKeys: string[] = [
 const aihubmixRotator = new KeyRotator(aihubmixKeys, "aihubmix");
 const ollamaRotator = new KeyRotator(ollamaKeys, "ollama");
 
+// Per-agent dedicated key rotators (cached)
+const dedicatedRotators = new Map<string, KeyRotator>();
+
+function getDedicatedRotator(agentId: string, envVars: string[], provider: string): KeyRotator {
+  const cacheKey = `${agentId}:${envVars.join(",")}`;
+  if (dedicatedRotators.has(cacheKey)) return dedicatedRotators.get(cacheKey)!;
+
+  const keys = envVars
+    .map((envVar) => process.env[envVar] || "")
+    .filter(Boolean);
+
+  const rotator = new KeyRotator(keys, `${provider}-${agentId}`);
+  dedicatedRotators.set(cacheKey, rotator);
+  return rotator;
+}
+
 // ---------------------------------------------------------------------------
-// Provider Factory (with key rotation)
+// Provider Factory (with key rotation — shared or dedicated)
 // ---------------------------------------------------------------------------
 
 export function getProvider(agent: AgentConfig) {
+  // If agent has dedicated key env vars, use those exclusively
+  if (agent.keyEnvVars && agent.keyEnvVars.length > 0) {
+    const rotator = getDedicatedRotator(agent.id, agent.keyEnvVars, agent.provider);
+
+    if (agent.provider === "aihubmix") {
+      const apiKey = rotator.next();
+      if (!apiKey) throw new Error(`No dedicated aihubmix API keys for agent '${agent.id}'.`);
+      const provider = createOpenAI({
+        apiKey,
+        baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
+      });
+      return provider.chat(agent.model);
+    }
+
+    if (agent.provider === "ollama") {
+      const apiKey = rotator.next();
+      if (!apiKey) throw new Error(`No dedicated ollama API keys for agent '${agent.id}'.`);
+      const provider = createOpenAI({
+        apiKey,
+        baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
+      });
+      return provider.chat(agent.model);
+    }
+
+    if (agent.provider === "openrouter") {
+      const apiKey = rotator.next();
+      if (!apiKey) throw new Error(`No dedicated openrouter API keys for agent '${agent.id}'.`);
+      const provider = createOpenAI({
+        apiKey,
+        baseURL: "https://openrouter.ai/api/v1",
+      });
+      return provider.chat(agent.model);
+    }
+  }
+
+  // Default: use shared pools
   if (agent.provider === "aihubmix") {
     const apiKey = aihubmixRotator.next();
     if (!apiKey) {
@@ -740,5 +801,10 @@ export function getKeyRotationStats() {
   return {
     aihubmix: { availableKeys: aihubmixRotator.total },
     ollama: { availableKeys: ollamaRotator.total },
+    dedicated: Array.from(dedicatedRotators.entries()).map(([key, rotator]) => ({
+      agent: key.split(":")[0],
+      provider: key.split(":")[1],
+      availableKeys: rotator.total,
+    })),
   };
 }

@@ -181,3 +181,26 @@ Stage Summary:
 - Recent Activity: Only shows activity from last 7 days, properly filters past events
 - Upcoming Events: Only shows future events (not past ones)
 - BLOCKER: Cannot deploy - Vercel token not available in this session (was in .env.local which is lost after context compression)
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Wire credentials, dedicated key pools, deploy
+
+Work Log:
+- Created .env.local with all credentials (Vercel, GitHub PAT, AIHubMix keys 3&4, Ollama key 6)
+- Added `keyEnvVars` field to AgentConfig interface for per-agent dedicated key routing
+- Rewrote provider factory to support both shared pools and per-agent dedicated rotators
+- Research Agent: now uses AIHubMix keys 3&4 exclusively (GLM-5 Turbo, round-robin)
+- Ops Agent: now uses Ollama key 6 exclusively (Gemma 4, dedicated)
+- General Agent: continues using AIHubMix shared pool (keys 1&2)
+- Mail, Code, Data, Creative: continue using Ollama shared pool (keys 1-5)
+- Updated all Vercel production env vars: VERCEL_API_TOKEN, VERCEL_TEAM_ID, GITHUB_PAT, AIHUBMIX_API_KEY_3, AIHUBMIX_API_KEY_4, OLLAMA_CLOUD_KEY_6
+- Linked Vercel project (prj_M7jxNbvQArAILWBAlKNrAUODVG2S) for future deployments
+- Deployed twice: first with code changes, second with updated env vars
+- Production live at: https://my-project-tau-two-70.vercel.app
+
+Stage Summary:
+- All 7 agents now have proper LLM key routing with dedicated pools for Research and Ops
+- Credentials stored locally in .env.local and in Vercel production environment
+- GitHub PAT updated to full admin scope on Vercel

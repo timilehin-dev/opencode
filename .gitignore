@@ -39,3 +39,4 @@ upload/
 db/*.db
 db/*.db-journal
 db/*.db-wal
+.vercel
