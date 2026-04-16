@@ -159,3 +159,25 @@ Stage Summary:
 - All agents know about all other agents via updated Team Directory
 - A2A routing supports all 7 agents
 - Production: https://my-project-lilac-pi-90.vercel.app
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix notification, recent activity, and upcoming events logic
+
+Work Log:
+- Fixed Gmail notification date filter: Added `newer_than:7d` to Gmail query in /api/notifications/route.ts to prevent stale March emails appearing in April
+- Fixed cleared notifications reappearing: Added localStorage persistence for `seenIdsRef` and `dismissedSourceIdsRef` in notification-context.tsx
+- Added `persistDismissed()` helper that writes dismissed IDs to localStorage immediately on markAllAsRead/dismiss/clearAll
+- Added useEffect to persist seenIds to localStorage on every render cycle
+- Fixed overview API: Added `newer_than:7d` date filter to recent emails fetch, increased to 5 emails
+- Fixed Recent Activity timeline: Added 7-day cutoff filter for emails, commits, and deployments; skip past calendar events
+- Fixed Upcoming Events: Added future-only filter (only shows events starting after now)
+- Improved timeAgo helper: Added null/invalid date safety, "yesterday" label for 1-2 days ago, falls back to formatted date after 7 days
+- Type-check passes clean (npx tsc --noEmit)
+
+Stage Summary:
+- Notifications: Only shows emails from last 7 days, dismissed state persists across page refreshes
+- Recent Activity: Only shows activity from last 7 days, properly filters past events
+- Upcoming Events: Only shows future events (not past ones)
+- BLOCKER: Cannot deploy - Vercel token not available in this session (was in .env.local which is lost after context compression)

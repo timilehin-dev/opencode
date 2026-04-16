@@ -120,9 +120,10 @@ export async function GET() {
     gmailData.unreadCount = unread.messages.length;
 
     const recent = await gGmailFetchEmails({
-      maxResults: 3,
+      maxResults: 5,
+      query: "newer_than:7d",
     });
-    gmailData.recentEmails = recent.messages.slice(0, 3).map((m) => ({
+    gmailData.recentEmails = recent.messages.slice(0, 5).map((m) => ({
       id: m.id,
       from: m.from || "Unknown",
       subject: m.subject || "(No subject)",

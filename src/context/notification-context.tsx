@@ -102,10 +102,32 @@ export function NotificationProvider({
   });
 
   // Deduplication state — tracks what the server has already told us about
-  const seenIdsRef = useRef<SeenIds>({ email: [], calendar: [], github: [] });
+  // Persist to localStorage so cleared notifications don't reappear after refresh
+  const seenIdsRef = useRef<SeenIds>(
+    typeof window !== "undefined"
+      ? (() => {
+          try {
+            const stored = localStorage.getItem("claw-notif-seen-ids");
+            if (stored) return JSON.parse(stored);
+          } catch { /* ignore */ }
+          return { email: [], calendar: [], github: [] };
+        })()
+      : { email: [], calendar: [], github: [] },
+  );
   // Tracks source IDs that have been dismissed/cleared by the user.
   // These are excluded from re-appearing even if the server somehow returns them.
-  const dismissedSourceIdsRef = useRef<Set<string>>(new Set());
+  // Persisted to localStorage to survive page refreshes.
+  const dismissedSourceIdsRef = useRef<Set<string>>(
+    typeof window !== "undefined"
+      ? (() => {
+          try {
+            const stored = localStorage.getItem("claw-notif-dismissed-ids");
+            if (stored) return new Set<string>(JSON.parse(stored));
+          } catch { /* ignore */ }
+          return new Set<string>();
+        })()
+      : new Set<string>(),
+  );
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTabVisibleRef = useRef(true);
 
@@ -123,6 +145,16 @@ export function NotificationProvider({
       /* ignore */
     }
   }, [preferences]);
+
+  // Persist seen IDs to localStorage on every fetch (survives page refresh)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("claw-notif-seen-ids", JSON.stringify(seenIdsRef.current));
+    } catch {
+      /* ignore */
+    }
+  });
 
   // -------------------------------------------------------------------------
   // Tab visibility — adjust poll rate
@@ -259,19 +291,29 @@ export function NotificationProvider({
     );
   }, []);
 
+  // Helper to persist dismissed IDs to localStorage
+  const persistDismissed = useCallback(() => {
+    try {
+      const arr = Array.from(dismissedSourceIdsRef.current).slice(0, 500);
+      localStorage.setItem("claw-notif-dismissed-ids", JSON.stringify(arr));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // Mark all as read AND clear the notification list.
   // The user expects notifications to disappear when marked as read.
   // seenIdsRef prevents the server from re-sending them on next poll.
   // dismissedSourceIdsRef is an extra client-side safety net.
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) => {
-      // Track all current source IDs as dismissed
       for (const n of prev) {
         dismissedSourceIdsRef.current.add(n.sourceId);
       }
       return [];
     });
-  }, []);
+    persistDismissed();
+  }, [persistDismissed]);
 
   const dismiss = useCallback((id: string) => {
     setNotifications((prev) => {
@@ -281,7 +323,8 @@ export function NotificationProvider({
       }
       return prev.filter((n) => n.id !== id);
     });
-  }, []);
+    persistDismissed();
+  }, [persistDismissed]);
 
   const clearAll = useCallback(() => {
     setNotifications((prev) => {
@@ -290,7 +333,8 @@ export function NotificationProvider({
       }
       return [];
     });
-  }, []);
+    persistDismissed();
+  }, [persistDismissed]);
 
   const togglePanel = useCallback(() => setIsOpen((p) => !p), []);
   const closePanel = useCallback(() => setIsOpen(false), []);

@@ -237,7 +237,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
   ];
 
   // ---------------------------------------------------------------------------
-  // Timeline items
+  // Timeline items (only from the last 7 days to keep it relevant)
   // ---------------------------------------------------------------------------
   interface TimelineItem {
     id: string;
@@ -249,9 +249,13 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
   }
 
   const timeline: TimelineItem[] = [];
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  // Gmail recent emails
+  // Gmail recent emails (only from last 7 days)
   gm.recentEmails.forEach((email, i) => {
+    const emailTime = email.date ? new Date(email.date).getTime() : 0;
+    if (emailTime < sevenDaysAgo) return; // skip old emails
+
     const sender = email.from.match(/^(.+?)\s*<.*>$/)
       ? email.from.match(/^(.+?)\s*<.*>$/)![1].trim().replace(/"/g, "")
       : email.from;
@@ -265,8 +269,11 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     });
   });
 
-  // GitHub recent commits
+  // GitHub recent commits (only from last 7 days)
   gh.recentCommitsList.forEach((commit, i) => {
+    const commitTime = commit.date ? new Date(commit.date).getTime() : 0;
+    if (commitTime < sevenDaysAgo) return; // skip old commits
+
     timeline.push({
       id: `github-${i}`,
       type: "github",
@@ -277,9 +284,13 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     });
   });
 
-  // Calendar upcoming events
-  cal.upcomingEvents.slice(0, 3).forEach((evt, i) => {
-    const startTime = evt.start
+  // Calendar upcoming events (only future events in next 7 days)
+  const now = new Date();
+  cal.upcomingEvents.forEach((evt, i) => {
+    const startTime = evt.start ? new Date(evt.start).getTime() : 0;
+    if (startTime < now.getTime()) return; // skip past events
+
+    const startTimeStr = evt.start
       ? new Date(evt.start).toLocaleString("en-US", {
           month: "short",
           day: "numeric",
@@ -292,13 +303,16 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
       type: "calendar",
       icon: <CalendarIcon className="w-4 h-4 text-blue-400" />,
       description: `Upcoming: ${evt.summary}`,
-      detail: evt.location || startTime,
+      detail: evt.location || startTimeStr,
       time: evt.start,
     });
   });
 
-  // Vercel projects
-  vc.projects.slice(0, 2).forEach((project, i) => {
+  // Vercel recent deployments (only from last 7 days)
+  vc.projects.forEach((project, i) => {
+    const projTime = project.updatedAt ? new Date(project.updatedAt).getTime() : 0;
+    if (projTime < sevenDaysAgo) return; // skip old deployments
+
     timeline.push({
       id: `vercel-${i}`,
       type: "vercel",
@@ -525,11 +539,17 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
             <CardContent>
               {cal.upcomingEvents.length === 0 ? (
                 <div className="text-center py-6 text-sm text-muted-foreground">
-                  No upcoming events.
+                  No upcoming events this week.
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
-                  {cal.upcomingEvents.slice(0, 5).map((evt) => (
+                  {cal.upcomingEvents
+                    .filter((evt) => {
+                      const start = evt.start ? new Date(evt.start).getTime() : 0;
+                      return start >= Date.now();
+                    })
+                    .slice(0, 5)
+                    .map((evt) => (
                     <div
                       key={evt.id}
                       className="p-3 rounded-lg bg-accent/50 border border-border/50 hover:border-primary/30 transition-colors"
