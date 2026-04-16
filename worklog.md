@@ -351,3 +351,26 @@ Stage Summary:
 - Chat persistence: client-side saveMessage for all messages (localStorage + Supabase)
 - Agent reliability: 15 steps, 16K tokens, task completion rules in every prompt
 - Production URL: https://my-project-tau-two-70.vercel.app
+
+---
+Task ID: 4
+Agent: main
+Task: Replace Ollama vision with OCR.space (FREE, no LLM token consumption)
+
+Work Log:
+- User reported llama3.2-vision hitting rate limits fast and consuming API keys
+- Evaluated free alternatives: OCR.space (25K/month), Google Cloud Vision (1K/month), Tesseract.js (unlimited local)
+- Chose OCR.space as primary (generous free tier, simple REST API, no npm packages)
+- Created ocrSpaceExtract() helper function with base64 and URL support, Engine 2 for better accuracy
+- Rewrote vision_analyze tool to use OCR.space (extracts text from images via base64 or URL)
+- Rewrote vision_download_analyze tool to use OCR.space for images, direct content for text files
+- Both tools now consume ZERO LLM tokens — pure OCR, no vision model needed
+- Added OCR_SPACE_API_KEY placeholder to .env.local
+- Build passed, deployed to Vercel
+
+Stage Summary:
+- Vision tools now use OCR.space (FREE OCR, 25K calls/month, no LLM cost)
+- vision_analyze: standalone image OCR (base64 or URL)
+- vision_download_analyze: Drive file → download → OCR in one step
+- User needs to get free OCR.space key from https://ocr.space/ocrapi/freekey
+- Production URL: https://my-project-tau-two-70.vercel.app

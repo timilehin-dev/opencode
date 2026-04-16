@@ -46,6 +46,71 @@ function nextOllamaKey(): string {
   return key;
 }
 
+// --- OCR.space API helper (FREE — 25,000 calls/month, no LLM tokens) ---
+const OCR_SPACE_KEY = process.env.OCR_SPACE_API_KEY || "";
+const OCR_SPACE_URL = "https://api.ocr.space/parse/image";
+
+/**
+ * Call OCR.space API to extract text from an image (base64 or URL).
+ * Returns the extracted text. Completely free, no LLM token consumption.
+ */
+async function ocrSpaceExtract(options: { base64?: string; url?: string; language?: string }): Promise<{
+  text: string;
+  wordCount: number;
+  lineCount: number;
+}> {
+  const formData = new FormData();
+  formData.append("language", options.language || "eng");
+  formData.append("isOverlayRequired", "false");
+  formData.append("scale", "true");
+  formData.append("OCREngine", "2"); // Engine 2 = better accuracy
+
+  if (options.base64) {
+    formData.append("base64Image", `data:image/png;base64,${options.base64}`);
+  } else if (options.url) {
+    formData.append("url", options.url);
+  } else {
+    throw new Error("No image data provided. Supply base64 or url.");
+  }
+
+  const headers: Record<string, string> = {};
+  if (OCR_SPACE_KEY) {
+    headers["apikey"] = OCR_SPACE_KEY;
+  }
+
+  const res = await fetch(OCR_SPACE_URL, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    throw new Error(`OCR.space API error (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+
+  if (data.IsErroredOnProcessing) {
+    throw new Error(`OCR processing error: ${data.ErrorMessage || "Unknown OCR error"}`);
+  }
+
+  // Extract text from all parsed results
+  const results = data.ParsedResults || [];
+  let fullText = "";
+  for (const result of results) {
+    if (result.ParsedText) {
+      fullText += result.ParsedText + "\n";
+    }
+  }
+
+  return {
+    text: fullText.trim(),
+    wordCount: fullText.split(/\s+/).filter(Boolean).length,
+    lineCount: results.length || 0,
+  };
+}
+
 // Google API imports
 import {
   gGmailSendEmail,
@@ -1103,68 +1168,62 @@ export const sheetsClearTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Vision Analyze Tool (Ollama Cloud — FREE llama3.2-vision)
+// Vision Analyze Tool (OCR.space — FREE, no LLM token consumption)
 // ---------------------------------------------------------------------------
 
 export const visionAnalyzeTool = tool({
-  description: "Analyze images, videos, or PDFs using vision AI (VLM). Extract text, describe visual content, identify objects, and answer questions about visual media.",
+  description: "Extract text from images using OCR (Optical Character Recognition). This is a FREE service — no LLM tokens consumed. Supports screenshots, scanned documents, photos with text, receipts, invoices, etc. For Google Drive files, use vision_download_analyze instead (handles download + OCR in one step).",
   inputSchema: zodSchema(z.object({
-    prompt: z.string().describe("What to analyze or ask about the visual content"),
+    prompt: z.string().optional().describe("Optional: specific question about the image content (e.g., 'What is the total amount?', 'Extract all names')"),
     imageUrl: z.string().optional().describe("URL of the image to analyze"),
     imageBase64: z.string().optional().describe("Base64-encoded image data (with or without data URI prefix)"),
-    fileUrl: z.string().optional().describe("URL of a video or PDF file to analyze"),
   })),
   execute: safeJson(async ({ prompt, imageUrl, imageBase64 }) => {
-    // Build multimodal content parts
-    const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
-      { type: "text", text: prompt },
-    ];
-    if (imageUrl) {
-      content.push({ type: "image_url", image_url: { url: imageUrl } });
-    }
-    if (imageBase64) {
-      // Ensure data URI format
-      const dataUrl = imageBase64.startsWith("data:")
-        ? imageBase64
-        : `data:image/png;base64,${imageBase64}`;
-      content.push({ type: "image_url", image_url: { url: dataUrl } });
-    }
-    if (content.length === 1) {
+    if (!imageUrl && !imageBase64) {
       return { analysis: "No image provided. Please provide an imageUrl or imageBase64." };
     }
-    // Call Ollama Cloud directly (FREE — llama3.2-vision model)
-    const apiKey = nextOllamaKey();
-    const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "llama3.2-vision",
-        messages: [{ role: "user", content }],
-        max_tokens: 2048,
-      }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "Unknown error");
-      throw new Error(`Vision API error (${res.status}): ${errText}`);
+
+    // Clean up base64 if it has a data URI prefix
+    let cleanBase64 = imageBase64 || "";
+    if (cleanBase64.startsWith("data:")) {
+      // Extract base64 after the comma
+      cleanBase64 = cleanBase64.split(",")[1] || "";
     }
-    const data = await res.json();
-    const analysis = data.choices?.[0]?.message?.content || JSON.stringify(data);
+
+    // Call OCR.space (FREE — no LLM tokens)
+    const result = await ocrSpaceExtract({
+      base64: cleanBase64 || undefined,
+      url: imageUrl || undefined,
+    });
+
+    if (!result.text) {
+      return {
+        analysis: "No text could be extracted from this image. The image may not contain readable text, or the image quality may be too low.",
+        prompt,
+      };
+    }
+
+    // If the user asked a specific question, include it in context
+    let analysis = result.text;
+    if (prompt) {
+      analysis = `**Your question:** ${prompt}\n\n**Extracted text (${result.wordCount} words, ${result.lineCount} lines):**\n\n${result.text}`;
+    } else {
+      analysis = `**Extracted text (${result.wordCount} words, ${result.lineCount} lines):**\n\n${result.text}`;
+    }
+
     return { analysis };
   }),
 });
 
 // ---------------------------------------------------------------------------
-// Vision Download & Analyze Tool (Ollama Cloud — direct Drive → Vision, no LLM piping)
+// Vision Download & Analyze Tool (OCR.space — direct Drive → OCR, no LLM tokens)
 // ---------------------------------------------------------------------------
 
 export const visionDownloadAnalyzeTool = tool({
-  description: "Download a file from Google Drive AND analyze it with vision AI in a single step. Use this when you need to analyze a Drive file (image, PDF, etc.). This avoids the inefficiency of downloading first then calling vision separately. The file is downloaded server-side and passed directly to the vision model — the image data never goes through the LLM.",
+  description: "Download a file from Google Drive AND analyze it in a single step. For images: uses FREE OCR to extract text (no LLM tokens consumed). For text/CSV/JSON/PDF files: returns content directly. This is the recommended tool for analyzing any Drive file — one call does everything.",
   inputSchema: zodSchema(z.object({
     fileId: z.string().describe("The Google Drive file ID to download and analyze"),
-    prompt: z.string().describe("What to analyze or ask about the file content (e.g., 'Describe this image', 'Extract all text', 'What objects are visible?')"),
+    prompt: z.string().optional().describe("Optional: specific question about the file (e.g., 'What is the total amount?', 'Summarize the key points')"),
   })),
   execute: safeJson(async ({ fileId, prompt }) => {
     const token = await (await import("./google")).getAccessToken();
@@ -1216,38 +1275,27 @@ export const visionDownloadAnalyzeTool = tool({
       }
     }
 
-    // Step 3: Determine if this is an image that needs vision, or text that can be returned directly
+    // Step 3: Process based on file type
     const isImage = actualMimeType.startsWith("image/");
     const isPdf = actualMimeType.includes("pdf");
 
     if (isImage) {
-      // Pass base64 directly to vision model (no LLM intermediate step)
-      const dataUrl = `data:${actualMimeType};base64,${fileContent.slice(0, 500000)}`;
-      const apiKey = nextOllamaKey();
-      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama3.2-vision",
-          messages: [{
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: dataUrl } },
-            ],
-          }],
-          max_tokens: 2048,
-        }),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "Unknown error");
-        throw new Error(`Vision API error (${res.status}): ${errText}`);
+      // Image → OCR.space (FREE, no LLM tokens)
+      const ocrResult = await ocrSpaceExtract({ base64: fileContent.slice(0, 1000000) });
+
+      if (!ocrResult.text) {
+        return {
+          fileName: metadata.name,
+          mimeType: actualMimeType,
+          size: metadata.size,
+          analysis: `No readable text was found in this image (${metadata.name}). The image may contain only graphics/visuals without text content.`,
+        };
       }
-      const data = await res.json();
-      const analysis = data.choices?.[0]?.message?.content || "Vision model returned no analysis.";
+
+      const analysis = prompt
+        ? `**Your question:** ${prompt}\n\n**Extracted text (${ocrResult.wordCount} words, ${ocrResult.lineCount} lines):**\n\n${ocrResult.text}`
+        : `**Extracted text (${ocrResult.wordCount} words, ${ocrResult.lineCount} lines):**\n\n${ocrResult.text}`;
+
       return {
         fileName: metadata.name,
         mimeType: actualMimeType,
@@ -1256,7 +1304,7 @@ export const visionDownloadAnalyzeTool = tool({
       };
     }
 
-    // For text/CSV/JSON/XML/PDF-converted files — return content directly
+    // For text/CSV/JSON/XML files — return content directly
     return {
       fileName: metadata.name,
       mimeType: actualMimeType,
@@ -1264,7 +1312,7 @@ export const visionDownloadAnalyzeTool = tool({
       content: fileContent.slice(0, 50000),
       contentTruncated: fileContent.length > 50000,
       note: isPdf
-        ? "PDF text extraction — content may be incomplete for image-heavy PDFs. For visual analysis of PDFs, the file would need to be converted to images first."
+        ? "PDF text extraction — content may be incomplete for image-heavy or scanned PDFs."
         : "Text file content returned directly.",
     };
   }),
