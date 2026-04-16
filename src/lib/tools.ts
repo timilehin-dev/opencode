@@ -8,8 +8,25 @@
 import { z } from "zod";
 import { tool, zodSchema } from "ai";
 
-// z-ai-web-dev-sdk for web tools
+// z-ai-web-dev-sdk for web tools (local Z.ai environment only)
 import ZAI from 'z-ai-web-dev-sdk';
+
+// --- AIHubMix direct API helper (works on Vercel + local) ---
+const AIHUBMIX_BASE = process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1";
+const AIHUBMIX_KEYS = [
+  process.env.AIHUBMIX_API_KEY_1 || "",
+  process.env.AIHUBMIX_API_KEY_2 || "",
+  process.env.AIHUBMIX_API_KEY_3 || "",
+  process.env.AIHUBMIX_API_KEY_4 || "",
+  process.env.AIHUBMIX_API_KEY_5 || "",
+].filter(Boolean);
+let _aiKeyIdx = 0;
+function nextAIHubMixKey(): string {
+  if (AIHUBMIX_KEYS.length === 0) throw new Error("No AIHubMix API keys configured.");
+  const key = AIHUBMIX_KEYS[_aiKeyIdx % AIHUBMIX_KEYS.length];
+  _aiKeyIdx++;
+  return key;
+}
 
 // Google API imports
 import {
@@ -1068,7 +1085,7 @@ export const sheetsClearTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Vision Analyze Tool (z-ai-web-dev-sdk)
+// Vision Analyze Tool (AIHubMix — OpenAI-compatible vision)
 // ---------------------------------------------------------------------------
 
 export const visionAnalyzeTool = tool({
@@ -1076,24 +1093,53 @@ export const visionAnalyzeTool = tool({
   inputSchema: zodSchema(z.object({
     prompt: z.string().describe("What to analyze or ask about the visual content"),
     imageUrl: z.string().optional().describe("URL of the image to analyze"),
+    imageBase64: z.string().optional().describe("Base64-encoded image data (with or without data URI prefix)"),
     fileUrl: z.string().optional().describe("URL of a video or PDF file to analyze"),
   })),
-  execute: safeJson(async ({ prompt, imageUrl }) => {
-    const zai = await ZAI.create();
+  execute: safeJson(async ({ prompt, imageUrl, imageBase64 }) => {
+    // Build multimodal content parts
     const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
       { type: "text", text: prompt },
-      ...(imageUrl ? [{ type: "image_url" as const, image_url: { url: imageUrl } }] : []),
     ];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (zai.chat.completions as any).createVision({
-      messages: [{ role: "user", content }],
+    if (imageUrl) {
+      content.push({ type: "image_url", image_url: { url: imageUrl } });
+    }
+    if (imageBase64) {
+      // Ensure data URI format
+      const dataUrl = imageBase64.startsWith("data:")
+        ? imageBase64
+        : `data:image/png;base64,${imageBase64}`;
+      content.push({ type: "image_url", image_url: { url: dataUrl } });
+    }
+    if (content.length === 1) {
+      return { analysis: "No image provided. Please provide an imageUrl or imageBase64." };
+    }
+    // Call AIHubMix directly (OpenAI-compatible vision API)
+    const apiKey = nextAIHubMixKey();
+    const res = await fetch(`${AIHUBMIX_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content }],
+        max_tokens: 2048,
+      }),
     });
-    return { analysis: result };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Unknown error");
+      throw new Error(`Vision API error (${res.status}): ${errText}`);
+    }
+    const data = await res.json();
+    const analysis = data.choices?.[0]?.message?.content || JSON.stringify(data);
+    return { analysis };
   }),
 });
 
 // ---------------------------------------------------------------------------
-// Image Generate Tool (z-ai-web-dev-sdk)
+// Image Generate Tool (AIHubMix — DALL-E compatible)
 // ---------------------------------------------------------------------------
 
 export const imageGenerateTool = tool({
@@ -1103,68 +1149,115 @@ export const imageGenerateTool = tool({
     size: z.enum(["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"]).optional().describe("Image size (default: '1024x1024')"),
   })),
   execute: safeJson(async ({ prompt, size }) => {
-    const zai = await ZAI.create();
-    const result = await zai.images.generations.create({ prompt, size: size || "1024x1024" });
-    return { imageBase64: result.data?.[0] || result };
+    // Call AIHubMix image generation directly
+    const apiKey = nextAIHubMixKey();
+    const res = await fetch(`${AIHUBMIX_BASE}/images/generations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt,
+        size: size || "1024x1024",
+        n: 1,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Unknown error");
+      throw new Error(`Image generation error (${res.status}): ${errText}`);
+    }
+    const data = await res.json();
+    // Handle both URL and base64 responses
+    const imgData = data.data?.[0];
+    if (imgData?.b64_json) {
+      return { imageBase64: imgData.b64_json };
+    }
+    if (imgData?.url) {
+      return { imageUrl: imgData.url };
+    }
+    if (imgData?.base64) {
+      return { imageBase64: imgData.base64 };
+    }
+    return { imageBase64: JSON.stringify(data) };
   }),
 });
 
 // ---------------------------------------------------------------------------
-// TTS Generate Tool (z-ai-web-dev-sdk)
+// TTS Generate Tool (AIHubMix — OpenAI TTS compatible)
 // ---------------------------------------------------------------------------
 
 export const ttsGenerateTool = tool({
-  description: "Convert text to speech audio using AI. Returns base64-encoded WAV audio data.",
+  description: "Convert text to speech audio using AI. Returns base64-encoded audio data. Uses the OpenAI TTS-compatible endpoint via AIHubMix.",
   inputSchema: zodSchema(z.object({
     text: z.string().describe("Text to convert to speech"),
-    voice: z.string().optional().describe("Voice name (default: 'tongtong')"),
+    voice: z.string().optional().describe("Voice name (default: 'alloy')"),
     speed: z.number().optional().describe("Speech speed multiplier (default: 1.0)"),
   })),
   execute: safeJson(async ({ text, voice, speed }) => {
-    const zai = await ZAI.create();
-    const result = await zai.audio.tts.create({
-      input: text,
-      voice: voice || "tongtong",
-      speed: speed || 1.0,
-      response_format: "wav",
+    // Call AIHubMix TTS endpoint (OpenAI-compatible)
+    const apiKey = nextAIHubMixKey();
+    const res = await fetch(`${AIHUBMIX_BASE}/audio/speech`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "tts-1",
+        input: text,
+        voice: voice || "alloy",
+        speed: speed || 1.0,
+        response_format: "mp3",
+      }),
     });
-    // Convert response to base64 if it's a buffer/arraybuffer
-    let audioBase64 = "";
-    if (result instanceof ArrayBuffer) {
-      audioBase64 = Buffer.from(result).toString("base64");
-    } else if (result instanceof Buffer) {
-      audioBase64 = result.toString("base64");
-    } else if (Buffer.isBuffer(result)) {
-      audioBase64 = result.toString("base64");
-    } else {
-      audioBase64 = String(result);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Unknown error");
+      throw new Error(`TTS error (${res.status}): ${errText}`);
     }
-    return { audioBase64, format: "wav" };
+    const arrayBuffer = await res.arrayBuffer();
+    const audioBase64 = Buffer.from(arrayBuffer).toString("base64");
+    return { audioBase64, format: "mp3" };
   }),
 });
 
 // ---------------------------------------------------------------------------
-// ASR Transcribe Tool (z-ai-web-dev-sdk)
+// ASR Transcribe Tool (AIHubMix — Whisper compatible)
 // ---------------------------------------------------------------------------
 
 export const asrTranscribeTool = tool({
-  description: "Transcribe audio to text using AI speech recognition. Accepts base64-encoded audio data.",
+  description: "Transcribe audio to text using AI speech recognition. Accepts base64-encoded audio data (mp3, wav, etc.).",
   inputSchema: zodSchema(z.object({
     audioBase64: z.string().describe("Base64-encoded audio data to transcribe"),
   })),
   execute: safeJson(async ({ audioBase64 }) => {
-    const zai = await ZAI.create();
-    const result = await zai.audio.asr.create({ file_base64: audioBase64 });
-    return { transcription: result };
+    // Call AIHubMix Whisper endpoint (OpenAI-compatible)
+    const apiKey = nextAIHubMixKey();
+    const audioBuffer = Buffer.from(audioBase64, "base64");
+    const formData = new FormData();
+    formData.append("file", new Blob([audioBuffer]), "audio.mp3");
+    formData.append("model", "whisper-1");
+    const res = await fetch(`${AIHUBMIX_BASE}/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Unknown error");
+      throw new Error(`ASR error (${res.status}): ${errText}`);
+    }
+    const data = await res.json();
+    return { transcription: data.text || JSON.stringify(data) };
   }),
 });
 
 // ---------------------------------------------------------------------------
-// Video Generate Tool (z-ai-web-dev-sdk)
+// Video Generate Tool (Z.ai platform — local only)
 // ---------------------------------------------------------------------------
 
 export const videoGenerateTool = tool({
-  description: "Generate video using AI from text prompt or image. This is an async operation that returns a task ID and polls for results.",
+  description: "Generate video using AI from text prompt or image. Note: Video generation uses the Z.ai platform API and is only available in the local development environment.",
   inputSchema: zodSchema(z.object({
     prompt: z.string().optional().describe("Text description of the video to generate"),
     imageUrl: z.string().optional().describe("URL of a source image for image-to-video generation"),
@@ -1172,35 +1265,37 @@ export const videoGenerateTool = tool({
     duration: z.number().optional().describe("Video duration in seconds (default: 5)"),
   })),
   execute: safeJson(async ({ prompt, imageUrl, quality, duration }) => {
-    const zai = await ZAI.create();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any = await zai.video.generations.create({
-      prompt,
-      image_url: imageUrl,
-      quality: quality || "speed",
-      duration: duration || 5,
-    });
-
-    const taskId = result.taskId || result.id || result;
-    if (typeof taskId !== "string") {
-      return { status: "completed", result };
-    }
-
-    // Poll up to 3 times (5s intervals)
-    for (let i = 0; i < 3; i++) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const status: any = await (zai.video.generations as any).get(taskId);
-        if (status.status === "completed" || status.url || status.video_url) {
-          return { status: "completed", taskId, result: status };
-        }
-      } catch {
-        // Still processing
+    try {
+      const zai = await ZAI.create();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result: any = await zai.video.generations.create({
+        prompt,
+        image_url: imageUrl,
+        quality: quality || "speed",
+        duration: duration || 5,
+      });
+      const taskId = result.taskId || result.id || result;
+      if (typeof taskId !== "string") {
+        return { status: "completed", result };
       }
+      // Poll up to 3 times (5s intervals)
+      for (let i = 0; i < 3; i++) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const status: any = await (zai.video.generations as any).get(taskId);
+          if (status.status === "completed" || status.url || status.video_url) {
+            return { status: "completed", taskId, result: status };
+          }
+        } catch {
+          // Still processing
+        }
+      }
+      return { status: "pending", taskId, message: "Video generation in progress. Check back later." };
+    } catch (err: any) {
+      // Z.ai SDK not available on Vercel — provide helpful error
+      throw new Error(`Video generation requires the Z.ai platform (local environment only). Error: ${err.message}`);
     }
-
-    return { status: "pending", taskId, message: "Video generation in progress. Check back later." };
   }),
 });
 
