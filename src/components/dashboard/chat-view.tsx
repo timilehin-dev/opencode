@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
-import { getSessionMessages, getAgentSessions } from "@/lib/memory";
+import { getSessionMessages, getAgentSessions, getAllRecentSessions } from "@/lib/memory";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -124,11 +124,21 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
   },
 };
 
+// Agent metadata for display in conversation list
+const agentMeta: Record<string, { emoji: string; name: string; color: string }> = {
+  general: { emoji: "\uD83E\uDDD4", name: "Claw General", color: "emerald" },
+  mail: { emoji: "\u2709\uFE0F", name: "Mail Agent", color: "blue" },
+  code: { emoji: "\uD83D\uDCBB", name: "Code Agent", color: "purple" },
+  data: { emoji: "\uD83D\uDCCA", name: "Data Agent", color: "amber" },
+  creative: { emoji: "\uD83E\uDDE0", name: "Creative Agent", color: "rose" },
+};
+
 // ---------------------------------------------------------------------------
 // localStorage helpers for session tracking
 // ---------------------------------------------------------------------------
 
 const SESSION_MAP_KEY = "claw-agent-sessions";
+const LAST_AGENT_KEY = "claw-last-active-agent";
 
 function loadSessionMap(): Record<string, string> {
   if (typeof window === "undefined") return {};
@@ -144,6 +154,24 @@ function saveSessionMap(map: Record<string, string>): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(SESSION_MAP_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+function getLastActiveAgent(): string {
+  if (typeof window === "undefined") return "general";
+  try {
+    return localStorage.getItem(LAST_AGENT_KEY) || "general";
+  } catch {
+    return "general";
+  }
+}
+
+function saveLastActiveAgent(agentId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LAST_AGENT_KEY, agentId);
   } catch {
     /* ignore */
   }
@@ -213,25 +241,28 @@ function getMessageText(parts: Array<{ type: string; text?: string }>): string {
 }
 
 // ---------------------------------------------------------------------------
-// Conversation Session Item (for the sidebar panel)
+// Conversation Session Item
 // ---------------------------------------------------------------------------
 
 interface SessionItem {
   sessionId: string;
+  agentId: string;
   lastMessage: string;
   lastActivity: string;
   messageCount: number;
 }
 
 function ConversationsPanel({
-  agentId,
+  agents,
   currentSessionId,
+  currentAgentId,
   onSelectSession,
   onClose,
 }: {
-  agentId: string;
+  agents: AgentInfo[];
   currentSessionId: string;
-  onSelectSession: (sessionId: string) => void;
+  currentAgentId: string;
+  onSelectSession: (sessionId: string, agentId: string) => void;
   onClose: () => void;
 }) {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
@@ -239,11 +270,12 @@ function ConversationsPanel({
 
   useEffect(() => {
     setLoading(true);
-    getAgentSessions(agentId, 30)
+    // Fetch ALL recent sessions across all agents
+    getAllRecentSessions(30)
       .then(setSessions)
       .catch(() => setSessions([]))
       .finally(() => setLoading(false));
-  }, [agentId, currentSessionId]);
+  }, [currentSessionId]);
 
   const formatTime = (dateStr: string) => {
     try {
@@ -264,12 +296,23 @@ function ConversationsPanel({
     }
   };
 
+  // Find agent info for a given agentId
+  const getAgentInfo = (agentId: string) => {
+    const fromList = agents.find((a) => a.id === agentId);
+    if (fromList) return fromList;
+    const meta = agentMeta[agentId];
+    if (meta) {
+      return { id: agentId, name: meta.name, role: "", emoji: meta.emoji, color: meta.color, provider: "", model: "" };
+    }
+    return { id: agentId, name: agentId, role: "", emoji: "\uD83E\uDD16", color: "emerald", provider: "", model: "" };
+  };
+
   return (
     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <HistoryIcon className="w-4 h-4" />
-          Conversations
+          All Conversations
         </h3>
         <button
           onClick={onClose}
@@ -292,28 +335,40 @@ function ConversationsPanel({
           </div>
         ) : (
           <div className="py-2">
-            {sessions.map((session) => (
-              <button
-                key={session.sessionId}
-                onClick={() => onSelectSession(session.sessionId)}
-                className={cn(
-                  "w-full text-left px-4 py-3 transition-colors hover:bg-accent/50 border-b border-border/30",
-                  session.sessionId === currentSessionId && "bg-accent"
-                )}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatTime(session.lastActivity)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/70">
-                    {session.messageCount} msgs
-                  </span>
-                </div>
-                <p className="text-xs text-foreground truncate">
-                  {session.lastMessage || "Empty conversation"}
-                </p>
-              </button>
-            ))}
+            {sessions.map((session) => {
+              const agent = getAgentInfo(session.agentId);
+              const isActive = session.sessionId === currentSessionId && session.agentId === currentAgentId;
+              const colors = colorMap[agent.color] || colorMap.emerald;
+
+              return (
+                <button
+                  key={session.sessionId}
+                  onClick={() => onSelectSession(session.sessionId, session.agentId)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 transition-colors hover:bg-accent/50 border-b border-border/30",
+                    isActive && "bg-accent"
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs">{agent.emoji}</span>
+                      <span className={cn("text-[11px] font-medium", colors.text)}>{agent.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatTime(session.lastActivity)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {session.messageCount} msgs
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-foreground truncate">
+                    {session.lastMessage || "Empty conversation"}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -656,7 +711,7 @@ function AgentChatSession({
 
 export function ChatView() {
   const [agents, setAgents] = useState<AgentInfo[]>([DEFAULT_AGENT]);
-  const [selectedAgent, setSelectedAgent] = useState("general");
+  const [selectedAgent, setSelectedAgent] = useState<string>(() => getLastActiveAgent());
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showConversations, setShowConversations] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => generateSessionId());
@@ -667,9 +722,12 @@ export function ChatView() {
   useEffect(() => {
     const map = loadSessionMap();
     setSessionMap(map);
-    // If there's a stored session for the current agent, use it
-    if (map["general"]) {
-      setCurrentSessionId(map["general"]);
+
+    // Restore last active agent's session
+    const lastAgent = getLastActiveAgent();
+    if (map[lastAgent]) {
+      setSelectedAgent(lastAgent);
+      setCurrentSessionId(map[lastAgent]);
     }
   }, []);
 
@@ -702,13 +760,6 @@ export function ChatView() {
       }
     }
 
-    // Check localStorage for pre-selected agent
-    const stored = localStorage.getItem("claw-selected-agent");
-    if (stored) {
-      setSelectedAgent(stored);
-      localStorage.removeItem("claw-selected-agent");
-    }
-
     fetchAgents();
   }, []);
 
@@ -726,7 +777,7 @@ export function ChatView() {
   const activeAgent = agents.find((a) => a.id === selectedAgent) || DEFAULT_AGENT;
   const colors = colorMap[activeAgent.color] || colorMap.emerald;
 
-  // Handle agent change — save current session, load the agent's session
+  // Handle agent change — save current session, load the agent's session, persist last active agent
   const handleAgentChange = (agentId: string) => {
     // Track agent switch for analytics
     const targetAgent = agents.find((a) => a.id === agentId);
@@ -744,6 +795,9 @@ export function ChatView() {
     newMap[agentId] = targetSession;
     updateSessionMap(newMap);
 
+    // Persist the new active agent
+    saveLastActiveAgent(agentId);
+
     setCurrentSessionId(targetSession);
     setSelectedAgent(agentId);
     setShowAgentPicker(false);
@@ -759,9 +813,19 @@ export function ChatView() {
     setShowConversations(false);
   };
 
-  // Handle selecting a conversation from history
-  const handleSelectSession = (sessionId: string) => {
-    const newMap = { ...sessionMap, [selectedAgent]: sessionId };
+  // Handle selecting a conversation from history — auto-switches to the correct agent
+  const handleSelectSession = (sessionId: string, agentId: string) => {
+    const newMap = { ...sessionMap, [agentId]: sessionId };
+
+    // If the session belongs to a different agent, switch to that agent
+    if (agentId !== selectedAgent) {
+      // Save current session for current agent
+      newMap[selectedAgent] = currentSessionId;
+      // Switch to the session's agent
+      setSelectedAgent(agentId);
+      saveLastActiveAgent(agentId);
+    }
+
     updateSessionMap(newMap);
     setCurrentSessionId(sessionId);
     setShowConversations(false);
@@ -834,7 +898,7 @@ export function ChatView() {
             size="sm"
             onClick={() => setShowConversations(true)}
             className="h-8 px-2 text-muted-foreground hover:text-foreground"
-            title="Conversation history"
+            title="All conversations"
           >
             <HistoryIcon className="w-4 h-4" />
           </Button>
@@ -851,7 +915,7 @@ export function ChatView() {
         </div>
       </div>
 
-      {/* Conversations Panel (overlay) */}
+      {/* Conversations Panel (overlay) — shows ALL agents' sessions */}
       <AnimatePresence>
         {showConversations && (
           <motion.div
@@ -861,8 +925,9 @@ export function ChatView() {
             transition={{ duration: 0.15 }}
           >
             <ConversationsPanel
-              agentId={selectedAgent}
+              agents={agents}
               currentSessionId={currentSessionId}
+              currentAgentId={selectedAgent}
               onSelectSession={handleSelectSession}
               onClose={() => setShowConversations(false)}
             />

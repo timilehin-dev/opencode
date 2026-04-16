@@ -261,6 +261,72 @@ export async function getRecentConversations(limit: number = 20): Promise<Conver
   return all.slice(-limit);
 }
 
+/** Get recent sessions across ALL agents (for global conversation history). */
+export async function getAllRecentSessions(limit: number = 30): Promise<Array<{
+  sessionId: string;
+  agentId: string;
+  lastMessage: string;
+  lastActivity: string;
+  messageCount: number;
+}>> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("session_id, agent_id, content, created_at")
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+      if (!error && data && data.length > 0) {
+        // Group by session_id, track agent_id
+        const sessions = new Map<string, { agentId: string; messages: string[]; lastActivity: string }>();
+        for (const row of data) {
+          const sid = row.session_id as string;
+          if (!sessions.has(sid)) {
+            sessions.set(sid, { agentId: row.agent_id as string, messages: [], lastActivity: row.created_at as string });
+          }
+          sessions.get(sid)!.messages.push(row.content as string);
+        }
+
+        const result = Array.from(sessions.entries()).map(([sessionId, info]) => ({
+          sessionId,
+          agentId: info.agentId,
+          lastMessage: (info.messages[info.messages.length - 1] || "").slice(0, 100),
+          lastActivity: info.lastActivity,
+          messageCount: info.messages.length,
+        }));
+
+        result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+        return result.slice(0, limit);
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Fallback: localStorage
+  const all = loadJSON<ConversationMessage[]>(CONV_KEY, []);
+  const sessions = new Map<string, { agentId: string; messages: string[]; lastActivity: string }>();
+  for (const msg of all) {
+    if (!sessions.has(msg.sessionId)) {
+      sessions.set(msg.sessionId, { agentId: msg.agentId, messages: [], lastActivity: msg.createdAt });
+    }
+    sessions.get(msg.sessionId)!.messages.push(msg.content);
+  }
+
+  const result = Array.from(sessions.entries()).map(([sessionId, info]) => ({
+    sessionId,
+    agentId: info.agentId,
+    lastMessage: (info.messages[info.messages.length - 1] || "").slice(0, 100),
+    lastActivity: info.lastActivity,
+    messageCount: info.messages.length,
+  }));
+  result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+  return result.slice(0, limit);
+}
+
 /** Clear conversation history for a specific agent. */
 export async function clearConversationHistory(agentId?: string): Promise<void> {
   // localStorage

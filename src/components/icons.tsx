@@ -47,6 +47,8 @@ import {
   Inbox,
   MonitorUp,
   History,
+  ChevronRight,
+  Plug,
 } from "lucide-react";
 import type { SVGProps } from "react";
 
@@ -139,6 +141,10 @@ export {
   History as HistoryIcon,
   X as XIcon,
   MessageSquare as MessageSquareIcon,
+  ChevronRight,
+  ChevronRight as ChevronRightIcon,
+  Plug,
+  Plug as ServicesIcon,
 };
 
 // GitHub brand icon — not available in lucide-react, so we keep a custom SVG
