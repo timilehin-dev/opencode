@@ -28,6 +28,24 @@ function nextAIHubMixKey(): string {
   return key;
 }
 
+// --- Ollama Cloud direct API helper (FREE — for vision/image tools) ---
+const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "https://ollama.com/v1";
+const OLLAMA_KEYS = [
+  process.env.OLLAMA_CLOUD_KEY_1 || "",
+  process.env.OLLAMA_CLOUD_KEY_2 || "",
+  process.env.OLLAMA_CLOUD_KEY_3 || "",
+  process.env.OLLAMA_CLOUD_KEY_4 || "",
+  process.env.OLLAMA_CLOUD_KEY_5 || "",
+  process.env.OLLAMA_CLOUD_KEY_6 || "",
+].filter(Boolean);
+let _ollamaKeyIdx = 0;
+function nextOllamaKey(): string {
+  if (OLLAMA_KEYS.length === 0) throw new Error("No Ollama Cloud API keys configured.");
+  const key = OLLAMA_KEYS[_ollamaKeyIdx % OLLAMA_KEYS.length];
+  _ollamaKeyIdx++;
+  return key;
+}
+
 // Google API imports
 import {
   gGmailSendEmail,
@@ -1085,7 +1103,7 @@ export const sheetsClearTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Vision Analyze Tool (AIHubMix — OpenAI-compatible vision)
+// Vision Analyze Tool (Ollama Cloud — FREE llama3.2-vision)
 // ---------------------------------------------------------------------------
 
 export const visionAnalyzeTool = tool({
@@ -1114,16 +1132,16 @@ export const visionAnalyzeTool = tool({
     if (content.length === 1) {
       return { analysis: "No image provided. Please provide an imageUrl or imageBase64." };
     }
-    // Call AIHubMix directly (OpenAI-compatible vision API)
-    const apiKey = nextAIHubMixKey();
-    const res = await fetch(`${AIHUBMIX_BASE}/chat/completions`, {
+    // Call Ollama Cloud directly (FREE — llama3.2-vision model)
+    const apiKey = nextOllamaKey();
+    const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "llama3.2-vision",
         messages: [{ role: "user", content }],
         max_tokens: 2048,
       }),

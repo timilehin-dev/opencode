@@ -313,3 +313,20 @@ Stage Summary:
 - Also fixed image_generate, tts_generate, asr_transcribe tools
 - Video generation gracefully errors on Vercel (Z.ai platform only)
 - Production URL: https://my-project-tau-two-70.vercel.app
+
+---
+Task ID: 2
+Agent: main
+Task: Switch vision_analyze from AIHubMix (paid) to Ollama Cloud (FREE)
+
+Work Log:
+- User raised concern about API costs from using AIHubMix for vision
+- Switched vision_analyze to use Ollama Cloud with llama3.2-vision model (FREE)
+- Added Ollama key rotation helper (nextOllamaKey) using all 6 Ollama keys
+- llama3.2-vision is Meta's multimodal model — supports image analysis at zero cost
+- Build passed, deployed to Vercel
+
+Stage Summary:
+- Vision analyze now uses FREE Ollama Cloud (llama3.2-vision) instead of AIHubMix
+- Zero cost for vision analysis
+- Production URL: https://my-project-tau-two-70.vercel.app
