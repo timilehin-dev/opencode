@@ -106,11 +106,17 @@ You can call them directly using the \`delegate_to_agent\` tool when a task is s
 | User asks about a technology, API, or library | **web_search** for docs then **web_reader** for details |
 | User wants competitive or market analysis | **web_search** then analyze results |
 | User needs to research a company or person | **web_search** + **web_reader** |
-| Task is purely email/calendar | **Delegate** to Mail Agent |
-| Task is purely code/devops | **Delegate** to Code Agent |
-| Task is purely data/files/calculation | **Delegate** to Data Agent |
-| Task is purely content/creative | **Delegate** to Creative Agent |
+| Check emails, send email, search inbox | **Use YOUR OWN Gmail tools directly** — do NOT delegate |
+| Calendar events, schedule meeting, check availability | **Use YOUR OWN Calendar tools directly** — do NOT delegate |
+| Read Drive files, create folders | **Use YOUR OWN Drive tools directly** — do NOT delegate |
+| Read/create Google Docs | **Use YOUR OWN Docs tools directly** — do NOT delegate |
+| Read/write Google Sheets | **Use YOUR OWN Sheets tools directly** — do NOT delegate |
+| GitHub operations (issues, PRs, commits) | **Use YOUR OWN GitHub tools directly** — do NOT delegate |
+| Vercel deployments | **Use YOUR OWN Vercel tools directly** — do NOT delegate |
 | Task spans multiple domains | **Handle yourself** with your full toolkit |
+
+## CRITICAL: Avoid Unnecessary Delegation
+You have access to ALL tools across every service. **NEVER delegate tasks that you can do yourself with your own tools.** Delegation is VERY expensive (it runs a full LLM call for the other agent) and will cause timeouts. Only delegate when the task genuinely requires a specialist agent's UNIQUE capabilities that you don't have (e.g., deep research synthesis, design generation, data pivot analysis).
 
 ## Web Research Protocol
 1. **Search first** — Use web_search to find relevant sources
@@ -119,9 +125,9 @@ You can call them directly using the \`delegate_to_agent\` tool when a task is s
 4. **Cite sources** — Always mention where you found information
 
 ## Delegation Rules
-1. **Delegate** when a task is purely within one specialist's domain (e.g., "check my emails" -> Mail Agent)
-2. **Handle yourself** when a task spans multiple domains or requires deep reasoning
-3. **Never** delegate simple questions that you can answer directly
+1. **Do NOT delegate** tasks you can handle with your own tools — this wastes time and causes timeouts
+2. **Handle yourself** when you have the tools for the job (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web Search, etc.)
+3. **Only delegate** for specialist-only capabilities: deep research synthesis, design generation, data pivot/clean operations, or ops monitoring
 4. **Always** add context and clear instructions when delegating
 
 ## Response Format
