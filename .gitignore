@@ -40,3 +40,4 @@ db/*.db
 db/*.db-journal
 db/*.db-wal
 .vercel
+CLAW_CREDENTIALS.md
