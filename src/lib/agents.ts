@@ -96,6 +96,8 @@ You can call them directly using the \`delegate_to_agent\` tool when a task is s
 - **Vercel**: projects, deployments, domains
 - **Web Search**: search the web for real-time information, documentation, market data, news, trends
 - **Web Reader**: read and extract content from any web page URL
+- **Code Execution**: run Python/JavaScript/TypeScript code safely in a sandbox
+- **Weather & Location**: get weather for any city, calculate distances between locations
 - **PDF/DOCX Creation**: create professional PDF reports and DOCX documents (downloadable)
 - **Agent Delegation**: delegate tasks to specialist agents
 
@@ -151,6 +153,8 @@ ${AGENT_TEAM_DIRECTORY}
 - **Calendar**: list calendars, view events, create events (with Google Meet links)
 - **Web Search**: research companies, contacts, meeting context, industry news
 - **Web Reader**: read company websites, press releases, professional profiles
+- **Weather & Location**: get weather for meeting locations, calculate travel distances
+- **Code Execution**: quick calculations and data transforms
 - **PDF/DOCX Creation**: create professional PDF reports and DOCX documents for download
 - **query_agent**: route tasks to other specialist agents
 
@@ -194,6 +198,8 @@ ${AGENT_TEAM_DIRECTORY}
 - **Vercel**: projects, deployments, domains
 - **Web Search**: documentation, StackOverflow, npm packages, API references
 - **Web Reader**: official docs, GitHub issues, technical articles
+- **Code Execution**: run and test code snippets safely (Python, JS, TypeScript, Go, Rust, etc.)
+- **Weather & Location**: weather data and distance calculations
 - **PDF Creation**: create professional PDF reports (for code documentation, deployment summaries)
 - **query_agent**: route tasks to other specialist agents
 
@@ -438,6 +444,7 @@ const agents: AgentConfig[] = [
       "web_search", "web_reader",
       "vision_analyze", "vision_download_analyze", "image_generate", "tts_generate",
       "asr_transcribe", "video_generate",
+      "code_execute", "weather_get",
       "design_generate", "design_edit", "design_variants",
       "data_calculate", "data_clean", "data_pivot",
       "research_deep", "research_synthesize",
@@ -449,6 +456,7 @@ const agents: AgentConfig[] = [
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
+      "code_execute", "weather_get",
       // NOTE: delegate_to_agent intentionally removed from General agent.
       // General has ALL tools — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -481,6 +489,7 @@ const agents: AgentConfig[] = [
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       "todo_create", "todo_list", "todo_update",
+      "weather_get", "code_execute",
       "query_agent",
     ],
     suggestedActions: [
@@ -511,6 +520,7 @@ const agents: AgentConfig[] = [
       "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
       "create_pdf_report",
+      "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
     ],
@@ -543,6 +553,7 @@ const agents: AgentConfig[] = [
       "vision_analyze", "vision_download_analyze", "image_generate",
       "create_pdf_report", "create_docx_document",
       "download_drive_file",
+      "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_list", "contact_search",
       "query_agent",
@@ -576,6 +587,7 @@ const agents: AgentConfig[] = [
       "create_pdf_report", "create_docx_document",
       "todo_create", "todo_list", "todo_update",
       "reminder_create", "reminder_list",
+      "weather_get", "code_execute",
       "query_agent",
     ],
     suggestedActions: [
@@ -604,6 +616,7 @@ const agents: AgentConfig[] = [
       "create_pdf_report", "create_docx_document",
       "contact_list", "contact_search",
       "todo_list",
+      "weather_get", "code_execute",
       "query_agent",
     ],
     suggestedActions: [
@@ -630,6 +643,7 @@ const agents: AgentConfig[] = [
       "ops_github_activity", "ops_agent_stats",
       "create_pdf_report",
       "todo_stats", "reminder_list",
+      "weather_get",
       "query_agent",
     ],
     suggestedActions: [

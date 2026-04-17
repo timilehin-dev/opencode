@@ -935,8 +935,8 @@ export const webReaderTool = tool({
     } catch {
       // Z.ai SDK not available — use fallback
     }
-    // Fallback: direct fetch + HTML extraction
-    return await webReaderFallback(url);
+    // Fallback: direct fetch + HTML extraction (enhanced with OG metadata)
+    return await webReaderEnhanced(url);
   }),
 });
 
@@ -3067,6 +3067,313 @@ export const contactDeleteTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Code Execution Sandbox (Piston API — FREE, runs Python/JS safely)
+// ---------------------------------------------------------------------------
+
+const PISTON_API = "https://emkc.org/api/v2/piston/execute";
+
+const PISTON_LANGUAGES: Record<string, { language: string; version: string; aliases: string[] }> = {
+  javascript: { language: "javascript", version: "18.15.0", aliases: ["js", "node"] },
+  python:     { language: "python",     version: "3.10.0",  aliases: ["py"] },
+  typescript: { language: "typescript", version: "5.0.3",   aliases: ["ts"] },
+  go:         { language: "go",         version: "1.20.0",  aliases: [] },
+  rust:       { language: "rust",       version: "1.68.0",  aliases: [] },
+  java:       { language: "java",       version: "15.0.2",  aliases: [] },
+  cpp:        { language: "c++",        version: "10.2.0",  aliases: ["c"] },
+  ruby:       { language: "ruby",       version: "3.2.0",   aliases: [] },
+  php:        { language: "php",        version: "8.2.3",   aliases: [] },
+  swift:      { language: "swift",      version: "5.5.3",   aliases: [] },
+};
+
+export const codeExecuteTool = tool({
+  description: "Execute code snippets safely in a sandboxed environment. Supports JavaScript, Python, TypeScript, Go, Rust, Java, C++, Ruby, PHP, and Swift. Perfect for quick calculations, data transformations, string processing, algorithms, or prototyping. Returns stdout, stderr, and exit code. Execution timeout: 10s. No internet access. Max output: 64KB.",
+  inputSchema: zodSchema(z.object({
+    code: z.string().describe("The code to execute. Must be valid syntax for the specified language."),
+    language: z.string().optional().describe("Programming language: javascript (default), python, typescript, go, rust, java, cpp, ruby, php, swift. Aliases: js, py, ts."),
+    stdin: z.string().optional().describe("Optional stdin input for the program"),
+  })),
+  execute: safeJson(async ({ code, language, stdin }) => {
+    const langKey = (language || "javascript").toLowerCase().trim();
+    let langConfig = PISTON_LANGUAGES[langKey];
+    if (!langConfig) {
+      // Check aliases
+      for (const cfg of Object.values(PISTON_LANGUAGES)) {
+        if (cfg.aliases.includes(langKey)) { langConfig = cfg; break; }
+      }
+    }
+    if (!langConfig) {
+      throw new Error(`Unsupported language: "${langKey}". Supported: ${Object.keys(PISTON_LANGUAGES).join(", ")}`);
+    }
+
+    const res = await fetch(PISTON_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        language: langConfig.language,
+        version: langConfig.version,
+        files: [{ name: `main.${langConfig.language === "c++" ? "cpp" : langConfig.language === "c" ? "c" : langConfig.language}`, content: code }],
+        stdin: stdin || "",
+        compile_timeout: 10000,
+        run_timeout: 10000,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Unknown error");
+      throw new Error(`Code execution failed (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json() as {
+      run?: { stdout?: string; stderr?: string; exit_code: number; output?: string; signal?: string };
+      compile?: { stdout?: string; stderr?: string; exit_code: number; output?: string };
+      language: string;
+      version: string;
+    };
+
+    const run = data.run || data.compile;
+    return {
+      language: data.language,
+      version: data.version,
+      exitCode: run?.exit_code ?? -1,
+      stdout: (run?.stdout || "").trim(),
+      stderr: (run?.stderr || "").trim(),
+      output: (run?.output || "").trim(),
+      signal: "signal" in (run || {}) ? (run as { signal?: string }).signal || null : null,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Weather Tool (Open-Meteo API — FREE, no API key needed)
+// ---------------------------------------------------------------------------
+
+/**
+ * Geocode a location name to lat/lon using Open-Meteo's geocoding API.
+ */
+async function geocodeLocation(query: string): Promise<{ name: string; country: string; latitude: number; longitude: number; timezone: string } | null> {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return null;
+  const data = await res.json() as { results?: Array<{ name: string; country: string; latitude: number; longitude: number; timezone: string }> };
+  return data.results?.[0] || null;
+}
+
+export const weatherGetTool = tool({
+  description: "Get current weather conditions and a 7-day forecast for any location worldwide. Also supports distance calculation between two locations. FREE — no API key needed. Use this when users ask about weather, temperature, humidity, wind, precipitation, or 'How far is X from Y?'.",
+  inputSchema: zodSchema(z.object({
+    location: z.string().describe("City name or location (e.g., 'Lagos', 'London', 'New York', 'Tokyo'). Be specific for best results."),
+    forecast_days: z.number().optional().describe("Number of forecast days (1-16, default: 3)"),
+    include_hourly: z.boolean().optional().describe("Include hourly breakdown for today (default: false)"),
+    units: z.enum(["celsius", "fahrenheit"]).optional().describe("Temperature unit (default: celsius)"),
+    distance_from: z.string().optional().describe("Optional: calculate distance FROM this location TO 'location'. E.g., distance_from='Lagos', location='Abuja' gives distance between them."),
+  })),
+  execute: safeJson(async ({ location, forecast_days, include_hourly, units, distance_from }) => {
+    const days = Math.min(forecast_days || 3, 16);
+    const tempUnit = units === "fahrenheit" ? "fahrenheit" : "celsius";
+
+    // If distance_from is provided, calculate distance between two locations
+    if (distance_from) {
+      const [loc1, loc2] = await Promise.all([
+        geocodeLocation(distance_from),
+        geocodeLocation(location),
+      ]);
+      if (!loc1) throw new Error(`Could not find location: "${distance_from}"`);
+      if (!loc2) throw new Error(`Could not find location: "${location}"`);
+
+      const R = 6371; // Earth's radius in km
+      const dLat = (loc2.latitude - loc1.latitude) * Math.PI / 180;
+      const dLon = (loc2.longitude - loc1.longitude) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(loc1.latitude * Math.PI / 180) * Math.cos(loc2.latitude * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceKm = R * c;
+      const distanceMi = distanceKm * 0.621371;
+
+      return {
+        type: "distance",
+        from: { name: loc1.name, country: loc1.country, lat: loc1.latitude, lon: loc1.longitude },
+        to: { name: loc2.name, country: loc2.country, lat: loc2.latitude, lon: loc2.longitude },
+        distance: {
+          kilometers: Math.round(distanceKm * 10) / 10,
+          miles: Math.round(distanceMi * 10) / 10,
+        },
+      };
+    }
+
+    // Geocode the location
+    const geo = await geocodeLocation(location);
+    if (!geo) throw new Error(`Could not find location: "${location}". Try a more specific city name.`);
+
+    // Fetch weather from Open-Meteo
+    const params = new URLSearchParams({
+      latitude: geo.latitude.toString(),
+      longitude: geo.longitude.toString(),
+      current: "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl",
+      daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,sunrise,sunset,uv_index_max",
+      timezone: geo.timezone,
+      forecast_days: days.toString(),
+      temperature_unit: tempUnit,
+    });
+    if (include_hourly) {
+      params.set("hourly", "temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m");
+    }
+
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?${params}`;
+    const weatherRes = await fetch(weatherUrl, { signal: AbortSignal.timeout(15000) });
+    if (!weatherRes.ok) throw new Error(`Weather API error: ${weatherRes.status}`);
+
+    const weatherData = await weatherRes.json() as {
+      current?: Record<string, unknown>;
+      daily?: Record<string, unknown[]>;
+      hourly?: Record<string, unknown[]>;
+    };
+
+    // Map WMO weather codes to descriptions
+    const weatherCodeMap: Record<number, string> = {
+      0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+      45: "Foggy", 48: "Rime fog",
+      51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle",
+      56: "Freezing drizzle", 57: "Dense freezing drizzle",
+      61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+      66: "Light freezing rain", 67: "Heavy freezing rain",
+      71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
+      77: "Snow grains", 80: "Slight rain showers", 81: "Moderate rain showers",
+      82: "Violent rain showers", 85: "Slight snow showers", 86: "Heavy snow showers",
+      95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail",
+    };
+
+    const codeToDesc = (code: number) => weatherCodeMap[code] || "Unknown";
+
+    return {
+      location: { name: geo.name, country: geo.country, timezone: geo.timezone, lat: geo.latitude, lon: geo.longitude },
+      current: weatherData.current ? {
+        temperature: weatherData.current.temperature_2m,
+        feelsLike: weatherData.current.apparent_temperature,
+        humidity: weatherData.current.relative_humidity_2m,
+        weather: codeToDesc(weatherData.current.weather_code as number),
+        weatherCode: weatherData.current.weather_code,
+        windSpeed: weatherData.current.wind_speed_10m,
+        windDirection: weatherData.current.wind_direction_10m,
+        pressure: weatherData.current.pressure_msl,
+        precipitation: weatherData.current.precipitation,
+      } : null,
+      forecast: weatherData.daily ? weatherData.daily.time?.map((date: unknown, i: number) => ({
+        date,
+        weather: codeToDesc(weatherData.daily!.weather_code[i] as number),
+        high: weatherData.daily!.temperature_2m_max[i],
+        low: weatherData.daily!.temperature_2m_min[i],
+        precipitation: weatherData.daily!.precipitation_sum[i],
+        windMax: weatherData.daily!.wind_speed_10m_max[i],
+        sunrise: weatherData.daily!.sunrise?.[i],
+        sunset: weatherData.daily!.sunset?.[i],
+        uvIndex: weatherData.daily!.uv_index_max?.[i],
+      })) : [],
+      hourly: include_hourly && weatherData.hourly ? weatherData.hourly.time?.slice(0, 24).map((time: unknown, i: number) => ({
+        time,
+        temperature: weatherData.hourly!.temperature_2m[i],
+        humidity: weatherData.hourly!.relative_humidity_2m[i],
+        precipProb: weatherData.hourly!.precipitation_probability[i],
+        weather: codeToDesc(weatherData.hourly!.weather_code[i] as number),
+        wind: weatherData.hourly!.wind_speed_10m[i],
+      })) : [],
+      units: tempUnit,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Enhanced Web Reader with Open Graph Metadata
+// ---------------------------------------------------------------------------
+
+/**
+ * Enhanced fallback with Open Graph metadata extraction.
+ */
+async function webReaderEnhanced(url: string) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; ClawBot/1.0; +https://claw.ai)",
+      "Accept": "text/html,application/xhtml+xml",
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch URL: ${res.status} ${res.statusText}`);
+
+  const html = await res.text();
+
+  // Extract title
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+
+  // Extract Open Graph / meta metadata
+  const metaRegex = /<meta[^>]+(?:property|name)="([^"]+)"[^>]+content="([^"]*)"[^>]*\/?>/gi;
+  const metadata: Record<string, string> = {};
+  let metaMatch;
+  while ((metaMatch = metaRegex.exec(html)) !== null) {
+    metadata[metaMatch[1].toLowerCase()] = metaMatch[2].trim();
+  }
+
+  // Also match content before property (alternate meta format)
+  const metaRegex2 = /<meta[^>]+content="([^"]*)"[^>]+(?:property|name)="([^"]+)"[^>]*\/?>/gi;
+  while ((metaMatch = metaRegex2.exec(html)) !== null) {
+    const key = metaMatch[2].toLowerCase();
+    if (!metadata[key]) metadata[key] = metaMatch[1].trim();
+  }
+
+  // Extract structured metadata
+  const author = metadata["author"] || metadata["og:article:author"] || metadata["article:author"] || "";
+  const publishDate = metadata["article:published_time"] || metadata["og:article:published_time"] || metadata["date"] || metadata["pubdate"] || "";
+  const description = metadata["description"] || metadata["og:description"] || "";
+  const ogImage = metadata["og:image"] || metadata["twitter:image"] || "";
+  const ogSiteName = metadata["og:site_name"] || "";
+  const ogType = metadata["og:type"] || "";
+
+  // Simple HTML to text: remove scripts, styles, tags
+  let text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "-")
+    .replace(/&lsquo;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&ldquo;/g, '"')
+    .replace(/&rdquo;/g, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Truncate to reasonable length
+  if (text.length > 15000) {
+    text = text.slice(0, 15000) + "... [truncated]";
+  }
+
+  return {
+    title,
+    url,
+    fetchedAt: new Date().toISOString(),
+    charCount: text.length,
+    metadata: {
+      author: author || null,
+      publishDate: publishDate || null,
+      description: description || null,
+      siteName: ogSiteName || null,
+      type: ogType || null,
+      image: ogImage || null,
+    },
+    content: text,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // All Tools Registry
 // ---------------------------------------------------------------------------
 
@@ -3182,6 +3489,9 @@ export const allTools: Record<string, ToolType> = {
   contact_search: contactSearchTool,
   contact_update: contactUpdateTool,
   contact_delete: contactDeleteTool,
+  // New Tools
+  code_execute: codeExecuteTool,
+  weather_get: weatherGetTool,
 };
 
 // ---------------------------------------------------------------------------

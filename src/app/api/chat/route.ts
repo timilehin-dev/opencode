@@ -163,10 +163,20 @@ export async function POST(req: Request) {
       ? `\n\n## REMINDERS — You have ${dueReminders.length} pending reminder(s) right now\nIMPORTANT: These reminders are overdue or due now. You MUST proactively tell the user about them at the START of your response, BEFORE answering their question. Present them clearly with the reminder title, when it was due, and the description.\n\n${dueReminders.map(r => `- **${r.title}** (due: ${r.reminder_time})${r.description ? ` — ${r.description}` : ""}`).join("\n")}\n\nAfter presenting the reminders, continue with the user's actual request.`
       : "";
 
+    // Inject real-time date/time context so agents know "now"
+    // This is critical for reminders ("remind me tomorrow"), scheduling, etc.
+    const now = new Date();
+    const currentDateTime = `[CURRENT DATE/TIME — Use this as "now" for all time calculations]
+- UTC: ${now.toISOString()}
+- Date: ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+- Time: ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}
+- Unix timestamp: ${Math.floor(now.getTime() / 1000)}
+When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from this current time.`;
+
     const systemPrompt =
       id !== "general"
-        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
-        : `${agent.systemPrompt}${memoryBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
+        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
+        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
 
     const result = streamText({
       model,
