@@ -130,3 +130,32 @@
   line-height: 1.6;
   tab-size: 2;
 }
+
+/* Mobile bottom nav safe area */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Mobile bottom nav height variable */
+:root {
+  --bottom-nav-height: 0px;
+}
+@media (max-width: 1023px) {
+  :root {
+    --bottom-nav-height: 60px;
+  }
+}
+
+/* Smooth mobile scrolling */
+@supports (overscroll-behavior: contain) {
+  .mobile-scroll {
+    overscroll-behavior: contain;
+  }
+}
+
+/* Bouncing dots animation for typing indicator */
+@keyframes bounce-dot {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+.bounce-dot-1 { animation: bounce-dot 1.2s ease-in-out infinite; }
+.bounce-dot-2 { animation: bounce-dot 1.2s ease-in-out 0.15s infinite; }
+.bounce-dot-3 { animation: bounce-dot 1.2s ease-in-out 0.3s infinite; }

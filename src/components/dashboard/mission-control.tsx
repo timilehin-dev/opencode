@@ -19,8 +19,8 @@ export function MissionControl({ serviceStatus }: MissionControlProps) {
       {/* Metrics */}
       <MetricsRow />
 
-      {/* Split: Coordination Map + Active Tasks */}
-      <div className="grid grid-cols-2 gap-4 flex-1 min-h-0">
+      {/* Split: Coordination Map + Active Tasks — 2-col desktop, stack mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
         <CoordinationMap />
         <ActiveTasks />
       </div>

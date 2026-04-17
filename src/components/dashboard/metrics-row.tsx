@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 
 interface MetricsRowProps {
-  // For Phase 1, we accept optional API data but show mock values as fallback
   overviewData?: {
     messagesToday?: number;
     toolCalls?: number;
@@ -94,11 +93,11 @@ export function MetricsRow({ overviewData }: MetricsRowProps) {
   }, [overviewData]);
 
   return (
-    <div className="grid grid-cols-5 gap-2.5 mb-5">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 mb-5 overflow-x-auto scrollbar-none">
       {data.map((m) => (
         <div
           key={m.label}
-          className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3.5"
+          className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3.5 min-w-[140px]"
         >
           <div className="text-[10px] font-semibold uppercase tracking-[0.8px] text-zinc-600 mb-1.5">
             {m.label}

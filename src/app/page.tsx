@@ -6,6 +6,7 @@ import { NotificationProvider } from "@/context/notification-context";
 import { NotificationPanel } from "@/components/dashboard/notification-panel";
 import { type PageKey } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
+import { BottomNav } from "@/components/dashboard/bottom-nav";
 import { AgentCrew } from "@/components/dashboard/agent-crew";
 import { OpsFeed } from "@/components/dashboard/ops-feed";
 import { MissionControl } from "@/components/dashboard/mission-control";
@@ -102,6 +103,7 @@ export default function Dashboard() {
   // ---------------------------------------------------------------------------
 
   const isControlPage = activePage === "control";
+  const isChatPage = activePage === "chat";
 
   // ---------------------------------------------------------------------------
   // Render
@@ -118,9 +120,9 @@ export default function Dashboard() {
 
         {/* Main 3-column layout */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel — Agent Crew + Ops Feed (only on Mission Control) */}
+          {/* Left Panel — Agent Crew + Ops Feed (only on Mission Control, desktop only) */}
           {isControlPage && (
-            <div className="w-[300px] border-r border-white/[0.06] flex flex-col bg-zinc-950/60 flex-shrink-0">
+            <div className="hidden lg:flex w-[300px] border-r border-white/[0.06] flex-col bg-zinc-950/60 flex-shrink-0">
               <AgentCrew
                 agents={agents}
                 selectedAgentId={selectedAgentId}
@@ -131,12 +133,14 @@ export default function Dashboard() {
           )}
 
           {/* Center Panel */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 overflow-y-auto custom-scrollbar mobile-scroll">
             <div
               className={
                 isControlPage
-                  ? "p-5"
-                  : "max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
+                  ? "p-4 lg:p-5"
+                  : isChatPage
+                    ? "p-0 h-full"
+                    : "max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
               }
             >
               <AnimatePresence mode="wait">
@@ -155,13 +159,14 @@ export default function Dashboard() {
                 )}
 
                 {/* Chat — full page */}
-                {activePage === "chat" && (
+                {isChatPage && (
                   <motion.div
                     key="chat-page"
                     initial={{ opacity: 0, x: 8 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -8 }}
                     transition={{ duration: 0.2 }}
+                    className="h-full"
                   >
                     <ChatView key="chat" />
                   </motion.div>
@@ -382,9 +387,9 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Right Panel — Chat (only on Mission Control page) */}
+          {/* Right Panel — Chat (only on Mission Control page, desktop only) */}
           {isControlPage && (
-            <div className="w-[360px] border-l border-white/[0.06] flex flex-col bg-zinc-950/60 flex-shrink-0">
+            <div className="hidden lg:flex w-[360px] border-l border-white/[0.06] flex-col bg-zinc-950/60 flex-shrink-0">
               {/* Chat Tabs */}
               <div className="flex border-b border-white/[0.06]">
                 {["Chat", "Tasks", "History"].map((tab, i) => (
@@ -407,6 +412,9 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Bottom Navigation — mobile only */}
+        <BottomNav activePage={activePage} onPageChange={handlePageChange} />
       </div>
     </NotificationProvider>
   );
@@ -548,7 +556,7 @@ function ServicePageHeader({
 
       {/* GitHub specific stats */}
       {repo && title === "GitHub" && (
-        <div className="flex items-center gap-4 mt-2 text-sm text-zinc-400">
+        <div className="flex items-center gap-4 mt-2 text-sm text-zinc-400 flex-wrap">
           <span>
             <span className="text-amber-400 font-semibold">{repo.stargazers_count.toLocaleString()}</span> stars
           </span>
@@ -577,7 +585,7 @@ function ServicePageHeader({
 
       {/* Gmail specific stats */}
       {gmProfile && title === "Gmail" && (
-        <div className="flex items-center gap-4 mt-2 text-sm text-zinc-400">
+        <div className="flex items-center gap-4 mt-2 text-sm text-zinc-400 flex-wrap">
           <span className="font-medium text-zinc-200">{gmProfile.emailAddress}</span>
           <span>
             <span className="text-blue-400 font-semibold">{gmProfile.messagesTotal.toLocaleString()}</span> messages

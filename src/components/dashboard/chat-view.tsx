@@ -91,13 +91,14 @@ const DEFAULT_SUGGESTED = SUGGESTED_ACTIONS.general;
 // Color map for agent themes
 // ---------------------------------------------------------------------------
 
-const colorMap: Record<string, { bg: string; text: string; border: string; badge: string; dot: string }> = {
+const colorMap: Record<string, { bg: string; text: string; border: string; badge: string; dot: string; leftBorder: string }> = {
   emerald: {
     bg: "bg-emerald-500/10",
     text: "text-emerald-400",
     border: "border-emerald-500/30",
     badge: "bg-emerald-500/20 text-emerald-400",
     dot: "bg-emerald-400",
+    leftBorder: "border-l-emerald-500",
   },
   blue: {
     bg: "bg-blue-500/10",
@@ -105,6 +106,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     border: "border-blue-500/30",
     badge: "bg-blue-500/20 text-blue-400",
     dot: "bg-blue-400",
+    leftBorder: "border-l-blue-500",
   },
   purple: {
     bg: "bg-purple-500/10",
@@ -112,6 +114,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     border: "border-purple-500/30",
     badge: "bg-purple-500/20 text-purple-400",
     dot: "bg-purple-400",
+    leftBorder: "border-l-purple-500",
   },
   amber: {
     bg: "bg-amber-500/10",
@@ -119,6 +122,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     border: "border-amber-500/30",
     badge: "bg-amber-500/20 text-amber-400",
     dot: "bg-amber-400",
+    leftBorder: "border-l-amber-500",
   },
   rose: {
     bg: "bg-rose-500/10",
@@ -126,6 +130,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     border: "border-rose-500/30",
     badge: "bg-rose-500/20 text-rose-400",
     dot: "bg-rose-400",
+    leftBorder: "border-l-rose-500",
   },
   teal: {
     bg: "bg-teal-500/10",
@@ -133,6 +138,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     border: "border-teal-500/30",
     badge: "bg-teal-500/20 text-teal-400",
     dot: "bg-teal-400",
+    leftBorder: "border-l-teal-500",
   },
   orange: {
     bg: "bg-orange-500/10",
@@ -140,6 +146,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
     border: "border-orange-500/30",
     badge: "bg-orange-500/20 text-orange-400",
     dot: "bg-orange-400",
+    leftBorder: "border-l-orange-500",
   },
 };
 
@@ -203,7 +210,7 @@ function generateSessionId(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Tool Call Card Component
+// Tool Call Card Component — redesigned as sleek pill-style indicator
 // ---------------------------------------------------------------------------
 
 function ToolCallCard({
@@ -219,32 +226,42 @@ function ToolCallCard({
   const toolLabel = toolName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <div className={cn("rounded-lg border mt-2 overflow-hidden", isSuccess ? "border-border" : "border-red-500/30")}>
+    <div className="mt-2">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-accent/50"
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200 cursor-pointer",
+          isSuccess
+            ? "bg-white/[0.04] text-zinc-400 hover:bg-white/[0.07] border border-white/[0.06]"
+            : "bg-red-500/10 text-red-400 hover:bg-red-500/15 border border-red-500/20"
+        )}
       >
-        <WrenchIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-        <span className="text-muted-foreground">{toolLabel}</span>
-        <Badge
-          variant={isSuccess ? "success" : "destructive"}
-          className="text-[10px] px-1.5 py-0 ml-auto"
-        >
-          {isSuccess ? "OK" : "Error"}
-        </Badge>
+        <WrenchIcon className="w-3 h-3 flex-shrink-0 opacity-60" />
+        <span className="max-w-[180px] truncate">{toolLabel}</span>
+        <span
+          className={cn(
+            "w-1.5 h-1.5 rounded-full flex-shrink-0",
+            isSuccess ? "bg-emerald-400" : "bg-red-400"
+          )}
+        />
         {expanded ? (
-          <ChevronUp className="w-3 h-3 text-muted-foreground" />
+          <ChevronUp className="w-2.5 h-2.5 opacity-50" />
         ) : (
-          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+          <ChevronDown className="w-2.5 h-2.5 opacity-50" />
         )}
       </button>
       {expanded && (
-        <div className="px-3 pb-2 max-h-48 overflow-y-auto custom-scrollbar">
-          <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap break-all font-mono">
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mt-1.5 max-h-48 overflow-y-auto custom-scrollbar"
+        >
+          <pre className="text-[11px] text-zinc-500 whitespace-pre-wrap break-all font-mono bg-white/[0.02] rounded-lg px-3 py-2 border border-white/[0.04]">
             {result.slice(0, 500)}
             {result.length > 500 && "..."}
           </pre>
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -291,7 +308,6 @@ function ConversationsPanel({
 
   useEffect(() => {
     setLoading(true);
-    // Fetch ALL recent sessions across all agents
     getAllRecentSessions(30)
       .then(setSessions)
       .catch(() => setSessions([]))
@@ -317,7 +333,6 @@ function ConversationsPanel({
     }
   };
 
-  // Find agent info for a given agentId
   const getAgentInfo = (agentId: string) => {
     const fromList = agents.find((a) => a.id === agentId);
     if (fromList) return fromList;
@@ -398,6 +413,29 @@ function ConversationsPanel({
 }
 
 // ---------------------------------------------------------------------------
+// Typing Indicator Component — 3 bouncing dots
+// ---------------------------------------------------------------------------
+
+function TypingIndicator({ emoji }: { emoji: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex items-center gap-3 py-2"
+    >
+      <div className="w-7 h-7 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0">
+        <span className="text-xs">{emoji}</span>
+      </div>
+      <div className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 bounce-dot-1" />
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 bounce-dot-2" />
+        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 bounce-dot-3" />
+      </div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AgentChatSession — ISOLATED useChat session per sessionId
 // ---------------------------------------------------------------------------
 
@@ -438,7 +476,6 @@ function AgentChatSession({
 
   const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
-  // Each mount creates a fresh transport locked to this specific agent + session.
   const transport = new DefaultChatTransport({
     api: "/api/chat",
     body: { agentId, sessionId },
@@ -454,7 +491,6 @@ function AgentChatSession({
     let cancelled = false;
     getSessionMessages(sessionId, agentId).then((msgs) => {
       if (!cancelled && msgs.length > 0) {
-        // Convert plain messages to UIMessages
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const uiMsgs = msgs.map((m: any, i: number) => ({
           id: `hist-${sessionId}-${i}`,
@@ -478,7 +514,6 @@ function AgentChatSession({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 
-    // Detect new messages with tool calls and track them
     if (messages.length > prevMessageCountRef.current) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (let i = prevMessageCountRef.current; i < messages.length; i++) {
@@ -503,20 +538,19 @@ function AgentChatSession({
   }, [messages, agentId, agentInfo.name]);
 
   // Persist messages to localStorage + Supabase client-side
-  // This is critical because server-side saveMessage() is a no-op for localStorage
   const lastPersistedRef = useRef(0);
   useEffect(() => {
     if (messages.length === 0 || !historyLoaded) return;
-    // Only persist new messages (avoid re-saving history on mount)
     const startIdx = lastPersistedRef.current || 0;
     for (let i = startIdx; i < messages.length; i++) {
       const msg = messages[i];
       if (msg.role === "user" || msg.role === "assistant") {
-        // Extract text from parts
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const parts = (msg as any).parts || [];
         const text = parts
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .filter((p: any) => p.type === "text")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map((p: any) => p.text || "")
           .join("");
         if (text) {
@@ -540,8 +574,6 @@ function AgentChatSession({
     setUploading(true);
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-
-      // Validate size
       if (file.size > 10 * 1024 * 1024) {
         console.error(`[Upload] File too large: ${file.name}`);
         continue;
@@ -580,14 +612,12 @@ function AgentChatSession({
     }
     setUploading(false);
 
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }, []);
 
   // --- Google Drive Search & File Loading ---
-  // Load recent files when picker opens
   const loadDriveFiles = useCallback(async (query?: string) => {
     setDriveLoading(true);
     try {
@@ -607,7 +637,6 @@ function AgentChatSession({
     setDriveLoading(false);
   }, []);
 
-  // Debounced search as user types
   const handleDriveSearch = useCallback((query: string) => {
     setDriveSearch(query);
     if (driveSearchTimer.current) clearTimeout(driveSearchTimer.current);
@@ -620,7 +649,6 @@ function AgentChatSession({
     }, 300);
   }, [loadDriveFiles]);
 
-  // Download file content when selected
   const handleDriveFileSelect = useCallback(async (file: { id: string; name: string; mimeType: string; isGoogleApp?: boolean }) => {
     setDriveLoading(true);
     try {
@@ -657,7 +685,6 @@ function AgentChatSession({
     setShowDrivePicker(false);
   }, []);
 
-  // Remove attachment
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
@@ -668,8 +695,6 @@ function AgentChatSession({
 
     trackChatMessage(agentId, agentInfo.name, inputText.length);
 
-    // Include attachments in the message
-    // We send attachments by prepending them to the text content
     let messageText = inputText;
     if (attachments.length > 0) {
       const attText = attachments
@@ -714,7 +739,6 @@ function AgentChatSession({
     } catch {
       /* not JSON */
     }
-    // Also check for /api/files/ pattern in the string
     const match = result.match(/(\/api\/files\/[a-zA-Z0-9._-]+\.(?:pdf|docx|txt|csv))["'\s]/);
     if (match) {
       const filename = match[1].split("/").pop() || "Download";
@@ -723,15 +747,14 @@ function AgentChatSession({
     return null;
   };
 
-  // Filter visible messages (exclude system)
   const visibleMessages = messages.filter((m) => m.role !== "system");
 
   return (
     <>
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 lg:px-6 py-4">
         {visibleMessages.length === 0 ? (
-          /* Empty State */
+          /* Empty State — redesigned with larger visual cards */
           <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -749,7 +772,7 @@ function AgentChatSession({
               </p>
             </motion.div>
 
-            <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
               {(SUGGESTED_ACTIONS[agentId] || DEFAULT_SUGGESTED).map((action, i) => (
                 <motion.button
                   key={action.label}
@@ -758,8 +781,9 @@ function AgentChatSession({
                   transition={{ delay: 0.1 + i * 0.05, duration: 0.3 }}
                   onClick={() => sendMessage({ text: action.prompt })}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-200",
-                    "border-border bg-card hover:border-primary/30 hover:bg-accent text-left"
+                    "flex items-center gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium transition-all duration-200 text-left cursor-pointer",
+                    "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-white/[0.08]",
+                    "border-l-[3px]", colors.leftBorder
                   )}
                 >
                   <SparklesIcon className={cn("w-4 h-4 flex-shrink-0", colors.text)} />
@@ -769,8 +793,8 @@ function AgentChatSession({
             </div>
           </div>
         ) : (
-          /* Messages List */
-          <div className="space-y-4 max-w-3xl mx-auto">
+          /* Messages List — Agent Workspace style */
+          <div className="space-y-5 max-w-3xl mx-auto">
             {visibleMessages.map((message) => {
               const isUser = message.role === "user";
               const textContent = getMessageText(
@@ -780,6 +804,7 @@ function AgentChatSession({
 
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const toolParts = ((message.parts || []) as any[]).filter(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (p: any) =>
                   (p.type && p.type.startsWith("tool-")) ||
                   p.type === "dynamic-tool",
@@ -793,37 +818,47 @@ function AgentChatSession({
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}
+                  className={cn(
+                    "flex gap-3",
+                    isUser ? "justify-end" : "justify-start"
+                  )}
                 >
-                  {/* Agent Avatar */}
+                  {/* Agent Avatar — small circle with emoji */}
                   {!isUser && (
-                    <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", colors.bg)}>
-                      <span className="text-sm">{agentInfo.emoji}</span>
+                    <div className="w-7 h-7 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs">{agentInfo.emoji}</span>
                     </div>
                   )}
 
                   {/* Message Content */}
-                  <div className={cn("max-w-[80%] min-w-0", isUser ? "order-1" : "")}>
+                  <div className={cn("min-w-0 max-w-[85%] lg:max-w-[75%]", isUser ? "order-1" : "")}>
+                    {/* Agent name label */}
+                    {!isUser && (
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className={cn("text-[11px] font-semibold", colors.text)}>{agentInfo.name}</span>
+                      </div>
+                    )}
+
                     {textContent && (
                       <div
                         className={cn(
-                          "px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words",
+                          "text-sm leading-relaxed break-words",
                           isUser
-                            ? "bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap"
-                            : "bg-card border border-border rounded-bl-md text-foreground"
+                            ? "bg-white/[0.03] border-l-[3px] border-l-primary rounded-r-xl rounded-tr-sm px-4 py-3 text-zinc-200"
+                            : "bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 text-zinc-300"
                         )}
                       >
                         {isUser ? (
-                          textContent
+                          <span className="whitespace-pre-wrap font-normal">{textContent}</span>
                         ) : (
                           <MarkdownRenderer content={textContent} />
                         )}
                       </div>
                     )}
 
-                    {/* Tool Call Results */}
+                    {/* Tool Call Results — pill-style inline indicators */}
                     {toolParts.length > 0 && !isUser && (
-                      <div className="mt-1 space-y-1">
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {toolParts.map((tool: Record<string, unknown>, idx: number) => {
                           const toolType = tool.type as string;
                           const toolName = toolType === "dynamic-tool"
@@ -837,12 +872,11 @@ function AgentChatSession({
                               : JSON.stringify(tool.output)
                             : "";
 
-                          // Check for file download URL in tool result
                           const downloadInfo = hasOutput ? extractDownloadUrl(resultStr) : null;
 
                           if (hasOutput) {
                             return (
-                              <div key={`${message.id}-tool-${idx}`}>
+                              <div key={`${message.id}-tool-${idx}`} className="flex flex-col">
                                 <ToolCallCard
                                   key={`${message.id}-tool-card-${idx}`}
                                   toolName={toolName}
@@ -855,7 +889,7 @@ function AgentChatSession({
                                     href={downloadInfo.url}
                                     download={downloadInfo.filename}
                                     className={cn(
-                                      "flex items-center gap-2 mt-1 px-3 py-2 rounded-lg border transition-all duration-200",
+                                      "flex items-center gap-2 mt-1.5 px-3 py-2 rounded-lg border transition-all duration-200",
                                       "border-primary/30 bg-primary/5 hover:bg-primary/10"
                                     )}
                                   >
@@ -871,44 +905,28 @@ function AgentChatSession({
                           return (
                             <div
                               key={`${message.id}-tool-${idx}`}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-accent/30"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.05] text-[11px] text-zinc-500"
                             >
-                              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                              <span className="text-[11px] text-muted-foreground">
-                                {toolName.replace(/_/g, " ")}...
-                              </span>
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              <span>{toolName.replace(/_/g, " ")}</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
                   </div>
-
-                  {/* User Avatar */}
-                  {isUser && (
-                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 order-2">
-                      <span className="text-xs font-bold text-primary-foreground">You</span>
-                    </div>
-                  )}
                 </motion.div>
               );
             })}
 
-            {/* Loading indicator */}
+            {/* Typing Indicator — bouncing dots with agent emoji */}
             {isLoading && visibleMessages.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-2 text-muted-foreground text-xs"
-              >
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>Generating response...</span>
-              </motion.div>
+              <TypingIndicator emoji={agentInfo.emoji} />
             )}
 
             {/* Error */}
             {error && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                 <span>Error: {error.message}</span>
               </div>
             )}
@@ -918,8 +936,8 @@ function AgentChatSession({
         )}
       </div>
 
-      {/* Input Area */}
-      <div className="border-t border-border/50 px-4 py-3 flex-shrink-0 bg-background">
+      {/* Input Area — fixed to bottom with backdrop blur */}
+      <div className="border-t border-white/[0.05] px-3 sm:px-4 py-3 flex-shrink-0 bg-zinc-950/80 backdrop-blur-xl pb-safe">
         <div className="max-w-3xl mx-auto">
           {/* Attachment Previews */}
           <AnimatePresence>
@@ -938,7 +956,7 @@ function AgentChatSession({
                     exit={{ opacity: 0, scale: 0.9 }}
                     className={cn(
                       "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs",
-                      "border-border bg-card"
+                      "border-white/[0.06] bg-white/[0.03]"
                     )}
                   >
                     {att.type === "image" ? (
@@ -966,7 +984,7 @@ function AgentChatSession({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="mb-2 rounded-lg border border-border bg-card p-3 shadow-lg"
+                className="mb-2 rounded-xl border border-white/[0.06] bg-zinc-900/95 backdrop-blur-xl p-3 shadow-2xl"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -990,7 +1008,7 @@ function AgentChatSession({
                     value={driveSearch}
                     onChange={(e) => handleDriveSearch(e.target.value)}
                     placeholder="Search all Drive files..."
-                    className="w-full pl-8 pr-3 py-2 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-white/[0.06] bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground placeholder:text-muted-foreground"
                     autoFocus
                   />
                 </div>
@@ -1030,7 +1048,7 @@ function AgentChatSession({
                         <button
                           key={file.id}
                           onClick={() => handleDriveFileSelect(file)}
-                          className="w-full text-left px-2.5 py-2 rounded-md hover:bg-accent transition-colors flex items-center gap-2.5 group"
+                          className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/[0.04] transition-colors flex items-center gap-2.5 group"
                         >
                           <span className="text-sm flex-shrink-0 w-5 text-center">{iconEmoji}</span>
                           <div className="min-w-0 flex-1">
@@ -1048,23 +1066,22 @@ function AgentChatSession({
             )}
           </AnimatePresence>
 
-          <div className="flex items-end gap-2">
+          {/* Unified Input Bar */}
+          <div className="flex items-end gap-1.5 sm:gap-2">
             {/* File upload button */}
-            <Button
+            <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent"
-              size="icon"
-              variant="ghost"
-              title="Upload file (PDF, DOCX, CSV, XLSX, TXT, JSON, MD, images)"
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+              title="Upload file"
               disabled={uploading}
             >
               {uploading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-[18px] h-[18px] animate-spin" />
               ) : (
-                <PaperclipIcon className="w-5 h-5" />
+                <PaperclipIcon className="w-[18px] h-[18px]" />
               )}
-            </Button>
+            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -1075,7 +1092,7 @@ function AgentChatSession({
             />
 
             {/* Google Drive button */}
-            <Button
+            <button
               type="button"
               onClick={() => {
                 const opening = !showDrivePicker;
@@ -1087,18 +1104,17 @@ function AgentChatSession({
                 }
               }}
               className={cn(
-                "rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 hover:bg-accent transition-colors",
+                "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 cursor-pointer",
                 showDrivePicker
-                  ? "text-foreground bg-accent"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-foreground bg-white/[0.08]"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]"
               )}
-              size="icon"
-              variant="ghost"
               title="Attach from Google Drive"
             >
-              <DriveIcon className="w-5 h-5" />
-            </Button>
+              <DriveIcon className="w-[18px] h-[18px]" />
+            </button>
 
+            {/* Textarea */}
             <div className="flex-1 relative">
               <textarea
                 ref={textareaRef}
@@ -1108,35 +1124,33 @@ function AgentChatSession({
                 placeholder={`Message ${agentInfo.name}...`}
                 rows={1}
                 className={cn(
-                  "w-full resize-none rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground",
-                  "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30",
+                  "w-full resize-none rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2.5 text-sm text-foreground",
+                  "placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30",
                   "transition-all duration-200"
                 )}
-                style={{ minHeight: "44px", maxHeight: "120px" }}
+                style={{ minHeight: "40px", maxHeight: "120px" }}
               />
             </div>
-            <Button
+
+            {/* Send button */}
+            <button
               type="button"
               onClick={handleSend}
               disabled={(!inputText.trim() && attachments.length === 0) || isLoading}
               className={cn(
-                "rounded-xl h-11 w-11 p-0 flex items-center justify-center flex-shrink-0 transition-all duration-200",
-                colors.bg,
-                colors.text
+                "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 cursor-pointer",
+                (!inputText.trim() && attachments.length === 0) || isLoading
+                  ? "text-zinc-700 bg-white/[0.02] cursor-not-allowed"
+                  : "text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
               )}
-              size="icon"
-              variant="ghost"
             >
               {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-[18px] h-[18px] animate-spin" />
               ) : (
-                <SendIcon className="w-5 h-5" />
+                <SendIcon className="w-[18px] h-[18px]" />
               )}
-            </Button>
+            </button>
           </div>
-          <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
-            AI responses may be inaccurate. Tools provide real data from connected services.
-          </p>
         </div>
       </div>
     </>
@@ -1161,7 +1175,6 @@ export function ChatView() {
     const map = loadSessionMap();
     setSessionMap(map);
 
-    // Restore last active agent's session
     const lastAgent = getLastActiveAgent();
     if (map[lastAgent]) {
       setSelectedAgent(lastAgent);
@@ -1169,7 +1182,6 @@ export function ChatView() {
     }
   }, []);
 
-  // Persist session map when it changes
   const updateSessionMap = useCallback((map: Record<string, string>) => {
     setSessionMap(map);
     saveSessionMap(map);
@@ -1215,25 +1227,19 @@ export function ChatView() {
   const activeAgent = agents.find((a) => a.id === selectedAgent) || DEFAULT_AGENT;
   const colors = colorMap[activeAgent.color] || colorMap.emerald;
 
-  // Handle agent change — save current session, load the agent's session, persist last active agent
   const handleAgentChange = (agentId: string) => {
-    // Track agent switch for analytics
     const targetAgent = agents.find((a) => a.id === agentId);
     if (targetAgent && agentId !== selectedAgent) {
       trackAgentSwitch(selectedAgent, agentId, targetAgent.name);
     }
 
-    // Save current session for current agent
     const newMap = { ...sessionMap, [selectedAgent]: currentSessionId };
     updateSessionMap(newMap);
 
-    // Load the target agent's session (or create new)
     const targetSession = newMap[agentId] || generateSessionId();
-    // Also save the target session for the target agent
     newMap[agentId] = targetSession;
     updateSessionMap(newMap);
 
-    // Persist the new active agent
     saveLastActiveAgent(agentId);
 
     setCurrentSessionId(targetSession);
@@ -1242,7 +1248,6 @@ export function ChatView() {
     setShowConversations(false);
   };
 
-  // Handle new chat
   const handleNewChat = () => {
     const newSessionId = generateSessionId();
     const newMap = { ...sessionMap, [selectedAgent]: newSessionId };
@@ -1251,15 +1256,11 @@ export function ChatView() {
     setShowConversations(false);
   };
 
-  // Handle selecting a conversation from history — auto-switches to the correct agent
   const handleSelectSession = (sessionId: string, agentId: string) => {
     const newMap = { ...sessionMap, [agentId]: sessionId };
 
-    // If the session belongs to a different agent, switch to that agent
     if (agentId !== selectedAgent) {
-      // Save current session for current agent
       newMap[selectedAgent] = currentSessionId;
-      // Switch to the session's agent
       setSelectedAgent(agentId);
       saveLastActiveAgent(agentId);
     }
@@ -1271,22 +1272,22 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] lg:h-[calc(100vh-3rem)] relative">
-      {/* Header with Agent Selector */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
+      {/* Slim Header — Agent emoji + name + role, model badge, history/new buttons */}
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-white/[0.05] flex-shrink-0">
         <div className="relative" ref={pickerRef}>
           <button
             onClick={() => setShowAgentPicker(!showAgentPicker)}
             className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all duration-200 hover:border-primary/30",
-              "border-border bg-card"
+              "flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-all duration-200 hover:border-white/[0.1] cursor-pointer",
+              "border-white/[0.05] bg-white/[0.02]"
             )}
           >
-            <span className="text-xl">{activeAgent.emoji}</span>
+            <span className="text-lg">{activeAgent.emoji}</span>
             <div className="text-left">
-              <p className="text-sm font-semibold text-foreground">{activeAgent.name}</p>
-              <p className="text-[11px] text-muted-foreground">{activeAgent.role}</p>
+              <p className="text-sm font-semibold text-foreground leading-tight">{activeAgent.name}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight hidden sm:block">{activeAgent.role}</p>
             </div>
-            <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showAgentPicker && "rotate-180")} />
+            <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", showAgentPicker && "rotate-180")} />
           </button>
 
           {/* Agent Dropdown */}
@@ -1297,7 +1298,7 @@ export function ChatView() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
-                className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden"
+                className="absolute top-full left-0 mt-1 w-64 bg-zinc-900/95 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden"
               >
                 <div className="py-1">
                   {agents.map((agent) => (
@@ -1305,8 +1306,8 @@ export function ChatView() {
                       key={agent.id}
                       onClick={() => handleAgentChange(agent.id)}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-accent",
-                        agent.id === selectedAgent && "bg-accent"
+                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04] cursor-pointer",
+                        agent.id === selectedAgent && "bg-white/[0.04]"
                       )}
                     >
                       <span className="text-lg">{agent.emoji}</span>
@@ -1326,34 +1327,29 @@ export function ChatView() {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] gap-1">
+        <div className="flex items-center gap-1">
+          <Badge variant="outline" className="text-[10px] gap-1 border-white/[0.06] hidden sm:flex">
             <span className={cn("w-1.5 h-1.5 rounded-full", colors.dot)} />
             {activeAgent.model}
           </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => setShowConversations(true)}
-            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors cursor-pointer"
             title="All conversations"
           >
             <HistoryIcon className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
+          </button>
+          <button
             onClick={handleNewChat}
-            className="h-8 px-2 text-muted-foreground hover:text-foreground gap-1"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors cursor-pointer"
             title="New chat"
           >
             <PlusIcon className="w-4 h-4" />
-            <span className="text-xs hidden sm:inline">New</span>
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Conversations Panel (overlay) — shows ALL agents' sessions */}
+      {/* Conversations Panel (overlay) */}
       <AnimatePresence>
         {showConversations && (
           <motion.div
@@ -1373,7 +1369,7 @@ export function ChatView() {
         )}
       </AnimatePresence>
 
-      {/* Chat Session — key={sessionId} preserves session across re-renders, resets on new chat */}
+      {/* Chat Session */}
       <AgentChatSession
         key={currentSessionId}
         agentId={selectedAgent}
