@@ -445,7 +445,9 @@ const agents: AgentConfig[] = [
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
       "create_pdf_report", "create_docx_document",
-      "delegate_to_agent",
+      // NOTE: delegate_to_agent intentionally removed from General agent.
+      // General has ALL tools — delegation wastes 30-40s per call and causes
+      // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
     ],
     suggestedActions: [
       { label: "Check my inbox", prompt: "Show me my latest unread emails" },
