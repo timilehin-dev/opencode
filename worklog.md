@@ -28,6 +28,41 @@ Stage Summary:
 - Zero TypeScript compilation errors
 
 ---
+Task ID: phase1-redesign
+Agent: Full-Stack Developer
+Task: Phase 1 — Full frontend redesign to Mission Control (Variant 2)
+
+Work Log:
+- Read design reference HTML (variant2.html) and extracted exact layout structure, colors, spacing, component placement
+- Analyzed existing codebase: page.tsx (383 lines), sidebar.tsx (329 lines), chat-view.tsx (1385 lines), all icons, types, agents
+- Created 8 new components:
+  - topbar.tsx — Horizontal navigation bar with logo, nav items (Mission Control, Agent Crew, Services, Workflows, Memory, Settings), search, notifications, user pill
+  - agent-crew.tsx — 2-column grid of 7 agent cards with colored ring borders, status dots, click-to-select
+  - ops-feed.tsx — Live operations feed with colored dots, agent names, action descriptions, timestamps (mock data)
+  - service-chips.tsx — Horizontal scrollable row of 7 service chips with real SVG logos, connection status from API
+  - metrics-row.tsx — 5-column metrics dashboard (Messages, Tool Calls, Delegations, Tasks Done, Uptime) with mock/real data
+  - coordination-map.tsx — Visual agent-to-agent delegation flows with status badges (Running/Done/Queued)
+  - active-tasks.tsx — Task list with checkboxes, priority badges, agent chips (mock data)
+  - mission-control.tsx — Center panel combining ServiceChips + MetricsRow + CoordinationMap + ActiveTasks
+- Rewrote page.tsx with 3-column grid layout: Left (300px Agent Crew + Ops Feed), Center (flex-1 page content), Right (360px Chat Panel)
+- Updated sidebar.tsx PageKey type to include new navigation pages while preserving backward compatibility
+- Updated layout.tsx body background to #09090b
+- Updated globals.css with new dark theme scrollbar styles and hidden scrollbar utility class
+- Preserved all existing functionality: chat, file upload, Drive picker, tool call visualization, all API routes
+- All page views accessible via new topbar navigation (agents, services, workflows, memory, settings, all 7 service pages)
+- Chat panel visible on right side when on Mission Control page, hidden for other pages
+- Added Settings placeholder and Services grid page
+- TypeScript compilation: 0 errors
+- Lint: no new errors in any new/modified files (all pre-existing errors in untouched files)
+
+Stage Summary:
+- Frontend fully redesigned from sidebar layout to Mission Control 3-column layout
+- All 75 tools and 7 agents remain functional
+- Chat functionality preserved in right panel on Mission Control page
+- New visual elements: agent crew grid, live ops feed, coordination map, service chips, metrics dashboard
+- Pixel-perfect match to variant2.html design reference
+
+---
 Task ID: 1-6
 Agent: Main Developer
 Task: Fix date/time awareness + implement 4 new tools (Code Execution, Weather/Location, Web Reader enhancement, OCR verification)

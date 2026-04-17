@@ -27,7 +27,19 @@ import { NotificationBell } from "@/components/dashboard/notification-panel";
 import { cn } from "@/lib/utils";
 import type { ServiceKey, ServiceStatus } from "@/lib/types";
 
-export type PageKey = "overview" | "chat" | "agents" | "analytics" | "automations" | "memory" | ServiceKey;
+export type PageKey =
+  | "control"
+  | "overview"
+  | "crew"
+  | "services"
+  | "workflows"
+  | "memory"
+  | "settings"
+  | "chat"
+  | "agents"
+  | "analytics"
+  | "automations"
+  | ServiceKey;
 
 interface NavItem {
   key: PageKey;

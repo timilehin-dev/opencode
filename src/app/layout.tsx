@@ -38,7 +38,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-screen bg-slate-950 text-slate-100 dark:bg-slate-950 dark:text-slate-100 antialiased">
+      <body className="min-h-screen bg-[#09090b] text-zinc-50 dark:bg-[#09090b] dark:text-zinc-50 antialiased">
         <ThemeProvider>{children}</ThemeProvider>
         {/* Service Worker Registration */}
         <script
