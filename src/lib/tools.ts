@@ -170,11 +170,37 @@ import { generateDesign, editScreen, generateVariants } from "./stitch";
 // Helper: wrap async fn in try/catch returning JSON string
 // ---------------------------------------------------------------------------
 
+// Maximum characters for a tool result before truncation.
+// Large results (Gmail, Sheets, etc.) can overwhelm the LLM context window,
+// causing it to stop generating after tool calls. This cap prevents that.
+const MAX_TOOL_RESULT_LENGTH = 8000;
+
 function safeJson<T>(fn: (input: T) => Promise<unknown>) {
   return async (input: T) => {
     try {
       const result = await fn(input);
-      return JSON.stringify({ success: true, data: result });
+      let json = JSON.stringify({ success: true, data: result });
+      if (json.length > MAX_TOOL_RESULT_LENGTH) {
+        // Truncate the data portion, keeping the JSON valid
+        const wrapper = JSON.stringify({ success: true, data: "__PLACEHOLDER__" });
+        const overhead = wrapper.length;
+        const available = MAX_TOOL_RESULT_LENGTH - overhead - 100;
+        if (available > 200) {
+          const truncated = json.slice(0, available);
+          json = JSON.stringify({
+            success: true,
+            data: JSON.parse(truncated),
+            _note: `[Result truncated — original was ${json.length} chars, showing first ${available}]
+Use a more specific query or filter to get fewer results if you need more detail.`,
+          });
+        } else {
+          json = JSON.stringify({
+            success: true,
+            data: `[Result too large to display — ${json.length} chars]. The tool returned data but it exceeded the output limit. Try narrowing your query (fewer results, specific date range, or filters).`,
+          });
+        }
+      }
+      return json;
     } catch (error) {
       return JSON.stringify({
         success: false,

@@ -148,12 +148,14 @@ export async function POST(req: Request) {
     // Universal task completion block — injected into every agent
     const taskCompletionBlock = `
 
-## TASK COMPLETION RULES (CRITICAL)
+## TASK COMPLETION RULES (CRITICAL — READ EVERY TIME)
 1. **NEVER stop mid-task.** Once you start a task, you MUST complete it fully before stopping. Every user request deserves a complete, thorough response.
-2. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step. Do NOT download then analyze separately for Drive files.
-3. **Combine steps.** When a task requires multiple tool calls, chain them efficiently. For example: download a file → analyze it → report findings — all in one flow.
-4. **Always deliver the final answer.** After all tool calls complete, you MUST provide a clear, complete response to the user. Never end on just a tool result without explanation.
-5. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.`;
+2. **ALWAYS respond after tool calls.** When you call tools and get results, you MUST then write a clear, complete text response summarizing what you found and answering the user's question. NEVER leave the conversation hanging after tool results — this is the #1 failure mode. The tool results are data for YOU to interpret and explain to the user.
+3. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step. Do NOT download then analyze separately for Drive files.
+4. **Combine steps.** When a task requires multiple tool calls, chain them efficiently. For example: download a file → analyze it → report findings — all in one flow.
+5. **Always deliver the final answer.** After all tool calls complete, you MUST provide a clear, complete response to the user. Never end on just a tool result without explanation.
+6. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.
+7. **Structure your final response.** Use headers, lists, and tables to organize findings. Start with a brief summary, then provide details. End with action items or next steps if relevant.`;
 
     const systemPrompt =
       id !== "general"
@@ -167,8 +169,20 @@ export async function POST(req: Request) {
       tools: agentTools,
       maxOutputTokens: 16384,
       stopWhen: stepCountIs(15),
+      onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
+        const stepInfo: string[] = [`[Step] finishReason=${finishReason}`];
+        if (text) stepInfo.push(`text=${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`);
+        if (toolCalls?.length) stepInfo.push(`toolCalls=[${toolCalls.map((t: { toolName: string }) => t.toolName).join(", ")}]`);
+        if (toolResults?.length) stepInfo.push(`toolResults=${toolResults.length} results, totalSize=${toolResults.reduce((s: number, r) => s + JSON.stringify(r).length, 0)} chars`);
+        console.log(`[Chat] ${agent.name}: ${stepInfo.join(" | ")}`);
+
+        // Detect the "stopped after tool calls" pattern — model got results but produced no text
+        if (finishReason === "stop" && !text && toolResults?.length > 0 && toolCalls?.length === 0) {
+          console.warn(`[Chat] ⚠️ ${agent.name} STOPPED AFTER TOOL RESULTS WITHOUT GENERATING TEXT — this is the mid-task stop bug`);
+        }
+      },
       onFinish: ({ steps }) => {
-        console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}`);
+        console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}, Total text: ${steps.map(s => s.text).join("").length} chars`);
         // Save assistant response to conversation history
         const assistantText = steps
           .map((s) => s.text)
