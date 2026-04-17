@@ -445,6 +445,10 @@ const agents: AgentConfig[] = [
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
       "create_pdf_report", "create_docx_document",
+      // Workspace Tools
+      "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
+      "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
+      "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       // NOTE: delegate_to_agent intentionally removed from General agent.
       // General has ALL tools — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -474,6 +478,9 @@ const agents: AgentConfig[] = [
       "calendar_freebusy",
       "web_search", "web_reader",
       "create_pdf_report", "create_docx_document",
+      "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
+      "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
+      "todo_create", "todo_list", "todo_update",
       "query_agent",
     ],
     suggestedActions: [
@@ -504,6 +511,7 @@ const agents: AgentConfig[] = [
       "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
       "create_pdf_report",
+      "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
     ],
     suggestedActions: [
@@ -535,6 +543,8 @@ const agents: AgentConfig[] = [
       "vision_analyze", "vision_download_analyze", "image_generate",
       "create_pdf_report", "create_docx_document",
       "download_drive_file",
+      "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
+      "contact_list", "contact_search",
       "query_agent",
     ],
     suggestedActions: [
@@ -564,6 +574,8 @@ const agents: AgentConfig[] = [
       "design_generate", "design_edit", "design_variants",
       "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document",
+      "todo_create", "todo_list", "todo_update",
+      "reminder_create", "reminder_list",
       "query_agent",
     ],
     suggestedActions: [
@@ -590,6 +602,8 @@ const agents: AgentConfig[] = [
       "research_save_brief", "research_save_data",
       "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document",
+      "contact_list", "contact_search",
+      "todo_list",
       "query_agent",
     ],
     suggestedActions: [
@@ -615,6 +629,7 @@ const agents: AgentConfig[] = [
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
       "create_pdf_report",
+      "todo_stats", "reminder_list",
       "query_agent",
     ],
     suggestedActions: [

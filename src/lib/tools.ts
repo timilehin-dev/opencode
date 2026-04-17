@@ -166,6 +166,14 @@ import { listProjects, listDeployments, listDomains, getDeployment } from "./ver
 // Stitch design platform imports
 import { generateDesign, editScreen, generateVariants } from "./stitch";
 
+// Workspace imports (Reminders, Todos, Contacts)
+import {
+  createReminder, listReminders, getReminder, updateReminder, deleteReminder,
+  createTodo, listTodos, getTodo, updateTodo, deleteTodo, getTodoStats,
+  createContact, listContacts, getContact, updateContact, deleteContact,
+  searchContacts,
+} from "./workspace";
+
 // ---------------------------------------------------------------------------
 // Helper: wrap async fn in try/catch returning JSON string
 // ---------------------------------------------------------------------------
@@ -2798,6 +2806,267 @@ export const downloadDriveFileTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Workspace Tools — Reminders (scheduled notifications)
+// ---------------------------------------------------------------------------
+
+export const reminderCreateTool = tool({
+  description: "Create a reminder. Use this when the user wants to be reminded about something at a specific time, or when you need to schedule a future notification for an agent. Supports priority levels, recurring schedules, and agent assignment for autonomous execution.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Reminder title — what to be reminded about"),
+    description: z.string().optional().describe("Additional context or details for the reminder"),
+    reminder_time: z.string().describe("When to fire the reminder (ISO 8601 datetime string, e.g., '2025-01-15T09:00:00Z')"),
+    priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Priority level (default: 'normal')"),
+    repeat_config: z.object({ type: z.enum(["daily", "weekly", "monthly"]).describe("Repeat interval type") }).optional().describe("Recurring reminder configuration"),
+    assigned_agent: z.string().optional().describe("Which agent should handle this reminder (e.g., 'mail', 'code', 'ops') — for autonomous routing"),
+    context: z.record(z.string(), z.any()).optional().describe("Extra context for the agent when the reminder fires (arbitrary JSON)"),
+  })),
+  execute: safeJson(async ({ title, description, reminder_time, priority, repeat_config, assigned_agent, context }) => {
+    return await createReminder({ title, description, reminder_time, priority, repeat_config, assigned_agent, context });
+  }),
+});
+
+export const reminderListTool = tool({
+  description: "List reminders with optional filters. Use this to show upcoming reminders, check pending reminders, or review past reminders. Returns reminders ordered by time.",
+  inputSchema: zodSchema(z.object({
+    status: z.enum(["pending", "fired", "dismissed", "snoozed"]).optional().describe("Filter by status"),
+    priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Filter by priority"),
+    limit: z.number().optional().describe("Max results to return (default: 50)"),
+  })),
+  execute: safeJson(async ({ status, priority, limit }) => {
+    return await listReminders({ status, priority, limit });
+  }),
+});
+
+export const reminderUpdateTool = tool({
+  description: "Update an existing reminder. Use this to change the time, title, description, priority, or status of a reminder. Can also reschedule recurring reminders.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Reminder ID to update"),
+    title: z.string().optional().describe("New title"),
+    description: z.string().optional().describe("New description"),
+    reminder_time: z.string().optional().describe("New reminder time (ISO 8601)"),
+    status: z.enum(["pending", "fired", "dismissed", "snoozed"]).optional().describe("New status"),
+    priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("New priority"),
+  })),
+  execute: safeJson(async ({ id, title, description, reminder_time, status, priority }) => {
+    const reminder = await getReminder(id);
+    if (!reminder) throw new Error(`Reminder ${id} not found`);
+    const updates: Record<string, unknown> = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (reminder_time !== undefined) updates.reminder_time = reminder_time;
+    if (status !== undefined) updates.status = status;
+    if (priority !== undefined) updates.priority = priority;
+    return await updateReminder(id, updates);
+  }),
+});
+
+export const reminderDeleteTool = tool({
+  description: "Delete a reminder permanently. Use this when the user no longer needs a scheduled reminder.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Reminder ID to delete"),
+  })),
+  execute: safeJson(async ({ id }) => {
+    return await deleteReminder(id);
+  }),
+});
+
+export const reminderCompleteTool = tool({
+  description: "Mark a reminder as completed. Can dismiss it or snooze it (push the reminder_time forward). Use this when the user acknowledges a reminder or wants to postpone it.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Reminder ID to complete"),
+    action: z.enum(["dismiss", "snooze"]).describe("Action: 'dismiss' marks it as dismissed, 'snooze' pushes the time forward"),
+    snooze_minutes: z.number().optional().describe("If snoozing, how many minutes to push the reminder_time forward (default: 30)"),
+  })),
+  execute: safeJson(async ({ id, action, snooze_minutes }) => {
+    const reminder = await getReminder(id);
+    if (!reminder) throw new Error(`Reminder ${id} not found`);
+
+    if (action === "dismiss") {
+      return await updateReminder(id, { status: "dismissed" });
+    }
+
+    // Snooze: push reminder_time forward
+    const minutes = snooze_minutes || 30;
+    const current = new Date(reminder.reminder_time);
+    const newTime = new Date(current.getTime() + minutes * 60 * 1000);
+    return await updateReminder(id, {
+      status: "pending",
+      reminder_time: newTime.toISOString(),
+    });
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Workspace Tools — Todos (task management)
+// ---------------------------------------------------------------------------
+
+export const todoCreateTool = tool({
+  description: "Create a task/todo item. Use this when the user wants to track a task, create a to-do list item, or when an agent needs to log work for later. Supports categories, tags, due dates, priority, and agent assignment for autonomous execution.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Task title — what needs to be done"),
+    description: z.string().optional().describe("Detailed description of the task"),
+    priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Priority level (default: 'medium')"),
+    due_date: z.string().optional().describe("Due date (ISO date string, e.g., '2025-01-15')"),
+    category: z.string().optional().describe("Category label (e.g., 'work', 'personal', 'project-x'). Default: 'general'"),
+    tags: z.array(z.string()).optional().describe("Tags for categorization and filtering"),
+    assigned_agent: z.string().optional().describe("Which agent owns this task (for autonomous coworker routing)"),
+    context: z.record(z.string(), z.any()).optional().describe("Extra context for the agent (arbitrary JSON — notes, links, substeps)"),
+  })),
+  execute: safeJson(async ({ title, description, priority, due_date, category, tags, assigned_agent, context }) => {
+    return await createTodo({ title, description, priority, due_date, category, tags, assigned_agent, context });
+  }),
+});
+
+export const todoListTool = tool({
+  description: "List tasks/todos with optional filters. Use this to show the user their task list, check what's open, find overdue tasks, or review work across agents. Returns tasks ordered by creation date (newest first).",
+  inputSchema: zodSchema(z.object({
+    status: z.enum(["open", "in_progress", "done", "archived"]).optional().describe("Filter by status"),
+    priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Filter by priority"),
+    category: z.string().optional().describe("Filter by category"),
+    tag: z.string().optional().describe("Filter by a specific tag"),
+    limit: z.number().optional().describe("Max results to return (default: 50)"),
+  })),
+  execute: safeJson(async ({ status, priority, category, tag, limit }) => {
+    return await listTodos({ status, priority, category, tag, limit });
+  }),
+});
+
+export const todoUpdateTool = tool({
+  description: "Update a task/todo. Use this to change status (e.g., mark as in_progress or done), edit title/description, change priority, update due date, or modify tags. Automatically sets completed_at when status changes to 'done'.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Task ID to update"),
+    title: z.string().optional().describe("New title"),
+    description: z.string().optional().describe("New description"),
+    status: z.enum(["open", "in_progress", "done", "archived"]).optional().describe("New status"),
+    priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("New priority"),
+    due_date: z.string().optional().describe("New due date (ISO date string)"),
+    category: z.string().optional().describe("New category"),
+    tags: z.array(z.string()).optional().describe("New tags (replaces existing tags)"),
+  })),
+  execute: safeJson(async ({ id, title, description, status, priority, due_date, category, tags }) => {
+    const todo = await getTodo(id);
+    if (!todo) throw new Error(`Todo ${id} not found`);
+    const updates: Record<string, unknown> = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (status !== undefined) updates.status = status;
+    if (priority !== undefined) updates.priority = priority;
+    if (due_date !== undefined) updates.due_date = due_date;
+    if (category !== undefined) updates.category = category;
+    if (tags !== undefined) updates.tags = tags;
+    return await updateTodo(id, updates);
+  }),
+});
+
+export const todoDeleteTool = tool({
+  description: "Delete a task/todo permanently. Use this when the user no longer needs a tracked task.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Task ID to delete"),
+  })),
+  execute: safeJson(async ({ id }) => {
+    return await deleteTodo(id);
+  }),
+});
+
+export const todoStatsTool = tool({
+  description: "Get task statistics — counts by status, priority breakdown, and overdue count. Use this for dashboards, status reports, or when the user asks for a summary of their tasks.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    return await getTodoStats();
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Workspace Tools — Contacts (address book / CRM)
+// ---------------------------------------------------------------------------
+
+export const contactCreateTool = tool({
+  description: "Create a contact in the workspace address book. Use this to save information about people — clients, colleagues, partners, vendors. Supports company, role, notes, tags, VIP flag, and relationship frequency tracking.",
+  inputSchema: zodSchema(z.object({
+    first_name: z.string().optional().describe("Contact first name"),
+    last_name: z.string().optional().describe("Contact last name"),
+    email: z.string().optional().describe("Email address (must be unique)"),
+    phone: z.string().optional().describe("Phone number"),
+    company: z.string().optional().describe("Company/organization name"),
+    role: z.string().optional().describe("Job title or role"),
+    notes: z.string().optional().describe("Notes about this contact (background, preferences, history)"),
+    tags: z.array(z.string()).optional().describe("Tags for categorization (e.g., ['client', 'engineering', 'sf-bay'])"),
+    is_vip: z.boolean().optional().describe("Mark as VIP contact (default: false)"),
+    frequency: z.enum(["never", "rare", "occasional", "regular", "frequent", "vip"]).optional().describe("Interaction frequency (default: 'occasional')"),
+  })),
+  execute: safeJson(async ({ first_name, last_name, email, phone, company, role, notes, tags, is_vip, frequency }) => {
+    return await createContact({ first_name, last_name, email, phone, company, role, notes, tags, is_vip, frequency });
+  }),
+});
+
+export const contactListTool = tool({
+  description: "List contacts with optional filters. Use this to browse the address book, find contacts by company, filter VIPs, or search by tag. Returns contacts ordered by last interaction (most recent first).",
+  inputSchema: zodSchema(z.object({
+    tag: z.string().optional().describe("Filter by tag"),
+    company: z.string().optional().describe("Filter by company (partial match)"),
+    is_vip: z.boolean().optional().describe("Filter VIP contacts"),
+    search: z.string().optional().describe("Search across name, email, and company (partial match)"),
+    limit: z.number().optional().describe("Max results (default: 50)"),
+  })),
+  execute: safeJson(async ({ tag, company, is_vip, search, limit }) => {
+    return await listContacts({ tag, company, is_vip, search, limit });
+  }),
+});
+
+export const contactSearchTool = tool({
+  description: "Search contacts across all fields — first name, last name, email, company, and notes. Returns ranked results with email matches first, then name matches, then company matches. Use this when the user asks 'do I have a contact for...' or 'find info about [person/company]'.",
+  inputSchema: zodSchema(z.object({
+    query: z.string().describe("Search query — searches across name, email, company, and notes"),
+  })),
+  execute: safeJson(async ({ query }) => {
+    return await searchContacts(query);
+  }),
+});
+
+export const contactUpdateTool = tool({
+  description: "Update a contact's information. Use this to edit contact details, add notes, change tags, update company/role, or toggle VIP status.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Contact ID to update"),
+    first_name: z.string().optional().describe("New first name"),
+    last_name: z.string().optional().describe("New last name"),
+    email: z.string().optional().describe("New email address"),
+    phone: z.string().optional().describe("New phone number"),
+    company: z.string().optional().describe("New company"),
+    role: z.string().optional().describe("New job title/role"),
+    notes: z.string().optional().describe("New notes"),
+    tags: z.array(z.string()).optional().describe("New tags (replaces existing)"),
+    is_vip: z.boolean().optional().describe("VIP status"),
+    frequency: z.enum(["never", "rare", "occasional", "regular", "frequent", "vip"]).optional().describe("Interaction frequency"),
+  })),
+  execute: safeJson(async ({ id, first_name, last_name, email, phone, company, role, notes, tags, is_vip, frequency }) => {
+    const contact = await getContact(id);
+    if (!contact) throw new Error(`Contact ${id} not found`);
+    const updates: Record<string, unknown> = {};
+    if (first_name !== undefined) updates.first_name = first_name;
+    if (last_name !== undefined) updates.last_name = last_name;
+    if (email !== undefined) updates.email = email;
+    if (phone !== undefined) updates.phone = phone;
+    if (company !== undefined) updates.company = company;
+    if (role !== undefined) updates.role = role;
+    if (notes !== undefined) updates.notes = notes;
+    if (tags !== undefined) updates.tags = tags;
+    if (is_vip !== undefined) updates.is_vip = is_vip;
+    if (frequency !== undefined) updates.frequency = frequency;
+    return await updateContact(id, updates);
+  }),
+});
+
+export const contactDeleteTool = tool({
+  description: "Delete a contact permanently from the address book.",
+  inputSchema: zodSchema(z.object({
+    id: z.number().describe("Contact ID to delete"),
+  })),
+  execute: safeJson(async ({ id }) => {
+    return await deleteContact(id);
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // All Tools Registry
 // ---------------------------------------------------------------------------
 
@@ -2897,6 +3166,22 @@ export const allTools: Record<string, ToolType> = {
   create_pdf_report: createPdfReportTool,
   create_docx_document: createDocxDocumentTool,
   download_drive_file: downloadDriveFileTool,
+  // Workspace Tools (Reminders, Todos, Contacts)
+  reminder_create: reminderCreateTool,
+  reminder_list: reminderListTool,
+  reminder_update: reminderUpdateTool,
+  reminder_delete: reminderDeleteTool,
+  reminder_complete: reminderCompleteTool,
+  todo_create: todoCreateTool,
+  todo_list: todoListTool,
+  todo_update: todoUpdateTool,
+  todo_delete: todoDeleteTool,
+  todo_stats: todoStatsTool,
+  contact_create: contactCreateTool,
+  contact_list: contactListTool,
+  contact_search: contactSearchTool,
+  contact_update: contactUpdateTool,
+  contact_delete: contactDeleteTool,
 };
 
 // ---------------------------------------------------------------------------
