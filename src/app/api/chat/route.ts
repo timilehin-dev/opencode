@@ -82,9 +82,10 @@ export async function POST(req: Request) {
     const model = getProvider(agent);
 
     // Run these in parallel to reduce time-to-first-token
-    const [modelMessages, memoryContext] = await Promise.all([
+    const [modelMessages, memoryContext, dueReminders] = await Promise.all([
       convertToModelMessages(processedMessages),
       getMemorySummary(id).catch(() => ""),
+      checkDueReminders().catch(() => []),
     ]);
 
     // Save the user's message to conversation history (fire-and-forget)
@@ -157,10 +158,15 @@ export async function POST(req: Request) {
 6. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.
 7. **Structure your final response.** Use headers, lists, and tables to organize findings. Start with a brief summary, then provide details. End with action items or next steps if relevant.`;
 
+    // Build reminder alert if there are due reminders
+    const reminderAlert = dueReminders.length > 0
+      ? `\n\n## REMINDERS — You have ${dueReminders.length} pending reminder(s) right now\nIMPORTANT: These reminders are overdue or due now. You MUST proactively tell the user about them at the START of your response, BEFORE answering their question. Present them clearly with the reminder title, when it was due, and the description.\n\n${dueReminders.map(r => `- **${r.title}** (due: ${r.reminder_time})${r.description ? ` — ${r.description}` : ""}`).join("\n")}\n\nAfter presenting the reminders, continue with the user's actual request.`
+      : "";
+
     const systemPrompt =
       id !== "general"
-        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
-        : `${agent.systemPrompt}${memoryBlock}${toolBlock}${taskCompletionBlock}`;
+        ? `[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
+        : `${agent.systemPrompt}${memoryBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
 
     const result = streamText({
       model,
@@ -294,4 +300,36 @@ function formatAttachmentHeader(attachment: Attachment): string {
     ? ` (${(attachment.content.length / 1024).toFixed(1)}KB)`
     : "";
   return `[Attached file: ${attachment.name}${sizeStr}]\n`;
+}
+
+// ---------------------------------------------------------------------------
+// Due Reminders Checker (inline — runs on every chat message)
+// ---------------------------------------------------------------------------
+
+interface DueReminder {
+  id: number;
+  title: string;
+  description: string;
+  reminder_time: string;
+  priority: string;
+}
+
+async function checkDueReminders(): Promise<DueReminder[]> {
+  if (!process.env.SUPABASE_DB_URL) return [];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    const { rows } = await pool.query(
+      `SELECT id, title, description, reminder_time, priority
+       FROM reminders
+       WHERE status = 'pending' AND reminder_time <= NOW()
+       ORDER BY priority DESC, reminder_time ASC
+       LIMIT 10`,
+    );
+    await pool.end();
+    return rows;
+  } catch {
+    return [];
+  }
 }
