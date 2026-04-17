@@ -643,6 +643,39 @@ export const vercelDomainsTool = tool({
 // ---------------------------------------------------------------------------
 // Agent Delegation Tool (Claw General only)
 // ---------------------------------------------------------------------------
+// NOTE: Uses generateText() directly instead of HTTP fetch to avoid Vercel
+// authentication issues with internal API calls.
+// ---------------------------------------------------------------------------
+
+async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{ text: string; steps: number }> {
+  const { generateText, stepCountIs } = await import("ai");
+  const { getAgent, getProvider } = await import("@/lib/agents");
+  const { allTools } = await import("@/lib/tools");
+
+  const agent = getAgent(agentId);
+  if (!agent) throw new Error(`Unknown agent: ${agentId}`);
+
+  // Build subset of tools for the target agent
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const agentTools: Record<string, any> = {};
+  for (const toolId of agent.tools) {
+    if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
+  }
+
+  const model = getProvider(agent);
+
+  const result = await generateText({
+    model,
+    system: agent.systemPrompt,
+    messages: [{ role: "user", content: taskPrompt }],
+    tools: agentTools,
+    maxOutputTokens: 8192,
+    stopWhen: stepCountIs(10),
+    abortSignal: AbortSignal.timeout(55_000), // 55s timeout (within Vercel's 60s limit)
+  });
+
+  return { text: result.text, steps: result.steps.length };
+}
 
 export const delegateToAgentTool = tool({
   description: "Delegate a task to a specialist agent. Only use when the task is clearly within one specialist's domain and doesn't require cross-domain reasoning. Available agents: mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning/docs), research (deep research/intelligence), ops (monitoring/health). Returns the specialist agent's response.",
@@ -651,8 +684,6 @@ export const delegateToAgentTool = tool({
     task: z.string().describe("Clear, specific task description with all necessary context"),
   })),
   execute: safeJson(async ({ agent_id, task }) => {
-    // This tool is executed server-side — we make an internal call to the agent
-    // The actual delegation happens via a fetch to /api/chat internally
     const taskId = `a2a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     // Log the A2A delegation task in Supabase (fire-and-forget)
@@ -670,56 +701,9 @@ export const delegateToAgentTool = tool({
     }
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
-
-      const response = await fetch(`${baseUrl}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: agent_id,
-          messages: [{ role: "user", content: `[Delegated from Claw General] ${task}` }],
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        // Update A2A task status to failed
-        try {
-          const { Pool } = require('pg');
-          const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-          await pool.query(`UPDATE a2a_tasks SET status = 'failed', result = $1 WHERE id = $2`, [error, taskId]);
-          await pool.end();
-        } catch { /* non-critical */ }
-        return { success: false, error: `Agent ${agent_id} failed: ${error}` };
-      }
-
-      // Read the streaming response and collect the text
-      const reader = response.body?.getReader();
-      if (!reader) return { success: false, error: "No response from agent" };
-
-      const decoder = new TextDecoder();
-      let fullText = "";
-      let done = false;
-
-      while (!done) {
-        const { value, done: streamDone } = await reader.read();
-        done = streamDone;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          // Parse SSE-like lines for text content
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("0:")) {
-              try {
-                const parsed = JSON.parse(line.slice(2));
-                if (typeof parsed === "string") fullText += parsed;
-              } catch { /* skip malformed chunks */ }
-            }
-          }
-        }
-      }
+      console.log(`[A2A] Delegating to ${agent_id}: ${task.slice(0, 100)}...`);
+      const { text, steps } = await callAgentDirectly(agent_id, task);
+      console.log(`[A2A] ${agent_id} responded: ${steps} steps, ${text.length} chars`);
 
       // Update A2A task status to completed
       try {
@@ -727,13 +711,14 @@ export const delegateToAgentTool = tool({
         const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
         await pool.query(
           `UPDATE a2a_tasks SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2`,
-          [fullText.trim().slice(0, 2000), taskId]
+          [text.trim().slice(0, 2000), taskId]
         );
         await pool.end();
       } catch { /* non-critical */ }
 
-      return { success: true, agent: agent_id, response: fullText.trim() || "(Agent returned no text response)", taskId };
+      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", taskId, steps };
     } catch (error) {
+      console.error(`[A2A] Delegation to ${agent_id} failed:`, error);
       return { success: false, error: error instanceof Error ? error.message : "Delegation failed", taskId };
     }
   }),
@@ -949,6 +934,7 @@ export const webReaderTool = tool({
 
 // ---------------------------------------------------------------------------
 // Query Agent Tool (A2A — for specialist agents)
+// Uses generateText() directly to avoid Vercel auth issues with HTTP calls.
 // ---------------------------------------------------------------------------
 
 export const queryAgentTool = tool({
@@ -959,50 +945,12 @@ export const queryAgentTool = tool({
   })),
   execute: safeJson(async ({ agent_id, question }) => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
-
-      const response = await fetch(`${baseUrl}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: agent_id,
-          messages: [{ role: "user", content: `[Query from peer agent] ${question}` }],
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        return { success: false, error: `Agent ${agent_id} failed: ${error}` };
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) return { success: false, error: "No response from agent" };
-
-      const decoder = new TextDecoder();
-      let fullText = "";
-      let done = false;
-
-      while (!done) {
-        const { value, done: streamDone } = await reader.read();
-        done = streamDone;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-          for (const line of lines) {
-            if (line.startsWith("0:")) {
-              try {
-                const parsed = JSON.parse(line.slice(2));
-                if (typeof parsed === "string") fullText += parsed;
-              } catch { /* skip */ }
-            }
-          }
-        }
-      }
-
-      return { success: true, agent: agent_id, response: fullText.trim() || "(Agent returned no text response)" };
+      console.log(`[A2A] Query to ${agent_id}: ${question.slice(0, 100)}...`);
+      const { text, steps } = await callAgentDirectly(agent_id, question);
+      console.log(`[A2A] ${agent_id} responded: ${steps} steps, ${text.length} chars`);
+      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", steps };
     } catch (error) {
+      console.error(`[A2A] Query to ${agent_id} failed:`, error);
       return { success: false, error: error instanceof Error ? error.message : "Query failed" };
     }
   }),
