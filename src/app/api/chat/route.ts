@@ -16,7 +16,7 @@ import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 
-export const maxDuration = 60;
+export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
 
 // ---------------------------------------------------------------------------
 // Route Handler
