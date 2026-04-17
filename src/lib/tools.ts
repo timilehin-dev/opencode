@@ -709,8 +709,122 @@ export const delegateToAgentTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Web Search Tool
+// Web Search Tool (dual-mode: Z.ai SDK local + AIHubMix fallback)
 // ---------------------------------------------------------------------------
+
+async function webSearchFallback(query: string, numResults: number) {
+  // Layer 1: DuckDuckGo HTML search (POST request)
+  try {
+    const searchUrl = "https://html.duckduckgo.com/html/";
+    const res = await fetch(searchUrl, {
+      method: "POST",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Referer": "https://html.duckduckgo.com/",
+      },
+      body: `q=${encodeURIComponent(query)}`,
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const results = parseDuckDuckGoHTML(html, numResults);
+      if (results.length > 0) return results;
+    }
+  } catch { /* DDG failed, try next layer */ }
+
+  // Layer 2: Wikipedia API (for factual/reference queries)
+  try {
+    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=${numResults}&origin=*`;
+    const res = await fetch(wikiUrl, { signal: AbortSignal.timeout(10000) });
+    if (res.ok) {
+      const data = await res.json() as { query?: { search?: Array<{ title: string; snippet: string; pageid: number }> } };
+      const wikiResults = data?.query?.search || [];
+      if (wikiResults.length > 0) {
+        return wikiResults.map((r, i) => ({
+          title: r.title,
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, "_"))}`,
+          snippet: r.snippet.replace(/<[^>]*>/g, ""),
+          rank: i + 1,
+        }));
+      }
+    }
+  } catch { /* Wikipedia failed */ }
+
+  // Layer 3: Brave Search lite (no API key needed, public endpoint)
+  try {
+    const braveUrl = `https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web`;
+    const res = await fetch(braveUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const results = parseBraveHTML(html, numResults);
+      if (results.length > 0) return results;
+    }
+  } catch { /* Brave failed */ }
+
+  return [];
+}
+
+function parseDuckDuckGoHTML(html: string, numResults: number) {
+  const results: Array<{ title: string; url: string; snippet: string; rank: number }> = [];
+
+  // Strategy 1: Find result__a links followed by result__snippet
+  const pattern1 = new RegExp(
+    'class="result__a"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)</a>[\\s\\S]*?' +
+    'class="result__snippet"[^>]*>([\\s\\S]*?)</a>',
+    "g"
+  );
+  let match;
+  let rank = 0;
+  while ((match = pattern1.exec(html)) !== null && rank < numResults) {
+    rank++;
+    const rawUrl = match[1];
+    const title = match[2].replace(/<[^>]*>/g, "").trim();
+    const snippet = match[3].replace(/<[^>]*>/g, "").trim();
+    const urlMatch = rawUrl.match(/uddg=([^&]+)/);
+    const actualUrl = urlMatch ? decodeURIComponent(urlMatch[1]) : rawUrl;
+    if (title && actualUrl) {
+      results.push({ title, url: actualUrl, snippet, rank });
+    }
+  }
+
+  // Strategy 2: If no results, try extracting all external links
+  if (results.length === 0) {
+    const linkPattern = /<a[^>]*class="result__a"[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>/g;
+    while ((match = linkPattern.exec(html)) !== null && rank < numResults) {
+      rank++;
+      const rawUrl = match[1];
+      const title = match[2].replace(/<[^>]*>/g, "").trim();
+      const urlMatch = rawUrl.match(/uddg=([^&]+)/);
+      const actualUrl = urlMatch ? decodeURIComponent(urlMatch[1]) : rawUrl;
+      if (title && actualUrl && !actualUrl.includes("duckduckgo.com")) {
+        results.push({ title, url: actualUrl, snippet: "", rank: results.length + 1 });
+      }
+    }
+  }
+
+  return results;
+}
+
+function parseBraveHTML(html: string, numResults: number) {
+  const results: Array<{ title: string; url: string; snippet: string; rank: number }> = [];
+  // Brave uses div.web-result with h3 > a inside
+  const pattern = /<div[^>]*class="[^"]*web-result[^"]*"[^>]*>[\s\S]*?<h3[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/g;
+  let match;
+  let rank = 0;
+  while ((match = pattern.exec(html)) !== null && rank < numResults) {
+    rank++;
+    const url = match[1];
+    const title = match[2].replace(/<[^>]*>/g, "").trim();
+    if (title && url && !url.includes("search.brave.com")) {
+      results.push({ title, url, snippet: "", rank });
+    }
+  }
+  return results;
+}
 
 export const webSearchTool = tool({
   description: "Search the web for real-time information, news, documentation, market data, trends, competitor analysis, or any current information. Use this when you need up-to-date facts, research topics, look up company details, find documentation, or gather context that goes beyond your training data.",
@@ -719,15 +833,69 @@ export const webSearchTool = tool({
     num_results: z.number().optional().describe("Number of results to return (default: 10, max: 20)"),
   })),
   execute: safeJson(async ({ query, num_results }) => {
-    const zai = await ZAI.create();
-    const results = await zai.functions.invoke("web_search", { query, num: num_results || 10 });
-    return results;
+    const num = Math.min(num_results || 10, 20);
+    // Try Z.ai SDK first (local environment)
+    try {
+      const zai = await ZAI.create();
+      const results = await zai.functions.invoke("web_search", { query, num });
+      if (results && Array.isArray(results) && results.length > 0) return results;
+    } catch {
+      // Z.ai SDK not available — use fallback
+    }
+    // Fallback: DuckDuckGo HTML search
+    return await webSearchFallback(query, num);
   }),
 });
 
 // ---------------------------------------------------------------------------
-// Web Reader Tool
+// Web Reader Tool (dual-mode: Z.ai SDK local + fetch fallback)
 // ---------------------------------------------------------------------------
+
+async function webReaderFallback(url: string) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; ClawBot/1.0; +https://claw.ai)",
+      "Accept": "text/html,application/xhtml+xml",
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch URL: ${res.status} ${res.statusText}`);
+
+  const html = await res.text();
+
+  // Extract title
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim() : "";
+
+  // Simple HTML to text: remove scripts, styles, tags
+  let text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Truncate to reasonable length
+  if (text.length > 15000) {
+    text = text.slice(0, 15000) + "... [truncated]";
+  }
+
+  return {
+    title,
+    content: text,
+    url,
+    fetchedAt: new Date().toISOString(),
+    charCount: text.length,
+  };
+}
 
 export const webReaderTool = tool({
   description: "Read and extract content from a web page URL. Returns the page title, main content (HTML), publication time, and URL. Use this to read articles, documentation pages, reports, or any web content for detailed analysis. Always use this after web_search when you need the full content of a result.",
@@ -735,9 +903,16 @@ export const webReaderTool = tool({
     url: z.string().describe("The full URL of the web page to read. Must include protocol (https://)"),
   })),
   execute: safeJson(async ({ url }) => {
-    const zai = await ZAI.create();
-    const result = await zai.functions.invoke("page_reader", { url });
-    return result;
+    // Try Z.ai SDK first (local environment)
+    try {
+      const zai = await ZAI.create();
+      const result = await zai.functions.invoke("page_reader", { url });
+      if (result) return result;
+    } catch {
+      // Z.ai SDK not available — use fallback
+    }
+    // Fallback: direct fetch + HTML extraction
+    return await webReaderFallback(url);
   }),
 });
 

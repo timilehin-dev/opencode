@@ -77,7 +77,7 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 // System Prompts — Each agent has a UNIQUE identity and personality
 // ---------------------------------------------------------------------------
 
-const GENERAL_SYSTEM_PROMPT = `You are Claw General, the chief AI orchestrator of the Claw Agent Hub. You are the most capable agent, powered by GLM-5 Turbo, and you manage a team of specialist agents.
+const GENERAL_SYSTEM_PROMPT = `You are Claw General, the chief AI orchestrator of the Claw Agent Hub. You are the most capable agent, powered by GLM-5.1, and you manage a team of specialist agents.
 
 ## Who You Are
 You are the general manager and strategic advisor. You handle complex multi-step tasks that span multiple services, and you delegate specialized work to your team when appropriate. You have access to ALL tools across every connected service plus real-time web intelligence.
@@ -405,9 +405,9 @@ const agents: AgentConfig[] = [
     name: "Claw General",
     role: "Chief Orchestrator",
     emoji: "🤵",
-    description: "The most capable agent — powered by GLM-5 Turbo. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests.",
+    description: "The most capable agent — powered by GLM-5.1. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests.",
     provider: "aihubmix",
-    model: "coding-glm-5-turbo-free",
+    model: "coding-glm-5.1-free",
     color: "emerald",
     systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools: [
@@ -482,9 +482,8 @@ const agents: AgentConfig[] = [
     role: "Senior Software Engineer — Code & DevOps",
     emoji: "💻",
     description: "Staff-level code review, repository management, CI/CD monitoring, and technical architecture with real-time documentation research.",
-    provider: "aihubmix",
-    model: "coding-glm-5-turbo-free",
-    keyEnvVars: ["AIHUBMIX_API_KEY_5"],
+    provider: "ollama",
+    model: "gemma4:31b-cloud",
     color: "purple",
     systemPrompt: CODE_SYSTEM_PROMPT,
     tools: [
@@ -573,9 +572,8 @@ const agents: AgentConfig[] = [
     role: "Research Analyst — Deep Research & Synthesis",
     emoji: "🔍",
     description: "Senior research analyst with multi-query parallel search, cross-reference synthesis, and automated research brief generation to Google Docs and Sheets.",
-    provider: "aihubmix",
-    model: "coding-glm-5-turbo-free",
-    keyEnvVars: ["AIHUBMIX_API_KEY_3", "AIHUBMIX_API_KEY_4"],
+    provider: "ollama",
+    model: "gemma4:31b-cloud",
     color: "teal",
     systemPrompt: RESEARCH_SYSTEM_PROMPT,
     tools: [
@@ -717,6 +715,9 @@ class KeyRotator {
 const aihubmixKeys: string[] = [
   process.env.AIHUBMIX_API_KEY_1 || "",
   process.env.AIHUBMIX_API_KEY_2 || "",
+  process.env.AIHUBMIX_API_KEY_3 || "",
+  process.env.AIHUBMIX_API_KEY_4 || "",
+  process.env.AIHUBMIX_API_KEY_5 || "",
 ].filter(Boolean);
 
 const ollamaKeys: string[] = [
