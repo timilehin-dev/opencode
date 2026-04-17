@@ -299,10 +299,15 @@ export const calendarCreateTool = tool({
     addMeetLink: z.boolean().optional().describe("If true, automatically adds a Google Meet video conference link to the event"),
   })),
   execute: safeJson(async ({ summary, calendarId, start, end, location, description, attendees, addMeetLink }) => {
+    const isDateTime = start.includes("T");
     return await gCalCreateEvent(calendarId || "primary", {
       summary,
-      start: { dateTime: start.includes("T") ? start : undefined, date: start.includes("T") ? undefined : start },
-      end: { dateTime: end.includes("T") ? end : undefined, date: end.includes("T") ? undefined : end },
+      start: isDateTime
+        ? { dateTime: start, timeZone: "UTC" }
+        : { date: start },
+      end: isDateTime
+        ? { dateTime: end, timeZone: "UTC" }
+        : { date: end },
       location,
       description,
       attendees,
