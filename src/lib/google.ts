@@ -89,17 +89,35 @@ export async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+/** Safely parse JSON from a fetch Response — returns null on empty/truncated body */
+async function safeJsonParse(res: Response): Promise<any> {
+  const text = await res.text().catch(() => "");
+  if (!text || text.trim().length === 0) {
+    throw new Error(`Empty response body (status ${res.status})`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON response (${res.status}): ${text.slice(0, 200)}${text.length > 200 ? '...' : ''}`);
+  }
+}
+
 /** Make an authenticated request to a Google API */
 export async function googleFetch(url: string, options?: RequestInit): Promise<Response> {
   const token = await getAccessToken();
+  const isGet = !(options?.method && options.method !== 'GET');
   const res = await fetch(url, {
     ...options,
     headers: {
       ...options?.headers,
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+      ...(isGet ? {} : { "Content-Type": "application/json" }),
     },
   });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "(could not read error body)");
+    throw new Error(`Google API error ${res.status} on ${url.split('?')[0]}: ${errText.slice(0, 300)}`);
+  }
   return res;
 }
 
@@ -130,8 +148,7 @@ export interface GoogleCalendarList {
 /** List all calendars */
 export async function gCalListCalendars(): Promise<GoogleCalendarList[]> {
   const res = await googleFetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=20");
-  if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
-  const data = (await res.json()) as { items?: GoogleCalendarList[] };
+  const data = (await safeJsonParse(res)) as { items?: GoogleCalendarList[] };
   return data.items || [];
 }
 
@@ -146,8 +163,7 @@ export async function gCalListEvents(
   if (timeMin) params.set("timeMin", timeMin);
   if (timeMax) params.set("timeMax", timeMax);
   const res = await googleFetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`);
-  if (!res.ok) throw new Error(`Calendar events API error: ${res.status}`);
-  const data = (await res.json()) as { items?: GoogleCalendarEvent[] };
+  const data = (await safeJsonParse(res)) as { items?: GoogleCalendarEvent[] };
   return data.items || [];
 }
 
@@ -172,11 +188,7 @@ export async function gCalCreateEvent(
       body: JSON.stringify(event),
     },
   );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Calendar create event error: ${res.status} — ${err}`);
-  }
-  return (await res.json()) as GoogleCalendarEvent;
+  return (await safeJsonParse(res)) as GoogleCalendarEvent;
 }
 
 /** Delete a calendar event */
@@ -185,9 +197,8 @@ export async function gCalDeleteEvent(calendarId: string, eventId: string): Prom
     `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`,
     { method: "DELETE" },
   );
-  if (!res.ok && res.status !== 204) {
-    throw new Error(`Calendar delete event error: ${res.status}`);
-  }
+  // googleFetch handles non-OK errors
+  return;
 }
 
 // ---------------------------------------------------------------------------
@@ -218,8 +229,7 @@ export async function gDriveListFiles(
   if (params?.orderBy) sp.set("orderBy", params.orderBy);
 
   const res = await googleFetch(`https://www.googleapis.com/drive/v3/files?${sp}`);
-  if (!res.ok) throw new Error(`Drive API error: ${res.status}`);
-  const data = (await res.json()) as { files?: GoogleDriveFile[] };
+  const data = (await safeJsonParse(res)) as { files?: GoogleDriveFile[] };
   return data.files || [];
 }
 
@@ -235,8 +245,7 @@ export async function gDriveCreateFolder(name: string, parents?: string[]): Prom
     method: "POST",
     body: JSON.stringify(metadata),
   });
-  if (!res.ok) throw new Error(`Drive create folder error: ${res.status}`);
-  return (await res.json()) as GoogleDriveFile;
+  return (await safeJsonParse(res)) as GoogleDriveFile;
 }
 
 /** Create a file (including Google Docs/Sheets) in Drive */
@@ -252,8 +261,7 @@ export async function gDriveCreateFile(
     method: "POST",
     body: JSON.stringify(metadata),
   });
-  if (!res.ok) throw new Error(`Drive create file error: ${res.status}`);
-  return (await res.json()) as GoogleDriveFile;
+  return (await safeJsonParse(res)) as GoogleDriveFile;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,8 +282,7 @@ export async function gSheetsGet(
   const res = await googleFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?${params}`,
   );
-  if (!res.ok) throw new Error(`Sheets API error: ${res.status}`);
-  return res.json();
+  return safeJsonParse(res);
 }
 
 /** Get values from a range */
@@ -286,8 +293,7 @@ export async function gSheetsGetValues(
   const res = await googleFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
   );
-  if (!res.ok) throw new Error(`Sheets get values error: ${res.status}`);
-  return res.json() as Promise<{ values: string[][] }>;
+  return safeJsonParse(res) as Promise<{ values: string[][] }>;
 }
 
 /** Batch get values from multiple ranges */
@@ -298,8 +304,7 @@ export async function gSheetsBatchGetValues(
   const res = await googleFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?ranges=${ranges.map(encodeURIComponent).join("&ranges=")}`,
   );
-  if (!res.ok) throw new Error(`Sheets batch get error: ${res.status}`);
-  return res.json() as Promise<{ valueRanges: { range: string; values: string[][] }[] }>;
+  return safeJsonParse(res) as Promise<{ valueRanges: { range: string; values: string[][] }[] }>;
 }
 
 /** Append values to a sheet */
@@ -315,8 +320,7 @@ export async function gSheetsAppendValues(
       body: JSON.stringify({ values }),
     },
   );
-  if (!res.ok) throw new Error(`Sheets append error: ${res.status}`);
-  return res.json() as Promise<{ updates: { updatedRange: string; updatedRows: number } }>;
+  return safeJsonParse(res) as Promise<{ updates: { updatedRange: string; updatedRows: number } }>;
 }
 
 /** Update values in a range */
@@ -332,8 +336,7 @@ export async function gSheetsUpdateValues(
       body: JSON.stringify({ values }),
     },
   );
-  if (!res.ok) throw new Error(`Sheets update error: ${res.status}`);
-  return res.json() as Promise<{ updatedRange: string; updatedRows: number }>;
+  return safeJsonParse(res) as Promise<{ updatedRange: string; updatedRows: number }>;
 }
 
 /** Add a new sheet tab */
@@ -350,8 +353,7 @@ export async function gSheetsAddSheet(
       }),
     },
   );
-  if (!res.ok) throw new Error(`Sheets add sheet error: ${res.status}`);
-  return res.json();
+  return safeJsonParse(res);
 }
 
 /** Create a new spreadsheet */
@@ -360,8 +362,7 @@ export async function gSheetsCreate(title: string): Promise<{ spreadsheetId: str
     method: "POST",
     body: JSON.stringify({ properties: { title } }),
   });
-  if (!res.ok) throw new Error(`Sheets create error: ${res.status}`);
-  return res.json() as Promise<{ spreadsheetId: string; spreadsheetUrl: string }>;
+  return safeJsonParse(res) as Promise<{ spreadsheetId: string; spreadsheetUrl: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -393,8 +394,7 @@ export async function gDocsGet(documentId: string): Promise<unknown> {
   const res = await googleFetch(
     `https://docs.googleapis.com/v1/documents/${documentId}`,
   );
-  if (!res.ok) throw new Error(`Docs get error: ${res.status}`);
-  return res.json();
+  return safeJsonParse(res);
 }
 
 /** Create a new Google Doc */
@@ -423,8 +423,7 @@ export async function gDocsAppendText(
       }),
     },
   );
-  if (!res.ok) throw new Error(`Docs append error: ${res.status}`);
-  return res.json();
+  return safeJsonParse(res);
 }
 
 // ---------------------------------------------------------------------------
@@ -479,15 +478,13 @@ export interface GmailListResponse {
 /** Get Gmail profile */
 export async function gGmailProfile(): Promise<{ emailAddress: string; messagesTotal: number; threadsTotal: number }> {
   const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/profile");
-  if (!res.ok) throw new Error(`Gmail profile error: ${res.status}`);
-  return res.json() as Promise<{ emailAddress: string; messagesTotal: number; threadsTotal: number }>;
+  return safeJsonParse(res) as Promise<{ emailAddress: string; messagesTotal: number; threadsTotal: number }>;
 }
 
 /** List labels */
 export async function gGmailListLabels(): Promise<GmailLabel[]> {
   const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/labels");
-  if (!res.ok) throw new Error(`Gmail list labels error: ${res.status}`);
-  const data = (await res.json()) as { labels?: GmailLabel[] };
+  const data = (await safeJsonParse(res)) as { labels?: GmailLabel[] };
   return data.labels || [];
 }
 
@@ -497,8 +494,7 @@ export async function gGmailCreateLabel(name: string): Promise<GmailLabel> {
     method: "POST",
     body: JSON.stringify({ name, labelListVisibility: "labelShow", messageListVisibility: "show" }),
   });
-  if (!res.ok) throw new Error(`Gmail create label error: ${res.status}`);
-  return res.json() as Promise<GmailLabel>;
+  return safeJsonParse(res) as Promise<GmailLabel>;
 }
 
 /** Delete a label */
@@ -506,7 +502,8 @@ export async function gGmailDeleteLabel(labelId: string): Promise<void> {
   const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/labels/${labelId}`, {
     method: "DELETE",
   });
-  if (!res.ok && res.status !== 204) throw new Error(`Gmail delete label error: ${res.status}`);
+  // googleFetch handles non-OK errors
+  return;
 }
 
 /** List message IDs matching a query */
@@ -522,8 +519,7 @@ export async function gGmailListMessages(
   if (pageToken) sp.set("pageToken", pageToken);
 
   const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/messages?${sp}`);
-  if (!res.ok) throw new Error(`Gmail list messages error: ${res.status}`);
-  return res.json() as Promise<GmailListResponse>;
+  return safeJsonParse(res) as Promise<GmailListResponse>;
 }
 
 /** Get a full message by ID */
@@ -531,8 +527,7 @@ export async function gGmailGetMessage(messageId: string, format: "full" | "meta
   const res = await googleFetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=${format}`,
   );
-  if (!res.ok) throw new Error(`Gmail get message error: ${res.status}`);
-  return res.json() as Promise<GmailMessage>;
+  return safeJsonParse(res) as Promise<GmailMessage>;
 }
 
 /** Fetch emails (list + get full details) */
@@ -613,11 +608,7 @@ export async function gGmailSendEmail(options: {
     method: "POST",
     body: JSON.stringify({ raw: encoded }),
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gmail send error: ${res.status} — ${err}`);
-  }
-  return res.json() as Promise<{ id: string; threadId: string; labelIds: string[] }>;
+  return safeJsonParse(res) as Promise<{ id: string; threadId: string; labelIds: string[] }>;
 }
 
 /**
@@ -751,8 +742,7 @@ export async function gGmailListDrafts(maxResults = 20, pageToken?: string): Pro
   const sp = new URLSearchParams({ maxResults: String(maxResults) });
   if (pageToken) sp.set("pageToken", pageToken);
   const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/drafts?${sp}`);
-  if (!res.ok) throw new Error(`Gmail list drafts error: ${res.status}`);
-  return res.json() as Promise<{ drafts: GmailDraft[]; nextPageToken?: string }>;
+  return safeJsonParse(res) as Promise<{ drafts: GmailDraft[]; nextPageToken?: string }>;
 }
 
 /** Send a draft */
@@ -761,8 +751,7 @@ export async function gGmailSendDraft(draftId: string): Promise<{ id: string; th
     method: "POST",
     body: JSON.stringify({}),
   });
-  if (!res.ok) throw new Error(`Gmail send draft error: ${res.status}`);
-  return res.json() as Promise<{ id: string; threadId: string; labelIds: string[] }>;
+  return safeJsonParse(res) as Promise<{ id: string; threadId: string; labelIds: string[] }>;
 }
 
 /** Delete (trash) a message */
@@ -770,5 +759,6 @@ export async function gGmailDeleteMessage(messageId: string): Promise<void> {
   const res = await googleFetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}`, {
     method: "DELETE",
   });
-  if (!res.ok && res.status !== 204) throw new Error(`Gmail delete message error: ${res.status}`);
+  // googleFetch handles non-OK errors
+  return;
 }
