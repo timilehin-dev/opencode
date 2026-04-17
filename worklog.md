@@ -53,3 +53,24 @@ Stage Summary:
 - web_reader enhanced with metadata extraction
 - All 75 tools working, TypeScript compiles clean
 - Commit: 81d6e3f pushed to main, Vercel auto-deploying
+
+---
+Task ID: 3
+Agent: Main
+Task: Investigate deployment failure reported by user
+
+Work Log:
+- Checked git status: branch was ahead of origin by 1 commit (08dddf8 - worklog update)
+- Pushed missing commit to GitHub to trigger Vercel auto-deploy
+- Verified site returns 200 OK at https://my-project-lilac-pi-90.vercel.app/
+- Verified /api/status returns healthy with Supabase connected
+- Tested chat API with correct UIMessage format — streaming works
+- Caught transient rate-limit on coding-glm-5.1-free (provider-side free tier, not code issue)
+- Confirmed all 4 requested tools exist in codebase: web_reader (line 924), code_execute (3088), weather_get (3162), vision_analyze (1336) + vision_download_analyze (1384)
+- Confirmed date/time injection at route.ts lines 168-174
+
+Stage Summary:
+- Root cause: commit 08dddf8 wasn't pushed, so Vercel hadn't triggered a new build
+- Fix: pushed commit, Vercel now deploying
+- All tools verified present and registered in allTools (75 total tools)
+- No code changes needed — everything was already built in previous session
