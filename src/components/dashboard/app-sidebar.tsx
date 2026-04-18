@@ -23,7 +23,7 @@ import {
   ChevronDownIcon,
   ServicesIcon,
 } from "@/components/icons";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, BarChart3 } from "lucide-react";
 import { NotificationBell } from "@/components/dashboard/notification-panel";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +43,7 @@ const coreNavItems: NavItemDef[] = [
   { href: "/agents", label: "Agents", icon: <AgentsIcon className="w-5 h-5" /> },
   { href: "/workflows", label: "Workflows", icon: <Zap className="w-5 h-5" /> },
   { href: "/memory", label: "Memory", icon: <Brain className="w-5 h-5" /> },
+  { href: "/analytics", label: "Analytics", icon: <BarChart3 className="w-5 h-5" /> },
   { href: "/settings", label: "Settings", icon: <SettingsIcon className="w-5 h-5" /> },
 ];
 

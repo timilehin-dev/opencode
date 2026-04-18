@@ -22,6 +22,7 @@ export default function AppLayout({
       automations: "/workflows",
       workflows: "/workflows",
       memory: "/memory",
+      analytics: "/analytics",
       settings: "/settings",
       github: "/services/github",
       gmail: "/services/gmail",

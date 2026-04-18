@@ -260,3 +260,27 @@ Stage Summary:
 - Active Tasks shows real todos with checkbox toggle
 - Coordination Map deferred to Phase 3 (delegation tracking)
 - POST /api/setup/phase2 needed to create new tables in Supabase
+
+---
+Task ID: 2
+Agent: main
+Task: Settings Page — Full implementation
+
+Work Log:
+- Created `src/lib/settings-store.ts` — localStorage-backed settings store with AppSettings type, load/save/update/reset functions, timezone list
+- Created `src/app/api/settings/route.ts` — GET/POST/DELETE API route using Supabase user_preferences table
+- Rewrote `src/app/(app)/settings/page.tsx` — Full settings page with 6 sections:
+  - Workspace: name, display name, timezone, connected services status card
+  - Appearance: theme selector (light/dark/system), compact mode, sidebar default
+  - Notifications: per-service toggles synced with NotificationContext, desktop/sound, polling intervals
+  - Agent Configuration: default agent, temperature slider, max tokens slider, agent overview cards
+  - Data & Privacy: persist/analytics toggles, auto-purge, export JSON, clear conversations/analytics
+  - Danger Zone: reset all settings, resync from Supabase
+- Mobile: horizontal scrollable section nav; Desktop: sticky vertical section nav
+- Build verified: passes TypeScript and Next.js build
+
+Stage Summary:
+- Settings page is now fully functional with 6 sections
+- All changes persisted to localStorage, syncable to Supabase
+- Notification preferences bi-directionally synced with NotificationContext
+- Commit: e0fe812
