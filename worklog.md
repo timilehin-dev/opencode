@@ -201,3 +201,35 @@ Stage Summary:
 - Calendar events use correct timezone and don't auto-spam
 - Docs append actually appends instead of prepending
 - Token cache properly invalidates on 401 errors
+
+---
+Task ID: 3
+Agent: main
+Task: Fix bottom nav overlapping chat input + fix persistent Gmail JSON parse errors (second attempt)
+
+Work Log:
+- Fixed bottom nav overlapping chat input on mobile: ChatView height now subtracts 60px bottom nav on mobile
+- Changed ChatView container from h-[calc(100vh-5rem)] to h-[calc(100vh-5rem-60px)] on mobile
+- Restricted pb-safe on chat input to lg: only (bottom nav handles safe area on mobile)
+- Committed eb75aea
+
+- Investigated persistent Gmail JSON parse errors (still failing after commit 7280e71)
+- Found root cause #1: safeJson() infinite loop bug — when truncation reached count=1, Math.max(1, floor(1*0.7))=1 caused infinite loop, never terminating. This would hang the serverless function until timeout.
+- Found root cause #2: gGmailFetchEmails spread raw GmailMessage object (...msg) which included full payload, all headers, body data, etc. — bloated results triggered truncation.
+- Found root cause #3: 11 instances of res.json() across tools.ts bypassed safeJsonParse error handling
+- Found root cause #4: Base64-decoded email bodies in gmailThreadTool contained raw control characters
+
+- Rewrote safeJson() truncation with new truncateToFit() function — 3-phase approach (shrink arrays, drop keys, recurse into values) with depth limit guaranteeing termination
+- Optimized gGmailFetchEmails to return only 8 fields (id, threadId, snippet, labelIds, from, to, subject, date) instead of full raw message
+- Added GmailEmailSummary interface for the trimmed return type
+- Replaced all 11 res.json() calls with safeParseRes() (local helper) or safeJsonParse()
+- Exported safeJsonParse from google.ts for use in tools.ts
+- Added control character stripping to gmailThreadTool decoded bodies
+- TypeScript compilation: 0 errors
+- Committed bd695f1 and pushed
+
+Stage Summary:
+- Commit bd695f1: 3 files changed (tools.ts, google.ts, tsconfig.tsbuildinfo), 119 insertions, 71 deletions
+- Gmail tools should now work reliably: smaller payloads, no infinite loops, all responses safely parsed
+- All 11 res.json() calls across tools.ts replaced with safe response parsing
+- Mobile chat input no longer covered by bottom navigation bar
