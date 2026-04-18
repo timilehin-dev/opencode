@@ -1,0 +1,21 @@
+name: Claw Cron Jobs
+on:
+  schedule:
+    # Run every 5 minutes — processes pending agent tasks + evaluates automations
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  task-processor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Task Processor
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" -X GET "https://my-project-lilac-pi-90.vercel.app/api/cron/task-processor"
+
+  process-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Reminder Processor
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" -X GET "https://my-project-lilac-pi-90.vercel.app/api/cron/process-reminders"
