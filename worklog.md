@@ -307,3 +307,57 @@ Stage Summary:
 - 'Customized' badge appears on header when any override is active
 - One-click reset restores all defaults
 - Commit: c48fa99 pushed to main
+
+---
+Task ID: 5
+Agent: Main
+Task: Memory management — search, categorize, importance scoring
+
+Work Log:
+- Added getAllMemories() to src/lib/memory.ts for cross-agent listing
+- Updated /api/memory to support ?all=true and ?q=search query params
+- Rewrote src/app/(app)/memory/page.tsx with full management UI:
+  - Stats overview: total memories, avg importance, categories, active agents
+  - Full-text search across content, category, agent name
+  - Agent filter pills with per-agent memory counts
+  - Category filter pills with counts
+  - Sort by importance/recent/category
+  - Importance visualization: star rating + numeric score
+  - Export memories as JSON download
+  - Slide panel for adding memories with agent selector, category chips, importance slider with presets
+  - Toast notifications for all actions
+  - Delete confirmation flow
+- Build verified: 0 TypeScript errors
+
+Stage Summary:
+- Memory page now fully functional with search, filter, categorize, importance scoring
+- Export capability allows backup of all memories
+- Commit: 542ea0a pushed to main
+
+---
+Task ID: 6
+Agent: Main
+Task: Notification system — push, webhook delivery, quiet hours
+
+Work Log:
+- Created src/lib/notification-delivery.ts — delivery config store with:
+  - NotificationDeliveryConfig type (webhooks, desktop, sound, quiet hours)
+  - WebhookConfig type (url, enabled, events, secret)
+  - CRUD functions: load/save/update, addWebhook/removeWebhook/updateWebhook
+  - shouldDeliver() logic: respects quiet hours (except urgent), desktop toggle, webhook event matching
+  - deliverWebhook() fire-and-forget HTTP POST with 5s timeout
+- Created /notifications page with 3 tabs:
+  - History: full notification list with type filter, time grouping (recent/earlier), read/unread styling
+  - Delivery Channels: desktop push toggle, webhook CRUD (add with event filter, remove, toggle, test), email placeholder
+  - Preferences: sound toggle, quiet hours with time pickers and presets (Night, Late Night, Afternoon Nap)
+- Updated sidebar: replaced NotificationBell with Notifications link to /notifications page
+- Build verified: 0 TypeScript errors
+
+Stage Summary:
+- Notification system now complete with dedicated management page
+- Webhook delivery to Slack/Discord/n8n/Make.com with per-webhook event filtering
+- Desktop push notifications already working from previous phase
+- Quiet hours with configurable time window
+- Email delivery marked as planned (requires SMTP)
+- All 6 product-layer tasks completed
+- Commit: ce400a2 pushed to main
