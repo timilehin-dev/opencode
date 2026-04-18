@@ -134,3 +134,29 @@ Stage Summary:
 - Chat redesign: workspace-style cards, animated typing dots, sleek unified input bar
 - Mobile: bottom nav (Home/Chat/Agents/Services/More), hamburger menu, hidden side panels
 - Responsive grids: metrics (5→3→2 cols), coordination map + tasks (2→1 col on mobile)
+---
+Task ID: 2
+Agent: Super Z (main)
+Task: Fix chat history — purge stale data + fix missing agent responses
+
+Work Log:
+- Deep-dived into full persistence system: memory.ts (488 lines), route.ts (345 lines), chat-view.tsx (1386 lines)
+- Identified 3 root cause bugs:
+  1. DOUBLE-SAVING RACE CONDITION: Server-side onFinish AND client-side useEffect both saved messages. Client fired before streaming text populated → empty assistant saves. lastPersistedRef blocked re-saves.
+  2. NO DEDUPLICATION: Both saves went to same localStorage key → duplicates + premature 200-msg trimming.
+  3. WRONG LAST MESSAGE: getAllRecentSessions/getAgentSessions queried descending but took array[last] = oldest, not newest.
+- Removed 28-line client-side persistence useEffect from chat-view.tsx
+- Added deduplication to saveMessage() in memory.ts (exact content match check)
+- Fixed getAllRecentSessions() and getAgentSessions() to use first row (newest) for lastMessage
+- Added purgeAllConversations() function to memory.ts
+- Created /api/memory/purge/route.ts server endpoint
+- Added CHAT_HISTORY_VERSION auto-purge: version 2 triggers full wipe on first visit after deploy
+- TypeScript: 0 errors
+- Committed efb9d47, pushed, verified 200 OK
+
+Stage Summary:
+- Chat history auto-purges on first visit (version bump from undefined/1 to 2)
+- Server-side only saves messages (more reliable — has complete text after streaming)
+- Deduplication prevents double-saves if client or server retries
+- Conversation list shows correct last message (was showing oldest before)
+- All existing corrupted history wiped clean — fresh start
