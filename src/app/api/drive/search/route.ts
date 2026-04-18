@@ -21,8 +21,9 @@ export async function GET(req: NextRequest) {
     // - No query: show all recent files (no 'root' in parents restriction)
     // - With query: search by name across ALL folders
     // - Include both Google Apps files (Docs/Sheets/Slides) and regular files
-    const driveQuery = query
-      ? `name contains '${query.replace(/'/g, "\\'")}' and trashed=false`
+    const escaped = query ? query.replace(/\\/g, "\\\\").replace(/'/g, "\\'") : "";
+    const driveQuery = escaped
+      ? `name contains '${escaped}' and trashed=false`
       : `trashed=false`;
 
     const files = await gDriveListFiles({

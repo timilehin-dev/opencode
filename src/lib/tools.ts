@@ -139,6 +139,7 @@ import {
   gDocsCreate,
   gDocsAppendText,
   googleFetch,
+  plainTextToHtml,
 } from "./google";
 
 // GitHub API imports
@@ -187,28 +188,66 @@ function safeJson<T>(fn: (input: T) => Promise<unknown>) {
   return async (input: T) => {
     try {
       const result = await fn(input);
-      let json = JSON.stringify({ success: true, data: result });
-      if (json.length > MAX_TOOL_RESULT_LENGTH) {
-        // Truncate the data portion, keeping the JSON valid
-        const wrapper = JSON.stringify({ success: true, data: "__PLACEHOLDER__" });
-        const overhead = wrapper.length;
-        const available = MAX_TOOL_RESULT_LENGTH - overhead - 100;
-        if (available > 200) {
-          const truncated = json.slice(0, available);
-          json = JSON.stringify({
-            success: true,
-            data: JSON.parse(truncated),
-            _note: `[Result truncated — original was ${json.length} chars, showing first ${available}]
-Use a more specific query or filter to get fewer results if you need more detail.`,
-          });
-        } else {
-          json = JSON.stringify({
-            success: true,
-            data: `[Result too large to display — ${json.length} chars]. The tool returned data but it exceeded the output limit. Try narrowing your query (fewer results, specific date range, or filters).`,
-          });
-        }
+      const jsonFull = JSON.stringify({ success: true, data: result });
+
+      if (jsonFull.length <= MAX_TOOL_RESULT_LENGTH) {
+        return jsonFull;
       }
-      return json;
+
+      // Safe truncation: truncate the data object/array to fit within the limit.
+      // Strategy: if it's an array, keep only the first N items. If it's an object,
+      // keep only the first N keys. This produces valid JSON without blind slicing.
+      const note = `[Result truncated — original was ${jsonFull.length} chars. Use a more specific query.]`;
+      const wrapperOverhead = JSON.stringify({ success: true, data: null, _note: note }).length;
+
+      if (result && Array.isArray(result)) {
+        // For arrays: progressively keep fewer items until it fits
+        const items = result as unknown[];
+        for (let count = items.length; count > 0; count = Math.max(1, Math.floor(count * 0.7))) {
+          const truncated = items.slice(0, count);
+          const test = JSON.stringify({ success: true, data: truncated, _note: note });
+          if (test.length <= MAX_TOOL_RESULT_LENGTH) {
+            if (count < items.length) {
+              return test; // Already has _note
+            }
+            return JSON.stringify({ success: true, data: truncated });
+          }
+        }
+        // Even 1 item is too large — just return the first item truncated
+        return JSON.stringify({ success: true, data: `[Array of ${items.length} items — each item too large to include]. ${note}` });
+      }
+
+      if (result && typeof result === "object") {
+        // For objects: progressively keep fewer keys
+        const entries = Object.entries(result as Record<string, unknown>);
+        for (let count = entries.length; count > 0; count = Math.max(1, Math.floor(count * 0.7))) {
+          const truncated = Object.fromEntries(entries.slice(0, count));
+          const test = JSON.stringify({ success: true, data: truncated, _note: note });
+          if (test.length <= MAX_TOOL_RESULT_LENGTH) {
+            if (count < entries.length) {
+              return test;
+            }
+            return JSON.stringify({ success: true, data: truncated });
+          }
+        }
+        return JSON.stringify({ success: true, data: `[Object too large to include]. ${note}` });
+      }
+
+      // For strings/primitives: truncate the string directly
+      const strResult = String(result);
+      const available = MAX_TOOL_RESULT_LENGTH - wrapperOverhead;
+      if (available > 100) {
+        return JSON.stringify({
+          success: true,
+          data: strResult.slice(0, available) + "...",
+          _note: note,
+        });
+      }
+
+      return JSON.stringify({
+        success: true,
+        data: `[Result too large — ${jsonFull.length} chars]. Narrow your query.`,
+      });
     } catch (error) {
       return JSON.stringify({
         success: false,
@@ -337,10 +376,10 @@ export const calendarCreateTool = tool({
     return await gCalCreateEvent(calendarId || "primary", {
       summary,
       start: isDateTime
-        ? { dateTime: start, timeZone: "UTC" }
+        ? { dateTime: start, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
         : { date: start },
       end: isDateTime
-        ? { dateTime: end, timeZone: "UTC" }
+        ? { dateTime: end, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
         : { date: end },
       location,
       description,
@@ -993,17 +1032,18 @@ export const gmailReplyTool = tool({
     const originalReferences = getHeader("References");
 
     // Build RFC 2822 reply message
+    const sanitizeHeader = (s: string) => s.replace(/[\r\n]/g, "");
     let message = "";
-    message += `To: ${to}\r\n`;
-    if (cc?.length) message += `Cc: ${cc.join(", ")}\r\n`;
-    if (bcc?.length) message += `Bcc: ${bcc.join(", ")}\r\n`;
-    message += `Subject: ${subject || getHeader("Subject") || ""}\r\n`;
+    message += `To: ${sanitizeHeader(to)}\r\n`;
+    if (cc?.length) message += `Cc: ${cc.map(sanitizeHeader).join(", ")}\r\n`;
+    if (bcc?.length) message += `Bcc: ${bcc.map(sanitizeHeader).join(", ")}\r\n`;
+    message += `Subject: ${sanitizeHeader(subject || getHeader("Subject") || "")}\r\n`;
     message += "Content-Type: text/html; charset=utf-8\r\n";
     message += "MIME-Version: 1.0\r\n";
     if (originalMessageId) message += `In-Reply-To: ${originalMessageId}\r\n`;
     if (originalMessageId) message += `References: ${originalReferences ? originalReferences + " " : ""}${originalMessageId}\r\n`;
     message += "\r\n";
-    message += isHtml ? body : body;
+    message += isHtml ? body : plainTextToHtml(body);
 
     const encoded = Buffer.from(message).toString("base64url");
     const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/messages/send", {
@@ -1052,15 +1092,15 @@ export const gmailThreadTool = tool({
       // Extract body content
       let content = "";
       if (msg.payload?.body?.data) {
-        content = Buffer.from(msg.payload.body.data, "base64").toString("utf-8");
+        content = Buffer.from(msg.payload.body.data, "base64url").toString("utf-8");
       } else if (msg.payload?.parts) {
         for (const part of msg.payload.parts) {
           if (part.mimeType === "text/plain" && part.body?.data) {
-            content = Buffer.from(part.body.data, "base64").toString("utf-8");
+            content = Buffer.from(part.body.data, "base64url").toString("utf-8");
             break;
           }
           if (part.mimeType === "text/html" && part.body?.data) {
-            content = Buffer.from(part.body.data, "base64").toString("utf-8");
+            content = Buffer.from(part.body.data, "base64url").toString("utf-8");
           }
         }
       }

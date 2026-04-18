@@ -103,7 +103,7 @@ async function safeJsonParse(res: Response): Promise<any> {
 }
 
 /** Make an authenticated request to a Google API */
-export async function googleFetch(url: string, options?: RequestInit): Promise<Response> {
+export async function googleFetch(url: string, options?: RequestInit, retryCount = 0): Promise<Response> {
   const token = await getAccessToken();
   const isGet = !(options?.method && options.method !== 'GET');
   const res = await fetch(url, {
@@ -114,6 +114,12 @@ export async function googleFetch(url: string, options?: RequestInit): Promise<R
       ...(isGet ? {} : { "Content-Type": "application/json" }),
     },
   });
+  // On 401, invalidate cached token and retry once
+  if (res.status === 401 && retryCount === 0) {
+    // Clear all cached tokens to force re-authentication
+    tokenCache.clear();
+    return googleFetch(url, options, retryCount + 1);
+  }
   if (!res.ok) {
     const errText = await res.text().catch(() => "(could not read error body)");
     throw new Error(`Google API error ${res.status} on ${url.split('?')[0]}: ${errText.slice(0, 300)}`);
@@ -180,7 +186,7 @@ export async function gCalCreateEvent(
     conferenceData?: { createRequest: { requestId: string } };
   },
 ): Promise<GoogleCalendarEvent> {
-  const params = new URLSearchParams({ conferenceDataVersion: "1", sendUpdates: "all" });
+  const params = new URLSearchParams({ conferenceDataVersion: "1", sendUpdates: "none" });
   const res = await googleFetch(
     `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`,
     {
@@ -415,7 +421,7 @@ export async function gDocsAppendText(
         requests: [
           {
             insertText: {
-              location: { index: 1 },
+              location: { index: -1 },
               text: text + "\n",
             },
           },
@@ -590,12 +596,14 @@ export async function gGmailSendEmail(options: {
     htmlBody = plainTextToHtml(options.body);
   }
 
+  // Sanitize header values to prevent injection
+  const sanitize = (s: string) => s.replace(/[\r\n]/g, "");
   // Build RFC 2822 message
   let message = "";
-  message += `To: ${options.to}\r\n`;
-  if (options.cc?.length) message += `Cc: ${options.cc.join(", ")}\r\n`;
-  if (options.bcc?.length) message += `Bcc: ${options.bcc.join(", ")}\r\n`;
-  if (options.subject) message += `Subject: ${options.subject}\r\n`;
+  message += `To: ${sanitize(options.to)}\r\n`;
+  if (options.cc?.length) message += `Cc: ${options.cc.map(sanitize).join(", ")}\r\n`;
+  if (options.bcc?.length) message += `Bcc: ${options.bcc.map(sanitize).join(", ")}\r\n`;
+  if (options.subject) message += `Subject: ${sanitize(options.subject)}\r\n`;
   message += "Content-Type: text/html; charset=utf-8\r\n";
   message += "MIME-Version: 1.0\r\n";
   message += "\r\n";
@@ -617,7 +625,7 @@ export async function gGmailSendEmail(options: {
  * headers (# through ######, with or without space), horizontal rules (---),
  * code blocks, inline code, and tables.
  */
-function plainTextToHtml(text: string): string {
+export function plainTextToHtml(text: string): string {
   const lines = text.split("\n");
   const htmlLines: string[] = [];
   let inList = false;
