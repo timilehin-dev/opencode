@@ -26,7 +26,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
-import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage } from "@/lib/memory";
+import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage, purgeAllConversations } from "@/lib/memory";
+
+// ---------------------------------------------------------------------------
+// Chat History Version — bump this to trigger a fresh purge on next visit
+// ---------------------------------------------------------------------------
+const CHAT_HISTORY_VERSION = 2;
+const CHAT_VERSION_KEY = "claw-chat-history-version";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -537,34 +543,10 @@ function AgentChatSession({
     prevMessageCountRef.current = messages.length;
   }, [messages, agentId, agentInfo.name]);
 
-  // Persist messages to localStorage + Supabase client-side
-  const lastPersistedRef = useRef(0);
-  useEffect(() => {
-    if (messages.length === 0 || !historyLoaded) return;
-    const startIdx = lastPersistedRef.current || 0;
-    for (let i = startIdx; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg.role === "user" || msg.role === "assistant") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const parts = (msg as any).parts || [];
-        const text = parts
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .filter((p: any) => p.type === "text")
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((p: any) => p.text || "")
-          .join("");
-        if (text) {
-          saveMessage({
-            sessionId,
-            agentId,
-            role: msg.role,
-            content: text,
-          }).catch(() => {});
-        }
-      }
-    }
-    lastPersistedRef.current = messages.length;
-  }, [messages.length, historyLoaded, sessionId, agentId]);
+  // NOTE: Message persistence is handled SERVER-SIDE only (route.ts onFinish callback).
+  // This avoids a race condition where the client-side effect fires before the
+  // streaming text is fully populated, causing empty assistant messages to be saved.
+  // The server-side onFinish has the complete text after streaming completes.
 
   // --- File Upload Handler ---
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1170,8 +1152,28 @@ export function ChatView() {
   const [sessionMap, setSessionMap] = useState<Record<string, string>>({});
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Load session map from localStorage on mount
+  // Load session map from localStorage on mount + auto-purge stale history
   useEffect(() => {
+    // Auto-purge: if chat history version doesn't match, purge everything and start fresh
+    try {
+      const storedVersion = localStorage.getItem(CHAT_VERSION_KEY);
+      if (storedVersion !== String(CHAT_HISTORY_VERSION)) {
+        console.log("[Chat] Chat history version mismatch — purging all old history");
+        purgeAllConversations().then((result) => {
+          console.log("[Chat] Purge result:", result);
+          localStorage.setItem(CHAT_VERSION_KEY, String(CHAT_HISTORY_VERSION));
+        }).catch(() => {
+          localStorage.setItem(CHAT_VERSION_KEY, String(CHAT_HISTORY_VERSION));
+        });
+        // Reset session state to force fresh start
+        setSessionMap({});
+        setCurrentSessionId(generateSessionId());
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     const map = loadSessionMap();
     setSessionMap(map);
 

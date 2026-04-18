@@ -76,7 +76,9 @@ function saveJSON<T>(key: string, data: T): void {
 // Conversation History
 // ---------------------------------------------------------------------------
 
-/** Save a conversation message (both localStorage and Supabase). */
+/** Save a conversation message (both localStorage and Supabase).
+ *  Includes deduplication: if the last message for this session has the same
+ *  role + content (first 50 chars), it's a duplicate and is skipped. */
 export async function saveMessage(msg: {
   sessionId: string;
   agentId: string;
@@ -84,6 +86,15 @@ export async function saveMessage(msg: {
   content: string;
   toolCalls?: unknown[];
 }): Promise<ConversationMessage> {
+  // Deduplicate: skip if last message in localStorage for this session is identical
+  const existing = loadJSON<ConversationMessage[]>(CONV_KEY, []);
+  const lastForSession = [...existing].reverse().find(
+    (m) => m.sessionId === msg.sessionId && m.agentId === msg.agentId
+  );
+  if (lastForSession && lastForSession.role === msg.role && lastForSession.content === msg.content) {
+    return lastForSession; // Exact duplicate — skip
+  }
+
   const message: ConversationMessage = {
     id: genId(),
     sessionId: msg.sessionId,
@@ -183,24 +194,29 @@ export async function getAgentSessions(
         .limit(500);
 
       if (!error && data && data.length > 0) {
-        // Group by session_id
-        const sessions = new Map<string, { messages: string[]; lastActivity: string }>();
+        // Group by session_id — data is descending by created_at
+        const sessions = new Map<string, { lastMessage: string; messageCount: number; lastActivity: string }>();
         for (const row of data) {
           const sid = row.session_id as string;
           if (!sessions.has(sid)) {
-            sessions.set(sid, { messages: [], lastActivity: row.created_at as string });
+            // First row is the newest message for this session
+            sessions.set(sid, {
+              lastMessage: (row.content as string).slice(0, 100),
+              messageCount: 1,
+              lastActivity: row.created_at as string,
+            });
+          } else {
+            sessions.get(sid)!.messageCount++;
           }
-          sessions.get(sid)!.messages.push(row.content as string);
         }
 
         const result: Array<{ sessionId: string; lastMessage: string; lastActivity: string; messageCount: number }> = [];
         for (const [sessionId, info] of sessions) {
-          const lastMsg = info.messages[info.messages.length - 1] || "";
           result.push({
             sessionId,
-            lastMessage: lastMsg.slice(0, 100),
+            lastMessage: info.lastMessage,
             lastActivity: info.lastActivity,
-            messageCount: info.messages.length,
+            messageCount: info.messageCount,
           });
         }
 
@@ -281,21 +297,28 @@ export async function getAllRecentSessions(limit: number = 30): Promise<Array<{
 
       if (!error && data && data.length > 0) {
         // Group by session_id, track agent_id
-        const sessions = new Map<string, { agentId: string; messages: string[]; lastActivity: string }>();
+        const sessions = new Map<string, { agentId: string; lastMessage: string; messageCount: number; lastActivity: string }>();
         for (const row of data) {
           const sid = row.session_id as string;
           if (!sessions.has(sid)) {
-            sessions.set(sid, { agentId: row.agent_id as string, messages: [], lastActivity: row.created_at as string });
+            // First row is the newest (descending order), use it for lastMessage
+            sessions.set(sid, {
+              agentId: row.agent_id as string,
+              lastMessage: (row.content as string).slice(0, 100),
+              messageCount: 1,
+              lastActivity: row.created_at as string,
+            });
+          } else {
+            sessions.get(sid)!.messageCount++;
           }
-          sessions.get(sid)!.messages.push(row.content as string);
         }
 
         const result = Array.from(sessions.entries()).map(([sessionId, info]) => ({
           sessionId,
           agentId: info.agentId,
-          lastMessage: (info.messages[info.messages.length - 1] || "").slice(0, 100),
+          lastMessage: info.lastMessage,
           lastActivity: info.lastActivity,
-          messageCount: info.messages.length,
+          messageCount: info.messageCount,
         }));
 
         result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
@@ -347,6 +370,36 @@ export async function clearConversationHistory(agentId?: string): Promise<void> 
       await supabase.from("conversations").delete().neq("id", 0); // Delete all
     }
   }
+}
+
+/** Purge ALL conversation history — localStorage + Supabase + session maps.
+ *  Used to start completely fresh. */
+export async function purgeAllConversations(): Promise<{ localStorage: boolean; supabase: boolean }> {
+  let localStorageCleared = false;
+  let supabaseCleared = false;
+
+  // Clear localStorage conversation data
+  try {
+    localStorage.removeItem(CONV_KEY);
+    localStorage.removeItem("claw-agent-sessions");
+    localStorage.removeItem("claw-last-active-agent");
+    localStorageCleared = true;
+  } catch {
+    // ignore
+  }
+
+  // Clear Supabase
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase.from("conversations").delete().neq("id", 0);
+      supabaseCleared = true;
+    } catch {
+      // ignore
+    }
+  }
+
+  return { localStorage: localStorageCleared, supabase: supabaseCleared };
 }
 
 // ---------------------------------------------------------------------------
