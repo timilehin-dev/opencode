@@ -16,8 +16,39 @@ import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
+import { getSupabase } from "@/lib/supabase";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
+
+// ---------------------------------------------------------------------------
+// Load user settings (temperature, maxTokens) from Supabase
+// ---------------------------------------------------------------------------
+
+async function loadUserSettings(): Promise<{ temperature: number; maxTokens: number }> {
+  const defaults = { temperature: 0.7, maxTokens: 16384 };
+  const supabase = getSupabase();
+  if (!supabase) return defaults;
+
+  try {
+    const { data, error } = await supabase
+      .from("user_preferences")
+      .select("value")
+      .eq("key", "app_settings")
+      .single();
+
+    if (!error && data?.value) {
+      const settings = data.value as Record<string, unknown>;
+      return {
+        temperature: typeof settings.temperature === "number" ? settings.temperature : defaults.temperature,
+        maxTokens: typeof settings.maxTokens === "number" ? settings.maxTokens : defaults.maxTokens,
+      };
+    }
+  } catch {
+    // Fall through to defaults
+  }
+
+  return defaults;
+}
 
 // ---------------------------------------------------------------------------
 // Route Handler
@@ -86,10 +117,11 @@ export async function POST(req: Request) {
     const model = getProvider(agent);
 
     // Run these in parallel to reduce time-to-first-token
-    const [modelMessages, memoryContext, dueReminders] = await Promise.all([
+    const [modelMessages, memoryContext, dueReminders, userSettings] = await Promise.all([
       convertToModelMessages(processedMessages),
       getMemorySummary(id).catch(() => ""),
       checkDueReminders().catch(() => []),
+      loadUserSettings(),
     ]);
 
     // Save the user's message to conversation history (fire-and-forget)
@@ -187,7 +219,8 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: 16384,
+      maxOutputTokens: userSettings.maxTokens,
+      temperature: userSettings.temperature,
       stopWhen: stepCountIs(15),
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
         const stepInfo: string[] = [`[Step] finishReason=${finishReason}`];

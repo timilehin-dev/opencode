@@ -23,6 +23,7 @@ import {
   ChevronRightIcon,
   Shield,
   Download,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
   type AppSettings,
   DEFAULT_SETTINGS,
   loadSettings,
+  loadSettingsFromCloud,
   saveSettings,
   resetSettings,
   TIMEZONES,
@@ -188,13 +190,27 @@ export default function SettingsPage() {
   const [clearConvoConfirm, setClearConvoConfirm] = useState(false);
   const [clearAnalyticsConfirm, setClearAnalyticsConfirm] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [cloudSyncing, setCloudSyncing] = useState(true);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { updatePreferences, preferences: notifPrefs } = useNotifications();
   const { theme, setTheme } = useTheme();
 
-  // Load settings on mount
+  // Load settings on mount — localStorage first, then sync from cloud
   useEffect(() => {
-    setSettings(loadSettings());
+    const local = loadSettings();
+    setSettings(local);
+
+    // Attempt to load from cloud and merge (cloud overrides localStorage)
+    loadSettingsFromCloud()
+      .then((cloud) => {
+        if (cloud) {
+          const merged = { ...local, ...cloud };
+          setSettings(merged);
+          saveSettings(merged); // Persist merged settings back to localStorage
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCloudSyncing(false));
   }, []);
 
   // Sync notification preferences from context into settings store
@@ -350,6 +366,16 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3 mb-1">
           <SettingsIcon className="w-5 h-5 text-muted-foreground" />
           <h2 className="text-xl font-bold text-foreground">Settings</h2>
+          {cloudSyncing && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-[10px] text-muted-foreground flex items-center gap-1"
+            >
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Syncing…
+            </motion.span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground ml-8">
           Configure your workspace, agents, and preferences

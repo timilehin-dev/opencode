@@ -20,13 +20,14 @@ import {
   DriveIcon,
   SearchIcon,
   UploadIcon,
+  TrashIcon,
 } from "@/components/icons";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
-import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage, purgeAllConversations } from "@/lib/memory";
+import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage, purgeAllConversations, deleteSession } from "@/lib/memory";
 
 // ---------------------------------------------------------------------------
 // Chat History Version — bump this to trigger a fresh purge on next visit
@@ -301,24 +302,35 @@ function ConversationsPanel({
   currentSessionId,
   currentAgentId,
   onSelectSession,
+  onDeleteSession,
+  onDeleteAll,
   onClose,
 }: {
   agents: AgentInfo[];
   currentSessionId: string;
   currentAgentId: string;
   onSelectSession: (sessionId: string, agentId: string) => void;
+  onDeleteSession: (sessionId: string, agentId: string) => void;
+  onDeleteAll: () => void;
   onClose: () => void;
 }) {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  const refreshSessions = useCallback(() => {
     setLoading(true);
     getAllRecentSessions(30)
       .then(setSessions)
       .catch(() => setSessions([]))
       .finally(() => setLoading(false));
-  }, [currentSessionId]);
+  }, []);
+
+  useEffect(() => {
+    refreshSessions();
+  }, [currentSessionId, refreshSessions]);
 
   const formatTime = (dateStr: string) => {
     try {
@@ -349,6 +361,40 @@ function ConversationsPanel({
     return { id: agentId, name: agentId, role: "", emoji: "\uD83E\uDD16", color: "emerald", provider: "", model: "" };
   };
 
+  const handleDeleteSession = async (sessionId: string, agentId: string) => {
+    setDeleting(true);
+    try {
+      await fetch("/api/conversations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, agentId }),
+      });
+      onDeleteSession(sessionId, agentId);
+      refreshSessions();
+    } catch {
+      // ignore
+    }
+    setDeleting(false);
+    setDeleteConfirm(null);
+  };
+
+  const handleDeleteAll = async () => {
+    setDeleting(true);
+    try {
+      await fetch("/api/conversations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
+      onDeleteAll();
+      refreshSessions();
+    } catch {
+      // ignore
+    }
+    setDeleting(false);
+    setDeleteAllConfirm(false);
+  };
+
   return (
     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
@@ -356,12 +402,41 @@ function ConversationsPanel({
           <HistoryIcon className="w-4 h-4" />
           All Conversations
         </h3>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-md hover:bg-accent transition-colors"
-        >
-          <XIcon className="w-4 h-4 text-muted-foreground" />
-        </button>
+        <div className="flex items-center gap-1">
+          {sessions.length > 0 && !deleteAllConfirm && (
+            <button
+              onClick={() => setDeleteAllConfirm(true)}
+              className="px-2 py-1 rounded-md text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+              title="Delete all conversations"
+            >
+              Delete All
+            </button>
+          )}
+          {deleteAllConfirm && (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-red-400">Delete all?</span>
+              <button
+                onClick={handleDeleteAll}
+                disabled={deleting}
+                className="px-2 py-0.5 rounded text-[10px] bg-red-500 text-white hover:bg-red-600 transition-colors"
+              >
+                {deleting ? "..." : "Yes"}
+              </button>
+              <button
+                onClick={() => setDeleteAllConfirm(false)}
+                className="px-2 py-0.5 rounded text-[10px] text-muted-foreground hover:bg-accent transition-colors"
+              >
+                No
+              </button>
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-accent transition-colors"
+          >
+            <XIcon className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -383,32 +458,66 @@ function ConversationsPanel({
               const colors = colorMap[agent.color] || colorMap.emerald;
 
               return (
-                <button
+                <div
                   key={session.sessionId}
-                  onClick={() => onSelectSession(session.sessionId, session.agentId)}
                   className={cn(
-                    "w-full text-left px-4 py-3 transition-colors hover:bg-accent/50 border-b border-border/30",
+                    "flex items-center group transition-colors hover:bg-accent/50 border-b border-border/30",
                     isActive && "bg-accent"
                   )}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs">{agent.emoji}</span>
-                      <span className={cn("text-[11px] font-medium", colors.text)}>{agent.name}</span>
+                  <button
+                    onClick={() => onSelectSession(session.sessionId, session.agentId)}
+                    className="flex-1 text-left px-4 py-3 min-w-0"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs">{agent.emoji}</span>
+                        <span className={cn("text-[11px] font-medium", colors.text)}>{agent.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatTime(session.lastActivity)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {session.messageCount} msgs
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground">
-                        {formatTime(session.lastActivity)}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground/70">
-                        {session.messageCount} msgs
-                      </span>
-                    </div>
+                    <p className="text-xs text-foreground truncate">
+                      {session.lastMessage || "Empty conversation"}
+                    </p>
+                  </button>
+                  <div className="pr-2 flex-shrink-0">
+                    {deleteConfirm === session.sessionId ? (
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => handleDeleteSession(session.sessionId, session.agentId)}
+                          disabled={deleting}
+                          className="px-1.5 py-0.5 rounded text-[9px] bg-red-500 text-white hover:bg-red-600 transition-colors"
+                        >
+                          {deleting ? "..." : "Yes"}
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(null)}
+                          className="px-1.5 py-0.5 rounded text-[9px] text-muted-foreground hover:bg-accent transition-colors"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirm(session.sessionId);
+                        }}
+                        className="p-1 rounded-md text-muted-foreground/0 group-hover:text-muted-foreground/60 hover:!text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Delete conversation"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-foreground truncate">
-                    {session.lastMessage || "Empty conversation"}
-                  </p>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -679,7 +788,20 @@ function AgentChatSession({
 
     let messageText = inputText;
     if (attachments.length > 0) {
-      const attText = attachments
+      // Truncate large text attachments for the message (display + API)
+      const processedAttachments = attachments.map((a) => {
+        if (a.type !== "image" && a.content.length > 3000) {
+          const truncated = a.content.slice(0, 3000);
+          const remaining = a.content.length - 3000;
+          return {
+            ...a,
+            content: truncated + `\n\n[... ${remaining.toLocaleString()} more characters from "${a.name}" truncated. The full document content has been provided to the AI.]`,
+          };
+        }
+        return a;
+      });
+
+      const attText = processedAttachments
         .map((a) => `[Attached file: ${a.name}]\n${a.content}`)
         .join("\n\n---\n\n");
       messageText = attText + "\n\n---\n\n" + messageText;
@@ -1272,6 +1394,22 @@ export function ChatView() {
     setShowConversations(false);
   };
 
+  const handleDeleteSession = (sessionId: string, agentId: string) => {
+    // If the deleted session is the current active session, start fresh
+    if (sessionId === currentSessionId && agentId === selectedAgent) {
+      const newSessionId = generateSessionId();
+      const newMap = { ...sessionMap, [agentId]: newSessionId };
+      updateSessionMap(newMap);
+      setCurrentSessionId(newSessionId);
+    }
+  };
+
+  const handleDeleteAll = () => {
+    const newSessionId = generateSessionId();
+    updateSessionMap({});
+    setCurrentSessionId(newSessionId);
+  };
+
   return (
     <div className="flex flex-col h-full relative">
       {/* Slim Header — Agent emoji + name + role, model badge, history/new buttons */}
@@ -1365,6 +1503,8 @@ export function ChatView() {
               currentSessionId={currentSessionId}
               currentAgentId={selectedAgent}
               onSelectSession={handleSelectSession}
+              onDeleteSession={handleDeleteSession}
+              onDeleteAll={handleDeleteAll}
               onClose={() => setShowConversations(false)}
             />
           </motion.div>

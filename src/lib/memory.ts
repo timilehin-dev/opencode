@@ -402,6 +402,28 @@ export async function purgeAllConversations(): Promise<{ localStorage: boolean; 
   return { localStorage: localStorageCleared, supabase: supabaseCleared };
 }
 
+/** Delete a specific session's messages (both localStorage + Supabase).
+ *  Returns true if any messages were found and deleted. */
+export async function deleteSession(sessionId: string, agentId: string): Promise<boolean> {
+  // localStorage: remove all messages with this sessionId + agentId
+  const all = loadJSON<ConversationMessage[]>(CONV_KEY, []);
+  const filtered = all.filter(m => !(m.sessionId === sessionId && m.agentId === agentId));
+  const found = all.length !== filtered.length;
+  saveJSON(CONV_KEY, filtered);
+
+  // Supabase: delete by session_id AND agent_id
+  const supabase = getSupabase();
+  if (supabase && found) {
+    await supabase
+      .from("conversations")
+      .delete()
+      .eq("session_id", sessionId)
+      .eq("agent_id", agentId);
+  }
+
+  return found;
+}
+
 // ---------------------------------------------------------------------------
 // Agent Memory (Persistent Facts)
 // ---------------------------------------------------------------------------

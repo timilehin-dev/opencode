@@ -92,6 +92,38 @@ export function saveSettings(settings: AppSettings): void {
   } catch {
     // Storage full or unavailable
   }
+  // Fire-and-forget sync to cloud
+  syncSettingsToCloud(settings).catch(() => {});
+}
+
+/** Sync settings to Supabase via the API. Fire-and-forget safe. */
+export async function syncSettingsToCloud(settings: AppSettings): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings }),
+    });
+  } catch {
+    // Network error — ignore, localStorage is the source of truth
+  }
+}
+
+/** Load settings from Supabase cloud (async). Returns null if unavailable. */
+export async function loadSettingsFromCloud(): Promise<AppSettings | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch("/api/settings");
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.success && data.settings) {
+      return { ...DEFAULT_SETTINGS, ...data.settings };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function updateSettings(patch: Partial<AppSettings>): AppSettings {
