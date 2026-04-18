@@ -3,6 +3,18 @@
 //
 // Enables agents to communicate, share context, and collaborate.
 // Uses Supabase as the persistence layer for messages and tasks.
+//
+// HANDOFF PROTOCOL:
+// When an agent hands off a task to another agent, use the standard format:
+// {
+//   from: "general",
+//   to: "mail",
+//   task: "Send follow-up email to client",
+//   context: "Client asked about pricing. Here's the email thread...",
+//   priority: "high" | "medium" | "low",
+//   deadline: "2026-04-19T09:00:00Z",
+//   callback: true  // send results back to general when done
+// }
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -13,11 +25,21 @@ export interface A2AMessage {
   id: string;
   fromAgent: string;
   toAgent: string;
-  type: "request" | "response" | "broadcast" | "context_share";
+  type: "request" | "response" | "broadcast" | "context_share" | "handoff";
   topic: string;
   payload: Record<string, unknown>;
   timestamp: string;
   status: "pending" | "delivered" | "completed" | "failed";
+}
+
+export interface AgentHandoff {
+  from: string;
+  to: string;
+  task: string;
+  context: string;
+  priority: "high" | "medium" | "low";
+  deadline?: string;
+  callback: boolean;
 }
 
 export interface A2ATask {
@@ -293,4 +315,49 @@ export async function getAgentA2ATasks(
     console.error('[A2A] Failed to get tasks:', error);
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Agent Handoff Protocol — Standard task handoff between agents
+// ---------------------------------------------------------------------------
+
+/**
+ * Send a structured handoff from one agent to another.
+ * Creates both an A2A message (type: "handoff") and an A2A task.
+ * If callback=true, the receiving agent is expected to send results back.
+ */
+export async function sendAgentHandoff(handoff: AgentHandoff): Promise<{
+  messageId: string | null;
+  taskId: string | null;
+}> {
+  // Send handoff message
+  const msg = await sendA2AMessage({
+    fromAgent: handoff.from,
+    toAgent: handoff.to,
+    type: "handoff",
+    topic: handoff.task,
+    payload: {
+      task: handoff.task,
+      context: handoff.context,
+      priority: handoff.priority,
+      deadline: handoff.deadline || null,
+      callback: handoff.callback,
+    },
+  });
+
+  // Create a task for tracking
+  const task = await createA2ATask({
+    initiatorAgent: handoff.from,
+    assignedAgent: handoff.to,
+    task: handoff.task,
+    context: handoff.context,
+    delegationChain: [handoff.from, handoff.to],
+  });
+
+  console.log(`[A2A] Handoff: ${handoff.from} -> ${handoff.to}: ${handoff.task.slice(0, 80)}... (priority: ${handoff.priority})`);
+
+  return {
+    messageId: msg?.id || null,
+    taskId: task?.id || null,
+  };
 }
