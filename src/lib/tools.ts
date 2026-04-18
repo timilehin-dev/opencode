@@ -200,30 +200,84 @@ import {
 // causing it to stop generating after tool calls. This cap prevents that.
 const MAX_TOOL_RESULT_LENGTH = 8000;
 
-function safeJson<T>(fn: (input: T) => Promise<unknown>) {
+// ---------------------------------------------------------------------------
+// Error Retry Logic with Exponential Backoff
+// ---------------------------------------------------------------------------
+
+/** Error types that are worth retrying (transient failures) */
+const RETRYABLE_ERROR_PATTERNS = [
+  /timeout/i,
+  /timed? out/i,
+  /econnrefused/i,
+  /econnreset/i,
+  /429/,          // Rate limit
+  /503/,          // Service unavailable
+  /502/,          // Bad gateway
+  /500/,          // Internal server error (may be transient)
+  /socket hang up/i,
+  /network error/i,
+  /abort error/i,
+  /reset by peer/i,
+];
+
+function isRetryableError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return RETRYABLE_ERROR_PATTERNS.some(pattern => pattern.test(msg));
+}
+
+function safeJsonWithRetry<T>(fn: (input: T) => Promise<unknown>, maxRetries = 2) {
   return async (input: T) => {
-    try {
-      const result = await fn(input);
-      const jsonFull = JSON.stringify({ success: true, data: result });
+    let lastError: unknown;
 
-      if (jsonFull.length <= MAX_TOOL_RESULT_LENGTH) {
-        return jsonFull;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await fn(input);
+        const jsonFull = JSON.stringify({ success: true, data: result });
+
+        if (jsonFull.length <= MAX_TOOL_RESULT_LENGTH) {
+          return jsonFull;
+        }
+
+        // Safe truncation — produces valid JSON without blind string slicing.
+        // Uses a depth-limited approach: shrinks arrays inside objects, then
+        // drops keys, guaranteeing termination.
+        const note = `[Result truncated — original was ${jsonFull.length} chars. Use a more specific query.]`;
+
+        const truncated = truncateToFit(result, MAX_TOOL_RESULT_LENGTH - 120);
+        return JSON.stringify({ success: true, data: truncated, _note: note });
+      } catch (error) {
+        lastError = error;
+        const isRetryable = isRetryableError(error);
+        const isLastAttempt = attempt === maxRetries;
+
+        if (!isRetryable || isLastAttempt) {
+          // Not retryable or out of retries — return the error to the agent
+          const errMsg = error instanceof Error ? error.message : "Unknown error";
+          const retryInfo = attempt > 0 ? ` (failed after ${attempt + 1} attempt${attempt > 0 ? "s" : ""})` : "";
+          console.error(`[Tool] Error${retryInfo}: ${errMsg}`);
+          return JSON.stringify({
+            success: false,
+            error: `${errMsg}${retryInfo}`,
+          });
+        }
+
+        // Exponential backoff: 1s, 2s
+        const delayMs = Math.min(1000 * Math.pow(2, attempt), 4000);
+        console.warn(`[Tool] Retryable error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms: ${error instanceof Error ? error.message : "Unknown"}`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
-
-      // Safe truncation — produces valid JSON without blind string slicing.
-      // Uses a depth-limited approach: shrinks arrays inside objects, then
-      // drops keys, guaranteeing termination.
-      const note = `[Result truncated — original was ${jsonFull.length} chars. Use a more specific query.]`;
-
-      const truncated = truncateToFit(result, MAX_TOOL_RESULT_LENGTH - 120);
-      return JSON.stringify({ success: true, data: truncated, _note: note });
-    } catch (error) {
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
     }
+
+    // Should not reach here, but just in case
+    return JSON.stringify({
+      success: false,
+      error: lastError instanceof Error ? lastError.message : "Unknown error after retries",
+    });
   };
+}
+
+function safeJson<T>(fn: (input: T) => Promise<unknown>) {
+  return safeJsonWithRetry(fn, 2);
 }
 
 /**
