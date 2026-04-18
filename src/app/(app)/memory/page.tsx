@@ -335,13 +335,13 @@ export default function MemoryPage() {
         <CardContent className="p-4">
           {/* Search */}
           <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search memories by content, category, or agent..."
+              placeholder="Search memories..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 rounded-lg border border-[#e8e5df] bg-[#faf9f7] text-xs focus:outline-none focus:border-[#3730a3]/40 focus:ring-1 focus:ring-[#3730a3]/20 transition-all"
+              className="w-full pl-10 pr-8 py-3 rounded-lg border border-[#e8e5df] bg-[#faf9f7] text-sm focus:outline-none focus:border-[#3730a3]/40 focus:ring-1 focus:ring-[#3730a3]/20 transition-all min-h-[44px]"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -466,8 +466,8 @@ export default function MemoryPage() {
               const agent = getAgentInfo(mem.agentId);
               return (
                 <motion.div key={mem.id} variants={itemVariants} initial="hidden" animate="show" exit={{ opacity: 0, height: 0 }}>
-                  <Card className="hover:border-[#3730a3]/20 transition-all duration-200">
-                    <CardContent className="p-4">
+                  <Card className="hover:border-[#3730a3]/20 transition-all duration-200 active:bg-[#faf9f7]">
+                    <CardContent className="p-4 sm:p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           {/* Meta row */}

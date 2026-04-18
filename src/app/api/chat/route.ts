@@ -185,14 +185,16 @@ export async function POST(req: Request) {
     // Universal task completion block — injected into every agent
     const taskCompletionBlock = `
 
-## TASK COMPLETION RULES (CRITICAL — READ EVERY TIME)
-1. **NEVER stop mid-task.** Once you start a task, you MUST complete it fully before stopping. Every user request deserves a complete, thorough response.
-2. **ALWAYS respond after tool calls.** When you call tools and get results, you MUST then write a clear, complete text response summarizing what you found and answering the user's question. NEVER leave the conversation hanging after tool results — this is the #1 failure mode. The tool results are data for YOU to interpret and explain to the user.
-3. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step. Do NOT download then analyze separately for Drive files.
-4. **Combine steps.** When a task requires multiple tool calls, chain them efficiently. For example: download a file → analyze it → report findings — all in one flow.
-5. **Always deliver the final answer.** After all tool calls complete, you MUST provide a clear, complete response to the user. Never end on just a tool result without explanation.
-6. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.
-7. **Structure your final response.** Use headers, lists, and tables to organize findings. Start with a brief summary, then provide details. End with action items or next steps if relevant.`;
+## TASK COMPLETION RULES (CRITICAL — YOU MUST OBEY THESE)
+1. After calling tools and receiving results, you MUST write a complete text response. NEVER end a conversation after tool calls without explaining the results to the user.
+2. If you call tools in step N and get results, step N+1 MUST contain your explanation. Do not stop after tool results.
+3. The user cannot see your tool results — only your text responses. So ALWAYS explain what you found.
+4. **NEVER stop mid-task.** Once you start a task, you MUST complete it fully before stopping. Every user request deserves a complete, thorough response.
+5. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step. Do NOT download then analyze separately for Drive files.
+6. **Combine steps.** When a task requires multiple tool calls, chain them efficiently. For example: download a file → analyze it → report findings — all in one flow.
+7. **Always deliver the final answer.** After all tool calls complete, you MUST provide a clear, complete response to the user. Never end on just a tool result without explanation.
+8. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.
+9. **Structure your final response.** Use headers, lists, and tables to organize findings. Start with a brief summary, then provide details. End with action items or next steps if relevant.`;
 
     // Build reminder alert if there are due reminders
     const reminderAlert = dueReminders.length > 0
@@ -214,14 +216,18 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
         ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
         : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
 
+    // Determine step limit: specialist agents get fewer steps to be efficient,
+    // Claw General gets more for complex multi-step orchestration.
+    const maxSteps = id === "general" ? 15 : 10;
+
     const result = streamText({
       model,
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: userSettings.maxTokens,
+      maxOutputTokens: Math.max(userSettings.maxTokens, 16384),
       temperature: userSettings.temperature,
-      stopWhen: stepCountIs(15),
+      stopWhen: stepCountIs(maxSteps),
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
         const stepInfo: string[] = [`[Step] finishReason=${finishReason}`];
         if (text) stepInfo.push(`text=${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`);
@@ -242,15 +248,35 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
 
         // Detect the "stopped after tool calls" pattern — model got results but produced no text
         if (finishReason === "stop" && !text && toolResults?.length > 0 && toolCalls?.length === 0) {
-          console.warn(`[Chat] ⚠️ ${agent.name} STOPPED AFTER TOOL RESULTS WITHOUT GENERATING TEXT — this is the mid-task stop bug`);
+          console.error(`[Chat] 🚨 MID-TASK STOP BUG: ${agent.name} stopped after receiving ${toolResults.length} tool result(s) without generating any text response. The user will see nothing.`);
+        }
+
+        // Detect when approaching step limit with no text generated yet
+        // This is a warning sign that the model may exhaust steps without explaining results
+        if (String(finishReason).includes("step") && !text && toolResults?.length > 0) {
+          console.error(`[Chat] 🚨 STEP LIMIT REACHED: ${agent.name} hit step limit (${maxSteps}) with tool results but NO final text response. The user received no explanation for the tool results.`);
         }
       },
       onFinish: ({ steps }) => {
-        console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}, Total text: ${steps.map(s => s.text).join("").length} chars`);
-        // Save assistant response to conversation history
         const assistantText = steps
           .map((s) => s.text)
           .join("");
+        const totalToolResults = steps.reduce((count, s) => count + (s.toolResults?.length || 0), 0);
+        console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}, Total text: ${assistantText.length} chars, Tool result batches: ${totalToolResults}`);
+
+        // Detect incomplete response: had tool results but final text is empty or too short
+        if (totalToolResults > 0 && (assistantText.length === 0 || assistantText.trim().length < 50)) {
+          console.error(`[Chat] 🚨 INCOMPLETE RESPONSE: ${agent.name} processed ${totalToolResults} tool result batch(es) across ${steps.length} steps but produced ${assistantText.length === 0 ? "ZERO" : `only ${assistantText.length}`} chars of text. The user likely saw an empty response. This is a critical mid-task stop bug instance.`);
+          // Log to activity for dashboard visibility
+          logActivity({
+            agentId: id,
+            agentName: agent.name,
+            action: "incomplete_response",
+            detail: `Tool results: ${totalToolResults}, Text chars: ${assistantText.length}, Steps: ${steps.length}. Agent stopped without explaining tool results to the user.`,
+          }).catch(() => {});
+        }
+
+        // Save assistant response to conversation history
         if (assistantText) {
           const sessionId = body.sessionId || `session-${Date.now()}`;
           saveMessage({

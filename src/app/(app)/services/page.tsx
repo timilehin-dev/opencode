@@ -54,9 +54,9 @@ export default function ServicesPage() {
             <Link
               key={svc.key}
               href={`/services/${svc.key}`}
-              className="flex items-center gap-4 p-5 rounded-lg bg-white border border-[#e8e5df] hover:bg-[#faf9f7] hover:border-[#d5d0c9] transition-all duration-200 shadow-sm"
+              className="flex items-center gap-4 p-4 sm:p-5 rounded-lg bg-white border border-[#e8e5df] hover:bg-[#faf9f7] hover:border-[#d5d0c9] transition-all duration-200 shadow-sm active:bg-[#faf9f7] min-h-[60px]"
             >
-              <div className="w-12 h-12 rounded-lg bg-[#faf9f7] flex items-center justify-center text-[#6b6b6b]">
+              <div className="w-11 h-11 rounded-lg bg-[#faf9f7] flex items-center justify-center text-[#6b6b6b] flex-shrink-0">
                 {svc.icon}
               </div>
               <div>

@@ -262,7 +262,7 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
 
       {/* Agent Cards Grid */}
       <motion.div
-        className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8"
         variants={containerVariants}
         initial="hidden"
         animate="show"

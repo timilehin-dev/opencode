@@ -14,20 +14,68 @@ import {
   TrendingUp,
   BarChart3,
   CalendarDays,
-  ArrowUpIcon,
-  ArrowDownIcon,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Inbox,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/helpers";
-import {
-  type AnalyticsSummary,
-  type AnalyticsEvent,
-  getAnalyticsSummary,
-  clearAnalytics,
-} from "@/lib/analytics-store";
+
+// ---------------------------------------------------------------------------
+// Types for the API response
+// ---------------------------------------------------------------------------
+
+interface AgentUsageRow {
+  agentId: string;
+  agentName: string;
+  messages: number;
+  toolCalls: number;
+}
+
+interface RecentActivityItem {
+  id: string;
+  type: string;
+  agentId: string;
+  agentName: string;
+  data: { detail?: string; toolName?: string };
+  createdAt: string;
+}
+
+interface AgentStatusRow {
+  agentId: string;
+  status: string;
+  currentTask: string | null;
+  tasksCompleted: number;
+  messagesProcessed: number;
+  lastActivity: string | null;
+}
+
+interface AutomationRow {
+  name: string;
+  enabled: boolean;
+  runCount: number;
+  lastRunAt: string | null;
+  lastStatus: string | null;
+}
+
+interface AnalyticsApiResponse {
+  totalMessages: number;
+  totalToolCalls: number;
+  activeAgents: number;
+  activeSessions: number;
+  agentUsage: AgentUsageRow[];
+  toolUsage: { toolName: string; count: number }[];
+  recentActivity: RecentActivityItem[];
+  agentStatuses: AgentStatusRow[];
+  tasks: { total: number; completed: number; pending: number; failed: number };
+  automations: { total: number; enabled: number; totalRuns: number; list: AutomationRow[] };
+  dailyMessageCounts: { date: string; count: number }[];
+  hourlyData: Record<number, number>;
+}
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -80,6 +128,26 @@ function getActivityLabel(type: string): string {
   }
 }
 
+function getStatusColor(status: string) {
+  switch (status) {
+    case "idle": return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "busy": return "bg-amber-100 text-amber-700 border-amber-200";
+    case "error": return "bg-red-100 text-red-700 border-red-200";
+    case "offline": return "bg-gray-100 text-gray-500 border-gray-200";
+    default: return "bg-gray-100 text-gray-500 border-gray-200";
+  }
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "idle": return <div className="w-2 h-2 rounded-full bg-emerald-500" />;
+    case "busy": return <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />;
+    case "error": return <div className="w-2 h-2 rounded-full bg-red-500" />;
+    case "offline": return <div className="w-2 h-2 rounded-full bg-gray-400" />;
+    default: return <div className="w-2 h-2 rounded-full bg-gray-400" />;
+  }
+}
+
 // Color palette for agent charts
 const AGENT_COLORS: Record<string, string> = {
   general: "#3730a3",
@@ -91,44 +159,42 @@ const AGENT_COLORS: Record<string, string> = {
   ops: "#ea580c",
 };
 
+function getAgentColor(agentId: string): string {
+  const keys = Object.keys(AGENT_COLORS);
+  let hash = 0;
+  for (let i = 0; i < agentId.length; i++) hash = agentId.charCodeAt(i) + ((hash << 5) - hash);
+  return AGENT_COLORS[keys[Math.abs(hash) % keys.length]] || "#3730a3";
+}
+
 // ---------------------------------------------------------------------------
-// SVG Sparkline
+// Skeleton loader
 // ---------------------------------------------------------------------------
 
-function SparkLine({
-  data,
-  color = "#3730a3",
-  height = 32,
-  width = 96,
-}: {
-  data: number[];
-  color?: string;
-  height?: number;
-  width?: number;
-}) {
-  if (data.length < 2) return null;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
-  const range = max - min || 1;
-  const step = width / (data.length - 1);
-
-  const points = data
-    .map((v, i) => `${i * step},${height - ((v - min) / range) * (height - 4) - 2}`)
-    .join(" ");
-
-  const areaPath = `M0,${height} ${data.map((v, i) => `L${i * step},${height - ((v - min) / range) * (height - 4) - 2}`).join(" ")} L${width},${height} Z`;
-
+function SkeletonCard() {
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={`grad-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.2} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#grad-${color.replace("#", "")})`} />
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="p-2 rounded-lg bg-[#f0ede8] w-9 h-9 animate-pulse" />
+          <div className="w-14 h-5 rounded-full bg-[#f0ede8] animate-pulse" />
+        </div>
+        <div className="w-20 h-7 rounded bg-[#f0ede8] animate-pulse" />
+        <div className="w-28 h-3 rounded bg-[#f0ede8] animate-pulse" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function SkeletonWide() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="w-40 h-5 rounded bg-[#f0ede8] animate-pulse" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-44 w-full rounded bg-[#f0ede8]/50 animate-pulse" />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -220,32 +286,36 @@ function DonutChart({
   const cy = size / 2;
   const r = size / 2 - 12;
   const strokeWidth = 18;
-  let cumulative = 0;
+  const circumference = 2 * Math.PI * r;
+
+  // Pre-compute arc data to avoid reassigning inside render
+  const arcs = segments.reduce<Array<{ label: string; color: string; dashLength: number; offset: number }>>(
+    (acc, seg) => {
+      const pct = seg.value / total;
+      const dashLength = pct * circumference;
+      const offset = acc.length === 0 ? 0 : acc[acc.length - 1].offset + acc[acc.length - 1].dashLength;
+      acc.push({ label: seg.label, color: seg.color, dashLength, offset });
+      return acc;
+    },
+    [],
+  );
 
   return (
     <div className="flex flex-col items-center">
       <svg viewBox={`0 0 ${size} ${size}`} className="w-40 h-40">
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f0ede8" strokeWidth={strokeWidth} />
-        {segments.map((seg) => {
-          const pct = seg.value / total;
-          const circumference = 2 * Math.PI * r;
-          const offset = (cumulative / total) * circumference;
-          const dashLength = pct * circumference;
-          cumulative += seg.value;
-
-          return (
-            <circle
-              key={seg.label}
-              cx={cx} cy={cy} r={r}
-              fill="none" stroke={seg.color}
-              strokeWidth={strokeWidth}
-              strokeDasharray={`${dashLength} ${circumference - dashLength}`}
-              strokeDashoffset={-offset}
-              strokeLinecap="butt"
-              className="transition-all duration-500"
-            />
-          );
-        })}
+        {arcs.map((arc) => (
+          <circle
+            key={arc.label}
+            cx={cx} cy={cy} r={r}
+            fill="none" stroke={arc.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${arc.dashLength} ${circumference - arc.dashLength}`}
+            strokeDashoffset={-arc.offset}
+            strokeLinecap="butt"
+            className="transition-all duration-500"
+          />
+        ))}
         <text x={cx} y={cy - 4} textAnchor="middle" className="fill-foreground text-lg font-bold">
           {total}
         </text>
@@ -258,30 +328,49 @@ function DonutChart({
 }
 
 // ---------------------------------------------------------------------------
+// Empty State
+// ---------------------------------------------------------------------------
+
+function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
+  return (
+    <div className="text-center py-12">
+      <Icon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Analytics Page
 // ---------------------------------------------------------------------------
 
 export default function AnalyticsPage() {
-  const [data, setData] = useState<AnalyticsSummary | null>(null);
-  const [allEvents, setAllEvents] = useState<AnalyticsEvent[]>([]);
+  const [data, setData] = useState<AnalyticsApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(7);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     setLoading(true);
-    requestAnimationFrame(() => {
-      try {
-        const summary = getAnalyticsSummary(days);
-        setData(summary);
-        const raw = localStorage.getItem("claw-analytics-events");
-        if (raw) {
-          setAllEvents(JSON.parse(raw));
-        }
-      } catch (e) {
-        console.error("[Analytics] Error:", e);
+    setError(null);
+    try {
+      const res = await fetch(`/api/analytics?days=${days}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data as AnalyticsApiResponse);
+        setLastRefreshed(new Date());
+      } else {
+        throw new Error("Invalid response");
       }
+    } catch (err) {
+      console.error("[Analytics] Fetch error:", err);
+      setError(err instanceof Error ? err.message : "Failed to load analytics");
+      setData(null);
+    } finally {
       setLoading(false);
-    });
+    }
   }, [days]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -290,54 +379,16 @@ export default function AnalyticsPage() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  const handleClear = () => {
-    if (window.confirm("Clear all analytics data? This cannot be undone.")) {
-      clearAnalytics();
-      refresh();
-    }
-  };
-
-  // Derived analytics
-  const hourData = useMemo(() => {
-    const map: Record<number, number> = {};
-    for (let i = 0; i < 24; i++) map[i] = 0;
-    const since = new Date(Date.now() - days * 86400000);
-    for (const evt of allEvents) {
-      const d = new Date(evt.createdAt);
-      if (d >= since) map[d.getHours()] = (map[d.getHours()] || 0) + 1;
-    }
-    return map;
-  }, [allEvents, days]);
-
+  // Derived data
   const peakHour = useMemo(() => {
+    if (!data?.hourlyData) return "N/A";
     let maxH = 0, maxV = 0;
-    for (const [h, v] of Object.entries(hourData)) {
+    for (const [h, v] of Object.entries(data.hourlyData)) {
       if (v > maxV) { maxV = v; maxH = Number(h); }
     }
     return maxV > 0 ? formatHour(maxH) : "N/A";
-  }, [hourData]);
+  }, [data]);
 
-  const previousPeriodData = useMemo(() => {
-    const prevSince = new Date(Date.now() - days * 2 * 86400000);
-    const prevEnd = new Date(Date.now() - days * 86400000);
-    const msgs = allEvents.filter(e => e.type === "chat_message" && new Date(e.createdAt) >= prevSince && new Date(e.createdAt) < prevEnd).length;
-    const tools = allEvents.filter(e => e.type === "tool_call" && new Date(e.createdAt) >= prevSince && new Date(e.createdAt) < prevEnd).length;
-    return { messages: msgs, toolCalls: tools };
-  }, [allEvents, days]);
-
-  const msgChange = useMemo(() => {
-    if (!previousPeriodData.messages) return null;
-    return (((data?.totalMessages || 0) - previousPeriodData.messages) / previousPeriodData.messages * 100).toFixed(0);
-  }, [data, previousPeriodData]);
-
-  const toolChange = useMemo(() => {
-    if (!previousPeriodData.toolCalls) return null;
-    return (((data?.totalToolCalls || 0) - previousPeriodData.toolCalls) / previousPeriodData.toolCalls * 100).toFixed(0);
-  }, [data, previousPeriodData]);
-
-  const mostActiveAgent = data?.agentUsage.length ? data.agentUsage[0] : null;
-  const avgToolsPerMessage = data && data.totalMessages > 0
-    ? (data.totalToolCalls / data.totalMessages).toFixed(1) : "0";
   const maxDailyCount = Math.max(...(data?.dailyMessageCounts.map(d => d.count) || [0]), 1);
   const maxToolCount = Math.max(...(data?.toolUsage.map(t => t.count) || [0]), 1);
   const maxAgentMessages = Math.max(...(data?.agentUsage.map(a => a.messages) || [0]), 1);
@@ -357,30 +408,47 @@ export default function AnalyticsPage() {
     }));
   }, [data]);
 
-  const agentSparkData = useMemo(() => {
-    if (!allEvents.length) return {};
-    const agentDayMap: Record<string, Record<string, number>> = {};
-    const since = new Date(Date.now() - days * 86400000);
-    for (const evt of allEvents) {
-      if (evt.type !== "chat_message") continue;
-      const d = new Date(evt.createdAt);
-      if (d < since) continue;
-      const day = evt.createdAt.slice(0, 10);
-      if (!agentDayMap[evt.agentId]) agentDayMap[evt.agentId] = {};
-      agentDayMap[evt.agentId][day] = (agentDayMap[evt.agentId][day] || 0) + 1;
-    }
-    const result: Record<string, number[]> = {};
-    for (const [agentId, dayMap] of Object.entries(agentDayMap)) {
-      result[agentId] = Object.keys(dayMap).sort().map(d => dayMap[d]);
-    }
-    return result;
-  }, [allEvents, days]);
+  const hasData = data && (data.totalMessages > 0 || data.totalToolCalls > 0 || data.agentStatuses.length > 0 || data.automations.total > 0);
 
-  // Loading
+  // -------------------------------------------------------------------------
+  // Loading state — skeleton cards
+  // -------------------------------------------------------------------------
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-5 h-5 rounded bg-[#f0ede8] animate-pulse" />
+              <div className="w-28 h-6 rounded bg-[#f0ede8] animate-pulse" />
+            </div>
+            <div className="w-64 h-4 rounded bg-[#f0ede8] animate-pulse ml-8" />
+          </div>
+          <div className="flex items-center gap-2 ml-8 sm:ml-0">
+            <div className="w-32 h-8 rounded-lg bg-[#f0ede8] animate-pulse" />
+            <div className="w-20 h-8 rounded bg-[#f0ede8] animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <SkeletonWide />
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Error state
+  // -------------------------------------------------------------------------
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="text-center py-20">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">Failed to load analytics</h3>
+          <p className="text-sm text-muted-foreground mb-4">{error}</p>
+          <Button variant="outline" size="sm" onClick={refresh}>Try Again</Button>
+        </div>
       </div>
     );
   }
@@ -388,15 +456,19 @@ export default function AnalyticsPage() {
   if (!data) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="text-center py-16">
+        <div className="text-center py-20">
           <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">No data available yet</p>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No data available</h3>
+          <p className="text-sm text-muted-foreground mb-4">Analytics will appear here once agents start processing data.</p>
           <Button variant="outline" size="sm" onClick={refresh}>Retry</Button>
         </div>
       </div>
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Main content
+  // -------------------------------------------------------------------------
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -410,19 +482,24 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-3 mb-1">
             <BarChart3 className="w-5 h-5 text-muted-foreground" />
             <h2 className="text-xl font-bold text-foreground">Analytics</h2>
+            {lastRefreshed && (
+              <span className="text-[10px] text-muted-foreground">
+                Updated {timeAgo(lastRefreshed.toISOString())}
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground ml-8">
             Activity trends, agent performance, and usage patterns
           </p>
         </div>
-        <div className="flex items-center gap-2 ml-8 sm:ml-0">
+        <div className="flex items-center gap-2 ml-8 sm:ml-0 flex-wrap">
           <div className="flex items-center gap-1 bg-white border border-[#e8e5df] rounded-lg p-0.5">
             {[3, 7, 14, 30].map((d) => (
               <button
                 key={d}
                 onClick={() => setDays(d)}
                 className={cn(
-                  "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                  "px-3 py-1.5 text-xs font-medium rounded-md transition-colors min-h-[32px]",
                   days === d ? "bg-[#3730a3] text-white" : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -430,12 +507,9 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">
-            <RefreshCw className="w-3.5 h-3.5" />
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
+            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
             Refresh
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleClear} className="text-xs text-muted-foreground hover:text-red-400">
-            Clear
           </Button>
         </div>
       </div>
@@ -443,28 +517,21 @@ export default function AnalyticsPage() {
       {/* A. Summary Stats Cards */}
       <motion.div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6" variants={containerVariants} initial="hidden" animate="show">
         {[
-          { label: "Total Messages", value: data.totalMessages, icon: <MessageSquare className="w-4 h-4 text-emerald-600" />, bg: "bg-emerald-500/10", change: msgChange },
-          { label: "Tool Calls", value: data.totalToolCalls, icon: <Wrench className="w-4 h-4 text-amber-600" />, bg: "bg-amber-500/10", change: toolChange },
-          { label: "Most Active Agent", value: mostActiveAgent?.agentName ?? "N/A", icon: <Bot className="w-4 h-4 text-purple-600" />, bg: "bg-purple-500/10", isText: true },
-          { label: "Avg Tools / Message", value: avgToolsPerMessage, icon: <Zap className="w-4 h-4 text-rose-600" />, bg: "bg-rose-500/10" },
-          { label: "Peak Hour", value: peakHour, icon: <Clock className="w-4 h-4 text-blue-600" />, bg: "bg-blue-500/10" },
-        ].map((stat, idx) => (
+          { label: "Total Messages", value: data.totalMessages, icon: <MessageSquare className="w-4 h-4 text-emerald-600" />, bg: "bg-emerald-500/10" },
+          { label: "Tool Calls", value: data.totalToolCalls, icon: <Wrench className="w-4 h-4 text-amber-600" />, bg: "bg-amber-500/10" },
+          { label: "Active Agents", value: data.activeAgents, icon: <Bot className="w-4 h-4 text-purple-600" />, bg: "bg-purple-500/10" },
+          { label: "Active Sessions", value: data.activeSessions, icon: <Users className="w-4 h-4 text-rose-600" />, bg: "bg-rose-500/10" },
+          { label: "Peak Hour", value: peakHour, icon: <Clock className="w-4 h-4 text-blue-600" />, bg: "bg-blue-500/10", isText: true },
+        ].map((stat) => (
           <motion.div key={stat.label} variants={itemVariants}>
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className={cn("p-2 rounded-lg", stat.bg)}>{stat.icon}</div>
-                  {stat.change !== null && stat.change !== undefined && (
-                    <div className={cn(
-                      "flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-                      Number(stat.change) >= 0 ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"
-                    )}>
-                      {Number(stat.change) >= 0 ? <ArrowUpIcon className="w-2.5 h-2.5" /> : <ArrowDownIcon className="w-2.5 h-2.5" />}
-                      {stat.change}%
-                    </div>
-                  )}
                 </div>
-                <p className={cn("font-bold text-foreground truncate", stat.isText ? "text-sm" : "text-xl")}>{stat.value}</p>
+                <p className={cn("font-bold text-foreground truncate", stat.isText ? "text-sm" : "text-xl")}>
+                  {stat.isText ? stat.value : (stat.value as number).toLocaleString()}
+                </p>
                 <p className="text-[11px] text-muted-foreground">{stat.label}</p>
               </CardContent>
             </Card>
@@ -482,8 +549,8 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data.dailyMessageCounts.length === 0 ? (
-              <div className="text-center py-12 text-sm text-muted-foreground">No messages in this period.</div>
+            {data.dailyMessageCounts.every(d => d.count === 0) ? (
+              <EmptyState icon={Inbox} message="No messages in this period yet" />
             ) : (
               <BarChart data={data.dailyMessageCounts} maxVal={maxDailyCount} />
             )}
@@ -502,7 +569,13 @@ export default function AnalyticsPage() {
               </CardTitle>
               <CardDescription>When you use the platform most</CardDescription>
             </CardHeader>
-            <CardContent><HourHeatmap data={hourData} /></CardContent>
+            <CardContent>
+              {Object.values(data.hourlyData).every(v => v === 0) ? (
+                <EmptyState icon={Clock} message="No activity recorded yet" />
+              ) : (
+                <HourHeatmap data={data.hourlyData} />
+              )}
+            </CardContent>
           </Card>
         </motion.div>
 
@@ -517,7 +590,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               {toolCategoryData.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">No tool calls recorded yet</div>
+                <EmptyState icon={Wrench} message="No tool calls recorded yet" />
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-6">
                   <DonutChart segments={toolCategoryData} size={160} />
@@ -537,20 +610,184 @@ export default function AnalyticsPage() {
         </motion.div>
       </div>
 
-      {/* D. Agent Performance Table */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mb-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              Agent Performance
-            </CardTitle>
-            <CardDescription>Per-agent usage with trend sparklines</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {data.agentUsage.length === 0 ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">No agent activity recorded.</div>
-            ) : (
+      {/* D. Agent Status Overview (from agent_status table) */}
+      {data.agentStatuses.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Bot className="w-4 h-4 text-muted-foreground" />
+                Agent Status
+              </CardTitle>
+              <CardDescription>Live agent status and task progress</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {data.agentStatuses.map((agent) => (
+                  <div key={agent.agentId} className="flex items-center gap-3 p-3 rounded-lg bg-[#faf9f7] border border-[#f0ede8]">
+                    {getStatusIcon(agent.status)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground truncate">{agent.agentId}</span>
+                        <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 border", getStatusColor(agent.status))}>
+                          {agent.status}
+                        </Badge>
+                      </div>
+                      {agent.currentTask && (
+                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">{agent.currentTask}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[10px] text-muted-foreground">
+                          <CheckCircle2 className="w-3 h-3 inline mr-0.5 text-emerald-500" />
+                          {agent.tasksCompleted} tasks
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          <MessageSquare className="w-3 h-3 inline mr-0.5 text-blue-500" />
+                          {agent.messagesProcessed} msgs
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* E. Task Stats + Automation Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Task Stats */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24 }}>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                Task Completion
+              </CardTitle>
+              <CardDescription>Agent task pipeline status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.tasks.total === 0 ? (
+                <EmptyState icon={CheckCircle2} message="No tasks have been created yet" />
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground font-medium">Total Tasks</span>
+                    <span className="text-sm font-bold text-foreground">{data.tasks.total}</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full h-3 rounded-full bg-[#f0ede8] overflow-hidden flex">
+                    {data.tasks.total > 0 && (
+                      <>
+                        <motion.div
+                          className="h-full bg-emerald-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(data.tasks.completed / data.tasks.total) * 100}%` }}
+                          transition={{ duration: 0.6, ease: "easeOut" }}
+                        />
+                        <motion.div
+                          className="h-full bg-amber-400"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(data.tasks.pending / data.tasks.total) * 100}%` }}
+                          transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+                        />
+                        <motion.div
+                          className="h-full bg-red-400"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(data.tasks.failed / data.tasks.total) * 100}%` }}
+                          transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+                        />
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                      Completed: <strong>{data.tasks.completed}</strong>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
+                      Pending: <strong>{data.tasks.pending}</strong>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-red-400" />
+                      Failed: <strong>{data.tasks.failed}</strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Automation Stats */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }}>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Zap className="w-4 h-4 text-muted-foreground" />
+                Automations
+              </CardTitle>
+              <CardDescription>Scheduled tasks and workflows</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.automations.total === 0 ? (
+                <EmptyState icon={Zap} message="No automations configured yet" />
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Total automations</span>
+                    <span className="font-bold text-foreground">{data.automations.total}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Enabled</span>
+                    <span className="font-bold text-emerald-600">{data.automations.enabled}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Total runs</span>
+                    <span className="font-bold text-foreground">{data.automations.totalRuns.toLocaleString()}</span>
+                  </div>
+                  <div className="border-t border-[#f0ede8] pt-3 mt-3 space-y-2 max-h-36 overflow-y-auto custom-scrollbar">
+                    {data.automations.list.slice(0, 5).map((auto) => (
+                      <div key={auto.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-2 h-2 rounded-full", auto.enabled ? "bg-emerald-500" : "bg-gray-300")} />
+                          <span className="text-xs text-foreground truncate">{auto.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">{auto.runCount} runs</span>
+                          {auto.lastStatus && (
+                            <Badge variant="outline" className={cn(
+                              "text-[9px] px-1 py-0 border",
+                              auto.lastStatus === "success" ? "text-emerald-600 bg-emerald-50 border-emerald-200" : "text-red-600 bg-red-50 border-red-200"
+                            )}>
+                              {auto.lastStatus}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* F. Agent Performance Table */}
+      {data.agentUsage.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }} className="mb-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                Agent Performance
+              </CardTitle>
+              <CardDescription>Per-agent usage breakdown</CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="overflow-x-auto scrollbar-none -mx-6 px-6">
                 <table className="w-full min-w-[500px]">
                   <thead>
@@ -559,8 +796,7 @@ export default function AnalyticsPage() {
                       <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Messages</th>
                       <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Tools</th>
                       <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Avg Tools</th>
-                      <th className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Trend</th>
-                      <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Share</th>
+                      <th className="text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Share</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -568,8 +804,7 @@ export default function AnalyticsPage() {
                       const totalMsgs = data.agentUsage.reduce((s, a) => s + a.messages, 0) || 1;
                       const share = ((agent.messages / totalMsgs) * 100).toFixed(1);
                       const avg = agent.messages > 0 ? (agent.toolCalls / agent.messages).toFixed(1) : "0";
-                      const spark = agentSparkData[agent.agentId] || [];
-                      const color = AGENT_COLORS[agent.agentId] || "#6b6b6b";
+                      const color = AGENT_COLORS[agent.agentId] || getAgentColor(agent.agentId);
                       const pct = Math.max((agent.messages / maxAgentMessages) * 100, 2);
 
                       return (
@@ -590,11 +825,6 @@ export default function AnalyticsPage() {
                           </td>
                           <td className="py-3 pr-4 text-right"><span className="text-sm text-foreground">{agent.toolCalls}</span></td>
                           <td className="py-3 pr-4 text-right"><span className="text-sm text-muted-foreground">{avg}</span></td>
-                          <td className="py-3 px-2">
-                            <div className="w-24 h-8 mx-auto">
-                              {spark.length >= 2 ? <SparkLine data={spark} color={color} height={32} width={96} /> : <span className="text-[10px] text-muted-foreground">—</span>}
-                            </div>
-                          </td>
                           <td className="py-3 text-right"><Badge variant="secondary" className="text-[10px]">{share}%</Badge></td>
                         </tr>
                       );
@@ -602,12 +832,12 @@ export default function AnalyticsPage() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
-      {/* E. Top Tools + Recent Activity */}
+      {/* G. Top Tools + Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card>
@@ -619,7 +849,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               {data.toolUsage.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">No tool calls in this period.</div>
+                <EmptyState icon={Wrench} message="No tool calls in this period." />
               ) : (
                 <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
                   {data.toolUsage.map((tool, i) => {
@@ -655,7 +885,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               {data.recentActivity.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">No recent activity.</div>
+                <EmptyState icon={Inbox} message="No recent activity recorded." />
               ) : (
                 <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
                   {data.recentActivity.map((event, i) => (
@@ -668,13 +898,9 @@ export default function AnalyticsPage() {
                           <span className="text-xs font-medium text-foreground">{getActivityLabel(event.type)}</span>
                           <Badge variant="outline" className="text-[9px] px-1.5 py-0">{event.agentName}</Badge>
                         </div>
-                        {event.data && Object.keys(event.data).length > 0 && (
+                        {event.data && (
                           <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                            {typeof event.data.detail === "string" ? event.data.detail
-                              : typeof event.data.toolName === "string" ? `Tool: ${event.data.toolName}`
-                              : typeof event.data.messageLength === "number" ? `Message: ${event.data.messageLength} chars`
-                              : typeof event.data.fromAgentId === "string" ? `From: ${event.data.fromAgentId}`
-                              : JSON.stringify(event.data).slice(0, 80)}
+                            {event.data.detail || event.data.toolName || ""}
                           </p>
                         )}
                         <p className="text-[10px] text-muted-foreground/60 mt-0.5">{timeAgo(event.createdAt)}</p>
@@ -687,6 +913,21 @@ export default function AnalyticsPage() {
           </Card>
         </motion.div>
       </div>
+
+      {/* H. "No data yet" banner (shown when Supabase connected but completely empty) */}
+      {!hasData && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mt-6">
+          <Card className="border-dashed border-[#d4d0c8]">
+            <CardContent className="p-8 text-center">
+              <Loader2 className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3 animate-spin" />
+              <h3 className="text-sm font-semibold text-foreground mb-1">Waiting for data</h3>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                Analytics are connected to your Supabase database. Start chatting with agents or running automations to see real-time metrics appear here.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

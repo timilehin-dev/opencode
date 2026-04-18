@@ -443,13 +443,13 @@ export default function AgentDetailPage() {
       </motion.div>
 
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1">
+      <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1 scrollbar-none">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap",
+              "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap min-h-[40px]",
               activeTab === tab.id
                 ? "bg-[#3730a3] text-white shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-[#f0ede8]"

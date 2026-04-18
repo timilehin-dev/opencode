@@ -3,7 +3,12 @@
 //
 // Designed for Vercel serverless where SQLite is unavailable.
 // Data persists in the browser across sessions.
+//
+// When Supabase is configured, events are ALSO persisted to the
+// `analytics_events` table (fire-and-forget, non-blocking).
 // ---------------------------------------------------------------------------
+
+import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -196,4 +201,71 @@ export function getAnalyticsSummary(days: number = 7): AnalyticsSummary {
 export function clearAnalytics(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// Supabase persistence (fire-and-forget)
+// ---------------------------------------------------------------------------
+
+let _browserSupabase: ReturnType<typeof createClient> | null = null;
+
+/** Get or create a browser-side Supabase client (uses NEXT_PUBLIC_ env vars). */
+function getBrowserSupabase(): ReturnType<typeof createClient> | null {
+  if (typeof window === "undefined") return null;
+  if (_browserSupabase) return _browserSupabase;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+
+  try {
+    _browserSupabase = createClient(url, key, { auth: { persistSession: false } });
+    return _browserSupabase;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Track an analytics event and also persist it to Supabase `analytics_events`.
+ *
+ * This is fire-and-forget — it writes to localStorage synchronously (fast)
+ * and sends to Supabase asynchronously (non-blocking). If Supabase is not
+ * configured or the write fails, the event is still saved locally.
+ */
+export function trackAnalyticsEvent(
+  type: "chat_message" | "tool_call" | "agent_switch" | "page_view" | "automation_run",
+  agentId: string,
+  agentName: string,
+  data: Record<string, unknown> = {},
+): void {
+  // Still write to localStorage for offline/local-first behavior
+  trackEvent({ type, agentId, agentName, data });
+
+  // Fire-and-forget write to Supabase
+  const supabase = getBrowserSupabase();
+  if (!supabase) return;
+
+  // Use setTimeout to avoid blocking the caller
+  setTimeout(() => {
+    supabase
+      .from("analytics_events")
+      // @ts-expect-error — Browser Supabase client lacks generated table types; works at runtime
+      .insert({
+        type,
+        agent_id: agentId,
+        agent_name: agentName,
+        data,
+      })
+      .then(({ error }: { error: { message: string } | null }) => {
+        if (error) {
+          // Silent fail — don't let analytics break the app
+          console.debug("[Analytics] Supabase write skipped:", error.message);
+        }
+      })
+      // @ts-expect-error — Promise chain type inference issue with Supabase client
+      .catch(() => {
+        // Network error — ignore
+      });
+  }, 0);
 }

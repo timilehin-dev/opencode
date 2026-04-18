@@ -37,6 +37,16 @@ export default function RootLayout({
         {/* PWA support */}
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        {/* DNS prefetch for external service domains */}
+        <link rel="dns-prefetch" href="https://supabase.co" />
+        <link rel="preconnect" href="https://supabase.co" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://aihubmix.com" />
+        <link rel="preconnect" href="https://aihubmix.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://api.openai.com" />
+        <link rel="dns-prefetch" href="https://api.github.com" />
+        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>{children}</ThemeProvider>

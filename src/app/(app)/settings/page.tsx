@@ -129,8 +129,8 @@ function Toggle({
   description?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-3">
-      <div className="pr-4">
+    <div className="flex items-center justify-between py-3 gap-3">
+      <div className="flex-1 min-w-0 pr-2">
         <p className="text-sm font-medium text-foreground">{label}</p>
         {description && (
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
@@ -139,16 +139,16 @@ function Toggle({
       <button
         onClick={() => onChange(!checked)}
         className={cn(
-          "relative rounded-full transition-colors duration-200 flex-shrink-0",
+          "relative rounded-full transition-colors duration-200 flex-shrink-0 min-h-[44px] min-w-[52px]",
           checked ? "bg-[#3730a3]" : "bg-[#e8e5df]"
         )}
-        style={{ width: "44px", height: "24px" }}
+        style={{ width: "52px", height: "28px" }}
         aria-label={checked ? `Disable ${label}` : `Enable ${label}`}
       >
         <span
           className={cn(
-            "absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200",
-            checked ? "translate-x-[23px]" : "translate-x-[3px]"
+            "absolute top-[5px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200",
+            checked ? "translate-x-[29px]" : "translate-x-[5px]"
           )}
         />
       </button>
@@ -425,15 +425,15 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Mobile horizontal scroll */}
-          <div className="lg:hidden overflow-x-auto scrollbar-none -mx-4 px-4">
-            <div className="flex gap-2 pb-2">
+          {/* Mobile horizontal scroll — sticky at top */}
+          <div className="lg:hidden overflow-x-auto scrollbar-none -mx-4 px-4 sticky top-0 z-10 bg-[#f5f3ef]/90 backdrop-blur-sm py-2 -mt-2">
+            <div className="flex gap-2">
               {SECTIONS.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => scrollToSection(section.id)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-all duration-200 flex-shrink-0",
+                    "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-all duration-200 flex-shrink-0 min-h-[36px]",
                     activeSection === section.id
                       ? "bg-[#eef2ff] text-[#3730a3] border-[#3730a3]/20"
                       : "bg-white text-muted-foreground border-[#e8e5df] hover:border-[#999999]/30"

@@ -588,6 +588,31 @@ function AgentChatSession({
   }>>([]);
   const [driveLoading, setDriveLoading] = useState(false);
   const driveSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const inputAreaRef = useRef<HTMLDivElement>(null);
+
+  // visualViewport resize handler — keeps input above keyboard on mobile
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    function handleResize() {
+      if (inputAreaRef.current) {
+        // When keyboard opens, visualViewport shrinks. We add bottom padding to
+        // compensate, pushing the input area above the keyboard.
+        const viewportHeight = viewport?.height || window.innerHeight;
+        const diff = window.innerHeight - viewportHeight;
+        if (diff > 50) {
+          // Keyboard is likely open
+          inputAreaRef.current.style.paddingBottom = `${diff}px`;
+        } else {
+          inputAreaRef.current.style.paddingBottom = "";
+        }
+      }
+    }
+
+    viewport.addEventListener("resize", handleResize);
+    return () => viewport.removeEventListener("resize", handleResize);
+  }, []);
 
   const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
@@ -1041,7 +1066,7 @@ function AgentChatSession({
       </div>
 
       {/* Input Area — fixed to bottom with backdrop blur */}
-      <div className="border-t border-border px-3 sm:px-4 py-3 flex-shrink-0 bg-background/80 backdrop-blur-xl lg:pb-safe">
+      <div ref={inputAreaRef} className="border-t border-border px-3 sm:px-4 py-3 flex-shrink-0 bg-background/80 backdrop-blur-xl pb-safe transition-[padding-bottom] duration-150">
         <div className="max-w-3xl mx-auto">
           {/* Attachment Previews */}
           <AnimatePresence>
@@ -1050,7 +1075,7 @@ function AgentChatSession({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="flex flex-wrap gap-2 mb-2"
+                className="flex gap-2 mb-2 overflow-x-auto scrollbar-none pb-1"
               >
                 {attachments.map((att, idx) => (
                   <motion.div
@@ -1088,7 +1113,7 @@ function AgentChatSession({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="mb-2 rounded-xl border border-border bg-popover backdrop-blur-xl p-3 shadow-2xl"
+                className="mb-2 rounded-xl border border-border bg-popover backdrop-blur-xl p-3 shadow-2xl max-h-[60vh] flex flex-col"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -1116,7 +1141,7 @@ function AgentChatSession({
                     autoFocus
                   />
                 </div>
-                <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-0.5">
+                <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5 flex-1">
                   {driveLoading ? (
                     <div className="flex items-center justify-center py-6">
                       <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />

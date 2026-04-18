@@ -194,13 +194,13 @@ export default function NotificationsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1">
+      <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1 scrollbar-none">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap",
+              "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap min-h-[40px]",
               activeTab === tab.id
                 ? "bg-[#3730a3] text-white shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-[#f0ede8]"
@@ -352,7 +352,7 @@ function NotifRow({ notif }: { notif: AppNotification }) {
   return (
     <div
       className={cn(
-        "flex items-start gap-3 px-3 py-3 rounded-lg border border-[#e8e5df] bg-white transition-all hover:border-[#3730a3]/20",
+        "flex items-start gap-3 px-3 py-3.5 rounded-lg border border-[#e8e5df] bg-white transition-all hover:border-[#3730a3]/20 min-h-[60px]",
         !notif.read && "bg-[#eef2ff]/40"
       )}
     >
@@ -462,7 +462,7 @@ function ChannelsTab({
               <button
                 onClick={() => onUpdate({ ...config, desktopEnabled: !config.desktopEnabled })}
                 className={cn(
-                  "w-10 h-[22px] rounded-full transition-all duration-200 relative",
+                  "w-11 h-[26px] rounded-full transition-all duration-200 relative flex-shrink-0 min-h-[44px]",
                   config.desktopEnabled ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
                 )}
               >

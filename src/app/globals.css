@@ -70,10 +70,15 @@ body {
   background-color: #f5f3ef;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar — optimized with will-change for compositing */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.15) transparent;
+}
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
+  will-change: scroll-position;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
@@ -82,6 +87,8 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.15);
   border-radius: 3px;
+  will-change: opacity;
+  transition: background 0.15s ease;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.25);
@@ -124,11 +131,32 @@ body {
   }
 }
 
-/* Bouncing dots animation for typing indicator */
+/* Content visibility for off-screen sections — improves rendering performance */
+.content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* Bouncing dots animation for typing indicator — with will-change for GPU compositing */
 @keyframes bounce-dot {
   0%, 60%, 100% { transform: translateY(0); }
   30% { transform: translateY(-4px); }
 }
+.bounce-dot-1,
+.bounce-dot-2,
+.bounce-dot-3 {
+  will-change: transform;
+}
 .bounce-dot-1 { animation: bounce-dot 1.2s ease-in-out infinite; }
 .bounce-dot-2 { animation: bounce-dot 1.2s ease-in-out 0.15s infinite; }
 .bounce-dot-3 { animation: bounce-dot 1.2s ease-in-out 0.3s infinite; }
+
+/* Skeleton pulse animation — optimized with will-change */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse {
+  animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: opacity;
+}

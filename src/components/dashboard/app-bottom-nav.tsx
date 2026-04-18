@@ -112,7 +112,7 @@ export function AppBottomNav() {
   };
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#e8e5df]">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/20 bg-white/80 backdrop-blur-xl backdrop-saturate-2 supports-[backdrop-filter]:bg-white/70">
       <div className="flex items-center justify-around h-[60px] pb-safe relative">
         {TABS.map((tab) => {
           const active = isActive(tab);
@@ -122,11 +122,11 @@ export function AppBottomNav() {
               key={tab.label}
               href={tab.href === "__more__" ? "#" : tab.href}
               onClick={tab.href === "__more__" ? (e) => { e.preventDefault(); setShowMore((prev) => !prev); } : undefined}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative"
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative min-h-[44px]"
             >
               <Icon
                 className={cn(
-                  "w-[22px] h-[22px] transition-all duration-200",
+                  "w-6 h-6 transition-all duration-200",
                   active ? "text-[#3730a3]" : "text-[#999999]"
                 )}
               />
@@ -178,7 +178,7 @@ export function AppBottomNav() {
                       href={item.href}
                       onClick={() => setShowMore(false)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-[#f0ede8] last:border-b-0",
+                        "w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-[#f0ede8] last:border-b-0 min-h-[44px]",
                         active
                           ? "bg-[#eef2ff] text-[#3730a3]"
                           : "text-[#1a1a1a] hover:bg-[#faf9f7]"

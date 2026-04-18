@@ -38,7 +38,7 @@ export default function AppLayout({
 
   return (
     <NotificationProvider onNavigate={handleNotificationNavigate}>
-      <div className="h-screen flex overflow-hidden bg-[#f5f3ef]">
+      <div className="h-screen-safe flex overflow-hidden bg-[#f5f3ef]">
         {/* Left Sidebar (desktop) */}
         <AppSidebar />
 

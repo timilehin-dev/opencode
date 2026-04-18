@@ -648,10 +648,10 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
         <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" />Create Automation</Button>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1 border-b mb-6" style={{ borderColor: "#e8e5df" }}>
+          {/* Tab Bar */}
+      <div className="flex items-center gap-1 border-b mb-6 overflow-x-auto scrollbar-none" style={{ borderColor: "#e8e5df" }}>
         {tabs.map((tab) => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn("relative px-4 pb-3 pt-1.5 text-sm font-medium transition-colors", activeTab === tab.key ? "text-foreground" : "text-muted-foreground hover:text-foreground/70")}>
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn("relative px-4 pb-3 pt-1.5 text-sm font-medium transition-colors whitespace-nowrap min-h-[44px] flex items-center", activeTab === tab.key ? "text-foreground" : "text-muted-foreground hover:text-foreground/70")}>
             {tab.label}
             {tab.count !== undefined && (
               <span className={cn("ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full", activeTab === tab.key ? "bg-[#3730a3] text-white" : "bg-[#f0ede8] text-muted-foreground")}>{tab.count}</span>
