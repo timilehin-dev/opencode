@@ -748,7 +748,7 @@ async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,
     maxOutputTokens: 8192,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(15),
     abortSignal: AbortSignal.timeout(55_000), // 55s timeout (within Vercel's 60s limit)
   });
 

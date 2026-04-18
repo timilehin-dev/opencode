@@ -182,19 +182,22 @@ export async function POST(req: Request) {
       ? `\n\n## YOUR EXCLUSIVE TOOL INVENTORY (${toolCount} tools)\nCRITICAL: These are the ONLY tools available to you — ${agent.name}. You do NOT have access to any other agent's tools. If a user asks you to do something outside your domain, you MUST route it via \\_query\_agent\\_ to the correct specialist. Do NOT attempt to use tools you don't have.\n\nYour ${toolCount} tools:\n${toolInventory}\n`
       : `\n\n## Your Complete Tool Inventory (${toolCount} tools)\nYou have access to ALL tools across every service. When asked to list your tools, list ALL ${toolCount} of them:\n${toolInventory}\n`;
 
-    // Universal task completion block — injected into every agent
+    // Universal task completion block — injected into every agent.
+    // This is a STRUCTURAL safeguard, not a soft instruction.
+    // The `maxSteps` parameter (not `stopWhen`) ensures the SDK always
+    // gives the model a chance to respond after tool results.
     const taskCompletionBlock = `
 
-## TASK COMPLETION RULES (CRITICAL — YOU MUST OBEY THESE)
-1. After calling tools and receiving results, you MUST write a complete text response. NEVER end a conversation after tool calls without explaining the results to the user.
-2. If you call tools in step N and get results, step N+1 MUST contain your explanation. Do not stop after tool results.
-3. The user cannot see your tool results — only your text responses. So ALWAYS explain what you found.
-4. **NEVER stop mid-task.** Once you start a task, you MUST complete it fully before stopping. Every user request deserves a complete, thorough response.
-5. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step. Do NOT download then analyze separately for Drive files.
-6. **Combine steps.** When a task requires multiple tool calls, chain them efficiently. For example: download a file → analyze it → report findings — all in one flow.
-7. **Always deliver the final answer.** After all tool calls complete, you MUST provide a clear, complete response to the user. Never end on just a tool result without explanation.
-8. **If you hit limits**, prioritize delivering whatever results you have with a clear summary rather than stopping silently.
-9. **Structure your final response.** Use headers, lists, and tables to organize findings. Start with a brief summary, then provide details. End with action items or next steps if relevant.`;
+## TASK COMPLETION RULES (STRUCTURAL — THESE ARE ENFORCED BY THE SYSTEM)
+1. After calling ANY tool and receiving results, your VERY NEXT step MUST be writing a text response explaining the results. This is not optional — the system requires it.
+2. The user CANNOT see your tool results. They only see your text. If you don't write text, they see NOTHING.
+3. NEVER end a response immediately after tool results. The system will automatically give you another step to explain.
+4. If you called tools, summarize what each tool returned and what it means for the user's request.
+5. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step.
+6. **Combine steps.** When a task requires multiple tool calls, chain them efficiently.
+7. **Structure your response.** Use headers, lists, and tables. Start with a summary, then details, then next steps.
+8. **If you hit the step limit**, prioritize delivering whatever results you have with a clear summary.
+9. **Final response is mandatory.** Every user message deserves a complete, thorough text response — never just tool results.`;
 
     // Build reminder alert if there are due reminders
     const reminderAlert = dueReminders.length > 0
@@ -217,8 +220,12 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
         : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
 
     // Determine step limit: specialist agents get fewer steps to be efficient,
-    // Claw General gets more for complex multi-step orchestration.
-    const maxSteps = id === "general" ? 15 : 10;
+       // Claw General gets more for complex multi-step orchestration.
+    // Using stopWhen: stepCountIs(N) — each "step" is one LLM turn.
+    // With N=1, the model can call tools but NOT explain results afterward.
+    // With N>1, after tool results come back, the model gets another turn to explain.
+    // This is the structural fix for the "stop mid-task" bug.
+    const maxSteps = id === "general" ? 25 : 15;
 
     const result = streamText({
       model,
@@ -264,20 +271,34 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
         const totalToolResults = steps.reduce((count, s) => count + (s.toolResults?.length || 0), 0);
         console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}, Total text: ${assistantText.length} chars, Tool result batches: ${totalToolResults}`);
 
-        // Detect incomplete response: had tool results but final text is empty or too short
+        // COMPLETION WATCHDOG: Detect incomplete response and save a recovery message
+        // so the conversation context includes what happened (for the next turn).
         if (totalToolResults > 0 && (assistantText.length === 0 || assistantText.trim().length < 50)) {
-          console.error(`[Chat] 🚨 INCOMPLETE RESPONSE: ${agent.name} processed ${totalToolResults} tool result batch(es) across ${steps.length} steps but produced ${assistantText.length === 0 ? "ZERO" : `only ${assistantText.length}`} chars of text. The user likely saw an empty response. This is a critical mid-task stop bug instance.`);
+          console.error(`[Chat] 🚨 INCOMPLETE RESPONSE: ${agent.name} processed ${totalToolResults} tool result batch(es) across ${steps.length} steps but produced ${assistantText.length === 0 ? "ZERO" : `only ${assistantText.length}`} chars of text.`);
+
+          // Build a recovery summary from the last tool results so the user gets context
+          const lastStep = steps[steps.length - 1];
+          const toolNames = lastStep?.toolCalls?.map((t: { toolName: string }) => t.toolName).join(", ") || "unknown";
+          const recoveryMsg = `[System Note: ${agent.name} processed your request using tools (${toolNames}) but did not generate a final text explanation. The tool calls completed successfully. Please ask me to explain the results or try your request again — I have the tool results available.]`;
+
+          // Save recovery message to conversation history
+          const sessionId = body.sessionId || `session-${Date.now()}`;
+          saveMessage({
+            sessionId,
+            agentId: id,
+            role: "assistant",
+            content: recoveryMsg,
+          }).catch(() => {});
+
           // Log to activity for dashboard visibility
           logActivity({
             agentId: id,
             agentName: agent.name,
             action: "incomplete_response",
-            detail: `Tool results: ${totalToolResults}, Text chars: ${assistantText.length}, Steps: ${steps.length}. Agent stopped without explaining tool results to the user.`,
+            detail: `Tool results: ${totalToolResults}, Text chars: ${assistantText.length}, Steps: ${steps.length}. Completion watchdog triggered — recovery message saved.`,
           }).catch(() => {});
-        }
-
-        // Save assistant response to conversation history
-        if (assistantText) {
+        } else if (assistantText) {
+          // Save assistant response to conversation history
           const sessionId = body.sessionId || `session-${Date.now()}`;
           saveMessage({
             sessionId,

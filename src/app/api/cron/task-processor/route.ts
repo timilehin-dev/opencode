@@ -179,7 +179,7 @@ async function executeTask(task: {
       ],
       tools: agentTools,
       maxOutputTokens: 8192,
-      stopWhen: stepCountIs(10),
+      stopWhen: stepCountIs(15),
       abortSignal: AbortSignal.timeout(110_000), // 110s timeout (within 120s maxDuration)
     });
 
