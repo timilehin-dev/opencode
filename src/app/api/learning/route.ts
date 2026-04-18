@@ -1,0 +1,134 @@
+// ---------------------------------------------------------------------------
+// API — Self-Learning System
+// POST /api/learning — record, detect_patterns, decay
+// GET  /api/learning — insights, prompt_context, stats
+// ---------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import {
+  recordLearning,
+  getAgentInsights,
+  getInsightsForPrompt,
+  detectPatterns,
+  decayInsights,
+  getLearningStats,
+} from "@/lib/self-learning";
+import type { LearningInsight } from "@/lib/self-learning";
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get("action") || "stats";
+
+  try {
+    switch (action) {
+      case "insights": {
+        const agentId = searchParams.get("agentId") || "general";
+        const type = searchParams.get("type") as LearningInsight["insightType"] | null;
+        const limit = parseInt(searchParams.get("limit") || "50", 10);
+        const data = await getAgentInsights(agentId, type || undefined, limit);
+        return NextResponse.json({ success: true, data });
+      }
+
+      case "prompt_context": {
+        const agentId = searchParams.get("agentId") || "general";
+        const maxInsights = parseInt(searchParams.get("max") || "10", 10);
+        const context = await getInsightsForPrompt(agentId, maxInsights);
+        return NextResponse.json({ success: true, context });
+      }
+
+      case "stats": {
+        const stats = await getLearningStats();
+        return NextResponse.json({ success: true, data: stats });
+      }
+
+      default:
+        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    }
+  } catch (error) {
+    console.error("[API] Self-learning GET error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { action } = body as { action?: string };
+
+    switch (action) {
+      case "record": {
+        const { agentId, insightType, content, source, confidence } = body as {
+          agentId?: string;
+          insightType?: string;
+          content?: string;
+          source?: string;
+          confidence?: number;
+        };
+
+        if (!agentId || !insightType || !content || !source) {
+          return NextResponse.json(
+            { error: "Missing required fields: agentId, insightType, content, source" },
+            { status: 400 },
+          );
+        }
+
+        const validTypes = ["preference", "correction", "pattern", "skill_gain", "workflow"];
+        if (!validTypes.includes(insightType)) {
+          return NextResponse.json({ error: `Invalid insightType: ${insightType}` }, { status: 400 });
+        }
+
+        const validSources = ["user_feedback", "correction", "pattern_detection", "routine_result"];
+        if (!validSources.includes(source)) {
+          return NextResponse.json({ error: `Invalid source: ${source}` }, { status: 400 });
+        }
+
+        const insight = await recordLearning({
+          agentId,
+          insightType: insightType as LearningInsight["insightType"],
+          content,
+          source: source as LearningInsight["source"],
+          confidence,
+        });
+
+        return NextResponse.json({ success: true, data: insight });
+      }
+
+      case "detect_patterns": {
+        const { agentId, conversations } = body as {
+          agentId?: string;
+          conversations?: Array<{ role: string; content: string }>;
+        };
+
+        if (!agentId || !conversations || !Array.isArray(conversations)) {
+          return NextResponse.json(
+            { error: "Missing required fields: agentId, conversations" },
+            { status: 400 },
+          );
+        }
+
+        const detected = await detectPatterns(agentId, conversations.slice(-20));
+        return NextResponse.json({ success: true, data: detected });
+      }
+
+      case "decay": {
+        const count = await decayInsights();
+        return NextResponse.json({ success: true, decayed: count });
+      }
+
+      default:
+        return NextResponse.json(
+          { error: `Unknown action: ${action}. Use record, detect_patterns, or decay.` },
+          { status: 400 },
+        );
+    }
+  } catch (error) {
+    console.error("[API] Self-learning POST error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 },
+    );
+  }
+}

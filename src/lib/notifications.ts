@@ -231,7 +231,7 @@ export function pushAgentNotification(notif: AgentNotification): void {
     sendDesktopNotification(
       `${notif.agentName || "Agent"}: ${notif.title}`,
       notif.body,
-      notif.actionUrl ? () => { window.location.href = notif.actionUrl; } : undefined,
+      notif.actionUrl ? () => { window.location.href = notif.actionUrl!; } : undefined,
     );
   }
 }

@@ -16,6 +16,7 @@ import { getAgent, getProvider, getAllAgents } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { AGENT_ROUTINES_SCHEMA } from "@/lib/agent-routines";
+import { sendProactiveNotification } from "@/lib/proactive-notifications";
 
 export const maxDuration = 300; // 5 min for routine execution
 
@@ -109,6 +110,16 @@ export async function GET(request: Request) {
             lastActivity: new Date().toISOString(),
             tasksCompleted: 1,
           }).catch(() => {});
+
+          // Send proactive notification for successful routine
+          sendProactiveNotification({
+            agentId,
+            agentName: agent.name,
+            type: "routine_result",
+            title: `Routine Complete: ${routineName}`,
+            body: routineResult.text.slice(0, 500),
+            priority: "low",
+          }).catch(() => {});
         } else {
           results.routinesFailed++;
           results.details.push({ agentId, routineName, status: "failed", result: routineResult.error });
@@ -117,6 +128,16 @@ export async function GET(request: Request) {
             status: "error",
             currentTask: null,
             lastActivity: new Date().toISOString(),
+          }).catch(() => {});
+
+          // Send proactive notification for failed routine
+          sendProactiveNotification({
+            agentId,
+            agentName: agent.name,
+            type: "alert",
+            title: `Routine Failed: ${routineName}`,
+            body: routineResult.error || "Unknown error occurred during routine execution.",
+            priority: "high",
           }).catch(() => {});
         }
       } catch (error) {

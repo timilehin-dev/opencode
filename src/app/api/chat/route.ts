@@ -17,6 +17,8 @@ import { allTools } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { getSupabase } from "@/lib/supabase";
+import { sendProactiveNotification } from "@/lib/proactive-notifications";
+import { getInsightsForPrompt, recordLearning } from "@/lib/self-learning";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
 
@@ -117,11 +119,12 @@ export async function POST(req: Request) {
     const model = getProvider(agent);
 
     // Run these in parallel to reduce time-to-first-token
-    const [modelMessages, memoryContext, dueReminders, userSettings] = await Promise.all([
+    const [modelMessages, memoryContext, dueReminders, userSettings, learningContext] = await Promise.all([
       convertToModelMessages(processedMessages),
       getMemorySummary(id).catch(() => ""),
       checkDueReminders().catch(() => []),
       loadUserSettings(),
+      getInsightsForPrompt(id, 8).catch(() => ""),
     ]);
 
     // Save the user's message to conversation history (fire-and-forget)
@@ -132,6 +135,19 @@ export async function POST(req: Request) {
         agentId: id,
         role: "user",
         content: lastContent,
+      }).catch(() => {});
+    }
+
+    // Send proactive notification for due reminders (in addition to in-context alert)
+    if (dueReminders.length > 0) {
+      sendProactiveNotification({
+        agentId: id,
+        agentName: agent.name,
+        type: "reminder",
+        title: `${dueReminders.length} Reminder${dueReminders.length > 1 ? "s" : ""} Due Now`,
+        body: dueReminders.map(r => `• ${r.title} (due: ${new Date(r.reminder_time).toLocaleString()})${r.description ? ` — ${r.description}` : ""}`).join("\n"),
+        priority: "high",
+        metadata: { reminderIds: dueReminders.map(r => r.id) },
       }).catch(() => {});
     }
 
@@ -163,6 +179,11 @@ export async function POST(req: Request) {
     // Also inject agent memory if available for persistent context.
     const memoryBlock = memoryContext
       ? `\n\n[MEMORY — Persistent context you remember]\n${memoryContext}\n[END MEMORY]`
+      : "";
+
+    // Self-learning: inject learned behaviors into system prompt
+    const learningBlock = learningContext
+      ? `\n\n${learningContext}`
       : "";
 
     // Build a tool inventory so the LLM is fully aware of the tools
@@ -216,8 +237,8 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
 
     const systemPrompt =
       id !== "general"
-        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
-        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
+        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
+        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
 
     // Determine step limit: specialist agents get fewer steps to be efficient,
        // Claw General gets more for complex multi-step orchestration.
@@ -297,6 +318,15 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
             action: "incomplete_response",
             detail: `Tool results: ${totalToolResults}, Text chars: ${assistantText.length}, Steps: ${steps.length}. Completion watchdog triggered — recovery message saved.`,
           }).catch(() => {});
+
+          // Self-learning: record a correction insight about the incomplete response
+          recordLearning({
+            agentId: id,
+            insightType: "correction",
+            content: `Agent stopped after processing ${totalToolResults} tool result(s) across ${steps.length} steps without generating a text explanation. Tools used: ${toolNames}. User may need to ask for results again.`,
+            source: "correction",
+            confidence: 0.7,
+          }).catch(() => {});
         } else if (assistantText) {
           // Save assistant response to conversation history
           const sessionId = body.sessionId || `session-${Date.now()}`;
@@ -306,6 +336,32 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
             role: "assistant",
             content: assistantText,
           }).catch(() => {});
+
+          // Self-learning: run lightweight pattern detection (async, non-blocking)
+          // Analyze recent messages for user preferences and patterns
+          const recentMsgs = processedMessages.slice(-10).map((m) => {
+            const text = m.parts
+              ? m.parts.filter((p) => p.type === "text").map((p) => p.text as string).join("")
+              : "";
+            return { role: m.role, content: text };
+          }).filter((m) => m.content.length > 0);
+
+          if (recentMsgs.length >= 3) {
+            recordLearning({
+              agentId: id,
+              insightType: "pattern",
+              content: `Async pattern detection triggered for ${recentMsgs.length} recent messages. Analysis runs in background.`,
+              source: "pattern_detection",
+              confidence: 0.3,
+            }).catch(() => {});
+
+            // Fire-and-forget pattern detection via the learning API
+            fetch("/api/learning", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "detect_patterns", agentId: id, conversations: recentMsgs }),
+            }).catch(() => {});
+          }
         }
         // Tool call tracking is handled client-side via analytics-store
         updateAgentStatus(id, {

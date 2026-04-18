@@ -18,6 +18,7 @@ import {
 } from "@/lib/task-queue";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { evaluateAutomations } from "@/lib/automation-engine";
+import { sendProactiveNotification } from "@/lib/proactive-notifications";
 
 export const maxDuration = 120; // 2 min max for cron handler
 
@@ -111,6 +112,17 @@ export async function GET(request: Request) {
             lastActivity: new Date().toISOString(),
             tasksCompleted: 1,
           }).catch(() => {});
+
+          // Send proactive notification for completed task
+          sendProactiveNotification({
+            agentId: task.agent_id,
+            agentName: agent.name,
+            type: "task_update",
+            title: `Task Complete: ${task.task.slice(0, 80)}`,
+            body: taskResult.text.slice(0, 500),
+            priority: "normal",
+            metadata: { taskId: task.id, triggerType: task.trigger_type },
+          }).catch(() => {});
         }
       } else {
         await failTask(task.id, taskResult.error || "Unknown error");
@@ -128,6 +140,17 @@ export async function GET(request: Request) {
             status: "error",
             currentTask: null,
             lastActivity: new Date().toISOString(),
+          }).catch(() => {});
+
+          // Send proactive notification for failed task
+          sendProactiveNotification({
+            agentId: task.agent_id,
+            agentName: agent.name,
+            type: "alert",
+            title: `Task Failed: ${task.task.slice(0, 80)}`,
+            body: taskResult.error || "Unknown error occurred during task execution.",
+            priority: "high",
+            metadata: { taskId: task.id, triggerType: task.trigger_type },
           }).catch(() => {});
         }
       }
