@@ -1,13 +1,16 @@
 // ---------------------------------------------------------------------------
-// Claw — Memory System
+// Claw — Memory System (Enhanced with 3-Layer Architecture)
 //
 // Hybrid persistence: Supabase (cloud) with localStorage (offline fallback).
 // - When Supabase is configured: reads/writes to Supabase, syncs to localStorage cache
 // - When Supabase is not configured: pure localStorage
 //
-// Two types of memory:
-// 1. Conversation History — per-agent, per-session message logs
-// 2. Agent Memory — persistent facts/preferences/instructions the agent remembers
+// Three memory layers (per roadmap):
+// 1. Episodic Memory — What happened (events, interactions, outcomes)
+// 2. Semantic Memory — What was learned (facts, preferences, knowledge)
+// 3. Procedural Memory — How to do things (workflows, recipes, best practices)
+//
+// Legacy categories (general, preference, context, instruction) still work.
 // ---------------------------------------------------------------------------
 
 import { getSupabase } from "./supabase";
@@ -29,11 +32,12 @@ export interface ConversationMessage {
 export interface AgentMemory {
   id: string;
   agentId: string;
-  category: "general" | "preference" | "context" | "instruction";
+  category: "general" | "preference" | "context" | "instruction" | "episodic" | "semantic" | "procedural";
   content: string;
   importance: number; // 1-10
   createdAt: string;
   updatedAt: string;
+  metadata?: Record<string, unknown>; // Optional structured data (e.g., outcome, tags)
 }
 
 // ---------------------------------------------------------------------------
@@ -431,9 +435,10 @@ export async function deleteSession(sessionId: string, agentId: string): Promise
 /** Add a memory for an agent. */
 export async function addMemory(memory: {
   agentId: string;
-  category: "general" | "preference" | "context" | "instruction";
+  category: "general" | "preference" | "context" | "instruction" | "episodic" | "semantic" | "procedural";
   content: string;
   importance?: number;
+  metadata?: Record<string, unknown>;
 }): Promise<AgentMemory> {
   const mem: AgentMemory = {
     id: genId(),
@@ -443,6 +448,7 @@ export async function addMemory(memory: {
     importance: memory.importance || 5,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    metadata: memory.metadata,
   };
 
   // Save to localStorage
@@ -583,4 +589,101 @@ function rowToMemory(row: Record<string, unknown>): AgentMemory {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 3-Layer Memory Convenience Functions (per roadmap)
+// ---------------------------------------------------------------------------
+
+/** Save an episodic memory — records what happened (event, interaction, outcome). */
+export async function saveEpisodicMemory(params: {
+  agentId: string;
+  event: string;
+  outcome: string;
+  importance?: number;
+}): Promise<AgentMemory> {
+  return addMemory({
+    agentId: params.agentId,
+    category: "episodic",
+    content: params.event,
+    importance: params.importance || 4,
+    metadata: { outcome: params.outcome, type: "episodic" },
+  });
+}
+
+/** Save a semantic memory — records what was learned (fact, preference, knowledge). */
+export async function saveSemanticMemory(params: {
+  agentId: string;
+  fact: string;
+  confidence?: "certain" | "likely" | "observed";
+  importance?: number;
+}): Promise<AgentMemory> {
+  return addMemory({
+    agentId: params.agentId,
+    category: "semantic",
+    content: params.fact,
+    importance: params.importance || 6,
+    metadata: { confidence: params.confidence || "observed", type: "semantic" },
+  });
+}
+
+/** Save a procedural memory — records how to do something (workflow, recipe, best practice). */
+export async function saveProceduralMemory(params: {
+  agentId: string;
+  procedure: string;
+  context?: string;
+  importance?: number;
+}): Promise<AgentMemory> {
+  return addMemory({
+    agentId: params.agentId,
+    category: "procedural",
+    content: params.procedure,
+    importance: params.importance || 7,
+    metadata: { context: params.context || "", type: "procedural" },
+  });
+}
+
+/** Get layered memory summary for injection into agent context. */
+export async function getLayeredMemorySummary(agentId: string): Promise<string> {
+  const memories = await getAgentMemories(agentId);
+  if (memories.length === 0) return "";
+
+  // Group by the 3 layers
+  const episodic = memories.filter(m => m.category === "episodic").slice(0, 5);
+  const semantic = memories.filter(m => m.category === "semantic" || m.category === "preference").slice(0, 10);
+  const procedural = memories.filter(m => m.category === "procedural" || m.category === "instruction").slice(0, 5);
+
+  const parts: string[] = [];
+
+  if (episodic.length > 0) {
+    parts.push("[RECENT EVENTS]");
+    for (const item of episodic) {
+      parts.push(`- ${item.content}`);
+    }
+  }
+
+  if (semantic.length > 0) {
+    parts.push("[WHAT WE KNOW]");
+    for (const item of semantic) {
+      parts.push(`- ${item.content}`);
+    }
+  }
+
+  if (procedural.length > 0) {
+    parts.push("[HOW TO DO THINGS]");
+    for (const item of procedural) {
+      parts.push(`- ${item.content}`);
+    }
+  }
+
+  // Include legacy categories
+  const legacy = memories.filter(m => !["episodic", "semantic", "procedural"].includes(m.category)).slice(0, 10);
+  if (legacy.length > 0) {
+    parts.push("[OTHER NOTES]");
+    for (const item of legacy) {
+      parts.push(`- [${item.category}] ${item.content}`);
+    }
+  }
+
+  return parts.join("\n");
 }
