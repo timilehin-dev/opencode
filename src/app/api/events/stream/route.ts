@@ -4,12 +4,17 @@
 //
 // Sends a snapshot on connect, then polls every 3s for new activity & status
 // changes. Uses ReadableStream with TextEncoder.
+// Phase 3: Also streams task and delegation events.
 // ---------------------------------------------------------------------------
 
 import { getAllAgentStatuses } from "@/lib/agents";
 import { getRecentActivity, getAllPersistedStatuses, getDashboardMetrics } from "@/lib/activity";
 import { listTodos } from "@/lib/workspace";
+import { getRecentTasks } from "@/lib/task-queue";
+import { getRecentDelegations } from "@/lib/delegations";
 import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/activity";
+import type { AgentTask } from "@/lib/task-queue";
+import type { Delegation } from "@/lib/delegations";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -32,12 +37,14 @@ export async function GET(req: Request) {
   const encoder = new TextEncoder();
 
   // Build initial snapshot
-  const [inMemoryStatuses, dbStatuses, recentActivity, metrics, todos] = await Promise.all([
+  const [inMemoryStatuses, dbStatuses, recentActivity, metrics, todos, recentTasks, recentDelegations] = await Promise.all([
     Promise.resolve(getAllAgentStatuses()),
     getAllPersistedStatuses().catch(() => ({} as Record<string, AgentStatusDB>)),
     getRecentActivity(50).catch(() => [] as ActivityEvent[]),
     getDashboardMetrics().catch(() => ({ messagesToday: 0, toolCallsToday: 0, tasksDone: 0, activeDelegations: 0 }) as DashboardMetrics),
     listTodos({ status: "open", limit: 20 }).catch(() => []),
+    getRecentTasks(20).catch(() => [] as AgentTask[]),
+    getRecentDelegations(20).catch(() => [] as Delegation[]),
   ]);
 
   // Merge: prefer in-memory for current real-time status, use DB for persistent fields
@@ -62,9 +69,13 @@ export async function GET(req: Request) {
     recentActivity,
     metrics,
     todos,
+    tasks: recentTasks,
+    delegations: recentDelegations,
   };
 
   const lastActivityIds = new Set(recentActivity.map((a) => a.id));
+  const lastTaskIds = new Set(recentTasks.map((t) => t.id));
+  const lastDelegationIds = new Set(recentDelegations.map((d) => d.id));
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -74,20 +85,40 @@ export async function GET(req: Request) {
       // Polling loop
       const interval = setInterval(async () => {
         try {
-          const [newActivity, currentStatuses, currentMetrics] = await Promise.all([
+          const [newActivity, currentStatuses, currentMetrics, currentTasks, currentDelegations] = await Promise.all([
             getRecentActivity(20).catch(() => [] as ActivityEvent[]),
             Promise.resolve(getAllAgentStatuses()),
             getDashboardMetrics().catch(() => metrics),
+            getRecentTasks(10).catch(() => [] as AgentTask[]),
+            getRecentDelegations(10).catch(() => [] as Delegation[]),
           ]);
 
           // Check for new activity
           const newEvents = newActivity.filter((a) => !lastActivityIds.has(a.id));
           if (newEvents.length > 0) {
             // Update our tracking set
-            for (const a of newActivity) {
+            for (const a of newEvents) {
               lastActivityIds.add(a.id);
             }
             controller.enqueue(encoder.encode(formatSSE("activity", newEvents.reverse())));
+          }
+
+          // Check for new tasks
+          const newTasks = currentTasks.filter((t) => !lastTaskIds.has(t.id));
+          if (newTasks.length > 0) {
+            for (const t of newTasks) {
+              lastTaskIds.add(t.id);
+            }
+            controller.enqueue(encoder.encode(formatSSE("task", newTasks.reverse())));
+          }
+
+          // Check for new delegations
+          const newDelegations = currentDelegations.filter((d) => !lastDelegationIds.has(d.id));
+          if (newDelegations.length > 0) {
+            for (const d of newDelegations) {
+              lastDelegationIds.add(d.id);
+            }
+            controller.enqueue(encoder.encode(formatSSE("delegation", newDelegations.reverse())));
           }
 
           // Check for status changes

@@ -51,7 +51,7 @@ export default function Dashboard() {
   // Phase 2: Real-time dashboard data
   // ---------------------------------------------------------------------------
 
-  const { agentStatuses, activity, metrics, todos, isConnected } = useDashboardStream();
+  const { agentStatuses, activity, metrics, todos, tasks, delegations, isConnected } = useDashboardStream();
 
   // ---------------------------------------------------------------------------
   // Service-level data fetching
@@ -166,6 +166,8 @@ export default function Dashboard() {
                       serviceStatus={serviceStatus}
                       metrics={metrics}
                       todos={todos}
+                      delegations={delegations}
+                      tasks={tasks}
                     />
                   </motion.div>
                 )}

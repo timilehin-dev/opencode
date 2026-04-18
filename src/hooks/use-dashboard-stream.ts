@@ -5,6 +5,7 @@
 // 1. Try SSE first (EventSource to /api/events/stream)
 // 2. If SSE fails or disconnects, fall back to polling /api/dashboard every 5s
 // 3. On reconnect, do a full snapshot fetch
+// Phase 3: Also tracks tasks and delegations from SSE stream
 // ---------------------------------------------------------------------------
 
 "use client";
@@ -56,11 +57,45 @@ export interface TodoView {
   created_at: string;
 }
 
+// Phase 3: Task and Delegation types for dashboard
+export interface AgentTaskView {
+  id: number;
+  agent_id: string;
+  task: string;
+  context: string;
+  trigger_type: string;
+  trigger_source: string;
+  priority: string;
+  status: string;
+  result: string;
+  error: string;
+  tool_calls: unknown[];
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface DelegationView {
+  id: number;
+  initiator_agent: string;
+  assigned_agent: string;
+  task: string;
+  context: string;
+  status: string;
+  result: string;
+  delegation_chain: string[];
+  duration_ms: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export interface DashboardState {
   agentStatuses: AgentStatusView[];
   activity: ActivityEventView[];
   metrics: DashboardMetricsView;
   todos: TodoView[];
+  tasks: AgentTaskView[];
+  delegations: DelegationView[];
   isConnected: boolean;
   reconnect: () => void;
 }
@@ -74,6 +109,8 @@ async function fetchDashboardSnapshot(): Promise<{
   activity: ActivityEventView[];
   metrics: DashboardMetricsView;
   todos: TodoView[];
+  tasks: AgentTaskView[];
+  delegations: DelegationView[];
 } | null> {
   try {
     const res = await fetch("/api/dashboard");
@@ -100,6 +137,8 @@ export function useDashboardStream(): DashboardState {
     activeDelegations: 0,
   });
   const [todos, setTodos] = useState<TodoView[]>([]);
+  const [tasks, setTasks] = useState<AgentTaskView[]>([]);
+  const [delegations, setDelegations] = useState<DelegationView[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -128,6 +167,8 @@ export function useDashboardStream(): DashboardState {
       if (data.activity) setActivity(data.activity.reverse()); // newest last for display
       if (data.metrics) setMetrics(data.metrics);
       if (data.todos) setTodos(data.todos);
+      if (data.tasks) setTasks(data.tasks);
+      if (data.delegations) setDelegations(data.delegations);
     });
 
     // Then poll every 5s
@@ -138,6 +179,8 @@ export function useDashboardStream(): DashboardState {
       if (data.activity) setActivity(data.activity.reverse());
       if (data.metrics) setMetrics(data.metrics);
       if (data.todos) setTodos(data.todos);
+      if (data.tasks) setTasks(data.tasks);
+      if (data.delegations) setDelegations(data.delegations);
     }, 5000);
   }, [cleanup]);
 
@@ -157,6 +200,8 @@ export function useDashboardStream(): DashboardState {
           if (data.recentActivity) setActivity(data.recentActivity.reverse());
           if (data.metrics) setMetrics(data.metrics);
           if (data.todos) setTodos(data.todos);
+          if (data.tasks) setTasks(data.tasks);
+          if (data.delegations) setDelegations(data.delegations);
           setIsConnected(true);
         } catch {
           /* ignore parse errors */
@@ -188,6 +233,28 @@ export function useDashboardStream(): DashboardState {
           const m: DashboardMetricsView = JSON.parse(event.data);
           if (!mountedRef.current) return;
           setMetrics(m);
+        } catch {
+          /* ignore parse errors */
+        }
+      });
+
+      // Phase 3: Listen for task events
+      es.addEventListener("task", (event) => {
+        try {
+          const newTasks: AgentTaskView[] = JSON.parse(event.data);
+          if (!mountedRef.current) return;
+          setTasks((prev) => [...newTasks.reverse(), ...prev]);
+        } catch {
+          /* ignore parse errors */
+        }
+      });
+
+      // Phase 3: Listen for delegation events
+      es.addEventListener("delegation", (event) => {
+        try {
+          const newDelegations: DelegationView[] = JSON.parse(event.data);
+          if (!mountedRef.current) return;
+          setDelegations((prev) => [...newDelegations.reverse(), ...prev]);
         } catch {
           /* ignore parse errors */
         }
@@ -232,6 +299,8 @@ export function useDashboardStream(): DashboardState {
     activity,
     metrics,
     todos,
+    tasks,
+    delegations,
     isConnected,
     reconnect,
   };

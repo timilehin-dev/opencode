@@ -763,8 +763,24 @@ export const delegateToAgentTool = tool({
   })),
   execute: safeJson(async ({ agent_id, task }) => {
     const taskId = `a2a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const startTime = Date.now();
 
-    // Log the A2A delegation task in Supabase (fire-and-forget)
+    // Log the delegation via Phase 3 delegations table (fire-and-forget)
+    let delegationId = -1;
+    try {
+      const { logDelegation } = await import("@/lib/delegations");
+      delegationId = await logDelegation({
+        initiator_agent: "general",
+        assigned_agent: agent_id,
+        task,
+        context: "Delegated by Claw General via delegate_to_agent tool",
+        delegation_chain: ["general", agent_id],
+      });
+    } catch {
+      // Delegation logging is non-critical
+    }
+
+    // Also log to legacy a2a_tasks table (fire-and-forget, backwards compat)
     try {
       const { Pool } = require('pg');
       const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
@@ -781,9 +797,20 @@ export const delegateToAgentTool = tool({
     try {
       console.log(`[A2A] Delegating to ${agent_id}: ${task.slice(0, 100)}...`);
       const { text, steps } = await callAgentDirectly(agent_id, task);
+      const durationMs = Date.now() - startTime;
       console.log(`[A2A] ${agent_id} responded: ${steps} steps, ${text.length} chars`);
 
-      // Update A2A task status to completed
+      // Update delegation status to completed
+      if (delegationId > 0) {
+        const { updateDelegation } = await import("@/lib/delegations");
+        updateDelegation(delegationId, {
+          status: "completed",
+          result: text.trim().slice(0, 2000),
+          duration_ms: durationMs,
+        }).catch(() => {});
+      }
+
+      // Update legacy a2a_tasks status (fire-and-forget)
       try {
         const { Pool } = require('pg');
         const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
@@ -794,9 +821,21 @@ export const delegateToAgentTool = tool({
         await pool.end();
       } catch { /* non-critical */ }
 
-      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", taskId, steps };
+      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", taskId, steps, durationMs };
     } catch (error) {
+      const durationMs = Date.now() - startTime;
       console.error(`[A2A] Delegation to ${agent_id} failed:`, error);
+
+      // Update delegation status to failed
+      if (delegationId > 0) {
+        const { updateDelegation } = await import("@/lib/delegations");
+        updateDelegation(delegationId, {
+          status: "failed",
+          result: error instanceof Error ? error.message : "Delegation failed",
+          duration_ms: durationMs,
+        }).catch(() => {});
+      }
+
       return { success: false, error: error instanceof Error ? error.message : "Delegation failed", taskId };
     }
   }),
@@ -1022,13 +1061,54 @@ export const queryAgentTool = tool({
     question: z.string().describe("Complete task description with ALL context the target agent needs. Include: what to do, who/what/where/when details, any content to send, file IDs, email addresses, times, etc. Be SPECIFIC and provide everything needed for autonomous execution."),
   })),
   execute: safeJson(async ({ agent_id, question }) => {
+    const startTime = Date.now();
+
+    // Log the delegation via Phase 3 delegations table (fire-and-forget)
+    let delegationId = -1;
+    try {
+      const { logDelegation } = await import("@/lib/delegations");
+      delegationId = await logDelegation({
+        initiator_agent: "unknown", // will be set by caller context if available
+        assigned_agent: agent_id,
+        task: question,
+        context: "Routed via query_agent tool",
+        delegation_chain: ["unknown", agent_id],
+      });
+    } catch {
+      // Delegation logging is non-critical
+    }
+
     try {
       console.log(`[A2A] Query to ${agent_id}: ${question.slice(0, 100)}...`);
       const { text, steps } = await callAgentDirectly(agent_id, question);
+      const durationMs = Date.now() - startTime;
       console.log(`[A2A] ${agent_id} responded: ${steps} steps, ${text.length} chars`);
-      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", steps };
+
+      // Update delegation status to completed
+      if (delegationId > 0) {
+        const { updateDelegation } = await import("@/lib/delegations");
+        updateDelegation(delegationId, {
+          status: "completed",
+          result: text.trim().slice(0, 2000),
+          duration_ms: durationMs,
+        }).catch(() => {});
+      }
+
+      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", steps, durationMs };
     } catch (error) {
+      const durationMs = Date.now() - startTime;
       console.error(`[A2A] Query to ${agent_id} failed:`, error);
+
+      // Update delegation status to failed
+      if (delegationId > 0) {
+        const { updateDelegation } = await import("@/lib/delegations");
+        updateDelegation(delegationId, {
+          status: "failed",
+          result: error instanceof Error ? error.message : "Query failed",
+          duration_ms: durationMs,
+        }).catch(() => {});
+      }
+
       return { success: false, error: error instanceof Error ? error.message : "Query failed" };
     }
   }),

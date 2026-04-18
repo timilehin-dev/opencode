@@ -233,6 +233,52 @@ CREATE INDEX IF NOT EXISTS idx_todos_tags ON todos USING GIN(tags);
 `;
 
 // ---------------------------------------------------------------------------
+// Phase 3 SQL — Agent Task Queue & Delegation Tracking
+// For the setup API route /api/setup/phase3
+// ---------------------------------------------------------------------------
+export const PHASE3_SCHEMA_SQL = `
+-- Agent Task Queue (background tasks)
+CREATE TABLE IF NOT EXISTS agent_tasks (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  task TEXT NOT NULL,
+  context TEXT DEFAULT '',
+  trigger_type TEXT NOT NULL DEFAULT 'manual' CHECK (trigger_type IN ('manual', 'automation', 'cron', 'delegation', 'event')),
+  trigger_source TEXT DEFAULT '',
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+  result TEXT DEFAULT '',
+  error TEXT DEFAULT '',
+  tool_calls JSONB DEFAULT '[]',
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_agent ON agent_tasks(agent_id, status, created_at DESC);
+
+-- Delegations (A2A tracking)
+CREATE TABLE IF NOT EXISTS delegations (
+  id BIGSERIAL PRIMARY KEY,
+  initiator_agent TEXT NOT NULL,
+  assigned_agent TEXT NOT NULL,
+  task TEXT NOT NULL,
+  context TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+  result TEXT DEFAULT '',
+  delegation_chain TEXT[] DEFAULT '{}',
+  duration_ms INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_delegations_status ON delegations(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_delegations_initiator ON delegations(initiator_agent, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_delegations_assigned ON delegations(assigned_agent, created_at DESC);
+`;
+
+// ---------------------------------------------------------------------------
 // Phase 2 SQL — Agent Activity Log + Persistent Agent Status
 // For the setup API route /api/setup/phase2
 // ---------------------------------------------------------------------------
