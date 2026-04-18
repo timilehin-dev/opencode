@@ -26,6 +26,7 @@ import {
 import { Settings as SettingsIcon, BarChart3 } from "lucide-react";
 import { NotificationBell } from "@/components/dashboard/notification-panel";
 import { cn } from "@/lib/utils";
+import { Bell } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Nav item definitions
@@ -189,7 +190,14 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
       {/* Bottom section — Notifications */}
       <div className="px-3 py-4 border-t border-[#e8e5df]">
-        <NotificationBell />
+        <Link
+          href="/notifications"
+          onClick={onItemClick}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#6b6b6b] hover:text-[#1a1a1a] hover:bg-[#faf9f7] border-l-[3px] border-transparent transition-all duration-200 group"
+        >
+          <Bell className="w-5 h-5 text-[#999999] group-hover:text-[#6b6b6b]" />
+          <span className="flex-1 text-left">Notifications</span>
+        </Link>
       </div>
     </div>
   );
