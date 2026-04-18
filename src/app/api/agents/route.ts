@@ -9,6 +9,10 @@ import {
   getAllAgentStatuses,
   updateAgentStatus,
 } from "@/lib/agents";
+import {
+  sendA2AMessage,
+  getAgentA2AMessages,
+} from "@/lib/a2a";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -93,6 +97,55 @@ export async function POST(req: NextRequest) {
           instruction,
           message: `Task dispatched to ${agent.name}. ${agent.emoji}`,
         });
+      }
+
+      case "message": {
+        // Inter-Agent Message Bus: send async message to another agent
+        const { fromAgent, toAgent, topic, payload, type } = body as {
+          fromAgent?: string;
+          toAgent?: string;
+          topic?: string;
+          payload?: Record<string, unknown>;
+          type?: "request" | "response" | "broadcast" | "context_share";
+        };
+
+        if (!fromAgent || !toAgent || !topic) {
+          return err("Missing fromAgent, toAgent, or topic", 400);
+        }
+
+        const validAgents = getAllAgents().map(a => a.id);
+        if (!validAgents.includes(fromAgent)) {
+          return err(`Invalid fromAgent: ${fromAgent}`, 400);
+        }
+        if (!validAgents.includes(toAgent)) {
+          return err(`Invalid toAgent: ${toAgent}`, 400);
+        }
+
+        const msg = await sendA2AMessage({
+          fromAgent,
+          toAgent,
+          topic,
+          payload: payload || {},
+          type: type || "request",
+        });
+
+        if (!msg) {
+          return err("Failed to send message — database unavailable", 503);
+        }
+
+        return ok({ delivered: true, messageId: msg.id, message: msg });
+      }
+
+      case "inbox": {
+        // Get messages for a specific agent
+        const { agentId, limit } = body as { agentId?: string; limit?: number };
+
+        if (!agentId) {
+          return err("Missing agentId", 400);
+        }
+
+        const messages = await getAgentA2AMessages(agentId, limit || 50);
+        return ok({ messages, count: messages.length });
       }
 
       default:
