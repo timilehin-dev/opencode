@@ -17,18 +17,26 @@ interface MissionControlProps {
 
 export function MissionControl({ serviceStatus, metrics, todos, delegations, tasks: _tasks }: MissionControlProps) {
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex flex-col gap-5">
       {/* Connected Services Row */}
-      <ServiceChips serviceStatus={serviceStatus} />
+      <section>
+        <ServiceChips serviceStatus={serviceStatus} />
+      </section>
 
       {/* Metrics */}
-      <MetricsRow metrics={metrics} />
+      <section>
+        <MetricsRow metrics={metrics} />
+      </section>
 
       {/* Split: Coordination Map + Active Tasks — 2-col desktop, stack mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
-        <CoordinationMap delegations={delegations || []} />
-        <ActiveTasks todos={todos} />
-      </div>
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="min-h-[340px] max-h-[440px]">
+          <CoordinationMap delegations={delegations || []} />
+        </div>
+        <div className="min-h-[340px] max-h-[440px]">
+          <ActiveTasks todos={todos} />
+        </div>
+      </section>
     </div>
   );
 }

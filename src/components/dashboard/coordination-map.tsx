@@ -148,7 +148,7 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 p-3 overflow-y-auto custom-scrollbar max-h-96">
+      <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
         {delegations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="w-10 h-10 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-3">

@@ -42,7 +42,7 @@ export function MetricsRow({ metrics }: MetricsRowProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {data.map((m) => (
         <div
           key={m.label}

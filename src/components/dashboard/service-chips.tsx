@@ -79,7 +79,7 @@ interface ServiceChipsProps {
 
 export function ServiceChips({ serviceStatus }: ServiceChipsProps) {
   return (
-    <div className="flex gap-2.5 mb-5 overflow-x-auto scrollbar-none pb-1">
+    <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
       {SERVICES.map((svc) => {
         const Icon = svc.icon;
         const connected = serviceStatus?.[svc.statusKey]?.connected ?? false;
