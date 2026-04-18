@@ -111,7 +111,7 @@ export default function Dashboard() {
 
   return (
     <NotificationProvider onNavigate={handlePageChange}>
-      <div className="h-screen flex flex-col bg-[#09090b] text-zinc-50 overflow-hidden">
+      <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
         {/* Notification slide-out panel */}
         <NotificationPanel />
 
@@ -122,7 +122,7 @@ export default function Dashboard() {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel — Agent Crew + Ops Feed (only on Mission Control, desktop only) */}
           {isControlPage && (
-            <div className="hidden lg:flex w-[300px] border-r border-white/[0.06] flex-col bg-zinc-950/60 flex-shrink-0">
+            <div className="hidden lg:flex w-[300px] border-r border-border flex-col bg-secondary/60 flex-shrink-0">
               <AgentCrew
                 agents={agents}
                 selectedAgentId={selectedAgentId}
@@ -389,16 +389,16 @@ export default function Dashboard() {
 
           {/* Right Panel — Chat (only on Mission Control page, desktop only) */}
           {isControlPage && (
-            <div className="hidden lg:flex w-[360px] border-l border-white/[0.06] flex-col bg-zinc-950/60 flex-shrink-0">
+            <div className="hidden lg:flex w-[360px] border-l border-border flex-col bg-secondary/60 flex-shrink-0">
               {/* Chat Tabs */}
-              <div className="flex border-b border-white/[0.06]">
+              <div className="flex border-b border-border">
                 {["Chat", "Tasks", "History"].map((tab, i) => (
                   <div
                     key={tab}
                     className={`flex-1 py-3 text-center text-xs font-semibold cursor-pointer transition-all duration-150 border-b-2 ${
                       i === 0
-                        ? "text-zinc-50 border-emerald-500"
-                        : "text-zinc-600 border-transparent hover:text-zinc-400"
+                        ? "text-foreground border-emerald-500"
+                        : "text-muted-foreground border-transparent hover:text-foreground/80"
                     }`}
                   >
                     {tab}
@@ -427,14 +427,14 @@ export default function Dashboard() {
 function SettingsPlaceholder() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-      <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-4">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-600">
+      <div className="w-16 h-16 rounded-2xl bg-secondary border border-border flex items-center justify-center mb-4">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
           <circle cx="12" cy="12" r="3" />
         </svg>
       </div>
-      <h2 className="text-lg font-bold text-zinc-200 mb-1">Settings</h2>
-      <p className="text-sm text-zinc-500">Configuration options coming soon.</p>
+      <h2 className="text-lg font-bold text-foreground mb-1">Settings</h2>
+      <p className="text-sm text-muted-foreground">Configuration options coming soon.</p>
     </div>
   );
 }
@@ -462,8 +462,8 @@ function ServicesGrid({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-zinc-100 mb-1">Connected Services</h2>
-      <p className="text-sm text-zinc-500 mb-6">
+      <h2 className="text-xl font-bold text-foreground mb-1">Connected Services</h2>
+      <p className="text-sm text-muted-foreground mb-6">
         Manage your connected services and integrations.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -475,23 +475,23 @@ function ServicesGrid({
             <button
               key={svc.key}
               onClick={() => onNavigate(svc.key)}
-              className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.04] transition-all duration-150 text-left cursor-pointer"
+              className="flex items-center gap-4 p-4 rounded-xl bg-secondary border border-border hover:bg-accent transition-all duration-150 text-left cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-xl bg-white/[0.04] flex items-center justify-center text-zinc-400">
+              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground">
                 {svc.icon}
               </div>
               <div>
-                <div className="text-sm font-semibold text-zinc-200">
+                <div className="text-sm font-semibold text-foreground">
                   {svc.name}
                 </div>
-                <div className="text-xs text-zinc-500 mt-0.5">
+                <div className="text-xs text-muted-foreground mt-0.5">
                   {connected ? "Connected" : "Not connected"}
                 </div>
               </div>
               <div className="ml-auto">
                 <span
                   className={`w-2.5 h-2.5 rounded-full block ${
-                    connected ? "bg-emerald-400" : "bg-zinc-700"
+                    connected ? "bg-emerald-400" : "bg-muted-foreground/30"
                   }`}
                 />
               </div>
@@ -534,8 +534,8 @@ function ServicePageHeader({
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 mb-1">
-        <span className="text-zinc-400">{icon}</span>
-        <h2 className="text-xl font-bold text-zinc-100">{title}</h2>
+        <span className="text-muted-foreground">{icon}</span>
+        <h2 className="text-xl font-bold text-foreground">{title}</h2>
         {serviceKey && (
           <span
             className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
@@ -556,12 +556,12 @@ function ServicePageHeader({
 
       {/* GitHub specific stats */}
       {repo && title === "GitHub" && (
-        <div className="flex items-center gap-4 mt-2 text-sm text-zinc-400 flex-wrap">
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
           <span>
             <span className="text-amber-400 font-semibold">{repo.stargazers_count.toLocaleString()}</span> stars
           </span>
           <span>
-            <span className="text-zinc-500 font-semibold">{repo.forks_count.toLocaleString()}</span> forks
+            <span className="text-muted-foreground font-semibold">{repo.forks_count.toLocaleString()}</span> forks
           </span>
           <span>
             <span className="text-emerald-400 font-semibold">{repo.open_issues_count}</span> open issues
@@ -585,8 +585,8 @@ function ServicePageHeader({
 
       {/* Gmail specific stats */}
       {gmProfile && title === "Gmail" && (
-        <div className="flex items-center gap-4 mt-2 text-sm text-zinc-400 flex-wrap">
-          <span className="font-medium text-zinc-200">{gmProfile.emailAddress}</span>
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+          <span className="font-medium text-foreground">{gmProfile.emailAddress}</span>
           <span>
             <span className="text-blue-400 font-semibold">{gmProfile.messagesTotal.toLocaleString()}</span> messages
           </span>

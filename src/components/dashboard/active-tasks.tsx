@@ -77,10 +77,10 @@ const PRIORITY_STYLES = {
 
 export function ActiveTasks() {
   return (
-    <div className="bg-white/[0.02] border border-white/[0.05] rounded-[14px] flex flex-col overflow-hidden">
+    <div className="bg-secondary border border-border rounded-[14px] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04]">
-        <span className="text-[13px] font-bold text-zinc-100">Active Tasks</span>
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <span className="text-[13px] font-bold text-foreground">Active Tasks</span>
         <span className="text-[10px] text-emerald-400 cursor-pointer">
           View All →
         </span>
@@ -91,7 +91,7 @@ export function ActiveTasks() {
         {MOCK_TASKS.map((task) => (
           <div
             key={task.id}
-            className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b border-white/[0.03] last:border-b-0"
+            className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b border-border last:border-b-0"
           >
             {/* Checkbox */}
             <div
@@ -99,7 +99,7 @@ export function ActiveTasks() {
                 "w-[18px] h-[18px] rounded-md border-2 flex-shrink-0 flex items-center justify-center",
                 task.done
                   ? "bg-emerald-500 border-emerald-500"
-                  : "border-zinc-700"
+                  : "border-muted-foreground/50"
               )}
             >
               {task.done && (
@@ -124,13 +124,13 @@ export function ActiveTasks() {
                 className={cn(
                   "text-xs font-semibold",
                   task.done
-                    ? "line-through text-zinc-600"
-                    : "text-zinc-200"
+                    ? "line-through text-muted-foreground/70"
+                    : "text-foreground"
                 )}
               >
                 {task.title}
               </div>
-              <div className="text-[10px] text-zinc-600 mt-0.5">
+              <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                 {task.meta}
               </div>
             </div>

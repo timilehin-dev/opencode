@@ -238,7 +238,7 @@ function ToolCallCard({
         className={cn(
           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200 cursor-pointer",
           isSuccess
-            ? "bg-white/[0.04] text-zinc-400 hover:bg-white/[0.07] border border-white/[0.06]"
+            ? "bg-secondary text-muted-foreground hover:bg-accent border border-border"
             : "bg-red-500/10 text-red-400 hover:bg-red-500/15 border border-red-500/20"
         )}
       >
@@ -263,7 +263,7 @@ function ToolCallCard({
           exit={{ opacity: 0, height: 0 }}
           className="mt-1.5 max-h-48 overflow-y-auto custom-scrollbar"
         >
-          <pre className="text-[11px] text-zinc-500 whitespace-pre-wrap break-all font-mono bg-white/[0.02] rounded-lg px-3 py-2 border border-white/[0.04]">
+          <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap break-all font-mono bg-secondary rounded-lg px-3 py-2 border border-border">
             {result.slice(0, 500)}
             {result.length > 500 && "..."}
           </pre>
@@ -429,13 +429,13 @@ function TypingIndicator({ emoji }: { emoji: string }) {
       animate={{ opacity: 1 }}
       className="flex items-center gap-3 py-2"
     >
-      <div className="w-7 h-7 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0">
+      <div className="w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center flex-shrink-0">
         <span className="text-xs">{emoji}</span>
       </div>
-      <div className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 bounce-dot-1" />
-        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 bounce-dot-2" />
-        <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 bounce-dot-3" />
+      <div className="flex items-center gap-1 px-3 py-2 rounded-xl bg-secondary border border-border">
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground bounce-dot-1" />
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground bounce-dot-2" />
+        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground bounce-dot-3" />
       </div>
     </motion.div>
   );
@@ -764,7 +764,7 @@ function AgentChatSession({
                   onClick={() => sendMessage({ text: action.prompt })}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3.5 rounded-xl border text-sm font-medium transition-all duration-200 text-left cursor-pointer",
-                    "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-white/[0.08]",
+                    "bg-secondary border-border hover:bg-accent hover:border-border",
                     "border-l-[3px]", colors.leftBorder
                   )}
                 >
@@ -807,7 +807,7 @@ function AgentChatSession({
                 >
                   {/* Agent Avatar — small circle with emoji */}
                   {!isUser && (
-                    <div className="w-7 h-7 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center flex-shrink-0 mt-0.5">
                       <span className="text-xs">{agentInfo.emoji}</span>
                     </div>
                   )}
@@ -826,8 +826,8 @@ function AgentChatSession({
                         className={cn(
                           "text-sm leading-relaxed break-words",
                           isUser
-                            ? "bg-white/[0.03] border-l-[3px] border-l-primary rounded-r-xl rounded-tr-sm px-4 py-3 text-zinc-200"
-                            : "bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 text-zinc-300"
+                            ? "bg-secondary border-l-[3px] border-l-primary rounded-r-xl rounded-tr-sm px-4 py-3 text-foreground"
+                            : "bg-card border border-border rounded-xl px-4 py-3 text-foreground"
                         )}
                       >
                         {isUser ? (
@@ -887,7 +887,7 @@ function AgentChatSession({
                           return (
                             <div
                               key={`${message.id}-tool-${idx}`}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.05] text-[11px] text-zinc-500"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary border border-border text-[11px] text-muted-foreground"
                             >
                               <Loader2 className="w-2.5 h-2.5 animate-spin" />
                               <span>{toolName.replace(/_/g, " ")}</span>
@@ -919,7 +919,7 @@ function AgentChatSession({
       </div>
 
       {/* Input Area — fixed to bottom with backdrop blur */}
-      <div className="border-t border-white/[0.05] px-3 sm:px-4 py-3 flex-shrink-0 bg-zinc-950/80 backdrop-blur-xl pb-safe">
+      <div className="border-t border-border px-3 sm:px-4 py-3 flex-shrink-0 bg-background/80 backdrop-blur-xl pb-safe">
         <div className="max-w-3xl mx-auto">
           {/* Attachment Previews */}
           <AnimatePresence>
@@ -938,7 +938,7 @@ function AgentChatSession({
                     exit={{ opacity: 0, scale: 0.9 }}
                     className={cn(
                       "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs",
-                      "border-white/[0.06] bg-white/[0.03]"
+                      "border-border bg-secondary"
                     )}
                   >
                     {att.type === "image" ? (
@@ -966,7 +966,7 @@ function AgentChatSession({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="mb-2 rounded-xl border border-white/[0.06] bg-zinc-900/95 backdrop-blur-xl p-3 shadow-2xl"
+                className="mb-2 rounded-xl border border-border bg-popover backdrop-blur-xl p-3 shadow-2xl"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -990,7 +990,7 @@ function AgentChatSession({
                     value={driveSearch}
                     onChange={(e) => handleDriveSearch(e.target.value)}
                     placeholder="Search all Drive files..."
-                    className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-white/[0.06] bg-white/[0.03] focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground placeholder:text-muted-foreground"
+                    className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-border bg-secondary focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground placeholder:text-muted-foreground"
                     autoFocus
                   />
                 </div>
@@ -1030,7 +1030,7 @@ function AgentChatSession({
                         <button
                           key={file.id}
                           onClick={() => handleDriveFileSelect(file)}
-                          className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/[0.04] transition-colors flex items-center gap-2.5 group"
+                          className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-accent transition-colors flex items-center gap-2.5 group"
                         >
                           <span className="text-sm flex-shrink-0 w-5 text-center">{iconEmoji}</span>
                           <div className="min-w-0 flex-1">
@@ -1054,7 +1054,7 @@ function AgentChatSession({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 cursor-pointer"
               title="Upload file"
               disabled={uploading}
             >
@@ -1088,8 +1088,8 @@ function AgentChatSession({
               className={cn(
                 "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 cursor-pointer",
                 showDrivePicker
-                  ? "text-foreground bg-white/[0.08]"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]"
+                  ? "text-foreground bg-secondary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
               title="Attach from Google Drive"
             >
@@ -1106,8 +1106,8 @@ function AgentChatSession({
                 placeholder={`Message ${agentInfo.name}...`}
                 rows={1}
                 className={cn(
-                  "w-full resize-none rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2.5 text-sm text-foreground",
-                  "placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30",
+                  "w-full resize-none rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground",
+                  "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30",
                   "transition-all duration-200"
                 )}
                 style={{ minHeight: "40px", maxHeight: "120px" }}
@@ -1122,8 +1122,8 @@ function AgentChatSession({
               className={cn(
                 "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 cursor-pointer",
                 (!inputText.trim() && attachments.length === 0) || isLoading
-                  ? "text-zinc-700 bg-white/[0.02] cursor-not-allowed"
-                  : "text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
+                  ? "text-muted-foreground/40 bg-secondary cursor-not-allowed"
+                  : "text-primary-foreground bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
               )}
             >
               {isLoading ? (
@@ -1275,13 +1275,13 @@ export function ChatView() {
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] lg:h-[calc(100vh-3rem)] relative">
       {/* Slim Header — Agent emoji + name + role, model badge, history/new buttons */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-white/[0.05] flex-shrink-0">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-border flex-shrink-0">
         <div className="relative" ref={pickerRef}>
           <button
             onClick={() => setShowAgentPicker(!showAgentPicker)}
             className={cn(
-              "flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-all duration-200 hover:border-white/[0.1] cursor-pointer",
-              "border-white/[0.05] bg-white/[0.02]"
+              "flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-all duration-200 hover:border-border cursor-pointer",
+              "border-border bg-secondary"
             )}
           >
             <span className="text-lg">{activeAgent.emoji}</span>
@@ -1300,7 +1300,7 @@ export function ChatView() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
-                className="absolute top-full left-0 mt-1 w-64 bg-zinc-900/95 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden"
+                className="absolute top-full left-0 mt-1 w-64 bg-popover backdrop-blur-xl border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
               >
                 <div className="py-1">
                   {agents.map((agent) => (
@@ -1308,8 +1308,8 @@ export function ChatView() {
                       key={agent.id}
                       onClick={() => handleAgentChange(agent.id)}
                       className={cn(
-                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04] cursor-pointer",
-                        agent.id === selectedAgent && "bg-white/[0.04]"
+                        "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-accent cursor-pointer",
+                        agent.id === selectedAgent && "bg-accent"
                       )}
                     >
                       <span className="text-lg">{agent.emoji}</span>
@@ -1330,20 +1330,20 @@ export function ChatView() {
 
         {/* Header Actions */}
         <div className="flex items-center gap-1">
-          <Badge variant="outline" className="text-[10px] gap-1 border-white/[0.06] hidden sm:flex">
+          <Badge variant="outline" className="text-[10px] gap-1 border-border hidden sm:flex">
             <span className={cn("w-1.5 h-1.5 rounded-full", colors.dot)} />
             {activeAgent.model}
           </Badge>
           <button
             onClick={() => setShowConversations(true)}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors cursor-pointer"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
             title="All conversations"
           >
             <HistoryIcon className="w-4 h-4" />
           </button>
           <button
             onClick={handleNewChat}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors cursor-pointer"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
             title="New chat"
           >
             <PlusIcon className="w-4 h-4" />

@@ -97,9 +97,9 @@ export function MetricsRow({ overviewData }: MetricsRowProps) {
       {data.map((m) => (
         <div
           key={m.label}
-          className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3.5 min-w-[140px]"
+          className="bg-secondary border border-border rounded-xl px-4 py-3.5 min-w-[140px]"
         >
-          <div className="text-[10px] font-semibold uppercase tracking-[0.8px] text-zinc-600 mb-1.5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.8px] text-muted-foreground/70 mb-1.5">
             {m.label}
           </div>
           <div className={`text-[26px] font-extrabold leading-none ${m.color}`}>

@@ -53,10 +53,10 @@ const MOCK_OPS = [
 
 export function OpsFeed() {
   return (
-    <div className="flex-1 border-t border-white/[0.06] flex flex-col min-h-0">
+    <div className="flex-1 border-t border-border flex flex-col min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-[18px] py-4 pb-1">
-        <span className="text-[12px] font-bold uppercase tracking-[1px] text-zinc-600">
+        <span className="text-[12px] font-bold uppercase tracking-[1px] text-muted-foreground/70">
           Live Operations
         </span>
         <span className="text-[10px] text-emerald-400 flex items-center gap-1">
@@ -70,17 +70,17 @@ export function OpsFeed() {
         {MOCK_OPS.map((op) => (
           <div
             key={op.id}
-            className="flex items-start gap-2 py-2 border-b border-white/[0.03] last:border-b-0"
+            className="flex items-start gap-2 py-2 border-b border-border last:border-b-0"
           >
             <div
               className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${op.dot}`}
             />
             <div className="min-w-0">
               <div
-                className="text-[11.5px] text-zinc-400 leading-relaxed [&_strong]:text-zinc-200 [&_strong]:font-semibold"
+                className="text-[11.5px] text-muted-foreground leading-relaxed [&_strong]:text-foreground [&_strong]:font-semibold"
                 dangerouslySetInnerHTML={{ __html: op.html }}
               />
-              <div className="text-[10px] text-zinc-700 mt-0.5">{op.time}</div>
+              <div className="text-[10px] text-muted-foreground/50 mt-0.5">{op.time}</div>
             </div>
           </div>
         ))}

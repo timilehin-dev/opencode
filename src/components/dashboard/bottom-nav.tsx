@@ -131,7 +131,7 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
   };
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-xl border-t border-white/[0.06]">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/90 backdrop-blur-xl border-t border-border">
       <div className="flex items-center justify-around h-[60px] pb-safe relative">
         {TABS.map((tab) => {
           const active = isActive(tab);
@@ -145,13 +145,13 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
               <Icon
                 className={cn(
                   "w-[22px] h-[22px] transition-colors duration-200",
-                  active ? "text-emerald-400" : "text-zinc-500"
+                  active ? "text-emerald-400" : "text-muted-foreground"
                 )}
               />
               <span
                 className={cn(
                   "text-[10px] font-medium transition-colors duration-200",
-                  active ? "text-emerald-400" : "text-zinc-500"
+                  active ? "text-emerald-400" : "text-muted-foreground"
                 )}
               >
                 {tab.label}
@@ -186,7 +186,7 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="absolute bottom-[68px] right-3 z-50 bg-zinc-900/95 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
+                className="absolute bottom-[68px] right-3 z-50 bg-popover backdrop-blur-xl border border-border rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
               >
                 {MORE_ITEMS.map((item) => {
                   const active = activePage === item.key;
@@ -198,7 +198,7 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
                         "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer",
                         active
                           ? "bg-emerald-500/10 text-emerald-400"
-                          : "text-zinc-300 hover:bg-white/[0.04]"
+                          : "text-foreground hover:bg-accent"
                       )}
                     >
                       <span className="text-base">{item.emoji}</span>

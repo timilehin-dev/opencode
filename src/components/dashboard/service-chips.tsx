@@ -59,7 +59,7 @@ const SERVICES = [
     key: "vercel",
     name: "Vercel",
     icon: VercelIcon,
-    iconBg: "bg-white border border-zinc-200",
+    iconBg: "bg-white border border-border",
     statusKey: "vercel" as const,
   },
 ];
@@ -78,7 +78,7 @@ export function ServiceChips({ serviceStatus }: ServiceChipsProps) {
         return (
           <div
             key={svc.key}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-[10px] bg-white/[0.02] border border-white/[0.05] cursor-pointer transition-all duration-150 whitespace-nowrap flex-shrink-0 hover:bg-white/[0.04]"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-[10px] bg-secondary border border-border cursor-pointer transition-all duration-150 whitespace-nowrap flex-shrink-0 hover:bg-accent"
           >
             <div
               className={cn(
@@ -89,13 +89,13 @@ export function ServiceChips({ serviceStatus }: ServiceChipsProps) {
               <Icon className="w-3.5 h-3.5" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-zinc-200">
+              <div className="text-xs font-semibold text-foreground">
                 {svc.name}
               </div>
               <div
                 className={cn(
                   "text-[9px] font-bold uppercase tracking-[0.5px]",
-                  connected ? "text-emerald-400" : "text-zinc-600"
+                  connected ? "text-emerald-400" : "text-muted-foreground/70"
                 )}
               >
                 {connected ? "Connected" : "Offline"}

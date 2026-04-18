@@ -29,7 +29,7 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
   };
 
   return (
-    <header className="flex items-center justify-between px-4 sm:px-6 h-14 bg-zinc-950/80 backdrop-blur-xl border-b border-white/[0.06] z-10 flex-shrink-0 relative">
+    <header className="flex items-center justify-between px-4 sm:px-6 h-14 bg-background/80 backdrop-blur-xl border-b border-border z-10 flex-shrink-0 relative">
       {/* Left: Logo + Nav (desktop) / Logo + Hamburger (mobile) */}
       <div className="flex items-center gap-8">
         {/* Logo */}
@@ -56,8 +56,8 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
                 className={cn(
                   "px-3.5 py-1.5 text-[13px] font-medium rounded-lg cursor-pointer transition-all duration-150",
                   isActive
-                    ? "text-zinc-50 bg-white/[0.06]"
-                    : "text-zinc-500 hover:text-zinc-400 hover:bg-white/[0.03]"
+                    ? "text-foreground bg-accent"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
               >
                 {item.label}
@@ -70,7 +70,7 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
       {/* Right: Search + Notifications + User */}
       <div className="flex items-center gap-2">
         {/* Search — desktop only */}
-        <button className="hidden sm:flex w-9 h-9 rounded-[10px] items-center justify-center cursor-pointer text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-50 transition-all duration-150">
+        <button className="hidden sm:flex w-9 h-9 rounded-[10px] items-center justify-center cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-150">
           <Search className="w-[18px] h-[18px]" />
         </button>
 
@@ -78,15 +78,15 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
         <NotificationBellTopbar />
 
         {/* User Pill — desktop only */}
-        <div className="hidden sm:flex items-center gap-2 pl-2 pr-3 py-1 rounded-[10px] bg-white/[0.04] border border-white/[0.06] cursor-pointer">
+        <div className="hidden sm:flex items-center gap-2 pl-2 pr-3 py-1 rounded-[10px] bg-secondary border border-border cursor-pointer">
           <div className="w-7 h-7 rounded-[7px] bg-gradient-to-br from-emerald-500 to-emerald-600" />
-          <span className="text-xs font-semibold text-zinc-300">User</span>
+          <span className="text-xs font-semibold text-foreground">User</span>
         </div>
 
         {/* Hamburger — mobile only (shown on < lg) */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden w-9 h-9 rounded-[10px] flex items-center justify-center cursor-pointer text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-50 transition-all duration-150"
+          className="lg:hidden w-9 h-9 rounded-[10px] flex items-center justify-center cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-150"
           aria-label="Toggle navigation menu"
         >
           {mobileMenuOpen ? (
@@ -119,7 +119,7 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
               animate={{ opacity: 1, y: 0, height: "auto" }}
               exit={{ opacity: 0, y: -8, height: 0 }}
               transition={{ duration: 0.2 }}
-              className="absolute top-full left-0 right-0 z-50 bg-zinc-950/95 backdrop-blur-xl border-b border-white/[0.06] overflow-hidden lg:hidden"
+              className="absolute top-full left-0 right-0 z-50 bg-popover backdrop-blur-xl border-b border-border overflow-hidden lg:hidden"
             >
               <div className="px-4 py-3 space-y-1">
                 {NAV_ITEMS.map((item) => {
@@ -135,7 +135,7 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
                         "w-full text-left px-4 py-3 rounded-lg text-sm font-medium cursor-pointer transition-all duration-150",
                         isActive
                           ? "text-emerald-400 bg-emerald-500/10"
-                          : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
                       )}
                     >
                       {item.label}
@@ -154,7 +154,7 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
 /** Compact bell button for the topbar (renders inline, not as a sidebar item) */
 function NotificationBellTopbar() {
   return (
-    <button className="relative w-9 h-9 rounded-[10px] flex items-center justify-center cursor-pointer text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-50 transition-all duration-150">
+    <button className="relative w-9 h-9 rounded-[10px] flex items-center justify-center cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-150">
       <Bell className="w-[18px] h-[18px]" />
       <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] font-extrabold flex items-center justify-center">
         3

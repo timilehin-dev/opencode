@@ -34,7 +34,7 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
     <>
       {/* Header */}
       <div className="flex items-center justify-between px-[18px] py-4">
-        <span className="text-[12px] font-bold uppercase tracking-[1px] text-zinc-600">
+        <span className="text-[12px] font-bold uppercase tracking-[1px] text-muted-foreground/70">
           Agent Crew
         </span>
         <span className="text-[11px] text-emerald-400 cursor-pointer font-semibold">
@@ -53,8 +53,8 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
               onClick={() => onSelectAgent(agent.id)}
               className={cn(
                 "p-3 rounded-xl text-center cursor-pointer transition-all duration-200",
-                "bg-white/[0.02] border border-white/[0.04]",
-                "hover:bg-white/[0.04] hover:border-white/[0.08]",
+                "bg-secondary border border-border",
+                "hover:bg-accent hover:border-border",
                 isActive && COLOR_ACTIVE_BG[colorClass]
               )}
             >
@@ -68,10 +68,10 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
               >
                 {agent.emoji}
               </div>
-              <div className="text-[11.5px] font-semibold text-zinc-200">
+              <div className="text-[11.5px] font-semibold text-foreground">
                 {agent.name}
               </div>
-              <div className="text-[9.5px] text-zinc-600 mt-0.5">
+              <div className="text-[9.5px] text-muted-foreground/70 mt-0.5">
                 {agent.role.split("—")[0].trim()}
               </div>
               <div className="flex items-center justify-center gap-1 mt-1.5">
@@ -80,7 +80,7 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
                     "w-1.5 h-1.5 rounded-full",
                     agent.id === "general" || agent.id === "mail" || agent.id === "creative"
                       ? "bg-emerald-500"
-                      : "bg-zinc-700"
+                      : "bg-muted-foreground/50"
                   )}
                 />
                 <span
@@ -88,7 +88,7 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
                     "text-[9px] font-semibold uppercase tracking-[0.5px]",
                     agent.id === "general" || agent.id === "mail" || agent.id === "creative"
                       ? "text-emerald-500"
-                      : "text-zinc-600"
+                      : "text-muted-foreground/70"
                   )}
                 >
                   {agent.id === "general" || agent.id === "mail" || agent.id === "creative"

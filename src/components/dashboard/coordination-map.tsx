@@ -63,20 +63,20 @@ const MOCK_FLOWS: CoordFlow[] = [
 const STATUS_STYLES = {
   running: "bg-emerald-500/10 text-emerald-400",
   done: "bg-blue-500/10 text-blue-400",
-  queued: "bg-white/[0.04] text-zinc-500",
+  queued: "bg-accent text-muted-foreground",
 };
 
 export function CoordinationMap() {
   const activeCount = MOCK_FLOWS.filter((f) => f.status === "running").length;
 
   return (
-    <div className="bg-white/[0.02] border border-white/[0.05] rounded-[14px] flex flex-col overflow-hidden">
+    <div className="bg-secondary border border-border rounded-[14px] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04]">
-        <span className="text-[13px] font-bold text-zinc-100">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <span className="text-[13px] font-bold text-foreground">
           Agent Coordination Map
         </span>
-        <span className="text-[10px] text-zinc-500">{activeCount} active flows</span>
+        <span className="text-[10px] text-muted-foreground">{activeCount} active flows</span>
       </div>
 
       {/* Body */}
@@ -85,7 +85,7 @@ export function CoordinationMap() {
           {MOCK_FLOWS.map((flow) => (
             <div
               key={flow.id}
-              className="flex items-center gap-2 px-2.5 py-2.5 rounded-lg bg-white/[0.02]"
+              className="flex items-center gap-2 px-2.5 py-2.5 rounded-lg bg-secondary"
             >
               {/* From avatar */}
               <div
@@ -94,7 +94,7 @@ export function CoordinationMap() {
                 {flow.fromEmoji}
               </div>
               {/* Arrow */}
-              <span className="text-zinc-700 text-xs">→</span>
+              <span className="text-muted-foreground/50 text-xs">→</span>
               {/* To avatar */}
               <div
                 className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-sm ${flow.toBg}`}
@@ -103,8 +103,8 @@ export function CoordinationMap() {
               </div>
               {/* Description */}
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-zinc-400 leading-snug">
-                  <strong className="text-zinc-200">{flow.title}</strong>
+                <div className="text-[11px] text-muted-foreground leading-snug">
+                  <strong className="text-foreground">{flow.title}</strong>
                 </div>
               </div>
               {/* Status badge */}

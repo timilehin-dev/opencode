@@ -137,7 +137,7 @@ const statusColors: Record<string, string> = {
   idle: "bg-emerald-400",
   busy: "bg-amber-400",
   error: "bg-red-400",
-  offline: "bg-zinc-400",
+  offline: "bg-muted-foreground",
 };
 
 const statusLabels: Record<string, string> = {
