@@ -168,7 +168,7 @@ export default function AgentDetailPage() {
   }
 
   const colors = colorMap[agent.color] || colorMap.emerald;
-  const categorizedTools = categorize(agent.tools);
+  const categorizedTools = categorizeTools(agent.tools);
   const totalTools = agent.tools.length;
   const categories = Object.keys(categorizedTools).sort();
 
@@ -196,7 +196,7 @@ export default function AgentDetailPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h1 className="text-xl font-bold text-foreground">{agent.name}</h1>
-                  <Badge variant={cn("outline", colors.badge)} className="text-[10px] font-mono">
+                  <Badge variant="outline" className={cn("text-[10px] font-mono", colors.badge)}>
                     {agent.provider}
                   </Badge>
                 </div>
