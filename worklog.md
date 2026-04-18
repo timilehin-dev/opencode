@@ -160,3 +160,22 @@ Stage Summary:
 - Deduplication prevents double-saves if client or server retries
 - Conversation list shows correct last message (was showing oldest before)
 - All existing corrupted history wiped clean — fresh start
+---
+Task ID: 1
+Agent: main
+Task: Fix dark theme contrast across entire app — chat page was unusable due to invisible colors
+
+Work Log:
+- Audited all components for hardcoded dark-mode colors (zinc-*, white/[0.0x], bg-[#09090b])
+- Updated globals.css dark mode CSS variables for better contrast (card, secondary, accent, border, muted-foreground all bumped)
+- Fixed scrollbar to use semantic CSS variable colors
+- Replaced hardcoded colors in 14 files: layout.tsx, page.tsx, chat-view.tsx, topbar.tsx, bottom-nav.tsx, agent-crew.tsx, ops-feed.tsx, service-chips.tsx, metrics-row.tsx, coordination-map.tsx, active-tasks.tsx, agents-view.tsx
+- Zero TypeScript errors confirmed
+- Committed as 5a4acbf and pushed
+
+Stage Summary:
+- 120 replacements across 14 files
+- All ghost-white opacity colors (bg-white/[0.02], etc.) replaced with semantic bg-secondary/bg-card
+- All invisible text (text-zinc-600/700) replaced with text-muted-foreground
+- All invisible borders (border-white/[0.04]) replaced with border-border
+- CSS variables adjusted: --card 9% lightness, --secondary/muted/accent 14%, --border 20%, --muted-foreground 72%
