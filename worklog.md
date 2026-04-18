@@ -179,3 +179,25 @@ Stage Summary:
 - All invisible text (text-zinc-600/700) replaced with text-muted-foreground
 - All invisible borders (border-white/[0.04]) replaced with border-border
 - CSS variables adjusted: --card 9% lightness, --secondary/muted/accent 14%, --border 20%, --muted-foreground 72%
+---
+Task ID: 2
+Agent: main
+Task: Fix Gmail JSON parse error and audit all connected service APIs
+
+Work Log:
+- Investigated root cause: safeJson() blindly sliced JSON strings, then JSON.parse() failed on truncated data
+- Rewrote safeJson() to use progressive item/key reduction instead of blind string slicing
+- Fixed 3 Gmail-specific bugs: isHtml no-op, wrong base64 encoding, header injection
+- Added 401 token cache invalidation with retry to googleFetch()
+- Fixed Docs append always inserting at beginning instead of end
+- Changed Calendar createEvent to not spam attendees (sendUpdates: "none")
+- Added proper timezone detection for Calendar events
+- Fixed Drive search query injection vulnerability
+- Full audit of all 9+ service API routes — found 18 issues, fixed 10
+
+Stage Summary:
+- Commit 7280e71 pushed, 4 files changed, 90 insertions, 41 deletions
+- Gmail Fetch/Search/Thread tools should now work without JSON parse errors
+- Calendar events use correct timezone and don't auto-spam
+- Docs append actually appends instead of prepending
+- Token cache properly invalidates on 401 errors
