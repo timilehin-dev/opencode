@@ -89,7 +89,7 @@ async function ocrSpaceExtract(options: { base64?: string; url?: string; languag
     throw new Error(`OCR.space API error (${res.status}): ${errText}`);
   }
 
-  const data = await res.json();
+  const data = await safeParseRes(res) as { IsErroredOnProcessing?: boolean; ErrorMessage?: string; ParsedResults?: Array<{ ParsedText?: string }> };
 
   if (data.IsErroredOnProcessing) {
     throw new Error(`OCR processing error: ${data.ErrorMessage || "Unknown OCR error"}`);
@@ -140,7 +140,23 @@ import {
   gDocsAppendText,
   googleFetch,
   plainTextToHtml,
+  safeJsonParse,
 } from "./google";
+
+// ---------------------------------------------------------------------------
+// Local safe response parser — wraps res.json() with better error messages
+// ---------------------------------------------------------------------------
+async function safeParseRes<T = unknown>(res: Response): Promise<T> {
+  const text = await res.text().catch(() => "");
+  if (!text || text.trim().length === 0) {
+    throw new Error(`Empty response body (status ${res.status})`);
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Invalid JSON response (${res.status}): ${text.slice(0, 200)}${text.length > 200 ? "..." : ""}`);
+  }
+}
 
 // GitHub API imports
 import {
@@ -194,60 +210,13 @@ function safeJson<T>(fn: (input: T) => Promise<unknown>) {
         return jsonFull;
       }
 
-      // Safe truncation: truncate the data object/array to fit within the limit.
-      // Strategy: if it's an array, keep only the first N items. If it's an object,
-      // keep only the first N keys. This produces valid JSON without blind slicing.
+      // Safe truncation — produces valid JSON without blind string slicing.
+      // Uses a depth-limited approach: shrinks arrays inside objects, then
+      // drops keys, guaranteeing termination.
       const note = `[Result truncated — original was ${jsonFull.length} chars. Use a more specific query.]`;
-      const wrapperOverhead = JSON.stringify({ success: true, data: null, _note: note }).length;
 
-      if (result && Array.isArray(result)) {
-        // For arrays: progressively keep fewer items until it fits
-        const items = result as unknown[];
-        for (let count = items.length; count > 0; count = Math.max(1, Math.floor(count * 0.7))) {
-          const truncated = items.slice(0, count);
-          const test = JSON.stringify({ success: true, data: truncated, _note: note });
-          if (test.length <= MAX_TOOL_RESULT_LENGTH) {
-            if (count < items.length) {
-              return test; // Already has _note
-            }
-            return JSON.stringify({ success: true, data: truncated });
-          }
-        }
-        // Even 1 item is too large — just return the first item truncated
-        return JSON.stringify({ success: true, data: `[Array of ${items.length} items — each item too large to include]. ${note}` });
-      }
-
-      if (result && typeof result === "object") {
-        // For objects: progressively keep fewer keys
-        const entries = Object.entries(result as Record<string, unknown>);
-        for (let count = entries.length; count > 0; count = Math.max(1, Math.floor(count * 0.7))) {
-          const truncated = Object.fromEntries(entries.slice(0, count));
-          const test = JSON.stringify({ success: true, data: truncated, _note: note });
-          if (test.length <= MAX_TOOL_RESULT_LENGTH) {
-            if (count < entries.length) {
-              return test;
-            }
-            return JSON.stringify({ success: true, data: truncated });
-          }
-        }
-        return JSON.stringify({ success: true, data: `[Object too large to include]. ${note}` });
-      }
-
-      // For strings/primitives: truncate the string directly
-      const strResult = String(result);
-      const available = MAX_TOOL_RESULT_LENGTH - wrapperOverhead;
-      if (available > 100) {
-        return JSON.stringify({
-          success: true,
-          data: strResult.slice(0, available) + "...",
-          _note: note,
-        });
-      }
-
-      return JSON.stringify({
-        success: true,
-        data: `[Result too large — ${jsonFull.length} chars]. Narrow your query.`,
-      });
+      const truncated = truncateToFit(result, MAX_TOOL_RESULT_LENGTH - 120);
+      return JSON.stringify({ success: true, data: truncated, _note: note });
     } catch (error) {
       return JSON.stringify({
         success: false,
@@ -255,6 +224,68 @@ function safeJson<T>(fn: (input: T) => Promise<unknown>) {
       });
     }
   };
+}
+
+/**
+ * Recursively shrink a value until its JSON representation fits within `maxLen`.
+ * Strategy (object with array values):
+ *   1. If JSON fits, return as-is.
+ *   2. If the value is an object, try shrinking each array value (halve items).
+ *   3. If still too large, drop keys one-by-one (from the end).
+ *   4. If a single key's value is still too large, recurse into it.
+ * Strategy (top-level array):
+ *   1. Halve items until it fits.
+ *   2. If even 1 item is too large, replace with a summary string.
+ */
+function truncateToFit(value: unknown, maxLen: number, depth = 0): unknown {
+  if (depth > 5) return `[Nested structure too deep to truncate]`;
+  const json = JSON.stringify(value);
+  if (json === undefined) return value;
+  if (json.length <= maxLen) return value;
+
+  // --- Top-level array ---
+  if (Array.isArray(value)) {
+    let arr = value;
+    for (let i = 0; i < 20 && arr.length > 1; i++) {
+      arr = arr.slice(0, Math.max(1, Math.ceil(arr.length / 2)));
+      if (JSON.stringify(arr).length <= maxLen) return arr;
+    }
+    return `[Array of ${value.length} items — each item too large. Narrow your query.]`;
+  }
+
+  // --- Object: try shrinking array values first, then drop keys ---
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+
+    // Phase 1: shrink any array values by halving
+    const shrunk: Record<string, unknown> = {};
+    for (const [k, v] of entries) {
+      shrunk[k] = Array.isArray(v) && v.length > 1
+        ? truncateToFit(v, maxLen, depth + 1)
+        : v;
+    }
+    if (JSON.stringify(shrunk).length <= maxLen) return shrunk;
+
+    // Phase 2: drop keys from the end until it fits
+    for (let drop = entries.length - 1; drop >= 1; drop--) {
+      const partial: Record<string, unknown> = {};
+      for (let i = 0; i <= drop; i++) {
+        const [k, v] = entries[i];
+        partial[k] = shrunk[k] ?? v;
+      }
+      if (JSON.stringify(partial).length <= maxLen) return partial;
+    }
+
+    // Phase 3: even the first key alone is too large — truncate its value
+    const [firstKey, firstVal] = entries[0];
+    const singleKey: Record<string, unknown> = {};
+    singleKey[firstKey] = truncateToFit(firstVal, maxLen - firstKey.length - 6, depth + 1);
+    return singleKey;
+  }
+
+  // --- Primitive / string ---
+  const s = String(value);
+  return s.length > maxLen ? s.slice(0, maxLen - 3) + "..." : s;
 }
 
 // ---------------------------------------------------------------------------
@@ -801,7 +832,7 @@ async function webSearchFallback(query: string, numResults: number) {
     const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=${numResults}&origin=*`;
     const res = await fetch(wikiUrl, { signal: AbortSignal.timeout(10000) });
     if (res.ok) {
-      const data = await res.json() as { query?: { search?: Array<{ title: string; snippet: string; pageid: number }> } };
+      const data = await safeParseRes<{ query?: { search?: Array<{ title: string; snippet: string; pageid: number }> } }>(res);
       const wikiResults = data?.query?.search || [];
       if (wikiResults.length > 0) {
         return wikiResults.map((r, i) => ({
@@ -1054,7 +1085,7 @@ export const gmailReplyTool = tool({
       const err = await res.text();
       throw new Error(`Gmail reply error: ${res.status} — ${err}`);
     }
-    return res.json();
+    return safeParseRes(res);
   }),
 });
 
@@ -1072,7 +1103,7 @@ export const gmailThreadTool = tool({
       `https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`,
     );
     if (!res.ok) throw new Error(`Gmail thread error: ${res.status}`);
-    const data = (await res.json()) as {
+    const data = await safeJsonParse(res) as {
       id: string;
       messages?: Array<{
         id: string;
@@ -1104,6 +1135,8 @@ export const gmailThreadTool = tool({
           }
         }
       }
+      // Strip control characters (except \n \r \t) to prevent JSON serialization issues
+      content = content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
       return {
         id: msg.id,
         from: get("From"),
@@ -1189,7 +1222,7 @@ export const calendarFreebusyTool = tool({
       }),
     });
     if (!res.ok) throw new Error(`Calendar freebusy error: ${res.status}`);
-    return res.json();
+    return safeParseRes(res);
   }),
 });
 
@@ -1319,7 +1352,7 @@ export const vercelLogsTool = tool({
       },
     });
     if (!res.ok) throw new Error(`Vercel logs error: ${res.status}`);
-    const data = (await res.json()) as { events: Array<{ type: string; text: string; created: number; payload?: string }> };
+    const data = await safeParseRes<{ events: Array<{ type: string; text: string; created: number; payload?: string }> }>(res);
 
     const events = (data.events || []).slice(0, limit || 100).map(e => ({
       type: e.type,
@@ -1365,7 +1398,7 @@ export const sheetsClearTool = tool({
       },
     );
     if (!res.ok) throw new Error(`Sheets clear error: ${res.status}`);
-    return res.json();
+    return safeParseRes(res);
   }),
 });
 
@@ -1550,7 +1583,7 @@ export const imageGenerateTool = tool({
       const errText = await res.text().catch(() => "Unknown error");
       throw new Error(`Image generation error (${res.status}): ${errText}`);
     }
-    const data = await res.json();
+    const data = await safeParseRes(res) as { data?: Array<{ url?: string; b64_json?: string; base64?: string }> };
     // Handle both URL and base64 responses
     const imgData = data.data?.[0];
     if (imgData?.b64_json) {
@@ -1629,7 +1662,7 @@ export const asrTranscribeTool = tool({
       const errText = await res.text().catch(() => "Unknown error");
       throw new Error(`ASR error (${res.status}): ${errText}`);
     }
-    const data = await res.json();
+    const data = await safeParseRes<{text?: string}>(res);
     return { transcription: data.text || JSON.stringify(data) };
   }),
 });
@@ -3164,12 +3197,12 @@ export const codeExecuteTool = tool({
       throw new Error(`Code execution failed (${res.status}): ${errText}`);
     }
 
-    const data = await res.json() as {
+    const data = await safeParseRes<{
       run?: { stdout?: string; stderr?: string; exit_code: number; output?: string; signal?: string };
       compile?: { stdout?: string; stderr?: string; exit_code: number; output?: string };
-      language: string;
-      version: string;
-    };
+      language?: string;
+      version?: string;
+    }>(res);
 
     const run = data.run || data.compile;
     return {
@@ -3195,7 +3228,7 @@ async function geocodeLocation(query: string): Promise<{ name: string; country: 
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) return null;
-  const data = await res.json() as { results?: Array<{ name: string; country: string; latitude: number; longitude: number; timezone: string }> };
+  const data = await safeParseRes(res) as { results?: Array<{ name: string; country: string; latitude: number; longitude: number; timezone: string }> };
   return data.results?.[0] || null;
 }
 

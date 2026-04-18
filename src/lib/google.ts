@@ -90,7 +90,7 @@ export async function getAccessToken(): Promise<string> {
 }
 
 /** Safely parse JSON from a fetch Response — returns null on empty/truncated body */
-async function safeJsonParse(res: Response): Promise<any> {
+export async function safeJsonParse(res: Response): Promise<any> {
   const text = await res.text().catch(() => "");
   if (!text || text.trim().length === 0) {
     throw new Error(`Empty response body (status ${res.status})`);
@@ -536,13 +536,24 @@ export async function gGmailGetMessage(messageId: string, format: "full" | "meta
   return safeJsonParse(res) as Promise<GmailMessage>;
 }
 
+interface GmailEmailSummary {
+  id: string;
+  threadId: string;
+  snippet: string;
+  labelIds: string[];
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+}
+
 /** Fetch emails (list + get full details) */
 export async function gGmailFetchEmails(options?: {
   maxResults?: number;
   query?: string;
   labelIds?: string[];
   pageToken?: string;
-}): Promise<{ messages: (GmailMessage & { from: string; to: string; subject: string; date: string })[]; nextPageToken?: string }> {
+}): Promise<{ messages: GmailEmailSummary[]; nextPageToken?: string }> {
   const list = await gGmailListMessages(options?.query, options?.labelIds, options?.maxResults, options?.pageToken);
 
   if (!list.messages?.length) {
@@ -565,12 +576,16 @@ export async function gGmailFetchEmails(options?: {
     }
   }
 
-  // Extract common headers
+  // Extract only the fields the LLM needs — do NOT spread the raw msg
+  // (it includes the full payload with all headers, parts, body data, etc.)
   const messages = allMessages.map((msg) => {
     const headers = msg.payload?.headers || [];
     const get = (name: string) => headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
     return {
-      ...msg,
+      id: msg.id,
+      threadId: msg.threadId,
+      snippet: msg.snippet?.slice(0, 300),
+      labelIds: msg.labelIds,
       from: get("From"),
       to: get("To"),
       subject: get("Subject") || "(No subject)",
