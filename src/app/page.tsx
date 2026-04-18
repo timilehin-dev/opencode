@@ -23,6 +23,7 @@ import { VercelView } from "@/components/dashboard/vercel-view";
 import { DocsView } from "@/components/dashboard/docs-view";
 import { SheetsView } from "@/components/dashboard/sheets-view";
 import { getAllAgents } from "@/lib/agents";
+import { useDashboardStream } from "@/hooks/use-dashboard-stream";
 import {
   GitHubIcon,
   MailIcon,
@@ -45,6 +46,12 @@ export default function Dashboard() {
   const [repo, setRepo] = useState<RepoInfo | null>(null);
   const [gmProfile, setGmProfile] = useState<GmailProfile | null>(null);
   const agents = getAllAgents();
+
+  // ---------------------------------------------------------------------------
+  // Phase 2: Real-time dashboard data
+  // ---------------------------------------------------------------------------
+
+  const { agentStatuses, activity, metrics, todos, isConnected } = useDashboardStream();
 
   // ---------------------------------------------------------------------------
   // Service-level data fetching
@@ -127,8 +134,9 @@ export default function Dashboard() {
                 agents={agents}
                 selectedAgentId={selectedAgentId}
                 onSelectAgent={setSelectedAgentId}
+                agentStatuses={agentStatuses}
               />
-              <OpsFeed />
+              <OpsFeed events={activity} isConnected={isConnected} />
             </div>
           )}
 
@@ -154,7 +162,11 @@ export default function Dashboard() {
                     transition={{ duration: 0.2 }}
                     className="flex flex-col h-full"
                   >
-                    <MissionControl serviceStatus={serviceStatus} />
+                    <MissionControl
+                      serviceStatus={serviceStatus}
+                      metrics={metrics}
+                      todos={todos}
+                    />
                   </motion.div>
                 )}
 

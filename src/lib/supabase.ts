@@ -233,6 +233,37 @@ CREATE INDEX IF NOT EXISTS idx_todos_tags ON todos USING GIN(tags);
 `;
 
 // ---------------------------------------------------------------------------
+// Phase 2 SQL — Agent Activity Log + Persistent Agent Status
+// For the setup API route /api/setup/phase2
+// ---------------------------------------------------------------------------
+export const PHASE2_SCHEMA_SQL = `
+-- Agent Activity Log (for Ops Feed)
+CREATE TABLE IF NOT EXISTS agent_activity (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  agent_name TEXT,
+  action TEXT NOT NULL,
+  detail TEXT DEFAULT '',
+  tool_name TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_agent_time ON agent_activity(agent_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_time ON agent_activity(created_at DESC);
+
+-- Agent Status (persistent)
+CREATE TABLE IF NOT EXISTS agent_status (
+  agent_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'busy', 'error', 'offline')),
+  current_task TEXT,
+  last_activity TIMESTAMPTZ,
+  tasks_completed INTEGER NOT NULL DEFAULT 0,
+  messages_processed INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+// ---------------------------------------------------------------------------
 // Workspace Tables SQL (subset — just the 3 new tables + indexes)
 // For the setup API route to run independently
 // ---------------------------------------------------------------------------

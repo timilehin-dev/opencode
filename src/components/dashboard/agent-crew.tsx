@@ -2,11 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import type { AgentConfig } from "@/lib/agents";
+import type { AgentStatusView } from "@/hooks/use-dashboard-stream";
 
 interface AgentCrewProps {
   agents: AgentConfig[];
   selectedAgentId: string;
   onSelectAgent: (id: string) => void;
+  agentStatuses?: AgentStatusView[];
 }
 
 const COLOR_RING_MAP: Record<string, string> = {
@@ -29,7 +31,36 @@ const COLOR_ACTIVE_BG: Record<string, string> = {
   teal: "bg-teal-500/[0.06] border-teal-500/15",
 };
 
-export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewProps) {
+const STATUS_DOT: Record<string, string> = {
+  busy: "bg-emerald-500",
+  idle: "bg-muted-foreground/50",
+  error: "bg-red-500",
+  offline: "bg-muted-foreground/30",
+};
+
+const STATUS_TEXT: Record<string, string> = {
+  busy: "text-emerald-500",
+  idle: "text-muted-foreground/70",
+  error: "text-red-500",
+  offline: "text-muted-foreground/40",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  busy: "Active",
+  idle: "Standby",
+  error: "Error",
+  offline: "Offline",
+};
+
+export function AgentCrew({ agents, selectedAgentId, onSelectAgent, agentStatuses }: AgentCrewProps) {
+  // Build a status lookup map
+  const statusMap = new Map<string, AgentStatusView>();
+  if (agentStatuses) {
+    for (const s of agentStatuses) {
+      statusMap.set(s.id, s);
+    }
+  }
+
   return (
     <>
       {/* Header */}
@@ -47,10 +78,15 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
         {agents.map((agent) => {
           const isActive = agent.id === selectedAgentId;
           const colorClass = agent.color || "emerald";
+          const realStatus = statusMap.get(agent.id);
+          const status = realStatus?.status || "idle";
+          const currentTask = realStatus?.currentTask || null;
+
           return (
             <button
               key={agent.id}
               onClick={() => onSelectAgent(agent.id)}
+              title={currentTask || undefined}
               className={cn(
                 "p-3 rounded-xl text-center cursor-pointer transition-all duration-200",
                 "bg-secondary border border-border",
@@ -77,23 +113,17 @@ export function AgentCrew({ agents, selectedAgentId, onSelectAgent }: AgentCrewP
               <div className="flex items-center justify-center gap-1 mt-1.5">
                 <div
                   className={cn(
-                    "w-1.5 h-1.5 rounded-full",
-                    agent.id === "general" || agent.id === "mail" || agent.id === "creative"
-                      ? "bg-emerald-500"
-                      : "bg-muted-foreground/50"
+                    "w-1.5 h-1.5 rounded-full transition-colors duration-500",
+                    STATUS_DOT[status] || STATUS_DOT.idle
                   )}
                 />
                 <span
                   className={cn(
-                    "text-[9px] font-semibold uppercase tracking-[0.5px]",
-                    agent.id === "general" || agent.id === "mail" || agent.id === "creative"
-                      ? "text-emerald-500"
-                      : "text-muted-foreground/70"
+                    "text-[9px] font-semibold uppercase tracking-[0.5px] transition-colors duration-500",
+                    STATUS_TEXT[status] || STATUS_TEXT.idle
                   )}
                 >
-                  {agent.id === "general" || agent.id === "mail" || agent.id === "creative"
-                    ? "Active"
-                    : "Standby"}
+                  {STATUS_LABEL[status] || "Standby"}
                 </span>
               </div>
             </button>

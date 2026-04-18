@@ -1,81 +1,105 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import type { TodoView } from "@/hooks/use-dashboard-stream";
 
-interface Task {
-  id: number;
-  title: string;
-  meta: string;
-  priority: "high" | "med" | "low";
-  done: boolean;
-  agentEmoji: string;
-  agentBg: string;
+interface ActiveTasksProps {
+  todos?: TodoView[];
 }
 
-const MOCK_TASKS: Task[] = [
-  {
-    id: 1,
-    title: "Respond to client contract renewal",
-    meta: "Due today · Assigned to Mail Agent",
-    priority: "high",
-    done: false,
-    agentEmoji: "✉️",
-    agentBg: "bg-blue-500/[0.15]",
-  },
-  {
-    id: 2,
-    title: "Review and merge PR #42",
-    meta: "Due today · Assigned to Code Agent",
-    priority: "high",
-    done: false,
-    agentEmoji: "💻",
-    agentBg: "bg-purple-500/[0.15]",
-  },
-  {
-    id: 3,
-    title: "SaaS market research brief",
-    meta: "Due tomorrow · Assigned to Research Agent",
-    priority: "med",
-    done: false,
-    agentEmoji: "🔍",
-    agentBg: "bg-teal-500/[0.15]",
-  },
-  {
-    id: 4,
-    title: "Update deployment to staging",
-    meta: "Completed · Code Agent",
-    priority: "low",
-    done: true,
-    agentEmoji: "💻",
-    agentBg: "bg-purple-500/[0.15]",
-  },
-  {
-    id: 5,
-    title: "Send meeting notes to team",
-    meta: "Completed · Mail Agent",
-    priority: "low",
-    done: true,
-    agentEmoji: "✉️",
-    agentBg: "bg-blue-500/[0.15]",
-  },
-  {
-    id: 6,
-    title: "Create pitch deck slides 1-10",
-    meta: "Due in 3 days · Assigned to Creative Agent",
-    priority: "med",
-    done: false,
-    agentEmoji: "🎨",
-    agentBg: "bg-rose-500/[0.15]",
-  },
-];
-
-const PRIORITY_STYLES = {
+const PRIORITY_STYLES: Record<string, string> = {
+  critical: "bg-red-500/20 text-red-400",
   high: "bg-red-500/10 text-red-400",
+  medium: "bg-amber-500/10 text-amber-400",
   med: "bg-amber-500/10 text-amber-400",
   low: "bg-blue-500/10 text-blue-400",
 };
 
-export function ActiveTasks() {
+// Agent emoji map
+const AGENT_EMOJI: Record<string, { emoji: string; bg: string }> = {
+  general: { emoji: "🤵", bg: "bg-emerald-500/[0.15]" },
+  mail: { emoji: "✉️", bg: "bg-blue-500/[0.15]" },
+  code: { emoji: "💻", bg: "bg-purple-500/[0.15]" },
+  data: { emoji: "📊", bg: "bg-amber-500/[0.15]" },
+  creative: { emoji: "🧠", bg: "bg-rose-500/[0.15]" },
+  research: { emoji: "🔍", bg: "bg-teal-500/[0.15]" },
+  ops: { emoji: "⚡", bg: "bg-orange-500/[0.15]" },
+};
+
+export function ActiveTasks({ todos }: ActiveTasksProps) {
+  const [localTodos, setLocalTodos] = useState<TodoView[]>(todos || []);
+  const [updating, setUpdating] = useState<number | null>(null);
+
+  // Sync external todos to local state
+  if (todos && todos !== localTodos && todos.length !== localTodos.length) {
+    setLocalTodos(todos);
+  }
+
+  const toggleDone = useCallback(async (todo: TodoView) => {
+    const newStatus = todo.status === "done" ? "open" : "done";
+    setUpdating(todo.id);
+
+    // Optimistic update
+    setLocalTodos((prev) =>
+      prev.map((t) => (t.id === todo.id ? { ...t, status: newStatus } : t))
+    );
+
+    try {
+      await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: todo.id, status: newStatus }),
+      });
+    } catch {
+      // Revert on error
+      setLocalTodos((prev) =>
+        prev.map((t) => (t.id === todo.id ? { ...t, status: todo.status } : t))
+      );
+    } finally {
+      setUpdating(null);
+    }
+  }, []);
+
+  const openTodos = localTodos.filter((t) => t.status !== "done" && t.status !== "archived");
+  const doneTodos = localTodos.filter((t) => t.status === "done").slice(0, 3);
+  const displayTodos = [...openTodos, ...doneTodos];
+
+  const getPriorityLabel = (priority: string, done: boolean) => {
+    if (done) return "Done";
+    if (priority === "medium" || priority === "med") return "Med";
+    return priority;
+  };
+
+  const formatMeta = (todo: TodoView) => {
+    const parts: string[] = [];
+    if (todo.due_date) {
+      const today = new Date().toISOString().split("T")[0];
+      const due = todo.due_date;
+      if (due === today) parts.push("Due today");
+      else {
+        try {
+          const d = new Date(due + "T00:00:00");
+          parts.push(`Due ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`);
+        } catch {
+          parts.push(`Due ${due}`);
+        }
+      }
+    }
+    if (todo.assigned_agent) {
+      const meta = AGENT_EMOJI[todo.assigned_agent];
+      if (meta) parts.push(`Assigned to ${todo.assigned_agent}`);
+      else parts.push(`Assigned to ${todo.assigned_agent}`);
+    }
+    if (todo.status === "done") parts.push("Completed");
+    return parts.join(" · ") || "No details";
+  };
+
+  const getAgentMeta = (todo: TodoView) => {
+    if (!todo.assigned_agent) return { emoji: "📋", bg: "bg-secondary" };
+    return AGENT_EMOJI[todo.assigned_agent] || { emoji: "📋", bg: "bg-secondary" };
+  };
+
   return (
     <div className="bg-secondary border border-border rounded-[14px] flex flex-col overflow-hidden">
       {/* Header */}
@@ -88,71 +112,98 @@ export function ActiveTasks() {
 
       {/* Body */}
       <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-        {MOCK_TASKS.map((task) => (
-          <div
-            key={task.id}
-            className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b border-border last:border-b-0"
-          >
-            {/* Checkbox */}
-            <div
-              className={cn(
-                "w-[18px] h-[18px] rounded-md border-2 flex-shrink-0 flex items-center justify-center",
-                task.done
-                  ? "bg-emerald-500 border-emerald-500"
-                  : "border-muted-foreground/50"
-              )}
-            >
-              {task.done && (
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
+        {displayTodos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/50">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
             </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div
-                className={cn(
-                  "text-xs font-semibold",
-                  task.done
-                    ? "line-through text-muted-foreground/70"
-                    : "text-foreground"
-                )}
-              >
-                {task.title}
-              </div>
-              <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-                {task.meta}
-              </div>
+            <div className="text-[11px] text-muted-foreground/50">
+              No tasks yet
             </div>
-
-            {/* Priority badge */}
-            <span
-              className={cn(
-                "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0",
-                PRIORITY_STYLES[task.priority]
-              )}
-            >
-              {task.priority === "med" ? "Med" : task.priority === "low" && task.done ? "Done" : task.priority}
-            </span>
-
-            {/* Agent chip */}
-            <div
-              className={`w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${task.agentBg}`}
-            >
-              {task.agentEmoji}
+            <div className="text-[10px] text-muted-foreground/40 mt-0.5">
+              Ask an agent to create tasks
             </div>
           </div>
-        ))}
+        ) : (
+          displayTodos.map((todo) => {
+            const done = todo.status === "done";
+            const isUpdating = updating === todo.id;
+            const agentMeta = getAgentMeta(todo);
+            const priorityKey = todo.priority || "medium";
+
+            return (
+              <div
+                key={todo.id}
+                className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b border-border last:border-b-0"
+              >
+                {/* Checkbox */}
+                <button
+                  onClick={() => toggleDone(todo)}
+                  disabled={isUpdating}
+                  className={cn(
+                    "w-[18px] h-[18px] rounded-md border-2 flex-shrink-0 flex items-center justify-center cursor-pointer transition-all duration-150",
+                    done
+                      ? "bg-emerald-500 border-emerald-500"
+                      : "border-muted-foreground/50 hover:border-muted-foreground",
+                    isUpdating && "opacity-50"
+                  )}
+                >
+                  {done && (
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={cn(
+                      "text-xs font-semibold",
+                      done
+                        ? "line-through text-muted-foreground/70"
+                        : "text-foreground"
+                    )}
+                  >
+                    {todo.title}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                    {formatMeta(todo)}
+                  </div>
+                </div>
+
+                {/* Priority badge */}
+                <span
+                  className={cn(
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0",
+                    PRIORITY_STYLES[priorityKey] || PRIORITY_STYLES.medium
+                  )}
+                >
+                  {getPriorityLabel(priorityKey, done)}
+                </span>
+
+                {/* Agent chip */}
+                <div
+                  className={`w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${agentMeta.bg}`}
+                >
+                  {agentMeta.emoji}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

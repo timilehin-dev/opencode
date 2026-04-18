@@ -15,6 +15,7 @@ import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
+import { logActivity, persistAgentStatus } from "@/lib/activity";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
 
@@ -77,6 +78,9 @@ export async function POST(req: Request) {
       currentTask: lastContent?.slice(0, 100) || null,
       lastActivity: new Date().toISOString(),
     });
+    // Phase 2: persist to DB & log activity (fire-and-forget)
+    logActivity({ agentId: id, agentName: agent.name, action: "status_change", detail: `started processing: ${lastContent?.slice(0, 80) || "task"}` }).catch(() => {});
+    persistAgentStatus(id, { status: "busy", currentTask: lastContent?.slice(0, 100) || null, lastActivity: new Date().toISOString() }).catch(() => {});
 
     // Get the model (with key rotation) — uses .chat() for Chat Completions API
     const model = getProvider(agent);
@@ -191,6 +195,17 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
         if (toolCalls?.length) stepInfo.push(`toolCalls=[${toolCalls.map((t: { toolName: string }) => t.toolName).join(", ")}]`);
         if (toolResults?.length) stepInfo.push(`toolResults=${toolResults.length} results, totalSize=${toolResults.reduce((s: number, r) => s + JSON.stringify(r).length, 0)} chars`);
         console.log(`[Chat] ${agent.name}: ${stepInfo.join(" | ")}`);
+        // Phase 2: log tool calls as activity
+        if (toolCalls?.length) {
+          for (const tc of toolCalls) {
+            logActivity({ agentId: id, agentName: agent.name, action: "tool_call", detail: `called ${tc.toolName}`, toolName: tc.toolName }).catch(() => {});
+          }
+        }
+        // Phase 2: log chat_message when step finishes with text
+        if (finishReason === "stop" && text) {
+          logActivity({ agentId: id, agentName: agent.name, action: "chat_message", detail: `responding to: ${lastContent?.slice(0, 60) || "user"}` }).catch(() => {});
+          persistAgentStatus(id, { messagesProcessed: 1 }).catch(() => {});
+        }
 
         // Detect the "stopped after tool calls" pattern — model got results but produced no text
         if (finishReason === "stop" && !text && toolResults?.length > 0 && toolCalls?.length === 0) {
@@ -219,6 +234,9 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
           lastActivity: new Date().toISOString(),
           tasksCompleted: steps.length,
         });
+        // Phase 2: persist status & log completion (fire-and-forget)
+        logActivity({ agentId: id, agentName: agent.name, action: "task_complete", detail: `completed task in ${steps.length} steps` }).catch(() => {});
+        persistAgentStatus(id, { status: "idle", currentTask: null, lastActivity: new Date().toISOString(), tasksCompleted: steps.length }).catch(() => {});
       },
       onError: ({ error }) => {
         console.error(`[Chat] ${agent.name} stream error:`, error);
@@ -227,6 +245,9 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
           currentTask: null,
           lastActivity: new Date().toISOString(),
         });
+        // Phase 2: log error & persist status (fire-and-forget)
+        logActivity({ agentId: id, agentName: agent.name, action: "error", detail: `stream error: ${error instanceof Error ? error.message.slice(0, 100) : "unknown"}` }).catch(() => {});
+        persistAgentStatus(id, { status: "error", currentTask: null, lastActivity: new Date().toISOString() }).catch(() => {});
       },
     });
 

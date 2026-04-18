@@ -1,57 +1,68 @@
 "use client";
 
-const MOCK_OPS = [
-  {
-    id: 1,
-    dot: "bg-emerald-500",
-    html: '<strong>Claw General</strong> → routed email review to <strong>Mail Agent</strong>',
-    time: "20:55:01",
-  },
-  {
-    id: 2,
-    dot: "bg-blue-500",
-    html: '<strong>Mail Agent</strong> processing 5 unread emails via gmail_search',
-    time: "20:55:12",
-  },
-  {
-    id: 3,
-    dot: "bg-purple-500",
-    html: '<strong>Research Agent</strong> deep research: SaaS market analysis Q2 2026',
-    time: "20:55:18",
-  },
-  {
-    id: 4,
-    dot: "bg-emerald-500",
-    html: '<strong>Claw General</strong> created todo: Follow up on client contract',
-    time: "20:55:30",
-  },
-  {
-    id: 5,
-    dot: "bg-blue-500",
-    html: '<strong>Creative Agent</strong> generating presentation draft in Google Docs',
-    time: "20:55:42",
-  },
-  {
-    id: 6,
-    dot: "bg-orange-500",
-    html: '<strong>Ops Agent</strong> health check: all services operational',
-    time: "20:56:01",
-  },
-  {
-    id: 7,
-    dot: "bg-purple-500",
-    html: '<strong>Code Agent</strong> merged PR #42 → triggering Vercel deploy',
-    time: "20:56:15",
-  },
-  {
-    id: 8,
-    dot: "bg-amber-500",
-    html: '<strong>Data Agent</strong> completed Q2 revenue analysis from Sheets',
-    time: "20:56:30",
-  },
-];
+import { useRef, useEffect } from "react";
+import type { ActivityEventView } from "@/hooks/use-dashboard-stream";
 
-export function OpsFeed() {
+interface OpsFeedProps {
+  events: ActivityEventView[];
+  isConnected: boolean;
+}
+
+// Map agent IDs to display colors for the dot indicator
+const AGENT_DOT_COLORS: Record<string, string> = {
+  general: "bg-emerald-500",
+  mail: "bg-blue-500",
+  code: "bg-purple-500",
+  data: "bg-amber-500",
+  creative: "bg-rose-500",
+  research: "bg-teal-500",
+  ops: "bg-orange-500",
+};
+
+// Map actions to descriptions
+const ACTION_LABELS: Record<string, string> = {
+  chat_message: "responded",
+  tool_call: "tool call",
+  status_change: "status update",
+  delegation: "delegated",
+  task_complete: "completed task",
+  error: "error",
+};
+
+export function OpsFeed({ events, isConnected }: OpsFeedProps) {
+  const feedEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to newest event
+  useEffect(() => {
+    if (feedEndRef.current) {
+      feedEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [events.length]);
+
+  // Format timestamp to HH:MM:SS
+  const formatTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+      return "";
+    }
+  };
+
+  // Build the HTML content for an event
+  const buildHtml = (event: ActivityEventView) => {
+    const agentName = event.agent_name || event.agent_id;
+    const detail = event.detail || ACTION_LABELS[event.action] || event.action;
+    // Bold the agent name
+    return `<strong>${agentName}</strong> ${detail}`;
+  };
+
+  // Get dot color based on agent or action
+  const getDotColor = (event: ActivityEventView) => {
+    if (event.action === "error") return "bg-red-500";
+    return AGENT_DOT_COLORS[event.agent_id] || "bg-muted-foreground";
+  };
+
   return (
     <div className="flex-1 border-t border-border flex flex-col min-h-0">
       {/* Header */}
@@ -59,31 +70,58 @@ export function OpsFeed() {
         <span className="text-[12px] font-bold uppercase tracking-[1px] text-muted-foreground/70">
           Live Operations
         </span>
-        <span className="text-[10px] text-emerald-400 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Live
+        <span
+          className={`text-[10px] flex items-center gap-1 ${
+            isConnected ? "text-emerald-400" : "text-red-400"
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+            }`}
+          />
+          {isConnected ? "Live" : "Disconnected"}
         </span>
       </div>
 
       {/* Feed */}
       <div className="flex-1 px-[18px] pb-2 overflow-y-auto custom-scrollbar">
-        {MOCK_OPS.map((op) => (
-          <div
-            key={op.id}
-            className="flex items-start gap-2 py-2 border-b border-border last:border-b-0"
-          >
-            <div
-              className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${op.dot}`}
-            />
-            <div className="min-w-0">
-              <div
-                className="text-[11.5px] text-muted-foreground leading-relaxed [&_strong]:text-foreground [&_strong]:font-semibold"
-                dangerouslySetInnerHTML={{ __html: op.html }}
-              />
-              <div className="text-[10px] text-muted-foreground/50 mt-0.5">{op.time}</div>
+        {events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/50">
+                <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+            </div>
+            <div className="text-[11px] text-muted-foreground/50">
+              No activity yet
+            </div>
+            <div className="text-[10px] text-muted-foreground/40 mt-0.5">
+              Send a message to see operations
             </div>
           </div>
-        ))}
+        ) : (
+          events.map((event) => (
+            <div
+              key={event.id}
+              className="flex items-start gap-2 py-2 border-b border-border last:border-b-0"
+            >
+              <div
+                className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${getDotColor(event)}`}
+              />
+              <div className="min-w-0">
+                <div
+                  className="text-[11.5px] text-muted-foreground leading-relaxed [&_strong]:text-foreground [&_strong]:font-semibold"
+                  dangerouslySetInnerHTML={{ __html: buildHtml(event) }}
+                />
+                <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                  {formatTime(event.created_at)}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={feedEndRef} />
       </div>
     </div>
   );

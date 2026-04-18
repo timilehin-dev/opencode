@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 
+// Phase 2.5: Wire to real delegation events from query_agent tool
+
 interface CoordFlow {
   id: number;
   fromEmoji: string;
@@ -26,14 +28,14 @@ const MOCK_FLOWS: CoordFlow[] = [
     id: 2,
     fromEmoji: "🤵",
     fromBg: "bg-emerald-500/[0.15]",
-    toEmoji: "🔧",
+    toEmoji: "⚡",
     toBg: "bg-orange-500/[0.15]",
     title: "Check deployment status",
     status: "done",
   },
   {
     id: 3,
-    fromEmoji: "🎨",
+    fromEmoji: "🧠",
     fromBg: "bg-rose-500/[0.15]",
     toEmoji: "🔍",
     toBg: "bg-teal-500/[0.15]",
@@ -77,6 +79,13 @@ export function CoordinationMap() {
           Agent Coordination Map
         </span>
         <span className="text-[10px] text-muted-foreground">{activeCount} active flows</span>
+      </div>
+
+      {/* Banner — Phase 2.5 note */}
+      <div className="px-4 py-2 bg-emerald-500/5 border-b border-border">
+        <span className="text-[10px] text-muted-foreground/60">
+          Showing recent delegations
+        </span>
       </div>
 
       {/* Body */}
