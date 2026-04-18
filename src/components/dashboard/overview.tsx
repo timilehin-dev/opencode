@@ -191,7 +191,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     {
       label: "Open Issues",
       value: gh.openIssues,
-      icon: <CircleAlert className="w-5 h-5 text-amber-400" />,
+      icon: <CircleAlert className="w-5 h-5 text-amber-600" />,
       bgColor: "bg-amber-500/10",
     },
     {
@@ -201,13 +201,13 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
         const end = new Date(e.end);
         return end >= now && new Date(e.start) <= new Date(now.getTime() + 86400000);
       }).length,
-      icon: <Calendar className="w-5 h-5 text-blue-400" />,
+      icon: <Calendar className="w-5 h-5 text-blue-600" />,
       bgColor: "bg-blue-500/10",
     },
     {
       label: "Deployments",
       value: vc.projectCount,
-      icon: <Rocket className="w-5 h-5 text-slate-300" />,
+      icon: <Rocket className="w-5 h-5 text-[#1a1a1a]" />,
       bgColor: "bg-slate-500/10",
     },
   ];
@@ -226,13 +226,13 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
       label: "Create Event",
       icon: <Plus className="w-4 h-4" />,
       onClick: () => onNavigate("calendar"),
-      color: "border-blue-500/30 text-blue-400 hover:bg-blue-500/10",
+      color: "border-blue-500/30 text-blue-600 hover:bg-blue-500/10",
     },
     {
       label: "New Issue",
       icon: <Plus className="w-4 h-4" />,
       onClick: () => onNavigate("github"),
-      color: "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
+      color: "border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10",
     },
   ];
 
@@ -277,7 +277,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     timeline.push({
       id: `github-${i}`,
       type: "github",
-      icon: <GitHubIcon className="w-4 h-4 text-slate-300" />,
+      icon: <GitHubIcon className="w-4 h-4 text-[#1a1a1a]" />,
       description: `Commit: ${commit.message}`,
       detail: `by ${commit.author}`,
       time: commit.date,
@@ -301,7 +301,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     timeline.push({
       id: `calendar-${i}`,
       type: "calendar",
-      icon: <CalendarIcon className="w-4 h-4 text-blue-400" />,
+      icon: <CalendarIcon className="w-4 h-4 text-blue-600" />,
       description: `Upcoming: ${evt.summary}`,
       detail: evt.location || startTimeStr,
       time: evt.start,
@@ -316,7 +316,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     timeline.push({
       id: `vercel-${i}`,
       type: "vercel",
-      icon: <VercelIcon className="w-4 h-4 text-slate-300" />,
+      icon: <VercelIcon className="w-4 h-4 text-[#1a1a1a]" />,
       description: `Deployment: ${project.name}`,
       detail: project.framework || "Unknown framework",
       time: new Date(project.updatedAt).toISOString(),
@@ -532,7 +532,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-blue-400" />
+                <Calendar className="w-4 h-4 text-blue-600" />
                 Upcoming Events
               </CardTitle>
             </CardHeader>

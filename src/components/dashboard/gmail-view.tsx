@@ -285,12 +285,12 @@ export function GmailView() {
         className={cn(
           "flex items-start gap-3 px-4 py-3.5 rounded-xl transition-all duration-200",
           "border border-transparent",
-          clickable && "cursor-pointer hover:bg-[#1e293b] hover:border-slate-700/50",
+          clickable && "cursor-pointer hover:bg-[#1e293b] hover:border-[#e8e5df]",
         )}
       >
         {/* Avatar */}
         <div className={cn(
-          "w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white",
+          "w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-[#1a1a1a]",
           avatarColor(senderName),
         )}>
           {avatarInitials(senderName)}
@@ -304,24 +304,24 @@ export function GmailView() {
             )}
             <span className={cn(
               "text-sm truncate",
-              isUnread ? "font-bold text-white" : "font-medium text-slate-300",
+              isUnread ? "font-bold text-[#1a1a1a]" : "font-medium text-[#1a1a1a]",
             )}>
               {isSent ? "To: " : ""}{senderName}
             </span>
           </div>
           <p className={cn(
             "text-sm truncate mt-0.5",
-            isUnread ? "text-slate-100 font-medium" : "text-slate-400",
+            isUnread ? "text-slate-100 font-medium" : "text-[#6b6b6b]",
           )}>
             {email.subject || "(No subject)"}
           </p>
-          <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-[#999999] mt-1 line-clamp-2 leading-relaxed">
             {email.snippet ? truncate(stripHtml(email.snippet), 120) : ""}
           </p>
         </div>
 
         {/* Time */}
-        <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0 mt-0.5">
+        <span className="text-xs text-[#999999] whitespace-nowrap flex-shrink-0 mt-0.5">
           {timeAgoMs(Number(email.internalDate))}
         </span>
       </div>
@@ -340,7 +340,7 @@ export function GmailView() {
       transition={{ duration: 0.2 }}
     >
       {/* Tab Navigation */}
-      <nav className="border-b border-slate-800 mb-6">
+      <nav className="border-b border-[#e8e5df] mb-6">
         <div className="flex gap-0 overflow-x-auto">
           {gmTabs.map((tab) => (
             <button
@@ -350,7 +350,7 @@ export function GmailView() {
                 "px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                 gmTab === tab.key
                   ? "border-red-500 text-red-400"
-                  : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600",
+                  : "border-transparent text-[#6b6b6b] hover:text-[#1a1a1a] hover:border-[#d5d0c9]",
               )}
             >
               {tab.label}
@@ -369,27 +369,27 @@ export function GmailView() {
           {/* Email list */}
           <div className={cn("flex-1 min-w-0", selectedEmail && "hidden lg:block")}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">
                 Inbox
-                <span className="ml-2 text-sm font-normal text-slate-400">
+                <span className="ml-2 text-sm font-normal text-[#6b6b6b]">
                   {emails.length}
                 </span>
               </h2>
               <button
                 onClick={fetchInbox}
-                className="text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e293b]"
+                className="text-xs text-[#6b6b6b] hover:text-[#1a1a1a] transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e293b]"
               >
                 Refresh
               </button>
             </div>
 
             {emails.length === 0 ? (
-              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
-                <MailIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-sm text-slate-400">Your inbox is empty</p>
+              <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-12 text-center">
+                <MailIcon className="w-10 h-10 text-[#999999] mx-auto mb-3" />
+                <p className="text-sm text-[#6b6b6b]">Your inbox is empty</p>
               </div>
             ) : (
-              <div className="bg-[#151d2e] border border-slate-700/50 rounded-xl overflow-hidden">
+              <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
                 <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
                   {emails.map((email) => renderEmailRow(email))}
                 </div>
@@ -399,12 +399,12 @@ export function GmailView() {
 
           {/* Email detail panel */}
           {(selectedEmail || detailLoading) && (
-            <div className="flex-1 min-w-0 bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden flex flex-col">
+            <div className="flex-1 min-w-0 bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 bg-[#151d2e] border-b border-slate-700/50 flex-shrink-0">
+              <div className="flex items-center justify-between px-4 py-3 bg-[#faf9f7] border-b border-[#e8e5df] flex-shrink-0">
                 <button
                   onClick={handleCloseDetail}
-                  className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors lg:hidden"
+                  className="flex items-center gap-1.5 text-sm text-[#6b6b6b] hover:text-[#1a1a1a] transition-colors lg:hidden"
                 >
                   <ChevronLeftIcon className="w-4 h-4" />
                   <span>Back</span>
@@ -414,7 +414,7 @@ export function GmailView() {
                   {/* Reply */}
                   <button
                     onClick={handleReply}
-                    className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e293b]"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#6b6b6b] hover:text-[#1a1a1a] transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1e293b]"
                     title="Reply"
                   >
                     <SendIcon className="w-3.5 h-3.5" />
@@ -434,7 +434,7 @@ export function GmailView() {
                   {/* Close (desktop) */}
                   <button
                     onClick={handleCloseDetail}
-                    className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#1e293b] hidden lg:block"
+                    className="text-[#6b6b6b] hover:text-[#1a1a1a] transition-colors p-1.5 rounded-lg hover:bg-[#1e293b] hidden lg:block"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -450,40 +450,40 @@ export function GmailView() {
                 ) : (
                   <>
                     {/* Subject */}
-                    <h3 className="text-lg font-semibold text-white leading-snug">
+                    <h3 className="text-lg font-semibold text-[#1a1a1a] leading-snug">
                       {emailDetail?.subject || selectedEmail?.subject || "(No subject)"}
                     </h3>
 
                     {/* Sender info */}
                     <div className="flex items-center gap-3 mt-4">
                       <div className={cn(
-                        "w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white",
+                        "w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-[#1a1a1a]",
                         avatarColor(extractSender(emailDetail?.from || selectedEmail?.from)),
                       )}>
                         {avatarInitials(extractSender(emailDetail?.from || selectedEmail?.from))}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p className="text-sm font-medium text-[#1a1a1a] truncate">
                           {extractSender(emailDetail?.from || selectedEmail?.from)}
                         </p>
-                        <p className="text-xs text-slate-500 truncate">
+                        <p className="text-xs text-[#999999] truncate">
                           {emailDetail?.from || selectedEmail?.from}
                         </p>
                       </div>
-                      <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">
+                      <span className="text-xs text-[#999999] whitespace-nowrap flex-shrink-0">
                         {emailDetail?.date || selectedEmail?.date}
                       </span>
                     </div>
 
                     {/* To line */}
-                    <p className="text-xs text-slate-500 mt-2">
-                      <span className="text-slate-400 font-medium">To:</span>{" "}
+                    <p className="text-xs text-[#999999] mt-2">
+                      <span className="text-[#6b6b6b] font-medium">To:</span>{" "}
                       {emailDetail?.to || selectedEmail?.to}
                     </p>
 
                     {/* Attachments */}
                     {((emailDetail?.attachmentList?.length ?? 0) > 0) && (
-                      <div className="mt-4 flex items-center gap-2 text-xs text-slate-400 bg-[#151d2e] px-3 py-2 rounded-lg border border-slate-700/50">
+                      <div className="mt-4 flex items-center gap-2 text-xs text-[#6b6b6b] bg-[#faf9f7] px-3 py-2 rounded-lg border border-[#e8e5df]">
                         <MailIcon className="w-3.5 h-3.5" />
                         <span>
                           {(emailDetail?.attachmentList?.length ?? 0)} attachment(s)
@@ -492,20 +492,20 @@ export function GmailView() {
                     )}
 
                     {/* Email body */}
-                    <div className="mt-5 text-sm text-slate-300 leading-relaxed">
+                    <div className="mt-5 text-sm text-[#1a1a1a] leading-relaxed">
                       {emailDetail?.messageHtml ? (
                         <div
-                          className="prose prose-invert prose-sm max-w-none [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_blockquote]:border-l-slate-500 [&_blockquote]:text-slate-400 [&_pre]:bg-[#0f172a] [&_pre]:rounded-lg [&_pre]:p-4 [&_table]:border-collapse [&_td]:border [&_td]:border-slate-700/50 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-slate-700/50 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-[#151d2e] [&_th]:text-slate-300 [&_img]:max-w-full [&_img]:rounded-lg"
+                          className="prose prose-invert prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline [&_a:hover]:text-blue-300 [&_blockquote]:border-l-slate-500 [&_blockquote]:text-[#6b6b6b] [&_pre]:bg-[#0f172a] [&_pre]:rounded-lg [&_pre]:p-4 [&_table]:border-collapse [&_td]:border [&_td]:border-[#e8e5df] [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-[#e8e5df] [&_th]:px-2 [&_th]:py-1 [&_th]:bg-[#faf9f7] [&_th]:text-[#1a1a1a] [&_img]:max-w-full [&_img]:rounded-lg"
                           dangerouslySetInnerHTML={{ __html: emailDetail.messageHtml }}
                         />
                       ) : emailDetail?.messageText ? (
                         <div className="whitespace-pre-wrap break-words">{emailDetail.messageText}</div>
                       ) : selectedEmail?.snippet ? (
-                        <div className="whitespace-pre-wrap break-words text-slate-400 italic">
+                        <div className="whitespace-pre-wrap break-words text-[#6b6b6b] italic">
                           {stripHtml(selectedEmail.snippet)}
                         </div>
                       ) : (
-                        <div className="text-slate-500 italic">No content available</div>
+                        <div className="text-[#999999] italic">No content available</div>
                       )}
                     </div>
                   </>
@@ -521,17 +521,17 @@ export function GmailView() {
       {/* ================================================================= */}
       {gmTab === "compose" && (
         <div className="max-w-2xl">
-          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 bg-[#151d2e] border-b border-slate-700/50">
-              <h2 className="text-lg font-semibold text-white">Compose Email</h2>
+          <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
+            <div className="px-5 py-4 bg-[#faf9f7] border-b border-[#e8e5df]">
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">Compose Email</h2>
             </div>
 
             <div className="p-5 space-y-4">
               {/* Success / Error banners */}
               {sendSuccess && (
-                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
                   <span>Email sent successfully!</span>
-                  <button onClick={() => setSendSuccess(false)} className="underline hover:text-emerald-300 text-xs">
+                  <button onClick={() => setSendSuccess(false)} className="underline hover:text-emerald-600 text-xs">
                     Dismiss
                   </button>
                 </div>
@@ -547,37 +547,37 @@ export function GmailView() {
 
               {/* To */}
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1.5 block">To</label>
+                <label className="text-xs font-medium text-[#6b6b6b] mb-1.5 block">To</label>
                 <input
                   type="email"
                   placeholder="recipient@example.com"
                   value={composeTo}
                   onChange={(e) => setComposeTo(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-[#1a1a1a] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
                 />
               </div>
 
               {/* Subject */}
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Subject</label>
+                <label className="text-xs font-medium text-[#6b6b6b] mb-1.5 block">Subject</label>
                 <input
                   type="text"
                   placeholder="Email subject"
                   value={composeSubject}
                   onChange={(e) => setComposeSubject(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-[#1a1a1a] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
                 />
               </div>
 
               {/* Body */}
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1.5 block">Body</label>
+                <label className="text-xs font-medium text-[#6b6b6b] mb-1.5 block">Body</label>
                 <textarea
                   placeholder="Write your email..."
                   rows={10}
                   value={composeBody}
                   onChange={(e) => setComposeBody(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y transition-colors"
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-[#1a1a1a] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 resize-y transition-colors"
                 />
               </div>
 
@@ -585,7 +585,7 @@ export function GmailView() {
               <button
                 onClick={handleSendEmail}
                 disabled={sendingEmail || !composeTo.trim() || !composeBody.trim()}
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-[#e8e5df] disabled:text-[#999999] text-[#1a1a1a] px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
               >
                 {sendingEmail && (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -604,10 +604,10 @@ export function GmailView() {
       {gmTab === "search" && (
         <div>
           {/* Search bar */}
-          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-4 mb-6">
+          <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-4 mb-6">
             <div className="flex gap-2">
               <div className="flex-1 relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#999999]">
                   <SearchIcon className="w-4 h-4" />
                 </div>
                 <input
@@ -616,13 +616,13 @@ export function GmailView() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleGmailSearch()}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-[#1a1a1a] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
                 />
               </div>
               <button
                 onClick={handleGmailSearch}
                 disabled={!searchQuery.trim()}
-                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-[#e8e5df] disabled:text-[#999999] text-[#1a1a1a] px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
               >
                 Search
               </button>
@@ -633,7 +633,7 @@ export function GmailView() {
 
           {/* Results */}
           {!loading && searchResults.length > 0 && (
-            <div className="bg-[#151d2e] border border-slate-700/50 rounded-xl overflow-hidden">
+            <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
               <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
                 {searchResults.map((email) => renderEmailRow(email))}
               </div>
@@ -641,25 +641,25 @@ export function GmailView() {
           )}
 
           {!loading && searchQuery && searchResults.length === 0 && (
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
-              <SearchIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-sm text-slate-400">
+            <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-12 text-center">
+              <SearchIcon className="w-10 h-10 text-[#999999] mx-auto mb-3" />
+              <p className="text-sm text-[#6b6b6b]">
                 No results found for &quot;{searchQuery}&quot;
               </p>
             </div>
           )}
 
           {!searchQuery && !loading && (
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
-              <SearchIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-sm text-slate-400 mb-3">
+            <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-12 text-center">
+              <SearchIcon className="w-10 h-10 text-[#999999] mx-auto mb-3" />
+              <p className="text-sm text-[#6b6b6b] mb-3">
                 Enter a search query to find emails.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {["from:", "subject:", "has:attachment", "is:unread"].map((op) => (
                   <code
                     key={op}
-                    className="bg-[#0f172a] px-2 py-1 rounded text-xs text-slate-400 border border-slate-700/50"
+                    className="bg-[#0f172a] px-2 py-1 rounded text-xs text-[#6b6b6b] border border-[#e8e5df]"
                   >
                     {op}
                   </code>
@@ -676,9 +676,9 @@ export function GmailView() {
       {gmTab === "labels" && !loading && (
         <div className="max-w-2xl space-y-6">
           {/* Create label */}
-          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
-            <div className="px-5 py-4 bg-[#151d2e] border-b border-slate-700/50">
-              <h2 className="text-lg font-semibold text-white">Create Label</h2>
+          <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
+            <div className="px-5 py-4 bg-[#faf9f7] border-b border-[#e8e5df]">
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">Create Label</h2>
             </div>
             <div className="p-5">
               <div className="flex gap-2">
@@ -688,12 +688,12 @@ export function GmailView() {
                   value={newLabelName}
                   onChange={(e) => setNewLabelName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreateLabel()}
-                  className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
+                  className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-[#1a1a1a] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-colors"
                 />
                 <button
                   onClick={handleCreateLabel}
                   disabled={creatingLabel || !newLabelName.trim()}
-                  className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 disabled:bg-[#e8e5df] disabled:text-[#999999] text-[#1a1a1a] px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
                 >
                   {creatingLabel ? "Creating..." : "Create"}
                 </button>
@@ -704,22 +704,22 @@ export function GmailView() {
           {/* Labels list */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">
                 Labels
-                <span className="ml-2 text-sm font-normal text-slate-400">
+                <span className="ml-2 text-sm font-normal text-[#6b6b6b]">
                   {labels.length}
                 </span>
               </h2>
             </div>
 
             {labels.length === 0 ? (
-              <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-12 text-center">
-                <TagIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                <p className="text-sm text-slate-400">No labels found</p>
+              <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-12 text-center">
+                <TagIcon className="w-10 h-10 text-[#999999] mx-auto mb-3" />
+                <p className="text-sm text-[#6b6b6b]">No labels found</p>
               </div>
             ) : (
-              <div className="bg-[#151d2e] border border-slate-700/50 rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#faf9f7] border-b border-[#e8e5df] text-xs font-medium text-[#6b6b6b] uppercase tracking-wider">
                   <span>Name</span>
                   <span>Type</span>
                 </div>
@@ -729,7 +729,7 @@ export function GmailView() {
                     className="grid grid-cols-[1fr_auto] px-5 py-3 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0"
                   >
                     <span className="flex items-center gap-2.5 text-sm">
-                      <TagIcon className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                      <TagIcon className="w-4 h-4 text-[#999999] flex-shrink-0" />
                       {label.color && (
                         <span
                           className="w-3 h-3 rounded-sm inline-block flex-shrink-0"
@@ -741,13 +741,13 @@ export function GmailView() {
                           }}
                         />
                       )}
-                      <span className="text-white font-medium truncate">{label.name}</span>
+                      <span className="text-[#1a1a1a] font-medium truncate">{label.name}</span>
                     </span>
                     <span className={cn(
                       "text-xs px-2.5 py-0.5 rounded-full font-medium",
                       label.type === "system"
-                        ? "bg-slate-700 text-slate-300"
-                        : "bg-blue-500/20 text-blue-400",
+                        ? "bg-[#e8e5df] text-[#1a1a1a]"
+                        : "bg-blue-500/20 text-blue-600",
                     )}>
                       {label.type === "system" ? "System" : "User"}
                     </span>

@@ -54,15 +54,15 @@ function formatDayLabel(dateStr: string): string {
 function getActivityIcon(type: string) {
   switch (type) {
     case "chat_message":
-      return <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />;
+      return <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />;
     case "tool_call":
-      return <WrenchIcon className="w-3.5 h-3.5 text-amber-400" />;
+      return <WrenchIcon className="w-3.5 h-3.5 text-amber-600" />;
     case "agent_switch":
-      return <Bot className="w-3.5 h-3.5 text-purple-400" />;
+      return <Bot className="w-3.5 h-3.5 text-purple-600" />;
     case "page_view":
-      return <Activity className="w-3.5 h-3.5 text-blue-400" />;
+      return <Activity className="w-3.5 h-3.5 text-blue-600" />;
     case "automation_run":
-      return <Sparkles className="w-3.5 h-3.5 text-rose-400" />;
+      return <Sparkles className="w-3.5 h-3.5 text-rose-600" />;
     default:
       return <Activity className="w-3.5 h-3.5 text-muted-foreground" />;
   }
@@ -226,26 +226,26 @@ export function AnalyticsView({ onNavigate: _onNavigate }: AnalyticsViewProps) {
           {
             label: "Total Messages",
             value: data.totalMessages,
-            icon: <MessageSquare className="w-5 h-5 text-emerald-400" />,
+            icon: <MessageSquare className="w-5 h-5 text-emerald-600" />,
             bgColor: "bg-emerald-500/10",
           },
           {
             label: "Total Tool Calls",
             value: data.totalToolCalls,
-            icon: <WrenchIcon className="w-5 h-5 text-amber-400" />,
+            icon: <WrenchIcon className="w-5 h-5 text-amber-600" />,
             bgColor: "bg-amber-500/10",
           },
           {
             label: "Most Active Agent",
             value: mostActiveAgent?.agentName ?? "N/A",
-            icon: <Bot className="w-5 h-5 text-purple-400" />,
+            icon: <Bot className="w-5 h-5 text-purple-600" />,
             bgColor: "bg-purple-500/10",
             isText: true,
           },
           {
             label: "Avg Tools/Message",
             value: avgToolsPerMessage,
-            icon: <Sparkles className="w-5 h-5 text-rose-400" />,
+            icon: <Sparkles className="w-5 h-5 text-rose-600" />,
             bgColor: "bg-rose-500/10",
           },
         ].map((stat) => (

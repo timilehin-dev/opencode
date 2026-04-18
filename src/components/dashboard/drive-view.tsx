@@ -113,7 +113,7 @@ export function DriveView({ serviceStatus }: DriveViewProps) {
       transition={{ duration: 0.2 }}
     >
       {/* Drive Tab Navigation */}
-      <nav className="border-b border-slate-800 mb-6">
+      <nav className="border-b border-[#e8e5df] mb-6">
         <div className="flex gap-0 overflow-x-auto">
           {drvTabs.map((tab) => (
             <button
@@ -122,7 +122,7 @@ export function DriveView({ serviceStatus }: DriveViewProps) {
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 drvTab === tab.key
                   ? "border-green-500 text-green-400"
-                  : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600"
+                  : "border-transparent text-[#6b6b6b] hover:text-[#1a1a1a] hover:border-[#d5d0c9]"
               }`}
             >
               {tab.label}
@@ -137,24 +137,24 @@ export function DriveView({ serviceStatus }: DriveViewProps) {
       {drvTab === "files" && !loading && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white">
-              Files & Folders <span className="ml-2 text-sm font-normal text-slate-400">({drvFiles.length})</span>
+            <h2 className="text-lg font-semibold text-[#1a1a1a]">
+              Files & Folders <span className="ml-2 text-sm font-normal text-[#6b6b6b]">({drvFiles.length})</span>
             </h2>
             <button
               onClick={() => setDrvTab("create")}
-              className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-[#1a1a1a] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
             >
               <PlusIcon /> New
             </button>
           </div>
           {drvFiles.length === 0 ? (
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-8 text-center text-slate-400">
+            <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-8 text-center text-[#6b6b6b]">
               <DriveIcon />
               <p className="mt-3 text-sm">No files found in your Drive.</p>
             </div>
           ) : (
-            <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto] px-5 py-2.5 bg-[#151d2e] border-b border-slate-700/50 text-xs font-medium text-slate-400 uppercase tracking-wider">
+            <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto] px-5 py-2.5 bg-[#faf9f7] border-b border-[#e8e5df] text-xs font-medium text-[#6b6b6b] uppercase tracking-wider">
                 <span>Name</span>
                 <span className="text-right w-24">Modified</span>
                 <span className="text-right w-20">Size</span>
@@ -165,20 +165,20 @@ export function DriveView({ serviceStatus }: DriveViewProps) {
                   return (
                     <div key={file.id} className="grid grid-cols-[1fr_auto_auto] px-5 py-2.5 hover:bg-[#1e293b] transition-colors border-b border-slate-700/30 last:border-b-0 items-center">
                       <div className="flex items-center gap-2.5 text-sm min-w-0">
-                        {isFolder ? <FolderIcon className="text-green-400" /> : <FileIcon className="text-slate-400" />}
+                        {isFolder ? <FolderIcon className="text-green-400" /> : <FileIcon className="text-[#6b6b6b]" />}
                         {file.webViewLink ? (
                           <a href={file.webViewLink} target="_blank" rel="noopener noreferrer"
-                            className="text-white font-medium hover:text-green-400 transition-colors truncate">
+                            className="text-[#1a1a1a] font-medium hover:text-green-400 transition-colors truncate">
                             {file.name}
                           </a>
                         ) : (
-                          <span className="text-white font-medium truncate">{file.name}</span>
+                          <span className="text-[#1a1a1a] font-medium truncate">{file.name}</span>
                         )}
                       </div>
-                      <span className="text-xs text-slate-500 text-right w-24">
+                      <span className="text-xs text-[#999999] text-right w-24">
                         {file.modifiedTime ? timeAgo(file.modifiedTime) : ""}
                       </span>
-                      <span className="text-xs text-slate-500 text-right w-20">
+                      <span className="text-xs text-[#999999] text-right w-20">
                         {file.size ? formatFileSize(Number(file.size)) : ""}
                       </span>
                     </div>
@@ -193,12 +193,12 @@ export function DriveView({ serviceStatus }: DriveViewProps) {
       {/* Create Tab */}
       {drvTab === "create" && (
         <div className="max-w-2xl">
-          <div className="bg-[#1a2332] border border-slate-700/50 rounded-xl p-5">
-            <h2 className="text-lg font-semibold text-white mb-4">Create Folder</h2>
+          <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-5">
+            <h2 className="text-lg font-semibold text-[#1a1a1a] mb-4">Create Folder</h2>
             {folderSuccess && (
-              <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg text-sm">
+              <div className="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 px-4 py-3 rounded-lg text-sm">
                 Folder created successfully!
-                <button onClick={() => setFolderSuccess(false)} className="ml-3 underline hover:text-emerald-300">Dismiss</button>
+                <button onClick={() => setFolderSuccess(false)} className="ml-3 underline hover:text-emerald-600">Dismiss</button>
               </div>
             )}
             {folderError && (
@@ -209,12 +209,12 @@ export function DriveView({ serviceStatus }: DriveViewProps) {
             )}
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-slate-400 mb-1 block">Folder Name</label>
+                <label className="text-xs font-medium text-[#6b6b6b] mb-1 block">Folder Name</label>
                 <input type="text" placeholder="My New Folder" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500" />
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-[#1a1a1a] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500" />
               </div>
               <button onClick={handleCreateFolder} disabled={creatingFolder || !newFolderName.trim()}
-                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-[#e8e5df] disabled:text-[#999999] text-[#1a1a1a] px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
                 {creatingFolder && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {creatingFolder ? "Creating..." : "Create Folder"}
               </button>

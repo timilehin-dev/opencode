@@ -62,10 +62,10 @@ const KNOWN_AGENTS = [
 ];
 
 const CATEGORY_STYLES: Record<string, string> = {
-  general: "bg-slate-500/20 text-slate-300 border-slate-500/30",
-  preference: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  context: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  instruction: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  general: "bg-slate-500/20 text-[#1a1a1a] border-slate-500/30",
+  preference: "bg-blue-500/20 text-blue-600 border-blue-500/30",
+  context: "bg-purple-500/20 text-purple-600 border-purple-500/30",
+  instruction: "bg-amber-500/20 text-amber-600 border-amber-500/30",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -235,7 +235,7 @@ export function MemoryView({ onNavigate: _onNavigate }: MemoryViewProps) {
             <h2 className="text-xl font-bold text-foreground">Memory</h2>
             {isSupabaseConnected && (
               <Badge variant="success" className="text-[10px] gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 Cloud Sync
               </Badge>
             )}
@@ -333,7 +333,7 @@ export function MemoryView({ onNavigate: _onNavigate }: MemoryViewProps) {
                                   key={i}
                                   className={cn(
                                     "w-3 h-3",
-                                    i < mem.importance ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"
+                                    i < mem.importance ? "text-amber-600 fill-amber-400" : "text-muted-foreground/30"
                                   )}
                                 />
                               ))}
@@ -436,8 +436,8 @@ export function MemoryView({ onNavigate: _onNavigate }: MemoryViewProps) {
                     isSupabaseConnected ? "bg-emerald-500/10" : "bg-amber-500/10"
                   )}>
                     {isSupabaseConnected
-                      ? <CheckCircle className="w-5 h-5 text-emerald-400" />
-                      : <AlertCircle className="w-5 h-5 text-amber-400" />}
+                      ? <CheckCircle className="w-5 h-5 text-emerald-600" />
+                      : <AlertCircle className="w-5 h-5 text-amber-600" />}
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">Supabase</h3>
@@ -474,7 +474,7 @@ export function MemoryView({ onNavigate: _onNavigate }: MemoryViewProps) {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Storage Mode</span>
-                    <span className={cn("font-medium", isSupabaseConnected ? "text-emerald-400" : "text-amber-400")}>
+                    <span className={cn("font-medium", isSupabaseConnected ? "text-emerald-600" : "text-amber-600")}>
                       {isSupabaseConnected ? "Cloud + Local" : "Local Only"}
                     </span>
                   </div>

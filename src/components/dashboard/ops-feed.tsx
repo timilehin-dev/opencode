@@ -8,9 +8,8 @@ interface OpsFeedProps {
   isConnected: boolean;
 }
 
-// Map agent IDs to display colors for the dot indicator
 const AGENT_DOT_COLORS: Record<string, string> = {
-  general: "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]",
+  general: "bg-emerald-500",
   mail: "bg-blue-500",
   code: "bg-purple-500",
   data: "bg-amber-500",
@@ -19,7 +18,6 @@ const AGENT_DOT_COLORS: Record<string, string> = {
   ops: "bg-orange-500",
 };
 
-// Map actions to descriptions
 const ACTION_LABELS: Record<string, string> = {
   chat_message: "responded",
   tool_call: "tool call",
@@ -32,14 +30,12 @@ const ACTION_LABELS: Record<string, string> = {
 export function OpsFeed({ events, isConnected }: OpsFeedProps) {
   const feedEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to newest event
   useEffect(() => {
     if (feedEndRef.current) {
       feedEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [events.length]);
 
-  // Format timestamp to HH:MM:SS
   const formatTime = (iso: string) => {
     try {
       const d = new Date(iso);
@@ -49,74 +45,57 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
     }
   };
 
-  // Build the HTML content for an event
   const buildHtml = (event: ActivityEventView) => {
     const agentName = event.agent_name || event.agent_id;
     const detail = event.detail || ACTION_LABELS[event.action] || event.action;
-    // Bold the agent name
     return `<strong>${agentName}</strong> ${detail}`;
   };
 
-  // Get dot color based on agent or action
   const getDotColor = (event: ActivityEventView) => {
-    if (event.action === "error") return "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]";
-    return AGENT_DOT_COLORS[event.agent_id] || "bg-slate-500";
+    if (event.action === "error") return "bg-red-500";
+    return AGENT_DOT_COLORS[event.agent_id] || "bg-[#999999]";
   };
 
   return (
-    <div className="flex-1 border-t flex flex-col min-h-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div className="flex-1 border-t border-[#e8e5df] flex flex-col min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-[18px] py-4 pb-1">
+      <div className="flex items-center justify-between px-5 py-4 pb-1">
         <div className="flex items-center gap-2">
-          <span className="text-[12px] font-bold uppercase tracking-[1px] text-slate-500">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[#999999]">
             Live Operations
           </span>
         </div>
-        <span
-          className={`text-[10px] flex items-center gap-1 ${
-            isConnected ? "text-emerald-400" : "text-red-400"
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              isConnected ? "bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)]" : "bg-red-500"
-            }`}
-          />
+        <span className={`text-[10px] flex items-center gap-1 ${isConnected ? "text-emerald-600" : "text-red-600"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-500" : "bg-red-500"}`} />
           {isConnected ? "Live" : "Disconnected"}
         </span>
       </div>
 
       {/* Feed */}
-      <div className="flex-1 px-[18px] pb-2 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 px-5 pb-2 overflow-y-auto custom-scrollbar">
         {events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-600">
+            <div className="w-8 h-8 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#999999]">
                 <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
             </div>
-            <div className="text-[11px] text-slate-600">
-              No activity yet
-            </div>
-            <div className="text-[10px] text-slate-700 mt-0.5">
-              Send a message to see operations
-            </div>
+            <div className="text-[11px] text-[#999999]">No activity yet</div>
+            <div className="text-[10px] text-[#d5d0c9] mt-0.5">Send a message to see operations</div>
           </div>
         ) : (
           events.map((event) => (
             <div
               key={event.id}
-              className="flex items-start gap-2 py-2 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.04)" }}
+              className="flex items-start gap-2 py-2 border-b last:border-b-0 border-[#f0ede8]"
             >
-              <div
-                className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${getDotColor(event)}`}
-              />
+              <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${getDotColor(event)}`} />
               <div className="min-w-0">
                 <div
-                  className="text-[11.5px] text-slate-400 leading-relaxed [&_strong]:text-slate-200 [&_strong]:font-semibold"
+                  className="text-[11px] text-[#6b6b6b] leading-relaxed [&_strong]:text-[#1a1a1a] [&_strong]:font-semibold"
                   dangerouslySetInnerHTML={{ __html: buildHtml(event) }}
                 />
-                <div className="text-[10px] text-slate-600 mt-0.5">
+                <div className="text-[10px] text-[#999999] mt-0.5">
                   {formatTime(event.created_at)}
                 </div>
               </div>

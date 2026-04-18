@@ -94,9 +94,9 @@ const itemVariants = {
 // ---------------------------------------------------------------------------
 
 const triggerBadgeStyles: Record<string, string> = {
-  schedule: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  event: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  manual: "bg-slate-500/20 text-slate-300 border-slate-500/30",
+  schedule: "bg-blue-500/20 text-blue-600 border-blue-500/30",
+  event: "bg-purple-500/20 text-purple-600 border-purple-500/30",
+  manual: "bg-slate-500/20 text-[#1a1a1a] border-slate-500/30",
 };
 
 // ---------------------------------------------------------------------------
@@ -343,7 +343,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                         </Badge>
                         {auto.enabled ? (
                           <Badge variant="success" className="text-[10px] flex-shrink-0 gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             Active
                           </Badge>
                         ) : (
@@ -380,7 +380,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                           <span>
                             Last:{" "}
                             {auto.lastStatus === "success" ? (
-                              <span className="text-emerald-400">Success</span>
+                              <span className="text-emerald-600">Success</span>
                             ) : auto.lastStatus === "error" ? (
                               <span className="text-red-400">Error</span>
                             ) : (
