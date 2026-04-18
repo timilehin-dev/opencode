@@ -233,3 +233,30 @@ Stage Summary:
 - Gmail tools should now work reliably: smaller payloads, no infinite loops, all responses safely parsed
 - All 11 res.json() calls across tools.ts replaced with safe response parsing
 - Mobile chat input no longer covered by bottom navigation bar
+
+---
+Task ID: phase2
+Agent: main (full-stack-developer subagent)
+Task: Phase 2 — Real-time Backend with SSE, Agent Persistence, Live Dashboard
+
+Work Log:
+- Audited entire codebase: agents.ts (in-memory only), analytics-store.ts (localStorage only), ops-feed/coordination-map/active-tasks/metrics-row/agent-crew (all mock data), supabase.ts (9 existing tables)
+- Confirmed zero SSE/WebSocket/real-time infrastructure exists
+- Added 2 new Supabase tables: agent_activity (ops feed log), agent_status (persistent state)
+- Created src/lib/activity.ts (261 lines) — data access layer with 5 functions
+- Created SSE endpoint /api/events/stream (148 lines) — 3s polling, snapshot + incremental events
+- Created REST endpoints: /api/dashboard (snapshot fallback), /api/todos (CRUD), /api/setup/phase2 (migration)
+- Created useDashboardStream hook (238 lines) — SSE-first with polling fallback, auto-reconnect
+- Instrumented chat route with 10 fire-and-forget logActivity + persistAgentStatus calls
+- Rewired 5 dashboard components to real data: OpsFeed, AgentCrew, MetricsRow, ActiveTasks, CoordinationMap (kept mock for Phase 3)
+- TypeScript: 0 errors
+
+Stage Summary:
+- Commit c31c92d: 17 files changed, 1358 insertions, 301 deletions
+- 6 new files created, 8 existing files modified, 3 new API endpoints
+- Agent status now persists to Supabase (survives cold starts)
+- Ops Feed shows real agent activity in real-time via SSE
+- Metrics Row shows real message/tool counts
+- Active Tasks shows real todos with checkbox toggle
+- Coordination Map deferred to Phase 3 (delegation tracking)
+- POST /api/setup/phase2 needed to create new tables in Supabase
