@@ -9,11 +9,11 @@ interface ActiveTasksProps {
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
-  critical: "bg-red-500/20 text-red-400",
-  high: "bg-red-500/10 text-red-400",
-  medium: "bg-amber-500/10 text-amber-400",
-  med: "bg-amber-500/10 text-amber-400",
-  low: "bg-blue-500/10 text-blue-400",
+  critical: "bg-red-500/15 text-red-400 border border-red-500/20",
+  high: "bg-red-500/10 text-red-400 border border-red-500/15",
+  medium: "bg-amber-500/10 text-amber-400 border border-amber-500/15",
+  med: "bg-amber-500/10 text-amber-400 border border-amber-500/15",
+  low: "bg-cyan-500/10 text-cyan-400 border border-cyan-500/15",
 };
 
 // Agent emoji map
@@ -96,16 +96,16 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
   };
 
   const getAgentMeta = (todo: TodoView) => {
-    if (!todo.assigned_agent) return { emoji: "📋", bg: "bg-secondary" };
-    return AGENT_EMOJI[todo.assigned_agent] || { emoji: "📋", bg: "bg-secondary" };
+    if (!todo.assigned_agent) return { emoji: "📋", bg: "bg-white/[0.06]" };
+    return AGENT_EMOJI[todo.assigned_agent] || { emoji: "📋", bg: "bg-white/[0.06]" };
   };
 
   return (
-    <div className="bg-secondary border border-border rounded-[14px] flex flex-col overflow-hidden">
+    <div className="cyber-card flex flex-col overflow-hidden h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-        <span className="text-[13px] font-bold text-foreground">Active Tasks</span>
-        <span className="text-[10px] text-emerald-400 cursor-pointer">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.06]">
+        <span className="text-[13px] font-bold text-white">Active Tasks</span>
+        <span className="text-[10px] text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors">
           View All →
         </span>
       </div>
@@ -114,16 +114,16 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
       <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
         {displayTodos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/50">
+            <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-600">
                 <path d="M9 11l3 3L22 4" />
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
               </svg>
             </div>
-            <div className="text-[11px] text-muted-foreground/50">
+            <div className="text-[11px] text-slate-600">
               No tasks yet
             </div>
-            <div className="text-[10px] text-muted-foreground/40 mt-0.5">
+            <div className="text-[10px] text-slate-700 mt-0.5">
               Ask an agent to create tasks
             </div>
           </div>
@@ -137,7 +137,7 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
             return (
               <div
                 key={todo.id}
-                className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b border-border last:border-b-0"
+                className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.04)" }}
               >
                 {/* Checkbox */}
                 <button
@@ -146,8 +146,8 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
                   className={cn(
                     "w-[18px] h-[18px] rounded-md border-2 flex-shrink-0 flex items-center justify-center cursor-pointer transition-all duration-150",
                     done
-                      ? "bg-emerald-500 border-emerald-500"
-                      : "border-muted-foreground/50 hover:border-muted-foreground",
+                      ? "bg-emerald-500 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                      : "border-slate-600 hover:border-slate-400",
                     isUpdating && "opacity-50"
                   )}
                 >
@@ -173,13 +173,13 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
                     className={cn(
                       "text-xs font-semibold",
                       done
-                        ? "line-through text-muted-foreground/70"
-                        : "text-foreground"
+                        ? "line-through text-slate-600"
+                        : "text-slate-200"
                     )}
                   >
                     {todo.title}
                   </div>
-                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  <div className="text-[10px] text-slate-600 mt-0.5">
                     {formatMeta(todo)}
                   </div>
                 </div>
@@ -187,7 +187,7 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
                 {/* Priority badge */}
                 <span
                   className={cn(
-                    "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0",
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0",
                     PRIORITY_STYLES[priorityKey] || PRIORITY_STYLES.medium
                   )}
                 >

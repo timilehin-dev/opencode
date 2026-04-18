@@ -10,7 +10,7 @@ interface OpsFeedProps {
 
 // Map agent IDs to display colors for the dot indicator
 const AGENT_DOT_COLORS: Record<string, string> = {
-  general: "bg-emerald-500",
+  general: "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]",
   mail: "bg-blue-500",
   code: "bg-purple-500",
   data: "bg-amber-500",
@@ -59,17 +59,19 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
 
   // Get dot color based on agent or action
   const getDotColor = (event: ActivityEventView) => {
-    if (event.action === "error") return "bg-red-500";
-    return AGENT_DOT_COLORS[event.agent_id] || "bg-muted-foreground";
+    if (event.action === "error") return "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]";
+    return AGENT_DOT_COLORS[event.agent_id] || "bg-slate-500";
   };
 
   return (
-    <div className="flex-1 border-t border-border flex flex-col min-h-0">
+    <div className="flex-1 border-t flex flex-col min-h-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
       {/* Header */}
       <div className="flex items-center justify-between px-[18px] py-4 pb-1">
-        <span className="text-[12px] font-bold uppercase tracking-[1px] text-muted-foreground/70">
-          Live Operations
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-bold uppercase tracking-[1px] text-slate-500">
+            Live Operations
+          </span>
+        </div>
         <span
           className={`text-[10px] flex items-center gap-1 ${
             isConnected ? "text-emerald-400" : "text-red-400"
@@ -77,7 +79,7 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
         >
           <span
             className={`w-1.5 h-1.5 rounded-full ${
-              isConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+              isConnected ? "bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)]" : "bg-red-500"
             }`}
           />
           {isConnected ? "Live" : "Disconnected"}
@@ -88,15 +90,15 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
       <div className="flex-1 px-[18px] pb-2 overflow-y-auto custom-scrollbar">
         {events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground/50">
+            <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-600">
                 <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
             </div>
-            <div className="text-[11px] text-muted-foreground/50">
+            <div className="text-[11px] text-slate-600">
               No activity yet
             </div>
-            <div className="text-[10px] text-muted-foreground/40 mt-0.5">
+            <div className="text-[10px] text-slate-700 mt-0.5">
               Send a message to see operations
             </div>
           </div>
@@ -104,17 +106,17 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
           events.map((event) => (
             <div
               key={event.id}
-              className="flex items-start gap-2 py-2 border-b border-border last:border-b-0"
+              className="flex items-start gap-2 py-2 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.04)" }}
             >
               <div
                 className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${getDotColor(event)}`}
               />
               <div className="min-w-0">
                 <div
-                  className="text-[11.5px] text-muted-foreground leading-relaxed [&_strong]:text-foreground [&_strong]:font-semibold"
+                  className="text-[11.5px] text-slate-400 leading-relaxed [&_strong]:text-slate-200 [&_strong]:font-semibold"
                   dangerouslySetInnerHTML={{ __html: buildHtml(event) }}
                 />
-                <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                <div className="text-[10px] text-slate-600 mt-0.5">
                   {formatTime(event.created_at)}
                 </div>
               </div>

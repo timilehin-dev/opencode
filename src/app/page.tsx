@@ -118,7 +118,7 @@ export default function Dashboard() {
 
   return (
     <NotificationProvider onNavigate={handlePageChange}>
-      <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
+      <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden" style={{ background: "#0a0e14" }}>
         {/* Notification slide-out panel */}
         <NotificationPanel />
 
@@ -129,7 +129,7 @@ export default function Dashboard() {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel — Agent Crew + Ops Feed (only on Mission Control, desktop only) */}
           {isControlPage && (
-            <div className="hidden lg:flex w-[300px] border-r border-border flex-col bg-secondary/60 flex-shrink-0">
+            <div className="hidden lg:flex w-[300px] border-r flex-col flex-shrink-0 cyber-panel" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               <AgentCrew
                 agents={agents}
                 selectedAgentId={selectedAgentId}
@@ -403,16 +403,16 @@ export default function Dashboard() {
 
           {/* Right Panel — Chat (only on Mission Control page, desktop only) */}
           {isControlPage && (
-            <div className="hidden lg:flex w-[360px] border-l border-border flex-col bg-secondary/60 flex-shrink-0">
+            <div className="hidden lg:flex w-[360px] border-l flex-col flex-shrink-0 cyber-panel" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               {/* Chat Tabs */}
-              <div className="flex border-b border-border">
+              <div className="flex border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
                 {["Chat", "Tasks", "History"].map((tab, i) => (
                   <div
                     key={tab}
                     className={`flex-1 py-3 text-center text-xs font-semibold cursor-pointer transition-all duration-150 border-b-2 ${
                       i === 0
-                        ? "text-foreground border-emerald-500"
-                        : "text-muted-foreground border-transparent hover:text-foreground/80"
+                        ? "text-white border-emerald-500"
+                        : "text-slate-500 border-transparent hover:text-slate-300"
                     }`}
                   >
                     {tab}
@@ -441,14 +441,14 @@ export default function Dashboard() {
 function SettingsPlaceholder() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-      <div className="w-16 h-16 rounded-2xl bg-secondary border border-border flex items-center justify-center mb-4">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
+      <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-4">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-500">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
           <circle cx="12" cy="12" r="3" />
         </svg>
       </div>
-      <h2 className="text-lg font-bold text-foreground mb-1">Settings</h2>
-      <p className="text-sm text-muted-foreground">Configuration options coming soon.</p>
+      <h2 className="text-lg font-bold text-white mb-1">Settings</h2>
+      <p className="text-sm text-slate-400">Configuration options coming soon.</p>
     </div>
   );
 }
@@ -476,8 +476,8 @@ function ServicesGrid({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-foreground mb-1">Connected Services</h2>
-      <p className="text-sm text-muted-foreground mb-6">
+      <h2 className="text-xl font-bold text-white mb-1">Connected Services</h2>
+      <p className="text-sm text-slate-400 mb-6">
         Manage your connected services and integrations.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -489,16 +489,16 @@ function ServicesGrid({
             <button
               key={svc.key}
               onClick={() => onNavigate(svc.key)}
-              className="flex items-center gap-4 p-4 rounded-xl bg-secondary border border-border hover:bg-accent transition-all duration-150 text-left cursor-pointer"
+              className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-200 text-left cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-muted-foreground">
+              <div className="w-12 h-12 rounded-xl bg-white/[0.04] flex items-center justify-center text-slate-500">
                 {svc.icon}
               </div>
               <div>
-                <div className="text-sm font-semibold text-foreground">
+                <div className="text-sm font-semibold text-white">
                   {svc.name}
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
+                <div className="text-xs text-slate-400 mt-0.5">
                   {connected ? "Connected" : "Not connected"}
                 </div>
               </div>
@@ -548,8 +548,8 @@ function ServicePageHeader({
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 mb-1">
-        <span className="text-muted-foreground">{icon}</span>
-        <h2 className="text-xl font-bold text-foreground">{title}</h2>
+        <span className="text-slate-400">{icon}</span>
+        <h2 className="text-xl font-bold text-white">{title}</h2>
         {serviceKey && (
           <span
             className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${

@@ -131,7 +131,9 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
   };
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/90 backdrop-blur-xl border-t border-border">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d1117]/90 backdrop-blur-xl border-t border-white/[0.06]"
+      style={{ boxShadow: "0 -1px 0 0 rgba(16, 185, 129, 0.05), 0 -4px 20px rgba(0, 0, 0, 0.2)" }}
+    >
       <div className="flex items-center justify-around h-[60px] pb-safe relative">
         {TABS.map((tab) => {
           const active = isActive(tab);
@@ -144,14 +146,14 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
             >
               <Icon
                 className={cn(
-                  "w-[22px] h-[22px] transition-colors duration-200",
-                  active ? "text-emerald-400" : "text-muted-foreground"
+                  "w-[22px] h-[22px] transition-all duration-200",
+                  active ? "text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "text-slate-500"
                 )}
               />
               <span
                 className={cn(
-                  "text-[10px] font-medium transition-colors duration-200",
-                  active ? "text-emerald-400" : "text-muted-foreground"
+                  "text-[10px] font-medium transition-all duration-200",
+                  active ? "text-emerald-400" : "text-slate-500"
                 )}
               >
                 {tab.label}
@@ -159,7 +161,7 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
               {active && (
                 <motion.div
                   layoutId="bottom-nav-indicator"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full bg-emerald-400"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -186,7 +188,8 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="absolute bottom-[68px] right-3 z-50 bg-popover backdrop-blur-xl border border-border rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
+                className="absolute bottom-[68px] right-3 z-50 bg-[#151a25]/95 backdrop-blur-xl border border-white/[0.06] rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
+                style={{ boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)" }}
               >
                 {MORE_ITEMS.map((item) => {
                   const active = activePage === item.key;
@@ -195,16 +198,16 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
                       key={item.key}
                       onClick={() => handleMoreItem(item.key)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer",
+                        "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer border-b border-white/[0.04] last:border-b-0",
                         active
                           ? "bg-emerald-500/10 text-emerald-400"
-                          : "text-foreground hover:bg-accent"
+                          : "text-slate-300 hover:bg-white/[0.04]"
                       )}
                     >
                       <span className="text-base">{item.emoji}</span>
                       <span className="text-sm font-medium">{item.label}</span>
                       {active && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
                       )}
                     </button>
                   );

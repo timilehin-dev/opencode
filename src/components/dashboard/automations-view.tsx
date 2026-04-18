@@ -408,7 +408,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                       >
                         <span
                           className={cn(
-                            "absolute top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+                            "absolute top-[3px] w-4 h-4 rounded-full bg-slate-300 shadow-sm transition-transform duration-200",
                             auto.enabled ? "translate-x-[21px]" : "translate-x-[3px]"
                           )}
                         />
@@ -683,7 +683,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
                   >
                     <span
                       className={cn(
-                        "absolute top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+                        "absolute top-[3px] w-4 h-4 rounded-full bg-slate-300 shadow-sm transition-transform duration-200",
                         form.enabled ? "translate-x-[21px]" : "translate-x-[3px]"
                       )}
                     />

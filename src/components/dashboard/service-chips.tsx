@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import {
   GitHubIcon,
   MailIcon,
@@ -10,7 +12,6 @@ import {
   VercelIcon,
 } from "@/components/icons";
 import type { ServiceStatus } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const SERVICES = [
   {
@@ -59,7 +60,7 @@ const SERVICES = [
     key: "vercel",
     name: "Vercel",
     icon: VercelIcon,
-    iconBg: "bg-white border border-border",
+    iconBg: "bg-white border border-white/20",
     statusKey: "vercel" as const,
   },
 ];
@@ -78,7 +79,7 @@ export function ServiceChips({ serviceStatus }: ServiceChipsProps) {
         return (
           <div
             key={svc.key}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-[10px] bg-secondary border border-border cursor-pointer transition-all duration-150 whitespace-nowrap flex-shrink-0 hover:bg-accent"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-[10px] bg-white/[0.03] border border-white/[0.06] cursor-pointer transition-all duration-200 whitespace-nowrap flex-shrink-0 hover:bg-white/[0.06] hover:border-white/[0.1]"
           >
             <div
               className={cn(
@@ -89,13 +90,13 @@ export function ServiceChips({ serviceStatus }: ServiceChipsProps) {
               <Icon className="w-3.5 h-3.5" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-foreground">
+              <div className="text-xs font-semibold text-slate-200">
                 {svc.name}
               </div>
               <div
                 className={cn(
                   "text-[9px] font-bold uppercase tracking-[0.5px]",
-                  connected ? "text-emerald-400" : "text-muted-foreground/70"
+                  connected ? "text-emerald-400" : "text-slate-600"
                 )}
               >
                 {connected ? "Connected" : "Offline"}
