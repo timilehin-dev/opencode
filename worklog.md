@@ -284,3 +284,26 @@ Stage Summary:
 - All changes persisted to localStorage, syncable to Supabase
 - Notification preferences bi-directionally synced with NotificationContext
 - Commit: e0fe812
+
+---
+Task ID: 4
+Agent: Main
+Task: Agent detail pages — full configuration UI
+
+Work Log:
+- Created src/lib/agent-overrides.ts — localStorage-backed per-agent override store with AgentOverrides type, CRUD functions, merge helpers (getEffectiveTools, getEffectiveSystemPrompt, hasOverrides)
+- Rewrote src/app/(app)/agents/[id]/page.tsx (1248 lines) with 4-tab architecture:
+  - Overview tab: agent header, about section, stats grid, tool categories summary, suggested actions
+  - Tools tab: 80+ tools with toggle switches, search/filter, category grouping, enable/disable all per category, progress bar
+  - Prompt tab: full system prompt editor with save/reset, character/line count, show more/less, edit mode toggle
+  - Parameters tab: model picker with text input + 8 quick-select presets, temperature slider with 4 presets, max tokens slider with 4 presets
+- Fixed type errors: useRef initial value, router not available in child component (passed as prop), removed unused useRouter
+- Build verified: 0 TypeScript errors, clean build
+
+Stage Summary:
+- Agent detail pages now fully configurable per-agent
+- All overrides persisted to localStorage, merge with base config from agents.ts
+- Toast notifications for all save actions
+- 'Customized' badge appears on header when any override is active
+- One-click reset restores all defaults
+- Commit: c48fa99 pushed to main

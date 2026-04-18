@@ -442,6 +442,30 @@ export async function addMemory(memory: {
   return mem;
 }
 
+/** Get all memories across all agents (for memory management page). */
+export async function getAllMemories(): Promise<AgentMemory[]> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("agent_memory")
+        .select("*")
+        .order("importance", { ascending: false })
+        .order("updated_at", { ascending: false });
+
+      if (!error && data) {
+        return data.map(rowToMemory);
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  return loadJSON<AgentMemory[]>(MEMORY_KEY, [])
+    .sort((a, b) => b.importance - a.importance || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
 /** Get all memories for an agent. */
 export async function getAgentMemories(agentId: string): Promise<AgentMemory[]> {
   const supabase = getSupabase();

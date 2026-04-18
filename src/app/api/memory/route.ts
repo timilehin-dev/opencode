@@ -2,18 +2,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAgentMemories,
+  getAllMemories,
   addMemory,
   deleteMemory,
   getRecentConversations,
   clearConversationHistory,
 } from "@/lib/memory";
 
-// GET — List memories (optionally filtered by ?agentId=x) or conversation history (?type=conversations)
+// GET — List memories (optionally filtered by ?agentId=x or ?all=true&q=search) or conversation history (?type=conversations)
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const agentId = url.searchParams.get("agentId");
     const type = url.searchParams.get("type");
+    const all = url.searchParams.get("all");
+    const query = url.searchParams.get("q")?.toLowerCase().trim();
 
     if (type === "conversations") {
       const limit = parseInt(url.searchParams.get("limit") || "20", 10);
@@ -21,11 +24,30 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, data: conversations });
     }
 
+    if (all === "true") {
+      let memories = await getAllMemories();
+      if (query) {
+        memories = memories.filter(
+          (m) =>
+            m.content.toLowerCase().includes(query) ||
+            m.category.toLowerCase().includes(query) ||
+            m.agentId.toLowerCase().includes(query)
+        );
+      }
+      return NextResponse.json({ success: true, data: memories });
+    }
+
     if (!agentId) {
       return NextResponse.json({ success: false, error: "agentId is required" }, { status: 400 });
     }
 
     const memories = await getAgentMemories(agentId);
+    if (query) {
+      const filtered = memories.filter(
+        (m) => m.content.toLowerCase().includes(query) || m.category.toLowerCase().includes(query)
+      );
+      return NextResponse.json({ success: true, data: filtered });
+    }
     return NextResponse.json({ success: true, data: memories });
   } catch (error) {
     console.error("[Memory] GET error:", error);
