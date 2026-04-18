@@ -1273,7 +1273,7 @@ export function ChatView() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem-60px)] lg:h-[calc(100vh-3rem)] relative">
+    <div className="flex flex-col h-full relative">
       {/* Slim Header — Agent emoji + name + role, model badge, history/new buttons */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 border-b border-border flex-shrink-0">
         <div className="relative" ref={pickerRef}>
