@@ -815,6 +815,7 @@ const ollamaKeys: string[] = [
   process.env.OLLAMA_CLOUD_KEY_3 || "",
   process.env.OLLAMA_CLOUD_KEY_4 || "",
   process.env.OLLAMA_CLOUD_KEY_5 || "",
+  process.env.OLLAMA_CLOUD_KEY_6 || "",
 ].filter(Boolean);
 
 const ollamaLabels: string[] = [
@@ -823,6 +824,7 @@ const ollamaLabels: string[] = [
   process.env.OLLAMA_CLOUD_KEY_3 ? "OLLAMA_CLOUD_KEY_3" : "",
   process.env.OLLAMA_CLOUD_KEY_4 ? "OLLAMA_CLOUD_KEY_4" : "",
   process.env.OLLAMA_CLOUD_KEY_5 ? "OLLAMA_CLOUD_KEY_5" : "",
+  process.env.OLLAMA_CLOUD_KEY_6 ? "OLLAMA_CLOUD_KEY_6" : "",
 ].filter(Boolean);
 
 // Per-agent dedicated key arrays (cached)

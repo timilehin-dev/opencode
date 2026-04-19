@@ -271,6 +271,22 @@ function safeJsonWithRetry<T>(fn: (input: T) => Promise<unknown>, maxRetries = 2
         const result = await fn(input);
         const jsonFull = JSON.stringify({ success: true, data: result });
 
+        // --- File download results: never truncate fileBase64 ---
+        // File-generating tools return { fileBase64, filename, mimeType, ... }.
+        // The base64 payload is essential for in-browser download.
+        // We cap at 10MB to prevent absurdly large results.
+        const resultObj = result as Record<string, unknown> | null;
+        if (resultObj && typeof resultObj === "object" && resultObj.fileBase64 && typeof resultObj.fileBase64 === "string") {
+          const maxFileSize = 10 * 1024 * 1024; // 10MB
+          if (jsonFull.length > maxFileSize) {
+            return JSON.stringify({
+              success: false,
+              error: `Generated file is too large (${(jsonFull.length / 1024 / 1024).toFixed(1)}MB). Try generating a shorter/simpler document.`,
+            });
+          }
+          return jsonFull; // Return full result including fileBase64
+        }
+
         if (jsonFull.length <= MAX_TOOL_RESULT_LENGTH) {
           return jsonFull;
         }
@@ -2769,11 +2785,51 @@ export const createPdfReportTool = tool({
         continue;
       }
 
-      // Regular paragraph — strip markdown formatting
-      const cleanText = line
-        .replace(/\*\*(.+?)\*\*/g, "$1") // Remove bold markers (PDFKit bold handling is complex)
-        .replace(/\*(.+?)\*/g, "$1")
-        .replace(/`([^`]+)`/g, "$1");
+      // Regular paragraph — render inline bold, italic, and code
+      const cleanText = line.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1").replace(/`([^`]+)`/g, "$1");
+
+      // Check if the line has inline formatting
+      const hasBold = /\*\*(.+?)\*\*/.test(line);
+      const hasItalic = /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/.test(line);
+      const hasCode = /`([^`]+)`/.test(line);
+
+      if (hasBold || hasItalic || hasCode) {
+        // Render with inline formatting using continued=true
+        const segments: Array<{ text: string; bold: boolean; italic: boolean; mono: boolean }> = [];
+        const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|[^*`]+)/g;
+        let seg;
+        while ((seg = regex.exec(line)) !== null) {
+          const s = seg[1];
+          if (s.startsWith("**") && s.endsWith("**")) {
+            segments.push({ text: s.slice(2, -2), bold: true, italic: false, mono: false });
+          } else if (s.startsWith("*") && s.endsWith("*")) {
+            segments.push({ text: s.slice(1, -1), bold: false, italic: true, mono: false });
+          } else if (s.startsWith("`") && s.endsWith("`")) {
+            segments.push({ text: s.slice(1, -1), bold: false, italic: false, mono: true });
+          } else {
+            segments.push({ text: s, bold: false, italic: false, mono: false });
+          }
+        }
+
+        if (segments.length > 0) {
+          const x = line.trim().startsWith("- ") || line.trim().startsWith("* ") || line.trim().match(/^\d+\./) ? 75 : 60;
+          doc.fontSize(10).fillColor("#374151");
+          for (let si = 0; si < segments.length; si++) {
+            const seg = segments[si];
+            const fontName = seg.mono ? "Courier" : seg.bold ? "Helvetica-Bold" : seg.italic ? "Helvetica-Oblique" : "Helvetica";
+            const color = seg.mono ? "#DC2626" : "#374151";
+            doc.font(fontName).fillColor(color).text(
+              seg.text,
+              si === 0 ? x : undefined, // only set x on first segment
+              si === 0 ? doc.y : undefined, // only set y on first segment
+              { continued: si < segments.length - 1, lineGap: 3 }
+            );
+          }
+          continue;
+        }
+      }
+
+      // Fallback: plain text without formatting
       doc.fontSize(10).font("Helvetica").fillColor("#374151").text(cleanText, { lineGap: 3 });
     }
 
@@ -2994,28 +3050,69 @@ export const createDocxDocumentTool = tool({
       // Empty line
       if (line.trim() === "") continue;
 
-      // Bullet list
+      // Bullet list with inline formatting support
       if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
-        children.push(
-          new Paragraph({
-            children: [new TextRun({ text: line.trim().slice(2), size: 22, font: "Calibri", color: "374151" })],
-            bullet: { level: 0 },
-            spacing: { after: 60 },
-          }),
-        );
+        const bulletText = line.trim().slice(2);
+        const hasInline = /\*\*|\*`|`/.test(bulletText);
+        if (hasInline) {
+          // Parse inline formatting for bullet items
+          const TextRunCtor = await import("docx").then((m) => (m as any).TextRun);
+          const bRuns: any[] = [];
+          const bParts = bulletText.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/);
+          for (const part of bParts) {
+            if (part.startsWith("**") && part.endsWith("**")) {
+              bRuns.push(new TextRunCtor({ text: part.slice(2, -2), bold: true, size: 22, font: "Calibri", color: "111827" }));
+            } else if (part.startsWith("*") && part.endsWith("*")) {
+              bRuns.push(new TextRunCtor({ text: part.slice(1, -1), italics: true, size: 22, font: "Calibri", color: "374151" }));
+            } else if (part.startsWith("`") && part.endsWith("`")) {
+              bRuns.push(new TextRun({ text: part.slice(1, -1), size: 20, font: "Courier New", color: "6B7280", shading: { fill: "F3F4F6" } }));
+            } else if (part) {
+              bRuns.push(new TextRun({ text: part, size: 22, font: "Calibri", color: "374151" }));
+            }
+          }
+          children.push(new Paragraph({ children: bRuns, bullet: { level: 0 }, spacing: { after: 60 } }));
+        } else {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: bulletText, size: 22, font: "Calibri", color: "374151" })],
+              bullet: { level: 0 },
+              spacing: { after: 60 },
+            }),
+          );
+        }
         continue;
       }
 
-      // Numbered list
+      // Numbered list with inline formatting support
       const olMatch = line.trim().match(/^(\d+)\.\s(.+)/);
       if (olMatch) {
-        children.push(
-          new Paragraph({
-            children: [new TextRun({ text: olMatch[2], size: 22, font: "Calibri", color: "374151" })],
-            numbering: { reference: "default-numbering", level: 0 },
-            spacing: { after: 60 },
-          }),
-        );
+        const numText = olMatch[2];
+        const hasInline = /\*\*|\*`|`/.test(numText);
+        if (hasInline) {
+          const TextRunCtor = await import("docx").then((m) => (m as any).TextRun);
+          const nRuns: any[] = [];
+          const nParts = numText.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/);
+          for (const part of nParts) {
+            if (part.startsWith("**") && part.endsWith("**")) {
+              nRuns.push(new TextRunCtor({ text: part.slice(2, -2), bold: true, size: 22, font: "Calibri", color: "111827" }));
+            } else if (part.startsWith("*") && part.endsWith("*")) {
+              nRuns.push(new TextRunCtor({ text: part.slice(1, -1), italics: true, size: 22, font: "Calibri", color: "374151" }));
+            } else if (part.startsWith("`") && part.endsWith("`")) {
+              nRuns.push(new TextRun({ text: part.slice(1, -1), size: 20, font: "Courier New", color: "6B7280", shading: { fill: "F3F4F6" } }));
+            } else if (part) {
+              nRuns.push(new TextRun({ text: part, size: 22, font: "Calibri", color: "374151" }));
+            }
+          }
+          children.push(new Paragraph({ children: nRuns, numbering: { reference: "default-numbering", level: 0 }, spacing: { after: 60 } }));
+        } else {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: numText, size: 22, font: "Calibri", color: "374151" })],
+              numbering: { reference: "default-numbering", level: 0 },
+              spacing: { after: 60 },
+            }),
+          );
+        }
         continue;
       }
 
