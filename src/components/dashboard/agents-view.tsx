@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ChatIcon,
@@ -15,7 +16,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { PageKey } from "@/components/dashboard/sidebar";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -151,11 +151,8 @@ const statusLabels: Record<string, string> = {
 // Component
 // ---------------------------------------------------------------------------
 
-interface AgentsViewProps {
-  onNavigate: (key: PageKey) => void;
-}
-
-export function AgentsView({ onNavigate }: AgentsViewProps) {
+export function AgentsView() {
+  const router = useRouter();
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
@@ -228,7 +225,7 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
   // Handle Chat button
   const handleChat = (agentId: string) => {
     localStorage.setItem("claw-selected-agent", agentId);
-    onNavigate("chat");
+    router.push("/chat");
   };
 
   if (loading) {
@@ -356,7 +353,7 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
                       className="text-xs gap-1.5 flex-1 text-muted-foreground hover:text-foreground"
                     >
                       <SendIcon className="w-3.5 h-3.5" />
-                      Quick Task
+                      Assign Task
                     </Button>
                   </div>
 
@@ -371,7 +368,7 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
                       <textarea
                         value={quickTaskText}
                         onChange={(e) => setQuickTaskText(e.target.value)}
-                        placeholder="Describe a quick task..."
+                        placeholder="Describe what this agent should do..."
                         rows={2}
                         className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       />
@@ -387,11 +384,14 @@ export function AgentsView({ onNavigate }: AgentsViewProps) {
                           ) : (
                             <SendIcon className="w-3 h-3" />
                           )}
-                          Dispatch
+                          Send Task
                         </Button>
                       </div>
                     </motion.div>
                   )}
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">
+                    This creates a background task that the agent will process automatically.
+                  </p>
                 </CardContent>
               </Card>
             </motion.div>

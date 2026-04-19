@@ -490,3 +490,67 @@ Stage Summary:
 - Analytics page confirmed already synced to Supabase (no work needed)
 - Overview page assessed: dashboard at "/" already serves as overview (no separate page needed)
 - No git commit (as requested)
+
+---
+Task ID: ui-ux-fixes
+Agent: Main
+Task: Fix 6 UI/UX issues — dashboard redesign, ops feed order, remove active tasks, fix chat button, rename quick task, compact coordination map
+
+Work Log:
+
+ISSUE 1 — Dashboard Structure Redesign:
+- Rewrote src/app/(app)/page.tsx with new 2-section layout:
+  - Top section (fixed, not scrollable): Service Chips + Metrics Row — full width
+  - Bottom section (fills remaining height, 2-column on desktop):
+    - Left column (60%): Ops Feed + Coordination Map stacked vertically, each with max-h-[45vh] and internal scrolling
+    - Right column (40%): Chat Panel — fills full height, no scrolling issues
+- On mobile (< lg): Stacked vertically with Ops Feed + Coordination Map above (50vh combined), Chat at bottom (50vh)
+- Removed AgentCrew from dashboard (has its own page at /agents)
+- Removed MissionControl lazy import — ServiceChips and MetricsRow imported directly
+- Removed unused imports (getAllAgents, selectedAgentId state)
+
+ISSUE 2 — Ops Feed newest at TOP:
+- In ops-feed.tsx: Added `useMemo` to create `displayEvents` — reversed copy of events array
+- Replaced `events.map()` with `displayEvents.map()` so newest events render first
+- Removed `scrollIntoView` behavior (feedEndRef + useEffect) — no longer needed since newest is at top
+- Changed import from `useRef, useEffect` to `useMemo`
+- Removed `border-t` from OpsFeed outer div (no longer needed as it's in its own card wrapper)
+
+ISSUE 3 — Remove Active Tasks from dashboard:
+- Simplified mission-control.tsx: Removed ActiveTasks import, CoordinationMap import, and the 2-column grid
+- mission-control.tsx now only exports ServiceChips + MetricsRow (marked @deprecated since page.tsx imports them directly)
+- Removed unused props: todos, delegations, tasks from MissionControlProps
+
+ISSUE 4 — Fix Agent page Chat button:
+- In agents-view.tsx: Added `import { useRouter } from "next/navigation"`
+- Replaced `onNavigate` prop (which was a no-op `() => {}`) with `router.push("/chat")`
+- Removed `onNavigate` prop from AgentsViewProps interface
+- Changed component signature from `AgentsView({ onNavigate })` to `AgentsView()` with internal `useRouter()`
+- Removed `import type { PageKey } from "@/components/dashboard/sidebar"`
+- Updated agents/page.tsx to render `<AgentsView />` without the onNavigate prop
+
+ISSUE 5 — Rename Quick Task to Assign Task:
+- Renamed button text from "Quick Task" to "Assign Task"
+- Changed placeholder from "Describe a quick task..." to "Describe what this agent should do..."
+- Changed button text from "Dispatch" to "Send Task"
+- Added description line under the form: "This creates a background task that the agent will process automatically."
+
+ISSUE 6 — Coordination Map compact/scrollable:
+- Reviewed coordination-map.tsx — already uses `h-full`, `overflow-hidden`, and internal `overflow-y-auto`
+- No hardcoded min-height found in the component itself
+- The old min-h-[340px] / max-h-[440px] was in mission-control.tsx wrapper (now removed)
+- Component works correctly within the new constrained height container
+
+TypeScript: 0 new errors
+ESLint: 0 new errors in modified files (all pre-existing)
+
+Stage Summary:
+- 5 files modified: page.tsx, ops-feed.tsx, mission-control.tsx, agents-view.tsx, agents/page.tsx
+- Dashboard redesigned from 3-panel to top-fixed + 2-column bottom layout
+- Chat panel always fully visible without scrolling
+- Ops Feed and Coordination Map have fixed max heights with internal scroll
+- Active Tasks removed from dashboard (available at /taskboard)
+- Agent Crew removed from dashboard (available at /agents)
+- Agent page Chat button now works via next/navigation router
+- Quick Task renamed to Assign Task with clearer UX copy
+- No git commit (as requested)

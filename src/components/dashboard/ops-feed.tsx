@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useMemo } from "react";
 import type { ActivityEventView } from "@/hooks/use-dashboard-stream";
 
 interface OpsFeedProps {
@@ -28,13 +28,8 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export function OpsFeed({ events, isConnected }: OpsFeedProps) {
-  const feedEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (feedEndRef.current) {
-      feedEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [events.length]);
+  // Show newest events first
+  const displayEvents = useMemo(() => [...events].reverse(), [events]);
 
   const formatTime = (iso: string) => {
     try {
@@ -57,7 +52,7 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
   };
 
   return (
-    <div className="flex-1 border-t border-[#e8e5df] flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 pb-1">
         <div className="flex items-center gap-2">
@@ -73,7 +68,7 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
 
       {/* Feed */}
       <div className="flex-1 px-5 pb-2 overflow-y-auto custom-scrollbar">
-        {events.length === 0 ? (
+        {displayEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="w-8 h-8 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#999999]">
@@ -84,7 +79,7 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
             <div className="text-[10px] text-[#d5d0c9] mt-0.5">Send a message to see operations</div>
           </div>
         ) : (
-          events.map((event) => (
+          displayEvents.map((event) => (
             <div
               key={event.id}
               className="flex items-start gap-2 py-2 border-b last:border-b-0 border-[#f0ede8]"
@@ -102,7 +97,6 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
             </div>
           ))
         )}
-        <div ref={feedEndRef} />
       </div>
     </div>
   );
