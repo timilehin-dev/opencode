@@ -1,4 +1,25 @@
 ---
+Task ID: priority1-cron-fix
+Agent: Main
+Task: Fix Vercel Hobby plan cron limitation — migrate high-frequency crons to Supabase pg_cron
+
+Work Log:
+- Identified that Vercel Hobby plan only allows daily cron jobs (user-reported deployment failure)
+- vercel.json already cleaned up to only include daily process-reminders cron (0 9 * * *)
+- Designed workaround: use Supabase pg_cron + pg_net extensions to call Vercel API endpoints
+- User enabled pg_cron and pg_net extensions in Supabase Dashboard
+- User ran initial SQL but jobs used net.http_post instead of net.http_get
+- Identified mismatch: cron endpoints only handle GET requests, not POST
+- Provided corrected SQL to unschedule(1), unschedule(2) and recreate with net.http_get
+- Explained MCP "vibe-coding" error is from Claude Desktop, unrelated to OpenClaw
+
+Stage Summary:
+- pg_cron job 1: task-processor every minute via net.http_get
+- pg_cron job 2: agent-routines every 5 min via net.http_get
+- Vercel cron: process-reminders daily at 9 AM (Hobby-compatible)
+- MCP error diagnosed as Claude Desktop issue, not OpenClaw
+
+---
 Task ID: 2
 Agent: Main
 Task: Build 3 workspace tool modules (Reminders, Todos, Contacts) for autonomous agent coworker vision
