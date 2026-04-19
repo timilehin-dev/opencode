@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
       // 1. Ensure pg_cron and net extensions are enabled
       await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_cron`);
-      await pool.query(`CREATE EXTENSION IF NOT EXISTS net`);
+      await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_net`);
 
       const results: Record<string, string> = {};
 
