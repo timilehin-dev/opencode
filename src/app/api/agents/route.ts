@@ -82,9 +82,10 @@ export async function POST(req: NextRequest) {
           lastActivity: new Date().toISOString(),
         });
 
-        // Actually enqueue the task via the task-queue system
+        // Enqueue the task via the task-queue system
+        let taskId: number;
         try {
-          const taskId = await createTask({
+          taskId = await createTask({
             agent_id: agentId,
             task,
             context: instruction || "Quick task dispatched from dashboard",
@@ -92,17 +93,24 @@ export async function POST(req: NextRequest) {
             trigger_source: "dashboard",
             priority: "medium",
           });
-          console.log(`[Agents API] Task enqueued: id=${taskId}`);
         } catch (enqueueErr) {
           console.error("[Agents API] Failed to enqueue task:", enqueueErr);
+          return err("Failed to create task — database unavailable", 503);
         }
+
+        if (taskId === -1) {
+          return err("Failed to create task — check database configuration", 503);
+        }
+
+        console.log(`[Agents API] Task enqueued: id=${taskId}`);
 
         return ok({
           dispatched: true,
+          taskId,
           agentId,
           task,
           instruction,
-          message: `Task dispatched to ${agent.name}. ${agent.emoji}`,
+          message: `Task #${taskId} queued for ${agent.name}. ${agent.emoji}`,
         });
       }
 

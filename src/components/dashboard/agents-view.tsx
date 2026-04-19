@@ -197,8 +197,9 @@ export function AgentsView() {
       });
       const json = await res.json();
       if (json.success) {
-        // Add activity
+        // Add activity with task ID
         const agent = agents.find((a) => a.id === agentId);
+        const taskId = json.data?.taskId;
         if (agent) {
           setActivities((prev) => [
             {
@@ -206,18 +207,40 @@ export function AgentsView() {
               timestamp: new Date().toISOString(),
               agentEmoji: agent.emoji,
               agentName: agent.name,
-              action: `Task dispatched: ${quickTaskText.slice(0, 60)}`,
+              action: taskId
+                ? `Task #${taskId} queued: ${quickTaskText.slice(0, 50)}`
+                : `Task queued: ${quickTaskText.slice(0, 50)}`,
             },
             ...prev,
           ]);
         }
         setQuickTaskText("");
         setQuickTaskAgent(null);
-        // Refresh
         setTimeout(fetchAgents, 1000);
+      } else {
+        // Show error in activity log
+        setActivities((prev) => [
+          {
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            agentEmoji: "⚠️",
+            agentName: "System",
+            action: `Failed to queue task: ${json.error || "Unknown error"}`,
+          },
+          ...prev,
+        ]);
       }
     } catch {
-      /* silent */
+      setActivities((prev) => [
+        {
+          id: Date.now().toString(),
+          timestamp: new Date().toISOString(),
+          agentEmoji: "⚠️",
+          agentName: "System",
+          action: "Failed to reach server — check your connection",
+        },
+        ...prev,
+      ]);
     }
     setDispatching(false);
   };
