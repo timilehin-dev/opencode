@@ -66,10 +66,12 @@ interface Attachment {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, agentId, attachments } = body as {
+    const { messages, agentId, attachments, disabledTools, enabledTools } = body as {
       messages: UIMessage[];
       agentId?: string;
       attachments?: Attachment[];
+      disabledTools?: string[];
+      enabledTools?: string[];
     };
 
     const id = agentId || "general";
@@ -82,10 +84,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Build subset of tools for this agent
+    // Build subset of tools for this agent (respecting user overrides)
+    const disabledSet = new Set(disabledTools || []);
+    const enabledSet = new Set(enabledTools || []);
     const agentTools: Record<string, typeof allTools.gmail_send> = {};
     for (const toolId of agent.tools) {
-      if (allTools[toolId]) {
+      if (allTools[toolId] && !disabledSet.has(toolId)) {
+        agentTools[toolId] = allTools[toolId];
+      }
+    }
+    // Add any extra enabled tools that aren't in the agent's default set
+    for (const toolId of enabledSet) {
+      if (allTools[toolId] && !agentTools[toolId]) {
         agentTools[toolId] = allTools[toolId];
       }
     }

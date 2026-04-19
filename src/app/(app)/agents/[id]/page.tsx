@@ -418,7 +418,7 @@ export default function AgentDetailPage() {
                 <p className="text-sm text-muted-foreground">{overrides.role || agent.role}</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1.5 font-mono truncate">{currentModel}</span>
-                  <span className="flex items-center gap-1"><Wrench className="w-3 h-3" />{effectiveTools.length} tools</span>
+                  <span className="flex items-center gap-1"><Wrench className="w-3 h-3" />{new Set(effectiveTools).size} tools</span>
                   <span className="flex items-center gap-1"><Activity className="w-3 h-3" />{stats.tasksCompleted} tasks</span>
                   <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{stats.messagesProcessed} msgs</span>
                 </div>
@@ -571,7 +571,7 @@ function OverviewTab({
         {[
           { label: "Tasks Completed", value: stats.tasksCompleted, icon: <Activity className="w-4 h-4" /> },
           { label: "Messages", value: stats.messagesProcessed, icon: <MessageSquare className="w-4 h-4" /> },
-          { label: "Active Tools", value: effectiveTools.length, icon: <Wrench className="w-4 h-4" /> },
+          { label: "Active Tools", value: new Set(effectiveTools).size, icon: <Wrench className="w-4 h-4" /> },
           { label: "Provider", value: agent.provider, icon: <Cpu className="w-4 h-4" /> },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-[#e8e5df] bg-white p-4">
@@ -593,7 +593,7 @@ function OverviewTab({
             <Wrench className="w-4 h-4 text-muted-foreground" />
             Active Tools
           </CardTitle>
-          <CardDescription>{effectiveTools.length} tools across {categories.length} categories</CardDescription>
+          <CardDescription>{new Set(effectiveTools).size} tools across {categories.length} categories</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {categories.map((cat) => {

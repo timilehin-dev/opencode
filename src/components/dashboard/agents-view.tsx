@@ -331,7 +331,7 @@ export function AgentsView() {
                   <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <WrenchIcon className="w-3 h-3" />
-                      <span>{agent.tools.length} tools</span>
+                      <span>{new Set(agent.tools).size} tools</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <ActivityIcon className="w-3 h-3" />

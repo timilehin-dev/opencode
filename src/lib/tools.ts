@@ -1448,12 +1448,72 @@ export const githubCreateBranchTool = tool({
 // ---------------------------------------------------------------------------
 
 export const vercelDeployTool = tool({
-  description: "Trigger a redeployment on Vercel for a project.",
+  description: "Trigger a redeployment on Vercel for a project. Uses the Vercel API to create a new deployment from the latest production commit.",
   inputSchema: zodSchema(z.object({
     projectIdOrName: z.string().describe("Vercel project ID or name"),
   })),
   execute: safeJson(async ({ projectIdOrName }) => {
-    return { success: true, message: "Redeployment triggered", projectIdOrName };
+    const token = process.env.VERCEL_API_TOKEN || "";
+    if (!token) throw new Error("VERCEL_API_TOKEN not configured");
+
+    // Step 1: Get project details to find the deployment target
+    const teamId = process.env.VERCEL_TEAM_ID || "";
+    let projectsUrl = `https://api.vercel.com/v9/projects/${encodeURIComponent(projectIdOrName)}`;
+    if (teamId) projectsUrl += `?teamId=${teamId}`;
+
+    const projectRes = await fetch(projectsUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!projectRes.ok) throw new Error(`Failed to find project: ${projectRes.status}`);
+    const project = await safeParseRes<{ id: string; name: string; targets?: Array<{ id: string; ref: string }> }>(projectRes);
+
+    // Step 2: Get the latest deployment to find the commit SHA
+    let deploymentsUrl = `https://api.vercel.com/v6/deployments?projectId=${project.id}&limit=1`;
+    if (teamId) deploymentsUrl += `&teamId=${teamId}`;
+
+    const deploymentsRes = await fetch(deploymentsUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!deploymentsRes.ok) throw new Error(`Failed to get deployments: ${deploymentsRes.status}`);
+    const deploymentsData = await safeParseRes<{ deployments?: Array<{ meta?: { githubCommitSha?: string }; target?: string }> }>(deploymentsRes);
+    const latestDeployment = deploymentsData.deployments?.[0];
+
+    if (!latestDeployment) throw new Error("No previous deployments found to redeploy from");
+
+    // Step 3: Trigger redeployment using the Vercel API
+    const deployUrl = `https://api.vercel.com/v13/deployments`;
+    const deployBody: Record<string, unknown> = {
+      name: project.name,
+      projectId: project.id,
+      target: latestDeployment.target || "production",
+    };
+    if (latestDeployment.meta?.githubCommitSha) {
+      deployBody.githubCommitSha = latestDeployment.meta.githubCommitSha;
+    }
+    if (teamId) deployBody.teamId = teamId;
+
+    const deployRes = await fetch(deployUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(deployBody),
+    });
+    if (!deployRes.ok) {
+      const errText = await deployRes.text().catch(() => "Unknown error");
+      throw new Error(`Redeployment failed (${deployRes.status}): ${errText}`);
+    }
+    const deployData = await safeParseRes<{ id: string; state: string; url: string }>(deployRes);
+
+    return {
+      success: true,
+      deploymentId: deployData.id,
+      state: deployData.state,
+      url: deployData.url,
+      project: project.name,
+      message: `Redeployment triggered for ${project.name}`,
+    };
   }),
 });
 
@@ -2144,8 +2204,6 @@ export const researchDeepTool = tool({
     numResults: z.number().optional().describe("Total number of results to return (default: 15)"),
   })),
   execute: safeJson(async ({ topic, aspects, numResults }) => {
-    const zai = await ZAI.create();
-
     // Generate search queries from topic and aspects
     const queries = [
       topic,
@@ -2154,17 +2212,24 @@ export const researchDeepTool = tool({
       ...(aspects || []).map(a => `${topic} ${a}`),
     ].slice(0, 5);
 
-    // Run all queries in parallel
-    const allResults = await Promise.all(
-      queries.map(async (q) => {
-        try {
-          const results = await zai.functions.invoke("web_search", { query: q, num: numResults || 10 });
-          return Array.isArray(results) ? results : (results as Record<string, unknown>)?.results || [];
-        } catch {
-          return [];
+    // Search helper: try Z.ai SDK first, fallback to DuckDuckGo
+    async function searchQuery(q: string): Promise<Array<Record<string, unknown>>> {
+      try {
+        const zai = await ZAI.create();
+        const results = await zai.functions.invoke("web_search", { query: q, num: numResults || 10 });
+        if (Array.isArray(results) && results.length > 0) {
+          return results as unknown as Array<Record<string, unknown>>;
         }
-      }),
-    );
+      } catch {
+        // Z.ai SDK not available — use fallback
+      }
+      // Fallback: DuckDuckGo HTML search
+      const fallbackResults = await webSearchFallback(q, numResults || 10);
+      return fallbackResults;
+    }
+
+    // Run all queries in parallel
+    const allResults = await Promise.all(queries.map(searchQuery));
 
     // Flatten and deduplicate by URL
     const seen = new Set<string>();
@@ -2208,8 +2273,6 @@ export const researchSynthesizeTool = tool({
     question: z.string().describe("The research question to answer"),
   })),
   execute: safeJson(async ({ findings, question }) => {
-    const zai = await ZAI.create();
-
     const prompt = `You are a research analyst. Analyze these findings from multiple sources and produce a synthesis.
 
 Research Question: ${question}
@@ -2225,16 +2288,52 @@ Provide a structured analysis with:
 5. **Answer** — Your synthesized answer to the research question
 6. **Gaps** — What additional research would help`;
 
-    const result = await zai.chat.completions.create({
-      model: "coding-glm-5-turbo-free",
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    return {
-      question,
-      sourcesCount: findings.length,
-      synthesis: typeof result === "string" ? result : JSON.stringify(result),
-    };
+    // Try Z.ai SDK first, then fallback to AIHubMix
+    try {
+      const zai = await ZAI.create();
+      const result = await zai.chat.completions.create({
+        model: "coding-glm-5-turbo-free",
+        messages: [{ role: "user", content: prompt }],
+      });
+      return {
+        question,
+        sourcesCount: findings.length,
+        synthesis: typeof result === "string" ? result : JSON.stringify(result),
+      };
+    } catch {
+      // Z.ai SDK not available — use AIHubMix fallback
+      try {
+        const apiKey = nextAIHubMixKey();
+        const res = await fetch(`${AIHUBMIX_BASE}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: "coding-glm-5-turbo-free",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 4096,
+          }),
+        });
+        if (!res.ok) throw new Error(`AIHubMix API error: ${res.status}`);
+        const data = await safeParseRes<{ choices?: Array<{ message?: { content?: string } }> }>(res);
+        const synthesis = data.choices?.[0]?.message?.content || "No synthesis generated.";
+        return { question, sourcesCount: findings.length, synthesis };
+      } catch (fallbackErr) {
+        // Both failed — provide a manual synthesis
+        const agreements = findings.length > 1
+          ? findings.map(f => f.claim).join("\n- ")
+          : findings[0]?.claim || "No findings to synthesize";
+        return {
+          question,
+          sourcesCount: findings.length,
+          synthesis: `**Manual Synthesis** (AI synthesis unavailable)\n\n**Findings Summary:**\n- ${agreements}\n\n**Sources:** ${findings.map(f => f.source).join(", ")}\n\n*Note: Full AI-powered cross-reference synthesis requires a working LLM connection.*`,
+          fallback: true,
+          error: fallbackErr instanceof Error ? fallbackErr.message : "Both Z.ai and AIHubMix unavailable",
+        };
+      }
+    }
   }),
 });
 
@@ -2773,9 +2872,12 @@ export const createDocxDocumentTool = tool({
               ),
             }),
           );
-          // Note: Table constructor may vary by docx version; using simple approach
           try {
-            children.push(rows[0] as never);
+            const docxTable = new Table({
+              rows,
+              width: { size: 100, type: WidthType.PERCENTAGE },
+            });
+            children.push(docxTable as never);
           } catch {
             // Fallback: render table as plain text
             for (const row of tableRows) {

@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
 import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage, purgeAllConversations, deleteSession } from "@/lib/memory";
+import { loadAgentOverrides } from "@/lib/agent-overrides";
 
 // ---------------------------------------------------------------------------
 // Chat History Version — bump this to trigger a fresh purge on next visit
@@ -616,9 +617,17 @@ function AgentChatSession({
 
   const colors = colorMap[agentInfo.color] || colorMap.emerald;
 
+  // Load per-agent overrides from localStorage
+  const overrides = loadAgentOverrides(agentId);
+
   const transport = new DefaultChatTransport({
     api: "/api/chat",
-    body: { agentId, sessionId },
+    body: {
+      agentId,
+      sessionId,
+      disabledTools: overrides.disabledTools,
+      enabledTools: overrides.enabledTools,
+    },
   });
 
   const { messages, sendMessage, status, error, setMessages } = useChat({

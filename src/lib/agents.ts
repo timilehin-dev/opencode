@@ -485,7 +485,7 @@ const agents: AgentConfig[] = [
       "gmail_create_label", "gmail_delete_label", "gmail_profile",
       "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
-      "calendar_freebusy",
+      "calendar_delete", "calendar_freebusy",
       "drive_list", "drive_create_folder", "drive_create_file",
       "download_drive_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
@@ -514,9 +514,8 @@ const agents: AgentConfig[] = [
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
-      "code_execute", "weather_get",
-      // NOTE: delegate_to_agent intentionally removed from General agent.
-      // General has ALL tools — delegation wastes 30-40s per call and causes
+      // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
+      // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
     ],
     suggestedActions: [
