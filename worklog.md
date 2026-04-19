@@ -382,3 +382,58 @@ Stage Summary:
 - Email delivery marked as planned (requires SMTP)
 - All 6 product-layer tasks completed
 - Commit: ce400a2 pushed to main
+
+---
+Task ID: 7
+Agent: Main
+Task: Build 3 new pages (Task Board, Agent Routines, Learning Insights) + update navigation
+
+Work Log:
+- Read worklog.md and analyzed existing project architecture, styling patterns from notifications page, sidebar, bottom nav, and layout
+- Created src/app/(app)/taskboard/page.tsx — Kanban-style task board:
+  - 4-column Kanban layout (Backlog, In Progress, Waiting, Done) with horizontal scroll on mobile
+  - Stats row showing total + per-status counts
+  - Filter by agent and priority
+  - Task cards with title, priority badge, assigned agent chip, deadline, tags
+  - Click-to-open slide panel for edit/create with status dropdown, priority selector, agent input, date picker, tags
+  - Delete with confirmation dialog
+  - Empty state per column
+  - Framer-motion animations, toast notifications
+  - API integration: POST /api/taskboard with list/create/update/delete/summary actions
+- Created src/app/(app)/routines/page.tsx — Agent Routines page:
+  - Card-based routine list with agent chip, schedule interval, priority badge, active/inactive toggle
+  - Inline expand to show last run, next run, context, last_result preview
+  - Create form with agent selector, name, task textarea, context textarea, interval presets (5min-24hr), priority selector, active toggle
+  - Edit via slide panel (same form pre-filled)
+  - Delete with confirmation
+  - Filter by agent pills with per-agent counts
+  - Stats row: total, active, paused
+  - Auto-refresh every 30 seconds
+  - API integration: POST /api/cron/agent-routines with list/create/update/delete actions
+- Created src/app/(app)/insights/page.tsx — Learning Insights page:
+  - Stats overview: total insights, avg confidence, top agent, by-type badges
+  - Animated type breakdown bar (stacked horizontal bar chart)
+  - Insights list as expandable cards with type badge (color-coded), confidence progress bar, agent chip, source badge, application count
+  - Filter pills: by agent, by type (preference/correction/pattern/skill_gain/workflow), by source
+  - Sort: by confidence, recent, most applied
+  - "Record Insight" slide panel with agent selector, type selector, content textarea, source selector, confidence slider (0-1, step 0.05)
+  - "Detect Patterns" button with agent selector dropdown
+  - Type color coding: preference=blue, correction=rose, pattern=purple, skill_gain=emerald, workflow=amber
+  - API integration: GET/POST /api/learning with insights/stats/record/detect_patterns actions
+- Updated navigation:
+  - app-sidebar.tsx: Added ClipboardList, Clock, Lightbulb icons + 3 new nav items (Task Board, Routines, Insights) between Workflows and Memory
+  - app-bottom-nav.tsx: Added 3 new items to MORE_ITEMS array (📋 Task Board, ⏰ Routines, 💡 Insights)
+  - layout.tsx: Added taskboard, routines, insights to routeMap
+- Fixed TypeScript compilation errors (nullish coalescing operator precedence in stats calculation)
+- Fixed all ESLint unused import warnings in new files
+- Verified: 0 new TypeScript errors (all remaining errors are pre-existing in test files)
+
+Stage Summary:
+- 3 new pages created: /taskboard, /routines, /insights
+- 3 existing navigation files updated: sidebar, bottom nav, layout
+- All pages use consistent design system: #3730a3 primary, #e8e5df borders, #f5f3ef background, framer-motion animations, shadcn/ui components
+- All pages are "use client" components with loading, empty, and error states
+- All pages have toast notifications for user actions
+- All pages are mobile responsive
+- TypeScript compiles clean (no new errors introduced)
+- No git commit (as requested)

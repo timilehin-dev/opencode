@@ -79,6 +79,9 @@ const TABS: TabConfig[] = [
 
 const MORE_ITEMS: { href: string; label: string; emoji: string }[] = [
   { href: "/workflows", label: "Workflows", emoji: "\u26A1" },
+  { href: "/taskboard", label: "Task Board", emoji: "\uD83D\uDCCB" },
+  { href: "/routines", label: "Routines", emoji: "\u23F0" },
+  { href: "/insights", label: "Insights", emoji: "\uD83D\uDCA1" },
   { href: "/memory", label: "Memory", emoji: "\uD83D\uDCDA" },
   { href: "/settings", label: "Settings", emoji: "\u2699\uFE0F" },
 ];
