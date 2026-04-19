@@ -279,6 +279,30 @@ CREATE INDEX IF NOT EXISTS idx_delegations_assigned ON delegations(assigned_agen
 `;
 
 // ---------------------------------------------------------------------------
+// Key Usage Table — For smart API key rotation
+// Run this in the Supabase SQL Editor if key_usage table doesn't exist
+// ---------------------------------------------------------------------------
+export const KEY_USAGE_SCHEMA_SQL = `
+-- Key Usage Tracking (for smart rotation)
+CREATE TABLE IF NOT EXISTS key_usage (
+  key_hash TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  key_label TEXT NOT NULL,
+  tokens_used BIGINT NOT NULL DEFAULT 0,
+  requests_today BIGINT NOT NULL DEFAULT 0,
+  usage_date TEXT NOT NULL DEFAULT CURRENT_DATE,
+  last_used_at TIMESTAMPTZ,
+  last_error TEXT,
+  error_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_key_usage_provider ON key_usage(provider);
+CREATE INDEX IF NOT EXISTS idx_key_usage_date ON key_usage(usage_date);
+`;
+
+// ---------------------------------------------------------------------------
 // Phase 2 SQL — Agent Activity Log + Persistent Agent Status
 // For the setup API route /api/setup/phase2
 // ---------------------------------------------------------------------------
