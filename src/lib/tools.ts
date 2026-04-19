@@ -2467,49 +2467,95 @@ export const researchSaveDataTool = tool({
 // ---------------------------------------------------------------------------
 
 export const opsHealthCheckTool = tool({
-  description: "Check the health status of all Claw services. Returns a structured health report for all 7 internal services.",
+  description: "Check the health status of all Claw services. Returns a structured health report covering real API routes, external integrations, and infrastructure components.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
-    const services = [
-      "api-chat",
-      "api-auth",
-      "api-webhooks",
-      "api-services",
-      "ws-gateway",
-      "agent-general",
-      "agent-specialists",
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+    // --- 1) Ping real API routes ---
+    const apiEndpoints = [
+      { name: "api-status",        path: "/api/status" },
+      { name: "api-services",      path: "/api/services" },
+      { name: "api-chat",          path: "/api/chat" },
+      { name: "api-agents",        path: "/api/agents" },
+      { name: "api-analytics",     path: "/api/analytics" },
+      { name: "api-memory",        path: "/api/memory" },
+      { name: "api-dashboard",     path: "/api/dashboard" },
+      { name: "api-gmail",         path: "/api/gmail" },
+      { name: "api-calendar",      path: "/api/calendar" },
+      { name: "api-drive",         path: "/api/drive" },
+      { name: "api-sheets",        path: "/api/sheets" },
+      { name: "api-github",        path: "/api/github" },
+      { name: "api-vercel",        path: "/api/vercel" },
     ];
 
-    const healthReport = await Promise.allSettled(
-      services.map(async (service) => {
+    const apiResults = await Promise.allSettled(
+      apiEndpoints.map(async ({ name, path }) => {
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:3000";
-
-          const res = await fetch(`${baseUrl}/api/services?action=status&service=${service}`, {
+          const res = await fetch(`${baseUrl}${path}`, {
+            method: "GET",
             signal: AbortSignal.timeout(5000),
           });
-          const status = res.ok ? "healthy" : "unhealthy";
-          return { service, status, statusCode: res.status };
-        } catch {
-          return { service, status: "unreachable" };
+          return { service: name, path, status: res.ok ? "healthy" : "unhealthy", statusCode: res.status };
+        } catch (err: any) {
+          return { service: name, path, status: "unreachable", error: err.message || "timeout" };
         }
       }),
     );
 
-    const results = healthReport.map(r =>
-      r.status === "fulfilled" ? r.value : { service: "unknown", status: "error" }
+    const apiHealth = apiResults.map(r =>
+      r.status === "fulfilled" ? r.value : { service: "unknown", path: "", status: "error", statusCode: 500 }
     );
 
-    const healthy = results.filter(r => r.status === "healthy").length;
+    // --- 2) Check external integration connectivity (env vars) ---
+    const googleOauth = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
+    const githubPat = !!process.env.GITHUB_PAT;
+    const vercelToken = !!process.env.VERCEL_API_TOKEN;
+    const supabaseUrl = !!process.env.SUPABASE_URL;
+    const supabaseAnonKey = !!process.env.SUPABASE_ANON_KEY;
+    const stitchKey = !!process.env.STITCH_API_KEY;
+    const aihubmixKeys = (process.env.AIHUBMIX_API_KEY_1 || process.env.AIHUBMIX_API_KEY_2 || "") ? true : false;
+    const ollamaKeys = (process.env.OLLAMA_CLOUD_KEY_1 || process.env.OLLAMA_CLOUD_KEY_2 || "") ? true : false;
+
+    const integrations = [
+      { service: "google-oauth",      connected: googleOauth,  detail: googleOauth ? "client_id + refresh_token configured" : "missing credentials" },
+      { service: "github-pat",        connected: githubPat,    detail: githubPat ? "personal access token configured" : "GITHUB_PAT not set" },
+      { service: "vercel-api",        connected: vercelToken,  detail: vercelToken ? "API token configured" : "VERCEL_API_TOKEN not set" },
+      { service: "supabase",          connected: supabaseUrl && supabaseAnonKey, detail: supabaseUrl ? "URL + anon key configured" : "SUPABASE_URL not set" },
+      { service: "stitch-api",        connected: stitchKey,    detail: stitchKey ? "API key configured" : "STITCH_API_KEY not set" },
+      { service: "aihubmix-llm",      connected: aihubmixKeys, detail: aihubmixKeys ? "LLM API key(s) configured" : "AIHUBMIX keys not set" },
+      { service: "ollama-llm",        connected: ollamaKeys,   detail: ollamaKeys ? "Ollama cloud key(s) configured" : "OLLAMA keys not set" },
+    ];
+
+    // --- 3) Aggregate ---
+    const healthyApis = apiHealth.filter(r => r.status === "healthy").length;
+    const healthyIntegrations = integrations.filter(i => i.connected).length;
+    const totalChecks = apiHealth.length + integrations.length;
+    const healthyTotal = healthyApis + healthyIntegrations;
+
+    const overallStatus = healthyTotal === totalChecks
+      ? "all_healthy"
+      : healthyTotal >= Math.ceil(totalChecks * 0.7)
+        ? "degraded"
+        : "down";
 
     return {
-      overallStatus: healthy === services.length ? "all_healthy" : healthy > 0 ? "degraded" : "down",
-      healthyServices: healthy,
-      totalServices: services.length,
-      services: results,
+      overallStatus,
+      healthyServices: healthyTotal,
+      totalServices: totalChecks,
       timestamp: new Date().toISOString(),
+      apiRoutes: {
+        healthy: healthyApis,
+        total: apiHealth.length,
+        details: apiHealth,
+      },
+      integrations: {
+        healthy: healthyIntegrations,
+        total: integrations.length,
+        details: integrations,
+      },
     };
   }),
 });
@@ -2637,7 +2683,7 @@ export const createPdfReportTool = tool({
     const PDFDocumentMod = await import("pdfkit");
     const PDFDocument = (PDFDocumentMod as any).default || PDFDocumentMod;
     const { join } = await import("path");
-    const { writeFileSync } = await import("fs");
+    const { writeFileSync, createWriteStream, readFileSync } = await import("fs");
     const { tmpdir } = await import("os");
 
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
@@ -2654,7 +2700,7 @@ export const createPdfReportTool = tool({
       },
     });
 
-    const stream = require("fs").createWriteStream(filePath);
+    const stream = createWriteStream(filePath);
     doc.pipe(stream);
 
     // Title page
@@ -2853,7 +2899,7 @@ export const createPdfReportTool = tool({
 
     const basename = filePath.split("/").pop() || "report.pdf";
     // Read file back for base64 in-chat download
-    const fileBuffer = require("fs").readFileSync(filePath);
+    const fileBuffer = readFileSync(filePath);
     const fileBase64 = fileBuffer.toString("base64");
     const fileSize = fileBuffer.length;
     return {
