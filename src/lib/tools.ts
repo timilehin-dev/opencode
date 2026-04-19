@@ -794,10 +794,10 @@ async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{
     if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
   }
 
-  const model = getProvider(agent);
+  const providerResult = await getProvider(agent);
 
   const result = await generateText({
-    model,
+    model: providerResult.model,
     system: agent.systemPrompt,
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,

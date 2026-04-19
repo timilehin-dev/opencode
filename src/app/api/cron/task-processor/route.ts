@@ -179,7 +179,7 @@ async function executeTask(task: {
       return { success: false, text: "", error: `Unknown agent: ${task.agent_id}` };
     }
 
-    const provider = getProvider(agent);
+    const providerResult = await getProvider(agent);
 
     // Build tool subset for this agent
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -192,7 +192,7 @@ async function executeTask(task: {
     const systemPrompt = `You are ${agent.name}, ${agent.role}. Execute this background task autonomously. You are running as a background process — complete the task fully and provide a concise summary of what you did and the results.\n\n${agent.systemPrompt}`;
 
     const result = await generateText({
-      model: provider,
+      model: providerResult.model,
       system: systemPrompt,
       messages: [
         {

@@ -12,7 +12,7 @@
 
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
-import { getAgent, getProvider, updateAgentStatus } from "@/lib/agents";
+import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyError } from "@/lib/agents";
 import { allTools } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
@@ -115,8 +115,10 @@ export async function POST(req: Request) {
     logActivity({ agentId: id, agentName: agent.name, action: "status_change", detail: `started processing: ${lastContent?.slice(0, 80) || "task"}` }).catch(() => {});
     persistAgentStatus(id, { status: "busy", currentTask: lastContent?.slice(0, 100) || null, lastActivity: new Date().toISOString() }).catch(() => {});
 
-    // Get the model (with key rotation) — uses .chat() for Chat Completions API
-    const model = getProvider(agent);
+    // Get the model (with smart key rotation + token tracking)
+    const providerResult = await getProvider(agent);
+    const model = providerResult.model;
+    const selectedKey = providerResult.keySelection;
 
     // Run these in parallel to reduce time-to-first-token
     const [modelMessages, memoryContext, dueReminders, userSettings, learningContext] = await Promise.all([
@@ -285,12 +287,46 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
           console.error(`[Chat] 🚨 STEP LIMIT REACHED: ${agent.name} hit step limit (${maxSteps}) with tool results but NO final text response. The user received no explanation for the tool results.`);
         }
       },
-      onFinish: ({ steps }) => {
+      onFinish: ({ steps, usage }) => {
         const assistantText = steps
           .map((s) => s.text)
           .join("");
         const totalToolResults = steps.reduce((count, s) => count + (s.toolResults?.length || 0), 0);
         console.log(`[Chat] ${agent.name} done. Steps: ${steps.length}, Total text: ${assistantText.length} chars, Tool result batches: ${totalToolResults}`);
+
+        // Track token usage for smart key rotation
+        const inputTokens = (usage as unknown as { promptTokens?: number; inputTokens?: { total: number } }).promptTokens
+          || (usage as unknown as { inputTokens?: { total: number } }).inputTokens?.total
+          || 0;
+        const outputTokens = (usage as unknown as { completionTokens?: number; outputTokens?: { total: number } }).completionTokens
+          || (usage as unknown as { outputTokens?: { total: number } }).outputTokens?.total
+          || 0;
+
+        if (inputTokens > 0 || outputTokens > 0) {
+          recordTokenUsage(
+            selectedKey.key,
+            providerResult.provider,
+            selectedKey.key_label,
+            inputTokens,
+            outputTokens,
+          ).catch(() => {});
+          console.log(`[KeyUsage] ${selectedKey.key_label}: +${inputTokens + outputTokens} tokens (input=${inputTokens}, output=${outputTokens})`);
+        } else {
+          // Fallback: sum usage from individual steps
+          let totalPrompt = 0;
+          let totalCompletion = 0;
+          for (const step of steps) {
+            const stepUsage = step.usage as unknown as { promptTokens?: number; inputTokens?: { total: number }; completionTokens?: number; outputTokens?: { total: number } } | undefined;
+            if (stepUsage) {
+              totalPrompt += stepUsage.promptTokens || stepUsage.inputTokens?.total || 0;
+              totalCompletion += stepUsage.completionTokens || stepUsage.outputTokens?.total || 0;
+            }
+          }
+          if (totalPrompt > 0 || totalCompletion > 0) {
+            recordTokenUsage(selectedKey.key, providerResult.provider, selectedKey.key_label, totalPrompt, totalCompletion).catch(() => {});
+            console.log(`[KeyUsage] ${selectedKey.key_label}: +${totalPrompt + totalCompletion} tokens (from steps)`);
+          }
+        }
 
         // COMPLETION WATCHDOG: Detect incomplete response and save a recovery message
         // so the conversation context includes what happened (for the next turn).
@@ -376,6 +412,12 @@ When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from t
       },
       onError: ({ error }) => {
         console.error(`[Chat] ${agent.name} stream error:`, error);
+        const errorMsg = error instanceof Error ? error.message : "unknown";
+
+        // Record key error for smart rotation (detect 429 rate limits)
+        const isRateLimit = errorMsg.includes("429") || errorMsg.includes("rate") || errorMsg.includes("quota");
+        recordKeyError(selectedKey.key, errorMsg, isRateLimit).catch(() => {});
+
         updateAgentStatus(id, {
           status: "error",
           currentTask: null,

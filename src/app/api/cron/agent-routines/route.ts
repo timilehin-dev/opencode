@@ -314,7 +314,7 @@ async function executeRoutine(
     const agent = getAgent(agentId);
     if (!agent) return { success: false, text: "", error: `Unknown agent: ${agentId}` };
 
-    const provider = getProvider(agent);
+    const providerResult = await getProvider(agent);
 
     // Build tool subset
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -328,7 +328,7 @@ async function executeRoutine(
     const { generateText, stepCountIs } = await import("ai");
 
     const result = await generateText({
-      model: provider,
+      model: providerResult.model,
       system: systemPrompt,
       messages: [
         { role: "user", content: `${task}\n\n${context ? `Context: ${context}` : ""}` },

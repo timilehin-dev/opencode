@@ -778,32 +778,13 @@ export function getAllAgentStatuses(): AgentStatus[] {
 }
 
 // ---------------------------------------------------------------------------
-// API Key Rotation — Round-robin across multiple keys per provider
+// API Key Rotation — Smart rotation with token tracking & auto-skip
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Key Rotation — Shared pools + per-agent dedicated pools
-// ---------------------------------------------------------------------------
-
-class KeyRotator {
-  private counter = 0;
-
-  constructor(
-    private keys: string[],
-    private label: string,
-  ) {}
-
-  next(): string {
-    if (this.keys.length === 0) return "";
-    if (this.keys.length === 1) return this.keys[0];
-    const key = this.keys[this.counter % this.keys.length];
-    this.counter++;
-    return key;
-  }
-
-  get total(): number {
-    return this.keys.length;
-  }
+// Lazy imports to avoid bundling server-only modules (pg) in client components
+// These are only used server-side via getProvider() which is always called in API routes
+async function loadKeyManager() {
+  return import(/* webpackIgnore: true */ "@/lib/key-manager");
 }
 
 // Shared key pools (used by agents without dedicated keyEnvVars)
@@ -815,6 +796,14 @@ const aihubmixKeys: string[] = [
   process.env.AIHUBMIX_API_KEY_5 || "",
 ].filter(Boolean);
 
+const aihubmixLabels: string[] = [
+  process.env.AIHUBMIX_API_KEY_1 ? "AIHUBMIX_API_KEY_1" : "",
+  process.env.AIHUBMIX_API_KEY_2 ? "AIHUBMIX_API_KEY_2" : "",
+  process.env.AIHUBMIX_API_KEY_3 ? "AIHUBMIX_API_KEY_3" : "",
+  process.env.AIHUBMIX_API_KEY_4 ? "AIHUBMIX_API_KEY_4" : "",
+  process.env.AIHUBMIX_API_KEY_5 ? "AIHUBMIX_API_KEY_5" : "",
+].filter(Boolean);
+
 const ollamaKeys: string[] = [
   process.env.OLLAMA_CLOUD_KEY_1 || "",
   process.env.OLLAMA_CLOUD_KEY_2 || "",
@@ -823,106 +812,123 @@ const ollamaKeys: string[] = [
   process.env.OLLAMA_CLOUD_KEY_5 || "",
 ].filter(Boolean);
 
-const aihubmixRotator = new KeyRotator(aihubmixKeys, "aihubmix");
-const ollamaRotator = new KeyRotator(ollamaKeys, "ollama");
+const ollamaLabels: string[] = [
+  process.env.OLLAMA_CLOUD_KEY_1 ? "OLLAMA_CLOUD_KEY_1" : "",
+  process.env.OLLAMA_CLOUD_KEY_2 ? "OLLAMA_CLOUD_KEY_2" : "",
+  process.env.OLLAMA_CLOUD_KEY_3 ? "OLLAMA_CLOUD_KEY_3" : "",
+  process.env.OLLAMA_CLOUD_KEY_4 ? "OLLAMA_CLOUD_KEY_4" : "",
+  process.env.OLLAMA_CLOUD_KEY_5 ? "OLLAMA_CLOUD_KEY_5" : "",
+].filter(Boolean);
 
-// Per-agent dedicated key rotators (cached)
-const dedicatedRotators = new Map<string, KeyRotator>();
+// Per-agent dedicated key arrays (cached)
+const dedicatedKeyCache = new Map<string, { keys: string[]; labels: string[] }>();
 
-function getDedicatedRotator(agentId: string, envVars: string[], provider: string): KeyRotator {
+function getDedicatedKeys(agentId: string, envVars: string[]): { keys: string[]; labels: string[] } {
   const cacheKey = `${agentId}:${envVars.join(",")}`;
-  if (dedicatedRotators.has(cacheKey)) return dedicatedRotators.get(cacheKey)!;
+  if (dedicatedKeyCache.has(cacheKey)) return dedicatedKeyCache.get(cacheKey)!;
 
-  const keys = envVars
-    .map((envVar) => process.env[envVar] || "")
-    .filter(Boolean);
+  const labels = [...envVars];
+  const keys = envVars.map((envVar) => process.env[envVar] || "").filter(Boolean);
 
-  const rotator = new KeyRotator(keys, `${provider}-${agentId}`);
-  dedicatedRotators.set(cacheKey, rotator);
-  return rotator;
+  dedicatedKeyCache.set(cacheKey, { keys, labels });
+  return { keys, labels };
 }
 
 // ---------------------------------------------------------------------------
-// Provider Factory (with key rotation — shared or dedicated)
+// Provider Factory (with smart key rotation)
 // ---------------------------------------------------------------------------
 
-export function getProvider(agent: AgentConfig) {
-  // If agent has dedicated key env vars, use those exclusively
+export interface ProviderResult {
+  model: ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
+  keySelection: Awaited<ReturnType<typeof import("@/lib/key-manager")["selectBestKey"]>>;
+  provider: "aihubmix" | "ollama" | "openrouter";
+}
+
+export async function getProvider(agent: AgentConfig): Promise<ProviderResult> {
+  let keys: string[];
+  let labels: string[];
+
+  // Determine key pool
   if (agent.keyEnvVars && agent.keyEnvVars.length > 0) {
-    const rotator = getDedicatedRotator(agent.id, agent.keyEnvVars, agent.provider);
-
-    if (agent.provider === "aihubmix") {
-      const apiKey = rotator.next();
-      if (!apiKey) throw new Error(`No dedicated aihubmix API keys for agent '${agent.id}'.`);
-      const provider = createOpenAI({
-        apiKey,
-        baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
-      });
-      return provider.chat(agent.model);
-    }
-
-    if (agent.provider === "ollama") {
-      const apiKey = rotator.next();
-      if (!apiKey) throw new Error(`No dedicated ollama API keys for agent '${agent.id}'.`);
-      const provider = createOpenAI({
-        apiKey,
-        baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
-      });
-      return provider.chat(agent.model);
-    }
-
-    if (agent.provider === "openrouter") {
-      const apiKey = rotator.next();
-      if (!apiKey) throw new Error(`No dedicated openrouter API keys for agent '${agent.id}'.`);
-      const provider = createOpenAI({
-        apiKey,
-        baseURL: "https://openrouter.ai/api/v1",
-      });
-      return provider.chat(agent.model);
-    }
+    const dedicated = getDedicatedKeys(agent.id, agent.keyEnvVars);
+    keys = dedicated.keys;
+    labels = dedicated.labels;
+  } else if (agent.provider === "aihubmix") {
+    keys = aihubmixKeys;
+    labels = aihubmixLabels;
+  } else if (agent.provider === "ollama") {
+    keys = ollamaKeys;
+    labels = ollamaLabels;
+  } else {
+    keys = [];
+    labels = [];
   }
 
-  // Default: use shared pools
-  if (agent.provider === "aihubmix") {
-    const apiKey = aihubmixRotator.next();
-    if (!apiKey) {
-      throw new Error("No aihubmix API keys configured.");
+  // OpenRouter (single key, no rotation needed)
+  if (agent.provider === "openrouter") {
+    if (!process.env.OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY not configured.");
     }
     const provider = createOpenAI({
-      apiKey,
-      baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
-    });
-    return provider.chat(agent.model);
-  }
-
-  if (agent.provider === "openrouter") {
-    const openrouter = createOpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: "https://openrouter.ai/api/v1",
     });
-    return openrouter.chat(agent.model);
+    return {
+      model: provider.chat(agent.model),
+      keySelection: { key: process.env.OPENROUTER_API_KEY, key_label: "OPENROUTER_API_KEY", index: 0, was_rotated: false, rotation_reason: "" },
+      provider: "openrouter",
+    };
   }
 
-  const apiKey = ollamaRotator.next();
-  if (!apiKey) {
-    throw new Error("No Ollama API keys configured.");
+  // Smart key selection with token tracking
+  if (keys.length === 0) {
+    throw new Error(`No ${agent.provider} API keys configured for agent '${agent.id}'.`);
   }
-  const ollama = createOpenAI({
-    apiKey,
-    baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
-  });
-  return ollama.chat(agent.model);
+
+  const keyMgr = await loadKeyManager();
+  const selection = await keyMgr.selectBestKey(keys, agent.provider, labels);
+
+  if (selection.was_rotated) {
+    console.log(`[KeyRotation] ${agent.name}: ${selection.rotation_reason} → using ${selection.key_label}`);
+  }
+
+  const baseURL = agent.provider === "aihubmix"
+    ? process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1"
+    : process.env.OLLAMA_BASE_URL || "https://ollama.com/v1";
+
+  const provider = createOpenAI({ apiKey: selection.key, baseURL });
+  return {
+    model: provider.chat(agent.model),
+    keySelection: selection,
+    provider: agent.provider,
+  };
 }
 
 /** Get key rotation stats */
 export function getKeyRotationStats() {
   return {
-    aihubmix: { availableKeys: aihubmixRotator.total },
-    ollama: { availableKeys: ollamaRotator.total },
-    dedicated: Array.from(dedicatedRotators.entries()).map(([key, rotator]) => ({
+    aihubmix: { availableKeys: aihubmixKeys.length },
+    ollama: { availableKeys: ollamaKeys.length },
+    dedicated: Array.from(dedicatedKeyCache.entries()).map(([key, val]) => ({
       agent: key.split(":")[0],
-      provider: key.split(":")[1],
-      availableKeys: rotator.total,
+      availableKeys: val.keys.length,
+      labels: val.labels,
     })),
   };
+}
+
+/** Re-export for use in chat route */
+export async function recordTokenUsage(...args: Parameters<Awaited<ReturnType<typeof loadKeyManager>>["recordTokenUsage"]>) {
+  const km = await loadKeyManager();
+  return km.recordTokenUsage(...args);
+}
+
+export async function recordKeyError(...args: Parameters<Awaited<ReturnType<typeof loadKeyManager>>["recordKeyError"]>) {
+  const km = await loadKeyManager();
+  return km.recordKeyError(...args);
+}
+
+export async function getAllKeyHealth(...args: Parameters<Awaited<ReturnType<typeof loadKeyManager>>["getAllKeyHealth"]>) {
+  const km = await loadKeyManager();
+  return km.getAllKeyHealth(...args);
 }
