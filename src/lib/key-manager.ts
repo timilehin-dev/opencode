@@ -1,6 +1,9 @@
 /**
  * Key Usage Manager — Smart API key rotation with token tracking
  *
+ * Uses Supabase JS client (HTTP/REST) instead of raw pg — no TLS dependency,
+ * fully compatible with Vercel serverless functions.
+ *
  * Features:
  * - Tracks input/output tokens per key across the daily quota period
  * - Auto-skips keys at 95% of daily quota (1M tokens default)
@@ -88,61 +91,64 @@ async function hashKey(key: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Supabase persistence
+// Supabase client (HTTP/REST — no pg/tls needed)
 // ---------------------------------------------------------------------------
 
-async function getPool() {
-  const { Pool } = await import("pg");
-  const dbUrl = process.env.SUPABASE_DB_URL;
-  if (!dbUrl) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString: dbUrl, max: 3, idleTimeoutMillis: 10000 });
+async function getSupabase() {
+  // Dynamic import to avoid circular dependency and client bundling
+  const { getSupabase: getClient } = await import("./supabase");
+  return getClient();
 }
 
 async function initTable() {
   try {
-    const pool = await getPool();
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS key_usage (
-        key_hash TEXT PRIMARY KEY,
-        provider TEXT NOT NULL,
-        key_label TEXT NOT NULL,
-        tokens_used BIGINT NOT NULL DEFAULT 0,
-        requests_today BIGINT NOT NULL DEFAULT 0,
-        usage_date TEXT NOT NULL DEFAULT CURRENT_DATE,
-        last_used_at TIMESTAMPTZ,
-        last_error TEXT,
-        error_count INT NOT NULL DEFAULT 0,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_key_usage_provider ON key_usage(provider);
-    `);
-    await pool.end();
+    const supabase = await getSupabase();
+    if (!supabase) {
+      console.warn("[KeyManager] Supabase not configured — key persistence disabled");
+      return;
+    }
+    // Use the Supabase RPC to create table (since anon key can't run DDL directly)
+    // We'll try an upsert to test — if the table doesn't exist we'll get a clear error
+    // The table should be created via SQL Editor using KEY_USAGE_SCHEMA_SQL
+    const { error } = await supabase
+      .from("key_usage")
+      .select("key_hash")
+      .limit(1);
+    if (error && error.message.includes("does not exist")) {
+      console.warn("[KeyManager] 'key_usage' table not found. Please run the schema SQL in Supabase SQL Editor.");
+    }
   } catch (err) {
-    console.warn("[KeyManager] Failed to init table:", err);
+    console.warn("[KeyManager] Failed to check table:", err);
   }
 }
 
 async function loadUsageFromDB(): Promise<void> {
   try {
-    const pool = await getPool();
-    const today = getTodayUTC();
-    const result = await pool.query(
-      `SELECT key_hash, tokens_used, requests_today, last_used_at, last_error, error_count
-       FROM key_usage WHERE usage_date = $1`,
-      [today],
-    );
-    await pool.end();
+    const supabase = await getSupabase();
+    if (!supabase) return;
 
-    for (const row of result.rows) {
-      usageCache.set(row.key_hash, {
-        tokens_used: Number(row.tokens_used),
-        requests_today: Number(row.requests_today),
-        last_used_at: row.last_used_at || "",
-        last_error: row.last_error,
-        error_count: Number(row.error_count),
-        cooldown_until: null,
-      });
+    const today = getTodayUTC();
+    const { data, error } = await supabase
+      .from("key_usage")
+      .select("key_hash, tokens_used, requests_today, last_used_at, last_error, error_count")
+      .eq("usage_date", today);
+
+    if (error) {
+      console.warn("[KeyManager] Failed to load usage:", error.message);
+      return;
+    }
+
+    if (data) {
+      for (const row of data) {
+        usageCache.set(row.key_hash, {
+          tokens_used: Number(row.tokens_used),
+          requests_today: Number(row.requests_today),
+          last_used_at: row.last_used_at || "",
+          last_error: row.last_error,
+          error_count: Number(row.error_count),
+          cooldown_until: null,
+        });
+      }
     }
     cacheInitialized = true;
   } catch (err) {
@@ -152,34 +158,87 @@ async function loadUsageFromDB(): Promise<void> {
 
 async function persistUsage(keyHash: string, provider: string, keyLabel: string, tokens: number): Promise<void> {
   try {
-    const pool = await getPool();
+    const supabase = await getSupabase();
+    if (!supabase) return;
+
     const today = getTodayUTC();
-    await pool.query(`
-      INSERT INTO key_usage (key_hash, provider, key_label, tokens_used, requests_today, usage_date, last_used_at, updated_at)
-      VALUES ($1, $2, $3, $4, 1, $5, NOW(), NOW())
-      ON CONFLICT (key_hash) DO UPDATE SET
-        tokens_used = key_usage.tokens_used + $4,
-        requests_today = key_usage.requests_today + 1,
-        last_used_at = NOW(),
-        updated_at = NOW()
-    `, [keyHash, provider, keyLabel, tokens, today]);
-    await pool.end();
+    const { error } = await supabase
+      .from("key_usage")
+      .upsert({
+        key_hash: keyHash,
+        provider,
+        key_label: keyLabel,
+        tokens_used: tokens,
+        requests_today: 1,
+        usage_date: today,
+        last_used_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: "key_hash",
+        ignoreDuplicates: false,
+      });
+
+    if (error) {
+      console.warn("[KeyManager] Failed to persist usage:", error.message);
+    }
   } catch (err) {
     console.warn("[KeyManager] Failed to persist usage:", err);
   }
 }
 
+async function persistIncrementalUsage(keyHash: string, tokens: number): Promise<void> {
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) return;
+
+    // Use Supabase RPC or update with increment via raw SQL approach
+    // Since Supabase JS doesn't have increment + conflict in one shot,
+    // we do a read-modify-write pattern
+    const { data: existing } = await supabase
+      .from("key_usage")
+      .select("tokens_used, requests_today")
+      .eq("key_hash", keyHash)
+      .single();
+
+    const newTokens = (existing?.tokens_used || 0) + tokens;
+    const newRequests = (existing?.requests_today || 0) + 1;
+
+    await supabase
+      .from("key_usage")
+      .update({
+        tokens_used: newTokens,
+        requests_today: newRequests,
+        last_used_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_error: null,
+        error_count: 0,
+      })
+      .eq("key_hash", keyHash);
+  } catch (err) {
+    console.warn("[KeyManager] Failed to persist incremental usage:", err);
+  }
+}
+
 async function persistError(keyHash: string, error: string): Promise<void> {
   try {
-    const pool = await getPool();
-    await pool.query(`
-      UPDATE key_usage SET
-        last_error = $1,
-        error_count = error_count + 1,
-        updated_at = NOW()
-      WHERE key_hash = $2
-    `, [error, keyHash]);
-    await pool.end();
+    const supabase = await getSupabase();
+    if (!supabase) return;
+
+    // Get current error_count first
+    const { data: existing } = await supabase
+      .from("key_usage")
+      .select("error_count")
+      .eq("key_hash", keyHash)
+      .single();
+
+    await supabase
+      .from("key_usage")
+      .update({
+        last_error: error,
+        error_count: (existing?.error_count || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("key_hash", keyHash);
   } catch (err) {
     console.warn("[KeyManager] Failed to persist error:", err);
   }
@@ -187,18 +246,20 @@ async function persistError(keyHash: string, error: string): Promise<void> {
 
 async function resetDailyCounters(): Promise<void> {
   try {
-    const pool = await getPool();
+    const supabase = await getSupabase();
+    if (!supabase) return;
+
     const today = getTodayUTC();
-    await pool.query(`
-      UPDATE key_usage SET
-        tokens_used = 0,
-        requests_today = 0,
-        error_count = 0,
-        last_error = NULL,
-        usage_date = $1,
-        updated_at = NOW()
-    `, [today]);
-    await pool.end();
+    await supabase
+      .from("key_usage")
+      .update({
+        tokens_used: 0,
+        requests_today: 0,
+        error_count: 0,
+        last_error: null,
+        usage_date: today,
+        updated_at: new Date().toISOString(),
+      });
   } catch (err) {
     console.warn("[KeyManager] Failed to reset daily counters:", err);
   }
@@ -247,14 +308,14 @@ export async function selectBestKey(
     // Check cooldown
     if (cached?.cooldown_until && cached.cooldown_until > now) {
       const remaining = Math.ceil((cached.cooldown_until - now) / 1000);
-      rotationReason += `${label} (cooldown ${remaining}s) → `;
+      rotationReason += `${label} (cooldown ${remaining}s) -> `;
       triedCount++;
       continue;
     }
 
     // Check error count
     if (cached && cached.error_count >= MAX_CONSECUTIVE_ERRORS) {
-      rotationReason += `${label} (${cached.error_count} errors) → `;
+      rotationReason += `${label} (${cached.error_count} errors) -> `;
       triedCount++;
       continue;
     }
@@ -263,7 +324,7 @@ export async function selectBestKey(
     if (cached) {
       const usagePercent = cached.tokens_used / dailyLimit;
       if (usagePercent >= QUOTA_WARNING_THRESHOLD) {
-        rotationReason += `${label} (${Math.round(usagePercent * 100)}% used) → `;
+        rotationReason += `${label} (${Math.round(usagePercent * 100)}% used) -> `;
         triedCount++;
         continue;
       }
@@ -315,7 +376,7 @@ export async function recordTokenUsage(
   });
 
   // Persist async (fire-and-forget)
-  persistUsage(keyHash, provider, keyLabel, totalTokens).catch(() => {});
+  persistIncrementalUsage(keyHash, totalTokens).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -405,3 +466,27 @@ export function getQuickStats() {
     initialized: cacheInitialized,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Key Usage Table Schema SQL (for Supabase SQL Editor)
+// ---------------------------------------------------------------------------
+
+export const KEY_USAGE_SCHEMA_SQL = `
+-- Key Usage Tracking (for smart rotation)
+CREATE TABLE IF NOT EXISTS key_usage (
+  key_hash TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  key_label TEXT NOT NULL,
+  tokens_used BIGINT NOT NULL DEFAULT 0,
+  requests_today BIGINT NOT NULL DEFAULT 0,
+  usage_date TEXT NOT NULL DEFAULT CURRENT_DATE,
+  last_used_at TIMESTAMPTZ,
+  last_error TEXT,
+  error_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_key_usage_provider ON key_usage(provider);
+CREATE INDEX IF NOT EXISTS idx_key_usage_date ON key_usage(usage_date);
+`;
