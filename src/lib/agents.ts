@@ -786,10 +786,10 @@ export function getAllAgentStatuses(): AgentStatus[] {
 // API Key Rotation — Smart rotation with token tracking & auto-skip
 // ---------------------------------------------------------------------------
 
-// Lazy imports to avoid bundling server-only modules (pg) in client components
-// These are only used server-side via getProvider() which is always called in API routes
+// Lazy import — only used server-side via getProvider() which is always called in API routes
+// pg is listed in serverExternalPackages so it won't leak to client bundles
 async function loadKeyManager() {
-  return import(/* webpackIgnore: true */ "@/lib/key-manager");
+  return import("@/lib/key-manager");
 }
 
 // Shared key pools (used by agents without dedicated keyEnvVars)
