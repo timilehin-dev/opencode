@@ -20,7 +20,7 @@ import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { evaluateAutomations } from "@/lib/automation-engine";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
 
-export const maxDuration = 120; // 2 min max for cron handler
+export const maxDuration = 60; // Vercel Hobby plan max
 
 export async function GET(request: Request) {
   // Simple auth: query param secret must match CRON_SECRET env var
@@ -52,8 +52,8 @@ export async function GET(request: Request) {
     results.errors.push(`Automation evaluation failed: ${error instanceof Error ? error.message : "Unknown"}`);
   }
 
-  // Phase 2: Process pending tasks (limit 3 per run)
-  const MAX_TASKS_PER_RUN = 3;
+  // Phase 2: Process pending tasks (limit 1 per run to stay within 60s Hobby limit)
+  const MAX_TASKS_PER_RUN = 1;
 
   for (let i = 0; i < MAX_TASKS_PER_RUN; i++) {
     try {
@@ -201,9 +201,9 @@ async function executeTask(task: {
         },
       ],
       tools: agentTools,
-      maxOutputTokens: 8192,
-      stopWhen: stepCountIs(15),
-      abortSignal: AbortSignal.timeout(110_000), // 110s timeout (within 120s maxDuration)
+      maxOutputTokens: 4096,
+      stopWhen: stepCountIs(10),
+      abortSignal: AbortSignal.timeout(50_000), // 50s within 60s maxDuration
     });
 
     // Collect tool calls from steps

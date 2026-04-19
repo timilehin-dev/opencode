@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 120; // 2 min — needed for inline task execution on "Run Now"
+export const maxDuration = 60; // Vercel Hobby plan max
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { Pool } = require("pg");
@@ -285,7 +285,7 @@ export async function POST(req: NextRequest) {
             tools: agentTools,
             maxOutputTokens: 8192,
             stopWhen: stepCountIs(15),
-            abortSignal: AbortSignal.timeout(110_000),
+            abortSignal: AbortSignal.timeout(55_000),
           });
 
           const durationMs = Date.now() - startTime;

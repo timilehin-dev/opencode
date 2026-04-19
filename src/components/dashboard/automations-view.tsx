@@ -560,6 +560,7 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "run", id: auto.id }),
+        signal: AbortSignal.timeout(65_000), // Wait up to 65s for inline execution
       });
       const json = await res.json();
       if (json.success && json.data?.status === "error") {
@@ -568,7 +569,9 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
         console.log(`[Automation Run] Output: ${json.data.output.slice(0, 200)}`);
       }
       loadAutomations();
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error("[Automation Run] Request failed:", err);
+    }
     setRunningId(null);
   };
 
