@@ -5,17 +5,18 @@ import { MetricsRow } from "@/components/dashboard/metrics-row";
 import { CoordinationMap } from "@/components/dashboard/coordination-map";
 import { ActiveTasks } from "@/components/dashboard/active-tasks";
 import type { ServiceStatus } from "@/lib/types";
-import type { DashboardMetricsView, TodoView, DelegationView, AgentTaskView } from "@/hooks/use-dashboard-stream";
+import type { DashboardMetricsView, TodoView, DelegationView, AgentTaskView, AgentStatusView } from "@/hooks/use-dashboard-stream";
 
 interface MissionControlProps {
   serviceStatus: ServiceStatus | null;
   metrics?: DashboardMetricsView | null;
+  agentStatuses?: AgentStatusView[];
   todos?: TodoView[];
   delegations?: DelegationView[];
   tasks?: AgentTaskView[];
 }
 
-export function MissionControl({ serviceStatus, metrics, todos, delegations, tasks: _tasks }: MissionControlProps) {
+export function MissionControl({ serviceStatus, metrics, agentStatuses, todos, delegations, tasks: _tasks }: MissionControlProps) {
   return (
     <div className="flex flex-col gap-5">
       {/* Connected Services Row */}
@@ -25,7 +26,7 @@ export function MissionControl({ serviceStatus, metrics, todos, delegations, tas
 
       {/* Metrics */}
       <section>
-        <MetricsRow metrics={metrics} />
+        <MetricsRow metrics={metrics} agentStatuses={agentStatuses} />
       </section>
 
       {/* Split: Coordination Map + Active Tasks — 2-col desktop, stack mobile */}

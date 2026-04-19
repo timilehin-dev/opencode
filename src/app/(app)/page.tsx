@@ -138,6 +138,7 @@ export default function DashboardPage() {
             <MissionControl
               serviceStatus={serviceStatus}
               metrics={metrics}
+              agentStatuses={agentStatuses}
               todos={todos}
               delegations={delegations}
               tasks={[]}

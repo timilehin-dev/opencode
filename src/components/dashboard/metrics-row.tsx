@@ -4,14 +4,17 @@ import type { DashboardMetricsView } from "@/hooks/use-dashboard-stream";
 
 interface MetricsRowProps {
   metrics?: DashboardMetricsView | null;
+  agentStatuses?: Array<{ status: string }>;
 }
 
-export function MetricsRow({ metrics }: MetricsRowProps) {
+export function MetricsRow({ metrics, agentStatuses }: MetricsRowProps) {
   const messagesToday = metrics ? String(metrics.messagesToday) : "—";
   const toolCallsToday = metrics ? String(metrics.toolCallsToday) : "—";
   const activeDelegations = metrics ? String(metrics.activeDelegations) : "—";
   const tasksDone = metrics ? String(metrics.tasksDone) : "—";
-  const uptime = "99.9%";
+  const activeAgents = agentStatuses
+    ? String(agentStatuses.filter((s) => s.status === "busy").length)
+    : "—";
 
   const data = [
     {
@@ -35,9 +38,11 @@ export function MetricsRow({ metrics }: MetricsRowProps) {
       delta: metrics && metrics.tasksDone > 0 ? "completed" : "—",
     },
     {
-      label: "Uptime",
-      value: uptime,
-      delta: "All systems",
+      label: "Active Agents",
+      value: activeAgents,
+      delta: agentStatuses && agentStatuses.length > 0
+        ? `${agentStatuses.filter((s) => s.status === "busy").length} of ${agentStatuses.length} busy`
+        : "—",
     },
   ];
 
@@ -53,14 +58,7 @@ export function MetricsRow({ metrics }: MetricsRowProps) {
               {m.label}
             </div>
             <div className="text-[26px] font-extrabold leading-none text-[#1a1a1a]">
-              {m.label === "Uptime" ? (
-                <>
-                  {m.value.replace("%", "")}
-                  <span className="text-sm font-bold">%</span>
-                </>
-              ) : (
-                m.value
-              )}
+              {m.value}
             </div>
             <div className="text-[10px] mt-1 text-[#999999]">
               {m.delta}

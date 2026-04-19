@@ -437,3 +437,56 @@ Stage Summary:
 - All pages are mobile responsive
 - TypeScript compiles clean (no new errors introduced)
 - No git commit (as requested)
+
+---
+Task ID: mock-data-cleanup
+Agent: Main
+Task: Remove ALL mock data + sync analytics to Supabase + overview page assessment
+
+Work Log:
+- Audited all files for hardcoded/fake data as specified
+- Fixed metrics-row.tsx:
+  - Removed hardcoded `const uptime = "99.9%"` (line 14)
+  - Updated MetricsRowProps to accept optional `agentStatuses?: Array<{ status: string }>`
+  - Replaced "Uptime" card (with hardcoded "All systems" delta) with "Active Agents" card
+  - Active Agents counts agents with status === "busy" from real SSE/polling data
+  - Removed the special Uptime percentage formatting (no more .replace("%", "") + <span>%</span>)
+- Fixed agents/route.ts:
+  - Removed fake setTimeout(() => { updateAgentStatus("idle") }, 5000) block (lines 84-91)
+  - Replaced with real task queue integration: `await createTask()` from @/lib/task-queue
+  - Task enqueued with agent_id, task, context, trigger_type="user_dispatch", trigger_source="dashboard", priority="medium"
+  - Added try/catch with console logging for enqueue failures (non-blocking)
+- Updated mission-control.tsx:
+  - Added AgentStatusView import from use-dashboard-stream
+  - Added `agentStatuses?: AgentStatusView[]` to MissionControlProps
+  - Passed agentStatuses to MetricsRow component
+- Updated page.tsx:
+  - Passed `agentStatuses={agentStatuses}` from useDashboardStream() to MissionControl
+  - Data flows: useDashboardStream → page.tsx → MissionControl → MetricsRow
+
+Task 2 — Analytics sync verification:
+- Confirmed analytics page (src/app/(app)/analytics/page.tsx) ALREADY uses `/api/analytics?days=${days}` endpoint
+- The /api/analytics endpoint reads from Supabase analytics_events table (not localStorage)
+- No localStorage calls found in analytics page
+- The analytics-store.ts exists for client-side event tracking (trackEvent/trackChatMessage/trackToolCall) and fire-and-forget Supabase writes
+- No refactoring needed — analytics page is already fully wired to Supabase API
+
+Task 3 — Overview page assessment:
+- Checked all navigation files: app-sidebar.tsx (uses Next.js Link, first item is "Dashboard" at href="/"), sidebar.tsx (legacy, has "Overview" key)
+- The app-sidebar.tsx (active sidebar) has "Dashboard" as the first nav item pointing to "/"
+- The layout.tsx routeMap maps "control" → "/" 
+- There's an overview.tsx component in src/components/dashboard/ but it's not routed or imported anywhere active
+- The Dashboard at "/" (page.tsx) already serves as the overview — it has 3-column layout with Agent Crew, Ops Feed, Mission Control (metrics, coordination map, tasks), and Chat panel
+- Conclusion: No separate overview page needed — the dashboard at "/" IS the overview
+
+TypeScript: 0 new errors (all pre-existing errors only in __tests__ files)
+ESLint: 0 new errors in modified files
+
+Stage Summary:
+- 2 instances of mock data removed: hardcoded uptime in metrics-row.tsx, fake setTimeout in agents/route.ts
+- 4 files modified: metrics-row.tsx, agents/route.ts, mission-control.tsx, page.tsx
+- Real data flow established: agentStatuses from SSE/polling → Active Agents metric card
+- Task dispatch now creates real task-queue entries instead of faking completion
+- Analytics page confirmed already synced to Supabase (no work needed)
+- Overview page assessed: dashboard at "/" already serves as overview (no separate page needed)
+- No git commit (as requested)

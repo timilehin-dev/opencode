@@ -13,6 +13,7 @@ import {
   sendA2AMessage,
   getAgentA2AMessages,
 } from "@/lib/a2a";
+import { createTask } from "@/lib/task-queue";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -81,14 +82,20 @@ export async function POST(req: NextRequest) {
           lastActivity: new Date().toISOString(),
         });
 
-        // Simulate task completion after a brief delay (placeholder)
-        setTimeout(() => {
-          updateAgentStatus(agentId, {
-            status: "idle",
-            currentTask: null,
-            lastActivity: new Date().toISOString(),
+        // Actually enqueue the task via the task-queue system
+        try {
+          const taskId = await createTask({
+            agent_id: agentId,
+            task,
+            context: instruction || "Quick task dispatched from dashboard",
+            trigger_type: "user_dispatch",
+            trigger_source: "dashboard",
+            priority: "medium",
           });
-        }, 5000);
+          console.log(`[Agents API] Task enqueued: id=${taskId}`);
+        } catch (enqueueErr) {
+          console.error("[Agents API] Failed to enqueue task:", enqueueErr);
+        }
 
         return ok({
           dispatched: true,
