@@ -46,6 +46,43 @@ function nextOllamaKey(): string {
   return key;
 }
 
+// --- Tavily Search API helper (3-key rotation) ---
+const TAVILY_KEYS = [
+  process.env.TAVILY_API_KEY_1 || "",
+  process.env.TAVILY_API_KEY_2 || "",
+  process.env.TAVILY_API_KEY_3 || "",
+].filter(Boolean);
+let _tavilyKeyIdx = 0;
+function nextTavilyKey(): string {
+  if (TAVILY_KEYS.length === 0) throw new Error("No Tavily API keys configured.");
+  const key = TAVILY_KEYS[_tavilyKeyIdx % TAVILY_KEYS.length];
+  _tavilyKeyIdx++;
+  return key;
+}
+
+async function tavilySearch(query: string, numResults: number): Promise<Array<Record<string, unknown>>> {
+  const apiKey = nextTavilyKey();
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      max_results: numResults,
+      include_answer: false,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Tavily API error: ${res.status}`);
+  const data = await safeParseRes<{ results?: Array<{ title: string; url: string; content: string; score: number }> }>(res);
+  return (data.results || []).map((r, i) => ({
+    title: r.title,
+    url: r.url,
+    snippet: r.content,
+    rank: i + 1,
+  }));
+}
+
 // --- OCR.space API helper (FREE — 25,000 calls/month, no LLM tokens) ---
 const OCR_SPACE_KEY = process.env.OCR_SPACE_API_KEY || "";
 const OCR_SPACE_URL = "https://api.ocr.space/parse/image";
@@ -900,6 +937,14 @@ export const delegateToAgentTool = tool({
 // ---------------------------------------------------------------------------
 
 async function webSearchFallback(query: string, numResults: number) {
+  // Layer 0: Tavily API (if keys configured)
+  if (TAVILY_KEYS.length > 0) {
+    try {
+      const results = await tavilySearch(query, numResults);
+      if (results.length > 0) return results;
+    } catch { /* Tavily failed, try next layer */ }
+  }
+
   // Layer 1: DuckDuckGo HTML search (POST request)
   try {
     const searchUrl = "https://html.duckduckgo.com/html/";
@@ -2212,7 +2257,7 @@ export const researchDeepTool = tool({
       ...(aspects || []).map(a => `${topic} ${a}`),
     ].slice(0, 5);
 
-    // Search helper: try Z.ai SDK first, fallback to DuckDuckGo
+    // Search helper: try Z.ai SDK first, then Tavily, then DuckDuckGo/Wikipedia/Brave
     async function searchQuery(q: string): Promise<Array<Record<string, unknown>>> {
       try {
         const zai = await ZAI.create();
@@ -2223,7 +2268,7 @@ export const researchDeepTool = tool({
       } catch {
         // Z.ai SDK not available — use fallback
       }
-      // Fallback: DuckDuckGo HTML search
+      // Fallback: webSearchFallback (tries Tavily → DuckDuckGo → Wikipedia → Brave)
       const fallbackResults = await webSearchFallback(q, numResults || 10);
       return fallbackResults;
     }
@@ -2288,7 +2333,7 @@ Provide a structured analysis with:
 5. **Answer** — Your synthesized answer to the research question
 6. **Gaps** — What additional research would help`;
 
-    // Try Z.ai SDK first, then fallback to AIHubMix
+    // Try Z.ai SDK first, then fallback to Ollama Cloud
     try {
       const zai = await ZAI.create();
       const result = await zai.chat.completions.create({
@@ -2301,22 +2346,19 @@ Provide a structured analysis with:
         synthesis: typeof result === "string" ? result : JSON.stringify(result),
       };
     } catch {
-      // Z.ai SDK not available — use AIHubMix fallback
+      // Z.ai SDK not available — use Ollama Cloud fallback
       try {
-        const apiKey = nextAIHubMixKey();
-        const res = await fetch(`${AIHUBMIX_BASE}/chat/completions`, {
+        const apiKey = nextOllamaKey();
+        const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "coding-glm-5-turbo-free",
+            model: "gemma4:31b-cloud",
             messages: [{ role: "user", content: prompt }],
             max_tokens: 4096,
           }),
         });
-        if (!res.ok) throw new Error(`AIHubMix API error: ${res.status}`);
+        if (!res.ok) throw new Error(`Ollama API error: ${res.status}`);
         const data = await safeParseRes<{ choices?: Array<{ message?: { content?: string } }> }>(res);
         const synthesis = data.choices?.[0]?.message?.content || "No synthesis generated.";
         return { question, sourcesCount: findings.length, synthesis };
@@ -2330,7 +2372,7 @@ Provide a structured analysis with:
           sourcesCount: findings.length,
           synthesis: `**Manual Synthesis** (AI synthesis unavailable)\n\n**Findings Summary:**\n- ${agreements}\n\n**Sources:** ${findings.map(f => f.source).join(", ")}\n\n*Note: Full AI-powered cross-reference synthesis requires a working LLM connection.*`,
           fallback: true,
-          error: fallbackErr instanceof Error ? fallbackErr.message : "Both Z.ai and AIHubMix unavailable",
+          error: fallbackErr instanceof Error ? fallbackErr.message : "Both Z.ai and Ollama unavailable",
         };
       }
     }
@@ -2754,10 +2796,17 @@ export const createPdfReportTool = tool({
     });
 
     const basename = filePath.split("/").pop() || "report.pdf";
+    // Read file back for base64 in-chat download
+    const fileBuffer = require("fs").readFileSync(filePath);
+    const fileBase64 = fileBuffer.toString("base64");
+    const fileSize = fileBuffer.length;
     return {
       filename: basename,
       title,
       downloadUrl: `/api/files/${basename}`,
+      fileBase64,
+      fileSize,
+      mimeType: "application/pdf",
       message: `PDF report "${title}" created successfully. Download available.`,
     };
   }),
@@ -3025,11 +3074,17 @@ export const createDocxDocumentTool = tool({
     const buffer = await Packer.toBuffer(doc);
     writeFileSync(filePath, buffer);
 
-    const basename = filePath.split("/").pop() || "document.docx";
+    const fileBaseName = `${safeName}.docx`;
+    // Read back for base64 in-chat download
+    const fileBase64 = Buffer.from(buffer).toString("base64");
+    const fileSize = buffer.byteLength;
     return {
-      filename: basename,
+      filename: fileBaseName,
       title,
-      downloadUrl: `/api/files/${basename}`,
+      downloadUrl: `/api/files/${fileBaseName}`,
+      fileBase64,
+      fileSize,
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       message: `DOCX document "${title}" created successfully. Download available.`,
     };
   }),
@@ -3683,6 +3738,160 @@ async function webReaderEnhanced(url: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Create XLSX Spreadsheet Tool
+// ---------------------------------------------------------------------------
+
+export const createXlsxSpreadsheetTool = tool({
+  description: "Create a professional Excel spreadsheet (.xlsx) and return it as a downloadable file. Supports multiple sheets, cell formatting (bold, colors, borders), formulas, column auto-width, and data validation. The 'sheets' parameter defines each sheet with a name, headers, and rows of data.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Title of the spreadsheet (used as filename)"),
+    sheets: z.array(z.object({
+      name: z.string().describe("Sheet tab name"),
+      headers: z.array(z.string()).describe("Column headers for the sheet"),
+      rows: z.array(z.array(z.string())).describe("2D array of row data (each inner array = one row)"),
+    })).describe("Array of sheets to include in the workbook"),
+    filename: z.string().optional().describe("Output filename (without extension). Default: derived from title"),
+  })),
+  execute: safeJson(async ({ title, sheets, filename }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ExcelJS = await import("exceljs");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Workbook = (ExcelJS as any).default?.Workbook || (ExcelJS as any).Workbook;
+    const workbook = new Workbook();
+    (workbook as any).creator = "Claw AI Agent";
+    (workbook as any).created = new Date();
+
+    for (const sheetDef of sheets) {
+      const sheet = workbook.addWorksheet(sheetDef.name);
+
+      // Add header row with styling
+      const headerRow = sheet.addRow(sheetDef.headers);
+      headerRow.font = { bold: true, size: 11 };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+      headerRow.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+      headerRow.alignment = { horizontal: "center" };
+      headerRow.border = { bottom: { style: "medium" } };
+
+      // Add data rows
+      for (const row of sheetDef.rows) {
+        sheet.addRow(row);
+      }
+
+      // Auto-fit column widths
+      for (let col = 1; col <= sheetDef.headers.length; col++) {
+        let maxLen = String(sheetDef.headers[col - 1]).length;
+        for (const row of sheetDef.rows) {
+          if (row[col - 1]) maxLen = Math.max(maxLen, String(row[col - 1]).length);
+        }
+        sheet.getColumn(col).width = Math.min(maxLen + 2, 50);
+      }
+    }
+
+    // Write to buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+
+    const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
+    const fileBaseName = `${safeName}.xlsx`;
+
+    return {
+      filename: fileBaseName,
+      title,
+      fileBase64: base64,
+      fileSize: buffer.byteLength,
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      message: `Excel spreadsheet "${title}" created successfully with ${sheets.length} sheet(s). Download available.`,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Gmail Send with Attachments Tool
+// ---------------------------------------------------------------------------
+
+export const gmailSendWithAttachmentTool = tool({
+  description: "Send an email via Gmail with file attachments (PDF, DOCX, XLSX, images, etc.). Provide attachment data as base64-encoded content. This is the recommended tool when you need to send documents, reports, or files via email.",
+  inputSchema: zodSchema(z.object({
+    to: z.string().describe("Recipient email address"),
+    subject: z.string().optional().describe("Email subject line"),
+    body: z.string().describe("Email body content (plain text or HTML)"),
+    isHtml: z.boolean().optional().describe("Whether the body is HTML format (default: true)"),
+    attachments: z.array(z.object({
+      filename: z.string().describe("Attachment filename with extension (e.g., 'report.pdf')"),
+      contentBase64: z.string().describe("Base64-encoded file content"),
+      mimeType: z.string().optional().describe("MIME type (auto-detected from filename if not provided)"),
+    })).optional().describe("Array of file attachments"),
+    cc: z.array(z.string()).optional().describe("CC recipients"),
+    bcc: z.array(z.string()).optional().describe("BCC recipients"),
+  })),
+  execute: safeJson(async ({ to, subject, body, isHtml, attachments, cc, bcc }) => {
+    // Build MIME multipart message with attachments
+    const boundary = "claw-boundary-" + Date.now();
+    const sanitize = (s: string) => s.replace(/[\r\n]/g, "");
+
+    let message = "";
+    message += `To: ${sanitize(to)}\r\n`;
+    if (cc?.length) message += `Cc: ${cc.map(sanitize).join(", ")}\r\n`;
+    if (bcc?.length) message += `Bcc: ${bcc.map(sanitize).join(", ")}\r\n`;
+    if (subject) message += `Subject: ${sanitize(subject)}\r\n`;
+
+    if (attachments && attachments.length > 0) {
+      // MIME multipart with attachments
+      message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n`;
+      message += "MIME-Version: 1.0\r\n\r\n";
+
+      // Text body part
+      const htmlBody = isHtml ? body : plainTextToHtml(body);
+      message += `--${boundary}\r\n`;
+      message += "Content-Type: text/html; charset=utf-8\r\n\r\n";
+      message += htmlBody + "\r\n\r\n";
+
+      // Attachment parts
+      for (const att of attachments) {
+        const ext = att.filename.split(".").pop()?.toLowerCase() || "";
+        const mimeMap: Record<string, string> = {
+          pdf: "application/pdf",
+          docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          csv: "text/csv",
+          png: "image/png",
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          txt: "text/plain",
+        };
+        const mime = att.mimeType || mimeMap[ext] || "application/octet-stream";
+
+        message += `--${boundary}\r\n`;
+        message += `Content-Type: ${mime}\r\n`;
+        message += `Content-Disposition: attachment; filename="${att.filename}"\r\n`;
+        message += "Content-Transfer-Encoding: base64\r\n\r\n";
+        message += att.contentBase64 + "\r\n\r\n";
+      }
+
+      message += `--${boundary}--\r\n`;
+    } else {
+      // No attachments — simple HTML email
+      const htmlBody = isHtml ? body : plainTextToHtml(body);
+      message += "Content-Type: text/html; charset=utf-8\r\n";
+      message += "MIME-Version: 1.0\r\n\r\n";
+      message += htmlBody;
+    }
+
+    const encoded = Buffer.from(message).toString("base64url");
+    const res = await googleFetch("https://www.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      body: JSON.stringify({ raw: encoded }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gmail send error: ${res.status} — ${err}`);
+    }
+    const data = await safeParseRes(res);
+    return { success: true, messageId: (data as { id?: string }).id, attachments: attachments?.length || 0 };
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // All Tools Registry
 // ---------------------------------------------------------------------------
 
@@ -3781,6 +3990,8 @@ export const allTools: Record<string, ToolType> = {
   // File Creation Tools
   create_pdf_report: createPdfReportTool,
   create_docx_document: createDocxDocumentTool,
+  create_xlsx_spreadsheet: createXlsxSpreadsheetTool,
+  gmail_send_attachment: gmailSendWithAttachmentTool,
   download_drive_file: downloadDriveFileTool,
   // Workspace Tools (Reminders, Todos, Contacts)
   reminder_create: reminderCreateTool,

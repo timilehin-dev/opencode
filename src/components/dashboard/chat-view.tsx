@@ -863,26 +863,61 @@ function AgentChatSession({
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
   };
 
-  // Detect file download URLs in tool results
+  // Detect file download URLs in tool results — also detects base64 file data for in-chat download
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const extractDownloadUrl = (result: string): { url: string; filename: string } | null => {
+  const extractDownloadUrl = (result: string): { url: string; filename: string; fileBase64?: string; fileSize?: number; mimeType?: string } | null => {
     try {
       const data = JSON.parse(result);
       if (data.success && data.data?.downloadUrl) {
         return {
           url: data.data.downloadUrl,
           filename: data.data.filename || data.data.title || "Download",
+          fileBase64: data.data.fileBase64,
+          fileSize: data.data.fileSize,
+          mimeType: data.data.mimeType,
+        };
+      }
+      // Check for fileBase64 without downloadUrl (pure base64 response)
+      if (data.success && data.data?.fileBase64) {
+        return {
+          url: "",
+          filename: data.data.filename || data.data.title || "Download",
+          fileBase64: data.data.fileBase64,
+          fileSize: data.data.fileSize,
+          mimeType: data.data.mimeType,
         };
       }
     } catch {
       /* not JSON */
     }
-    const match = result.match(/(\/api\/files\/[a-zA-Z0-9._-]+\.(?:pdf|docx|txt|csv))["'\s]/);
+    const match = result.match(/(\/api\/files\/[a-zA-Z0-9._-]+\.(?:pdf|docx|xlsx|txt|csv))["'\s]/);
     if (match) {
       const filename = match[1].split("/").pop() || "Download";
       return { url: match[1], filename };
     }
     return null;
+  };
+
+  // Trigger download from base64 data
+  const handleBase64Download = (filename: string, base64: string, mimeType: string) => {
+    try {
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[Download] Base64 decode error:", err);
+    }
   };
 
   const visibleMessages = messages.filter((m) => m.role !== "system");
@@ -1021,20 +1056,42 @@ function AgentChatSession({
                                   result={resultStr}
                                 />
                                 {downloadInfo && (
-                                  <motion.a
-                                    initial={{ opacity: 0, y: 4 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    href={downloadInfo.url}
-                                    download={downloadInfo.filename}
-                                    className={cn(
-                                      "flex items-center gap-2 mt-1.5 px-3 py-2 rounded-lg border transition-all duration-200",
-                                      "border-primary/30 bg-primary/5 hover:bg-primary/10"
-                                    )}
-                                  >
-                                    <FileDownIcon className={cn("w-4 h-4 flex-shrink-0", colors.text)} />
-                                    <span className="text-xs font-medium text-foreground">{downloadInfo.filename}</span>
-                                    <span className="text-[10px] text-muted-foreground ml-auto">Download</span>
-                                  </motion.a>
+                                  downloadInfo.fileBase64 && !downloadInfo.url ? (
+                                    <motion.button
+                                      initial={{ opacity: 0, y: 4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      onClick={() => handleBase64Download(downloadInfo.filename, downloadInfo.fileBase64!, downloadInfo.mimeType || "application/octet-stream")}
+                                      className={cn(
+                                        "flex items-center gap-2 mt-1.5 px-3 py-2 rounded-lg border transition-all duration-200 cursor-pointer",
+                                        "border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                      )}
+                                    >
+                                      <FileDownIcon className={cn("w-4 h-4 flex-shrink-0", colors.text)} />
+                                      <span className="text-xs font-medium text-foreground">{downloadInfo.filename}</span>
+                                      {downloadInfo.fileSize && (
+                                        <span className="text-[10px] text-muted-foreground">{(downloadInfo.fileSize / 1024).toFixed(1)}KB</span>
+                                      )}
+                                      <span className="text-[10px] text-muted-foreground ml-auto">Download</span>
+                                    </motion.button>
+                                  ) : (
+                                    <motion.a
+                                      initial={{ opacity: 0, y: 4 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      href={downloadInfo.url}
+                                      download={downloadInfo.filename}
+                                      className={cn(
+                                        "flex items-center gap-2 mt-1.5 px-3 py-2 rounded-lg border transition-all duration-200",
+                                        "border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                      )}
+                                    >
+                                      <FileDownIcon className={cn("w-4 h-4 flex-shrink-0", colors.text)} />
+                                      <span className="text-xs font-medium text-foreground">{downloadInfo.filename}</span>
+                                      {downloadInfo.fileSize && (
+                                        <span className="text-[10px] text-muted-foreground">{(downloadInfo.fileSize / 1024).toFixed(1)}KB</span>
+                                      )}
+                                      <span className="text-[10px] text-muted-foreground ml-auto">Download</span>
+                                    </motion.a>
+                                  )
                                 )}
                               </div>
                             );

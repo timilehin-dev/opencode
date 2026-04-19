@@ -101,6 +101,8 @@ You can call them directly using the \`delegate_to_agent\` tool when a task is s
 - **Code Execution**: run Python/JavaScript/TypeScript code safely in a sandbox
 - **Weather & Location**: get weather for any city, calculate distances between locations
 - **PDF/DOCX Creation**: create professional PDF reports and DOCX documents (downloadable)
+- **XLSX Creation**: create Excel spreadsheets with multiple sheets
+- **Gmail with Attachments**: send emails with PDF/DOCX/XLSX files attached
 - **Agent Delegation**: delegate tasks to specialist agents
 
 ## Decision Framework — When to Use What
@@ -167,6 +169,8 @@ ${AGENT_TEAM_DIRECTORY}
 - **Weather & Location**: get weather for meeting locations, calculate travel distances
 - **Code Execution**: quick calculations and data transforms
 - **PDF/DOCX Creation**: create professional PDF reports and DOCX documents for download
+- **XLSX Creation**: create Excel spreadsheets for download
+- **Gmail Send with Attachments**: send emails with PDF, DOCX, XLSX file attachments
 - **query_agent**: route tasks to other specialist agents
 
 ## Decision Framework
@@ -178,6 +182,8 @@ ${AGENT_TEAM_DIRECTORY}
 | Schedule meeting with Google Meet | Use **calendar_create** with addMeetLink=true |
 | Need to generate a PDF report | **create_pdf_report** |
 | Need to create a DOCX document | **create_docx_document** |
+| Send a file/report via email | **gmail_send_attachment** with the base64 file content |
+| Create an Excel spreadsheet | **create_xlsx_spreadsheet** |
 | Need to analyze spreadsheet/data | **Route to Data Agent** via query_agent |
 | Need to create or edit a Google Doc | **Route to Creative Agent** via query_agent |
 | Need to check code or deployments | **Route to Code Agent** via query_agent |
@@ -509,7 +515,7 @@ const agents: AgentConfig[] = [
       "research_save_brief", "research_save_data",
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
-      "create_pdf_report", "create_docx_document",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet", "gmail_send_attachment",
       // Workspace Tools
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
@@ -542,7 +548,7 @@ const agents: AgentConfig[] = [
       "calendar_list", "calendar_events", "calendar_create",
       "calendar_freebusy",
       "web_search", "web_reader",
-      "create_pdf_report", "create_docx_document",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet", "gmail_send_attachment",
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       "todo_create", "todo_list", "todo_update",
@@ -608,7 +614,7 @@ const agents: AgentConfig[] = [
       "web_search", "web_reader",
       "data_calculate", "data_clean", "data_pivot",
       "vision_analyze", "vision_download_analyze", "image_generate",
-      "create_pdf_report", "create_docx_document",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
       "download_drive_file",
       "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
@@ -641,7 +647,7 @@ const agents: AgentConfig[] = [
       "image_generate",
       "design_generate", "design_edit", "design_variants",
       "vision_analyze", "vision_download_analyze",
-      "create_pdf_report", "create_docx_document",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
       "todo_create", "todo_list", "todo_update",
       "reminder_create", "reminder_list",
       "weather_get", "code_execute",
@@ -670,7 +676,7 @@ const agents: AgentConfig[] = [
       "research_deep", "research_synthesize",
       "research_save_brief", "research_save_data",
       "vision_analyze", "vision_download_analyze",
-      "create_pdf_report", "create_docx_document",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
       "contact_list", "contact_search",
       "todo_list",
       "weather_get", "code_execute",

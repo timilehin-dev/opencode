@@ -11,6 +11,7 @@ import { tmpdir } from "os";
 const CONTENT_TYPES: Record<string, string> = {
   ".pdf": "application/pdf",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".txt": "text/plain",
   ".csv": "text/csv",
   ".json": "application/json",

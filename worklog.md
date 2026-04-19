@@ -622,3 +622,36 @@ Stage Summary:
 - 1 rendering bug fixed (DOCX tables)
 - Duplicate entries removed, missing tool added
 - All agent cards now show correct unique tool counts
+
+---
+Task ID: tool-improvements
+Agent: Main
+Task: Add Tavily search, XLSX tool, Gmail attachments, base64 downloads, and agent prompt updates
+
+Work Log:
+- Added Tavily API support with 3-key rotation (TAVILY_API_KEY_1/2/3) and tavilySearch() function
+- Updated webSearchFallback to try Tavily FIRST (before DuckDuckGo/Wikipedia/Brave)
+- Updated researchDeepTool's internal searchQuery to use Tavily-first fallback chain
+- Switched research_synthesize fallback from AIHubMix GLM-5 to Ollama Cloud Gemma 4 (31B)
+- Created createXlsxSpreadsheetTool using exceljs with multi-sheet support, header styling, auto-width
+- Created gmailSendWithAttachmentTool supporting MIME multipart emails with PDF/DOCX/XLSX/image attachments
+- Updated createPdfReportTool to return fileBase64 + fileSize + mimeType for in-chat download
+- Updated createDocxDocumentTool to return fileBase64 + fileSize + mimeType for in-chat download
+- Added create_xlsx_spreadsheet and gmail_send_attachment to allTools registry (95 total tools)
+- Updated agent tool assignments: General (+2), Mail (+2), Data (+1), Creative (+1), Research (+1)
+- Updated General system prompt with XLSX Creation and Gmail with Attachments tool descriptions
+- Updated Mail Agent system prompt with XLSX Creation, Gmail Send with Attachments, and decision framework entries
+- Enhanced chat-view.tsx extractDownloadUrl to detect fileBase64 data and render download buttons
+- Added handleBase64Download function for client-side blob download from base64
+- Updated download UI to show file size and support both URL-based and base64-based downloads
+- Added .xlsx to CONTENT_TYPES map in /api/files/[fileId]/route.ts
+- TypeScript: 0 new errors (all remaining errors in test files only)
+
+Stage Summary:
+- 4 files modified: tools.ts, agents.ts, chat-view.tsx, route.ts
+- 2 new tools added: create_xlsx_spreadsheet and gmail_send_attachment
+- Tavily search now first in fallback chain for web_search and research_deep
+- research_synthesize uses Ollama Cloud instead of AIHubMix for Vercel compatibility
+- PDF/DOCX/XLSX files now return base64 for instant in-chat download (no server round-trip)
+- Gmail Send with Attachments supports MIME multipart for sending generated files via email
+- All specialist agents updated with new tool assignments and system prompt awareness
