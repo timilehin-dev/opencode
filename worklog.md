@@ -554,3 +554,71 @@ Stage Summary:
 - Agent page Chat button now works via next/navigation router
 - Quick Task renamed to Assign Task with clearer UX copy
 - No git commit (as requested)
+
+---
+Task ID: tool-audit
+Agent: Main
+Task: Full audit of all 91 tools — fix bugs, verify functionality, ensure correct agent tool counts
+
+Work Log:
+- Read entire tools.ts (3721 lines) — all 93 tool definitions + allTools registry
+- Read agents.ts — all 7 agent configurations with tool assignments
+- Read agents-view.tsx, agent detail page — tool count display logic
+
+ISSUE 1 — Duplicate tools in General (CRITICAL):
+- code_execute and weather_get appeared TWICE in General's tools array (lines 505 & 517)
+- Inflated tool count from 90→92 on agent cards
+- Fixed: removed duplicate entries, keeping one instance each
+
+ISSUE 2 — Missing calendar_delete in General:
+- General is supposed to have ALL tools but calendar_delete was missing
+- Added calendar_delete to General's tool list after calendar_create
+
+ISSUE 3 — vercel_deploy was a STUB (CRITICAL):
+- Tool returned { success: true, message: "Redeployment triggered" } without actually deploying
+- Agents thought they deployed when nothing happened
+- Fixed: now actually calls Vercel API — gets project details, finds latest deployment commit SHA, triggers real redeployment via POST /v13/deployments
+- Proper error handling for missing VERCEL_API_TOKEN, project not found, no previous deployments
+
+ISSUE 4 — research_deep fails on Vercel:
+- Used ZAI.create() + zai.functions.invoke() which only works in local Z.ai environment
+- Specialist agents on Vercel would get uncatchable errors
+- Fixed: wrapped in try/catch with fallback to DuckDuckGo HTML search (webSearchFallback)
+
+ISSUE 5 — research_synthesize fails on Vercel:
+- Same ZAI SDK issue — only works locally
+- Fixed: triple-layer fallback: Z.ai SDK → AIHubMix GLM-5 chat completions → manual text synthesis
+
+ISSUE 6 — DOCX table rendering broken:
+- Tables pushed individual TableRow as child instead of wrapping in Table object
+- Caused malformed .docx files with broken tables
+- Fixed: now properly creates new Table({ rows, width }) and pushes the Table
+
+ISSUE 7 — Agent override system was cosmetic:
+- Tool toggle UI in agent detail page stored overrides in localStorage
+- But chat API route never read those overrides — tool toggles had zero effect
+- Fixed: chat transport now passes disabledTools/enabledTools in request body
+- API route now applies Set-based filtering: removes disabled, adds enabled extras
+
+ISSUE 8 — Tool count display showed duplicates:
+- Agent cards used agent.tools.length which counted duplicate entries
+- Fixed: all displays now use new Set(agent.tools).size for unique counts
+
+VERIFIED CORRECT TOOL COUNTS:
+- Claw General: 91 tools (all 93 minus delegate_to_agent and query_agent)
+- Mail Agent: 33 tools
+- Code Agent: 30 tools
+- Data Agent: 36 tools
+- Creative Agent: 27 tools
+- Research Agent: 16 tools
+- Ops Agent: 11 tools
+
+Build: 0 TypeScript errors, committed as 1a2a565, pushed to main
+
+Stage Summary:
+- 6 files modified: agents.ts, tools.ts, chat/route.ts, chat-view.tsx, agents-view.tsx, agents/[id]/page.tsx
+- 2 critical bugs fixed (vercel_deploy stub, research tools failing on Vercel)
+- 1 UX bug fixed (tool override toggles now actually work)
+- 1 rendering bug fixed (DOCX tables)
+- Duplicate entries removed, missing tool added
+- All agent cards now show correct unique tool counts
