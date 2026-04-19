@@ -556,11 +556,17 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
   const handleRunNow = async (auto: Record<string, unknown>) => {
     setRunningId(auto.id as number);
     try {
-      await fetch("/api/automations", {
+      const res = await fetch("/api/automations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "run", id: auto.id }),
       });
+      const json = await res.json();
+      if (json.success && json.data?.status === "error") {
+        console.error(`[Automation Run] Error: ${json.data.error}`);
+      } else if (json.success && json.data?.output) {
+        console.log(`[Automation Run] Output: ${json.data.output.slice(0, 200)}`);
+      }
       loadAutomations();
     } catch { /* silent */ }
     setRunningId(null);
