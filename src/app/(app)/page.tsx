@@ -6,6 +6,8 @@ import { OpsFeed } from "@/components/dashboard/ops-feed";
 import { ServiceChips } from "@/components/dashboard/service-chips";
 import { MetricsRow } from "@/components/dashboard/metrics-row";
 import { CoordinationMap } from "@/components/dashboard/coordination-map";
+import { DashboardTasks } from "@/components/dashboard/dashboard-tasks";
+import { DashboardHistory } from "@/components/dashboard/dashboard-history";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardStream } from "@/hooks/use-dashboard-stream";
 import type { ServiceStatus, RepoInfo as _RepoInfo, GmailProfile as _GmailProfile } from "@/lib/types";
@@ -16,6 +18,14 @@ type GmailProfile = _GmailProfile;
 const ChatView = lazy(() =>
   import("@/components/dashboard/chat-view").then((m) => ({ default: m.ChatView }))
 );
+
+type TabId = "chat" | "tasks" | "history";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "chat", label: "Chat" },
+  { id: "tasks", label: "Tasks" },
+  { id: "history", label: "History" },
+];
 
 function MetricsSkeleton() {
   return (
@@ -52,12 +62,49 @@ function ChatViewSkeleton() {
   );
 }
 
+function TabBar({ activeTab, onTabChange }: { activeTab: TabId; onTabChange: (tab: TabId) => void }) {
+  return (
+    <div className="flex border-b border-[#e8e5df] flex-shrink-0">
+      {TABS.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => onTabChange(tab.id)}
+          className={`flex-1 py-3 text-center text-xs font-semibold transition-all duration-150 border-b-2 ${
+            activeTab === tab.id
+              ? "text-[#3730a3] border-[#3730a3]"
+              : "text-[#999999] border-transparent hover:text-[#6b6b6b]"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TabContent({ activeTab, tasks }: { activeTab: TabId; tasks: Parameters<typeof DashboardTasks>[0]["tasks"] }) {
+  switch (activeTab) {
+    case "tasks":
+      return <DashboardTasks tasks={tasks} />;
+    case "history":
+      return <DashboardHistory />;
+    case "chat":
+    default:
+      return (
+        <Suspense fallback={<ChatViewSkeleton />}>
+          <ChatView />
+        </Suspense>
+      );
+  }
+}
+
 export default function DashboardPage() {
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
   const [, setRepo] = useState<RepoInfo | null>(null);
   const [, setGmProfile] = useState<GmailProfile | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>("chat");
 
-  const { agentStatuses, activity, metrics, delegations, isConnected } = useDashboardStream();
+  const { agentStatuses, activity, metrics, delegations, tasks, isConnected } = useDashboardStream();
 
   // Service-level data fetching
   const fetchServiceStatus = useCallback(async () => {
@@ -131,55 +178,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Right Column (40%) — Chat Panel — fills full height */}
+          {/* Right Column (40%) — Tabbed Panel — fills full height */}
           <div className="hidden lg:flex flex-col bg-white rounded-lg border border-[#e8e5df] shadow-sm w-[40%] min-w-0 overflow-hidden">
-            {/* Chat Tabs */}
-            <div className="flex border-b border-[#e8e5df] flex-shrink-0">
-              {["Chat", "Tasks", "History"].map((tab, i) => (
-                <div
-                  key={tab}
-                  className={`flex-1 py-3 text-center text-xs font-semibold cursor-pointer transition-all duration-150 border-b-2 ${
-                    i === 0
-                      ? "text-[#3730a3] border-[#3730a3]"
-                      : "text-[#999999] border-transparent hover:text-[#6b6b6b]"
-                  }`}
-                >
-                  {tab}
-                </div>
-              ))}
-            </div>
-            {/* ChatView — fills remaining space */}
+            <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 min-h-0">
-              <Suspense fallback={<ChatViewSkeleton />}>
-                <ChatView />
-              </Suspense>
+              <TabContent activeTab={activeTab} tasks={tasks} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Mobile Chat — full width at bottom ── */}
+      {/* ── Mobile Tabbed Panel — full width at bottom ── */}
       <div className="lg:hidden flex-shrink-0 border-t border-[#e8e5df] bg-white" style={{ height: "50vh" }}>
-        {/* Chat Tabs */}
-        <div className="flex border-b border-[#e8e5df] flex-shrink-0">
-          {["Chat", "Tasks", "History"].map((tab, i) => (
-            <div
-              key={tab}
-              className={`flex-1 py-3 text-center text-xs font-semibold cursor-pointer transition-all duration-150 border-b-2 ${
-                i === 0
-                  ? "text-[#3730a3] border-[#3730a3]"
-                  : "text-[#999999] border-transparent hover:text-[#6b6b6b]"
-              }`}
-            >
-              {tab}
-            </div>
-          ))}
-        </div>
-        {/* ChatView — fills remaining space */}
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
         <div className="flex-1 min-h-0 overflow-hidden" style={{ height: "calc(50vh - 42px)" }}>
-          <Suspense fallback={<ChatViewSkeleton />}>
-            <ChatView />
-          </Suspense>
+          <TabContent activeTab={activeTab} tasks={tasks} />
         </div>
       </div>
     </div>

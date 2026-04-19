@@ -142,7 +142,7 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
       <div className="px-4 py-2 bg-[#faf9f7] border-b border-[#e8e5df]">
         <span className="text-[10px] text-[#999999]">
           {delegations.length > 0
-            ? `Showing ${Math.min(delegations.length, 20)} recent delegation(s)`
+            ? `Showing ${Math.min(delegations.length, 10)} recent delegation(s)`
             : "No delegations yet"}
         </span>
       </div>
@@ -163,7 +163,7 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {delegations.slice(0, 20).map((delegation) => {
+            {delegations.slice(0, 10).map((delegation) => {
               const from = getAgentMeta(delegation.initiator_agent);
               const to = getAgentMeta(delegation.assigned_agent);
               const statusKey = delegation.status || "pending";
