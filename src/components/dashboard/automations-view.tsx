@@ -27,15 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/helpers";
-import {
-  type AutomationItem,
-  type AutomationLog,
-  getAllAutomations,
-  createAutomation,
-  updateAutomation,
-  deleteAutomation,
-  getAutomationLogs,
-} from "@/lib/automations-store";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 // ---------------------------------------------------------------------------
@@ -91,7 +82,7 @@ interface AutomationTemplate {
   id: string;
   name: string;
   description: string;
-  icon: "mail" | "code" | "bell" | "git";
+  icon: "mail" | "code" | "bell" | "git" | "research" | "ops" | "creative" | "data";
   form: AutomationForm;
 }
 
@@ -99,15 +90,15 @@ const TEMPLATES: AutomationTemplate[] = [
   {
     id: "daily-inbox",
     name: "Daily Inbox Summary",
-    description: "Get a morning summary of your unread emails",
+    description: "Get a morning summary of your unread emails at 9am",
     icon: "mail",
     form: {
       name: "Daily Inbox Summary",
-      description: "Summarize my unread emails from today",
+      description: "Summarize my unread emails from today, highlight important ones",
       triggerType: "schedule",
       triggerConfig: "0 9 * * *",
       actionType: "agent_task",
-      actionConfig: "Summarize my unread emails from today",
+      actionConfig: "Check my inbox and summarize all unread emails from today. Highlight any urgent or important messages.",
       agentId: "mail",
       enabled: true,
     },
@@ -115,7 +106,7 @@ const TEMPLATES: AutomationTemplate[] = [
   {
     id: "weekly-review",
     name: "Weekly Code Review",
-    description: "Automated pull request review every Monday morning",
+    description: "Automated PR review every Monday morning",
     icon: "code",
     form: {
       name: "Weekly Code Review",
@@ -123,24 +114,8 @@ const TEMPLATES: AutomationTemplate[] = [
       triggerType: "schedule",
       triggerConfig: "0 9 * * 1",
       actionType: "agent_task",
-      actionConfig: "Review open pull requests and summarize issues",
+      actionConfig: "Check GitHub for open pull requests. Review each one and provide a summary of issues, approvals needed, and recommended actions.",
       agentId: "code",
-      enabled: true,
-    },
-  },
-  {
-    id: "email-alert",
-    name: "New Email Alert",
-    description: "Get notified instantly when a new email arrives",
-    icon: "bell",
-    form: {
-      name: "New Email Alert",
-      description: "Receive a notification for every incoming email",
-      triggerType: "event",
-      triggerConfig: "gmail.received",
-      actionType: "notification",
-      actionConfig: "",
-      agentId: "",
       enabled: true,
     },
   },
@@ -155,8 +130,88 @@ const TEMPLATES: AutomationTemplate[] = [
       triggerType: "schedule",
       triggerConfig: "0 18 * * *",
       actionType: "agent_task",
-      actionConfig: "Give me a summary of GitHub activity today",
+      actionConfig: "Give me a full summary of GitHub activity today: commits, issues, pull requests, and deployments.",
       agentId: "code",
+      enabled: true,
+    },
+  },
+  {
+    id: "research-digest",
+    name: "Daily Research Briefing",
+    description: "Get a morning briefing on tech news and trends at 8am",
+    icon: "research",
+    form: {
+      name: "Daily Research Briefing",
+      description: "AI research agent compiles a morning briefing on relevant topics",
+      triggerType: "schedule",
+      triggerConfig: "0 8 * * *",
+      actionType: "agent_task",
+      actionConfig: "Search the web for the latest news and developments in AI, software engineering, and relevant technology trends. Compile a concise briefing with key takeaways.",
+      agentId: "research",
+      enabled: true,
+    },
+  },
+  {
+    id: "agent-health-check",
+    name: "Agent Health Monitor",
+    description: "Every 6 hours, check agent performance and report issues",
+    icon: "ops",
+    form: {
+      name: "Agent Health Monitor",
+      description: "Ops agent checks system health every 6 hours",
+      triggerType: "schedule",
+      triggerConfig: "0 */6 * * *",
+      actionType: "agent_task",
+      actionConfig: "Run a system health check. Check agent status, recent error rates, task completion rates, and API key usage. Report any anomalies or issues that need attention.",
+      agentId: "ops",
+      enabled: true,
+    },
+  },
+  {
+    id: "weekly-creative-insights",
+    name: "Weekly Creative Insights",
+    description: "Every Friday, generate creative ideas and content suggestions",
+    icon: "creative",
+    form: {
+      name: "Weekly Creative Insights",
+      description: "Creative agent generates fresh ideas every Friday",
+      triggerType: "schedule",
+      triggerConfig: "0 10 * * 5",
+      actionType: "agent_task",
+      actionConfig: "Review our recent conversations and completed tasks this week. Generate 5 creative ideas or content suggestions based on patterns you notice. Be specific and actionable.",
+      agentId: "creative",
+      enabled: true,
+    },
+  },
+  {
+    id: "data-report",
+    name: "Daily Data Summary",
+    description: "Every evening, generate a summary of key metrics and data points",
+    icon: "data",
+    form: {
+      name: "Daily Data Summary",
+      description: "Data agent compiles daily metrics report",
+      triggerType: "schedule",
+      triggerConfig: "0 20 * * *",
+      actionType: "agent_task",
+      actionConfig: "Review today's task completion data, agent performance metrics, and activity logs. Generate a concise summary report with key numbers and trends.",
+      agentId: "data",
+      enabled: true,
+    },
+  },
+  {
+    id: "email-alert",
+    name: "New Email Alert",
+    description: "Get notified when a new email arrives",
+    icon: "bell",
+    form: {
+      name: "New Email Alert",
+      description: "Receive a notification for every incoming email",
+      triggerType: "event",
+      triggerConfig: "gmail.received",
+      actionType: "agent_task",
+      actionConfig: "A new email was received. Check the inbox and provide a brief summary of the email content and whether it needs immediate attention.",
+      agentId: "mail",
       enabled: true,
     },
   },
@@ -223,21 +278,24 @@ function getActionLabel(actionType: string): string {
   return actionType === "agent_task" ? "Agent Task" : "Notification";
 }
 
-function resolveTriggerConfig(auto: AutomationItem): string {
-  if (auto.triggerType === "schedule") {
-    return typeof auto.triggerConfig.schedule === "string" ? auto.triggerConfig.schedule : "";
+function resolveTriggerConfig(auto: Record<string, unknown>): string {
+  const tc = (auto.trigger_config || auto.triggerConfig || {}) as Record<string, unknown>;
+  const tt = auto.trigger_type || auto.triggerType;
+  if (tt === "schedule") {
+    return typeof tc.schedule === "string" ? tc.schedule : "";
   }
-  if (auto.triggerType === "event") {
-    return typeof auto.triggerConfig.event === "string" ? auto.triggerConfig.event : "";
+  if (tt === "event") {
+    return typeof tc.event === "string" ? tc.event : "";
   }
   return "";
 }
 
-function resolveActionConfig(auto: AutomationItem): string {
-  if (auto.actionType === "agent_task") {
-    return typeof auto.actionConfig.prompt === "string" ? auto.actionConfig.prompt : "";
+function resolveActionConfig(auto: Record<string, unknown>): string {
+  const actionConfig = (auto.action_config || auto.actionConfig || {}) as Record<string, unknown>;
+  if (auto.actionType === "agent_task" || auto.action_type === "agent_task") {
+    return typeof actionConfig.task === "string" ? actionConfig.task : typeof actionConfig.prompt === "string" ? actionConfig.prompt : "";
   }
-  return typeof auto.actionConfig.message === "string" ? auto.actionConfig.message : "";
+  return typeof actionConfig.message === "string" ? actionConfig.message : "";
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +395,8 @@ interface AutomationsViewProps {
 }
 
 export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProps) {
-  const [automations, setAutomations] = useState<AutomationItem[]>([]);
-  const [allLogs, setAllLogs] = useState<AutomationLog[]>([]);
+  const [automations, setAutomations] = useState<Record<string, unknown>[]>([]);
+  const [allLogs, setAllLogs] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -347,26 +405,32 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [activeTab, setActiveTab] = useState<TabKey>("automations");
+  const [runningId, setRunningId] = useState<number | null>(null);
 
   const logsByAutomation = useMemo(() => {
-    const map = new Map<number, AutomationLog[]>();
+    const map = new Map<number, Record<string, unknown>[]>();
     for (const log of allLogs) {
-      const existing = map.get(log.automationId) || [];
+      const aid = log.automation_id as number;
+      const existing = map.get(aid) || [];
       if (existing.length < 3) existing.push(log);
-      map.set(log.automationId, existing);
+      map.set(aid, existing);
     }
     return map;
   }, [allLogs]);
 
-  const loadAutomations = useCallback(() => {
+  const loadAutomations = useCallback(async () => {
     setLoading(true);
-    requestAnimationFrame(() => {
-      try {
-        setAutomations(getAllAutomations());
-        setAllLogs(getAutomationLogs(undefined, 100));
-      } catch { /* empty */ }
-      setLoading(false);
-    });
+    try {
+      const [autoRes, logRes] = await Promise.all([
+        fetch("/api/automations"),
+        fetch("/api/automations?action=logs&limit=100"),
+      ]);
+      const autoJson = await autoRes.json();
+      const logJson = await logRes.json();
+      if (autoJson.success) setAutomations(autoJson.data || []);
+      if (logJson.success) setAllLogs(logJson.data || []);
+    } catch { /* empty */ }
+    setLoading(false);
   }, []);
 
   useEffect(() => { loadAutomations(); }, [loadAutomations]);
@@ -378,17 +442,17 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
     setPanelOpen(true);
   };
 
-  const openEdit = (auto: AutomationItem) => {
-    setEditingId(auto.id);
+  const openEdit = (auto: Record<string, unknown>) => {
+    setEditingId(auto.id as number);
     setForm({
-      name: auto.name,
-      description: auto.description,
-      triggerType: auto.triggerType,
+      name: (auto.name as string) || "",
+      description: (auto.description as string) || "",
+      triggerType: ((auto.trigger_type as string) || "manual") as "schedule" | "event" | "manual",
       triggerConfig: resolveTriggerConfig(auto),
-      actionType: auto.actionType as "agent_task" | "notification",
+      actionType: ((auto.action_type as string) || "agent_task") as "agent_task" | "notification",
       actionConfig: resolveActionConfig(auto),
-      agentId: auto.agentId || "",
-      enabled: auto.enabled,
+      agentId: (auto.agent_id as string) || "",
+      enabled: (auto.enabled as boolean) ?? true,
     });
     setWizardStep(1);
     setPanelOpen(true);
@@ -401,23 +465,28 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
     setPanelOpen(true);
   };
 
-  const handleClone = (auto: AutomationItem) => {
+  const handleClone = async (auto: Record<string, unknown>) => {
     try {
-      createAutomation({
-        name: `${auto.name} (Copy)`,
-        description: auto.description,
-        triggerType: auto.triggerType,
-        triggerConfig: auto.triggerConfig,
-        actionType: auto.actionType,
-        actionConfig: auto.actionConfig,
-        agentId: auto.agentId || undefined,
-        enabled: false,
+      await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          name: `${auto.name} (Copy)`,
+          description: auto.description,
+          trigger_type: auto.trigger_type,
+          trigger_config: auto.trigger_config,
+          action_type: auto.action_type,
+          action_config: auto.action_config,
+          agent_id: auto.agent_id || "",
+          enabled: false,
+        }),
       });
       loadAutomations();
     } catch { /* silent */ }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim() || !form.triggerType || !form.actionType) return;
     setSaving(true);
     try {
@@ -425,20 +494,32 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
       if (form.triggerType === "schedule") triggerConfig.schedule = form.triggerConfig;
       else if (form.triggerType === "event") triggerConfig.event = form.triggerConfig;
       const actionConfig: Record<string, unknown> = {};
-      if (form.actionType === "agent_task") actionConfig.prompt = form.actionConfig;
+      if (form.actionType === "agent_task") actionConfig.task = form.actionConfig;
       else actionConfig.message = form.actionConfig;
 
       if (editingId) {
-        updateAutomation(editingId, {
-          name: form.name.trim(), description: form.description.trim(),
-          triggerType: form.triggerType, triggerConfig, actionType: form.actionType,
-          actionConfig, agentId: form.agentId || undefined, enabled: form.enabled,
+        await fetch("/api/automations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update", id: editingId,
+            name: form.name.trim(), description: form.description.trim(),
+            trigger_type: form.triggerType, trigger_config: triggerConfig,
+            action_type: form.actionType, action_config: actionConfig,
+            agent_id: form.agentId || "", enabled: form.enabled,
+          }),
         });
       } else {
-        createAutomation({
-          name: form.name.trim(), description: form.description.trim(),
-          triggerType: form.triggerType, triggerConfig, actionType: form.actionType,
-          actionConfig, agentId: form.agentId || undefined, enabled: form.enabled,
+        await fetch("/api/automations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create",
+            name: form.name.trim(), description: form.description.trim(),
+            trigger_type: form.triggerType, trigger_config: triggerConfig,
+            action_type: form.actionType, action_config: actionConfig,
+            agent_id: form.agentId || "", enabled: form.enabled,
+          }),
         });
       }
       setPanelOpen(false);
@@ -449,12 +530,40 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
     setSaving(false);
   };
 
-  const handleDelete = (id: number) => {
-    try { deleteAutomation(id); setDeleteConfirm(null); loadAutomations(); } catch { /* silent */ }
+  const handleDelete = async (id: number) => {
+    try {
+      await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id }),
+      });
+      setDeleteConfirm(null);
+      loadAutomations();
+    } catch { /* silent */ }
   };
 
-  const handleToggle = (auto: AutomationItem) => {
-    try { updateAutomation(auto.id, { enabled: !auto.enabled }); loadAutomations(); } catch { /* silent */ }
+  const handleToggle = async (auto: Record<string, unknown>) => {
+    try {
+      await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggle", id: auto.id, enabled: !(auto.enabled as boolean) }),
+      });
+      loadAutomations();
+    } catch { /* silent */ }
+  };
+
+  const handleRunNow = async (auto: Record<string, unknown>) => {
+    setRunningId(auto.id as number);
+    try {
+      await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run", id: auto.id }),
+      });
+      loadAutomations();
+    } catch { /* silent */ }
+    setRunningId(null);
   };
 
   const canProceedStep1 = form.name.trim().length > 0;
@@ -684,49 +793,58 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
             ) : (
               <motion.div className="grid grid-cols-1 gap-4" variants={containerVariants} initial="hidden" animate="show">
                 {automations.map((auto) => {
-                  const autoLogs = logsByAutomation.get(auto.id) ?? [];
-                  const agentLabel = KNOWN_AGENTS.find((a) => a.id === auto.agentId)?.name;
+                  const autoLogs = logsByAutomation.get(auto.id as number) ?? [];
+                  const triggerType = (auto.trigger_type as string) || "manual";
+                  const actionType = (auto.action_type as string) || "agent_task";
+                  const enabled = auto.enabled as boolean;
+                  const agentLabel = KNOWN_AGENTS.find((a) => a.id === (auto.agent_id as string))?.name;
+                  const runCount = (auto.run_count as number) || 0;
+                  const lastRunAt = auto.last_run_at as string | null;
+                  const isRunning = runningId === (auto.id as number);
                   return (
-                    <motion.div key={auto.id} variants={itemVariants}>
+                    <motion.div key={String(auto.id)} variants={itemVariants}>
                       <Card className="hover:border-[#3730a3]/20 transition-all duration-300">
                         <CardContent className="p-5">
                           <div className="flex flex-col gap-4">
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2.5 mb-2 flex-wrap">
-                                  <h3 className="text-sm font-semibold text-foreground truncate">{auto.name}</h3>
-                                  <Badge variant="outline" className={cn("text-[10px] flex-shrink-0", triggerBadgeStyles[auto.triggerType])}>{auto.triggerType}</Badge>
-                                  {auto.enabled ? <Badge variant="success" className="text-[10px] flex-shrink-0 gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Active</Badge> : <Badge variant="secondary" className="text-[10px] flex-shrink-0">Paused</Badge>}
+                                  <h3 className="text-sm font-semibold text-foreground truncate">{auto.name as string}</h3>
+                                  <Badge variant="outline" className={cn("text-[10px] flex-shrink-0", triggerBadgeStyles[triggerType])}>{triggerType}</Badge>
+                                  {enabled ? <Badge variant="success" className="text-[10px] flex-shrink-0 gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Active</Badge> : <Badge variant="secondary" className="text-[10px] flex-shrink-0">Paused</Badge>}
                                 </div>
-                                {auto.description && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{auto.description}</p>}
-                                <FlowPreview triggerType={auto.triggerType} triggerValue={resolveTriggerConfig(auto) || undefined} actionType={auto.actionType} agentLabel={agentLabel} compact />
+                                {auto.description ? <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{String(auto.description)}</p> : null}
+                                <FlowPreview triggerType={triggerType} triggerValue={resolveTriggerConfig(auto) || undefined} actionType={actionType} agentLabel={agentLabel} compact />
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0 sm:ml-4">
-                                <button onClick={() => handleToggle(auto)} className={cn("relative rounded-full transition-colors duration-200 flex-shrink-0", auto.enabled ? "bg-[#3730a3]" : "bg-[#e8e5df]")} style={{ width: "40px", height: "22px" }} aria-label={auto.enabled ? "Disable" : "Enable"}>
-                                  <span className={cn("absolute top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200", auto.enabled ? "translate-x-[21px]" : "translate-x-[3px]")} />
+                                <button onClick={() => handleToggle(auto)} className={cn("relative rounded-full transition-colors duration-200 flex-shrink-0", enabled ? "bg-[#3730a3]" : "bg-[#e8e5df]")} style={{ width: "40px", height: "22px" }} aria-label={enabled ? "Disable" : "Enable"}>
+                                  <span className={cn("absolute top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200", enabled ? "translate-x-[21px]" : "translate-x-[3px]")} />
                                 </button>
+                                <Button variant="ghost" size="sm" onClick={() => handleRunNow(auto)} disabled={isRunning} className="text-xs gap-1.5 text-muted-foreground hover:text-emerald-600" title="Run Now">
+                                  {isRunning ? <span className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                                </Button>
                                 <Button variant="ghost" size="sm" onClick={() => openEdit(auto)} className="text-xs gap-1.5 text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /><span className="hidden sm:inline">Edit</span></Button>
                                 <Button variant="ghost" size="sm" onClick={() => handleClone(auto)} className="text-xs gap-1.5 text-muted-foreground hover:text-foreground" title="Clone automation"><Copy className="w-3.5 h-3.5" /></Button>
                                 {deleteConfirm === auto.id ? (
                                   <div className="flex items-center gap-1">
-                                    <Button variant="destructive" size="sm" onClick={() => handleDelete(auto.id)} className="text-[10px] h-7 px-2">Confirm</Button>
+                                    <Button variant="destructive" size="sm" onClick={() => handleDelete(auto.id as number)} className="text-[10px] h-7 px-2">Confirm</Button>
                                     <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(null)} className="text-[10px] h-7 px-2"><X className="w-3 h-3" /></Button>
                                   </div>
                                 ) : (
-                                  <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(auto.id)} className="text-xs gap-1.5 text-muted-foreground hover:text-red-400"><TrashIcon className="w-3.5 h-3.5" /></Button>
+                                  <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(auto.id as number)} className="text-xs gap-1.5 text-muted-foreground hover:text-red-400"><TrashIcon className="w-3.5 h-3.5" /></Button>
                                 )}
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#f0ede8]">
                               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1.5"><Play className="w-3 h-3" /><span>{auto.runCount} runs</span></div>
-                                {auto.agentId && <div className="flex items-center gap-1.5"><Bot className="w-3 h-3" /><span>{agentLabel ?? auto.agentId}</span></div>}
-                                {auto.lastRunAt && <div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /><span>Last: {timeAgo(auto.lastRunAt)}</span></div>}
+                                <div className="flex items-center gap-1.5"><FileText className="w-3 h-3" /><span>{runCount} runs</span></div>
+                                {auto.agent_id ? <div className="flex items-center gap-1.5"><Bot className="w-3 h-3" /><span>{agentLabel ?? String(auto.agent_id)}</span></div> : null}
+                                {lastRunAt ? <div className="flex items-center gap-1.5"><Clock className="w-3 h-3" /><span>Last: {timeAgo(lastRunAt)}</span></div> : null}
                               </div>
                               {autoLogs.length > 0 && (
                                 <div className="flex items-center gap-2">
                                   <span className="text-[10px] text-muted-foreground mr-1">Recent:</span>
-                                  {autoLogs.map((log) => <LogStatusBadge key={log.id} status={log.status} />)}
+                                  {autoLogs.map((log) => <LogStatusBadge key={String(log.id)} status={log.status as string} />)}
                                 </div>
                               )}
                             </div>
@@ -789,29 +907,31 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
               </Card>
             ) : (
               <motion.div className="space-y-2" variants={containerVariants} initial="hidden" animate="show">
-                {allLogs.map((log) => {
-                  const automation = automations.find((a) => a.id === log.automationId);
+                {allLogs.map((log: Record<string, unknown>) => {
+                  const automation = automations.find((a) => a.id === log.automation_id);
+                  const logStatus = (log.status as string) || "running";
+                  const logErr = (log.error_message as string) || "";
                   return (
-                    <motion.div key={log.id} variants={itemVariants}>
+                    <motion.div key={String(log.id)} variants={itemVariants}>
                       <Card className="hover:border-[#3730a3]/10 transition-colors duration-200">
                         <CardContent className="px-4 py-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <Badge variant="outline" className={cn("text-[10px] flex-shrink-0 gap-1", logStatusStyles[log.status])}>
-                                {log.status === "success" && <CheckCircle2 className="w-3 h-3" />}
-                                {log.status === "error" && <AlertCircle className="w-3 h-3" />}
-                                {log.status === "running" && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />}
-                                <span className="capitalize">{log.status}</span>
+                              <Badge variant="outline" className={cn("text-[10px] flex-shrink-0 gap-1", logStatusStyles[logStatus])}>
+                                {logStatus === "success" && <CheckCircle2 className="w-3 h-3" />}
+                                {logStatus === "error" && <AlertCircle className="w-3 h-3" />}
+                                {logStatus === "running" && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />}
+                                <span className="capitalize">{logStatus}</span>
                               </Badge>
-                              <span className="text-xs font-medium text-foreground truncate">{automation?.name ?? `Automation #${log.automationId}`}</span>
-                              {log.errorMessage && <span className="text-[10px] text-red-500 truncate hidden sm:inline">— {log.errorMessage}</span>}
+                              <span className="text-xs font-medium text-foreground truncate">{(automation?.name as string) ?? `Automation #${log.automation_id}`}</span>
+                              {logErr ? <span className="text-[10px] text-red-500 truncate hidden sm:inline">— {logErr}</span> : null}
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDuration(log.durationMs)}</span>
-                              <span className="text-[10px]">{timeAgo(log.createdAt)}</span>
+                              <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatDuration(log.duration_ms as number | null)}</span>
+                              <span className="text-[10px]">{timeAgo(log.created_at as string)}</span>
                             </div>
                           </div>
-                          {log.errorMessage && <p className="text-[10px] text-red-500 mt-1.5 sm:hidden line-clamp-1">{log.errorMessage}</p>}
+                          {logErr ? <p className="text-[10px] text-red-500 mt-1.5 sm:hidden line-clamp-1">{logErr}</p> : null}
                         </CardContent>
                       </Card>
                     </motion.div>
