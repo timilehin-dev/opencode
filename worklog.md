@@ -57,3 +57,24 @@ Stage Summary:
 - 0 critical bugs found
 - 3 low/info issues documented
 - TypeScript compilation clean (production code)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Move task execution from Vercel to GitHub Actions
+
+Work Log:
+- Analyzed full execution pipeline: Supabase pg_cron -> Vercel task-processor -> generateText()
+- Identified root cause: Vercel Hobby 60s timeout too short for multi-step agent tasks
+- Created scripts/execute-tasks.mjs — standalone Node.js executor (no Next.js dependency)
+- Implemented full tool set: Gmail, Calendar, Drive, Web Search/Reader, GitHub, Vercel, Weather, Code Execute
+- Created .github/workflows/task-executor.yml — runs every 2 min, concurrency control
+- Updated .github/workflows/cron.yml — removed Vercel task-processor call
+- Updated src/app/api/cron/task-processor/route.ts — lightweight, evaluates automations only
+- Pushed to main (commit 8f2fd1b), Vercel auto-deploys
+
+Stage Summary:
+- Task execution fully moved from Vercel (60s limit) to GitHub Actions (300s default, configurable up to 6h)
+- Vercel task-processor now only evaluates automation triggers (10s max)
+- Detailed logging to automation_logs: running/success/error with tool calls, duration, step count
+- Required: User must add GitHub Secrets (SUPABASE_DB_URL, API keys, Google OAuth, etc.)
