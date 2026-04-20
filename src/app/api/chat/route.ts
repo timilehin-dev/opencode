@@ -239,13 +239,17 @@ export async function POST(req: Request) {
 
     // Inject real-time date/time context so agents know "now"
     // This is critical for reminders ("remind me tomorrow"), scheduling, etc.
+    // User timezone: Africa/Lagos (WAT, UTC+1) — Nigeria
     const now = new Date();
-    const currentDateTime = `[CURRENT DATE/TIME — Use this as "now" for all time calculations]
+    const currentDateTime = `[CURRENT DATE/TIME — ALWAYS use this as "now" for ALL time references]
+- Lagos (WAT, UTC+1): ${now.toLocaleString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
+- Date: ${now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+- Time: ${now.toLocaleTimeString("en-US", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hour12: true })}
+- Day: ${now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long" })}
 - UTC: ${now.toISOString()}
-- Date: ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-- Time: ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}
 - Unix timestamp: ${Math.floor(now.getTime() / 1000)}
-When the user says "tomorrow", "next week", "in 2 hours", etc., calculate from this current time.`;
+
+CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you reference dates, times, "today", "yesterday", "tomorrow", or any time-relative terms, you MUST derive them from the Lagos time above. NEVER guess or hallucinate dates.`;
 
     const systemPrompt =
       id !== "general"

@@ -1214,7 +1214,24 @@ async function executeTask(task) {
       if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
     }
 
-    const systemPrompt = `You are ${agentDef.name}, an AI agent executing a background automation task. Complete the task fully and provide a concise summary of what you did and the results. You are running autonomously — no user interaction is possible.`;
+    // Build datetime context in Africa/Lagos timezone
+    const now = new Date();
+    const lagosTime = now.toLocaleString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+    const lagosDate = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const lagosTimeShort = now.toLocaleTimeString("en-US", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hour12: true });
+    const lagosDayName = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long" });
+
+    const dateTimeBlock = `[CURRENT DATE/TIME — ALWAYS use this as "now" for ALL time references]
+- Lagos (WAT, UTC+1): ${lagosTime}
+- Date: ${lagosDate}
+- Time: ${lagosTimeShort}
+- Day: ${lagosDayName}
+- UTC: ${now.toISOString()}
+- Unix timestamp: ${Math.floor(now.getTime() / 1000)}
+
+CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you reference "today", "yesterday", "tomorrow", or any date in email subject lines, headers, or content, you MUST use the date from above. NEVER guess or hallucinate dates — always derive them from this current time. For example, if today is April 20, 2026, a "Daily Inbox Summary" should say "April 20, 2026", NOT any other date.`;
+
+    const systemPrompt = `${dateTimeBlock}\n\nYou are ${agentDef.name}, an AI agent executing a background automation task. Complete the task fully and provide a concise summary of what you did and the results. You are running autonomously — no user interaction is possible.`;
 
     console.log(`[Task #${task.id}] Executing with ${Object.keys(agentTools).length} tools, timeout=${timeoutS}s, maxSteps=${maxSteps}`);
 
