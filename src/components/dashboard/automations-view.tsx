@@ -560,13 +560,14 @@ export function AutomationsView({ onNavigate: _onNavigate }: AutomationsViewProp
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "run", id: auto.id }),
-        signal: AbortSignal.timeout(65_000), // Wait up to 65s for inline execution
       });
       const json = await res.json();
-      if (json.success && json.data?.status === "error") {
-        console.error(`[Automation Run] Error: ${json.data.error}`);
-      } else if (json.success && json.data?.output) {
-        console.log(`[Automation Run] Output: ${json.data.output.slice(0, 200)}`);
+      if (json.success && json.data) {
+        if (json.data.mode === "queued") {
+          console.log(`[Automation Run] Queued task #${json.data.task_id} for ${json.data.agent_id}. Check logs in ~1-2 min.`);
+        } else if (json.data.status === "error") {
+          console.error(`[Automation Run] Error: ${json.data.error}`);
+        }
       }
       loadAutomations();
     } catch (err) {

@@ -229,7 +229,9 @@ export async function POST(req: NextRequest) {
       }
 
       case "run": {
-        // Manual trigger — execute the task inline (synchronously)
+        // Manual trigger — queue task for background execution by the cron task-processor
+        // Returns immediately. The task-processor (runs every minute via Supabase pg_cron)
+        // will pick up and execute the task. Check the Logs tab in ~1-2 minutes.
         const { id } = body as { id: number };
         if (!id) return err("Missing id", 400);
 
@@ -237,117 +239,58 @@ export async function POST(req: NextRequest) {
         if (autoResult.rows.length === 0) return err("Automation not found", 404);
 
         const auto = autoResult.rows[0];
+        const { createTask } = await import("@/lib/task-queue");
         const actionConfig = auto.action_config || {};
         const agentId = actionConfig.agent_id || auto.agent_id || "general";
         const taskDescription = actionConfig.task || auto.description || auto.name;
 
-        const startTime = Date.now();
+        // Queue the task for background execution
+        const taskId = await createTask({
+          agent_id: agentId,
+          task: taskDescription,
+          context: `Manually triggered: ${auto.name}`,
+          trigger_type: "automation",
+          trigger_source: `automation:${auto.id}:manual`,
+          priority: "high",
+        });
 
-        // Log the run as "running"
-        const logResult = await pool.query(
-          `INSERT INTO automation_logs (automation_id, status, result, duration_ms) VALUES ($1, 'running', $2, 0) RETURNING id`,
-          [id, JSON.stringify({ type: "manual_trigger", agent_id: agentId, task: taskDescription })],
+        // Log the queued run with helpful details
+        const success = taskId > 0;
+        await pool.query(
+          `INSERT INTO automation_logs (automation_id, status, result, duration_ms, error_message) VALUES ($1, $2, $3, 0, $4)`,
+          [
+            id,
+            success ? "success" : "error",
+            JSON.stringify({
+              type: "manual_trigger_queued",
+              task_id: taskId,
+              agent_id: agentId,
+              task_preview: taskDescription.slice(0, 200),
+              message: success
+                ? `Task #${taskId} queued. Background processor executes within ~1 minute.`
+                : "Failed to queue — check SUPABASE_DB_URL and agent_tasks table.",
+            }),
+            success ? null : "Failed to create task in agent_tasks table",
+          ],
         );
-        const logId = logResult.rows[0]?.id;
 
-        try {
-          // Execute the task inline — import task processor logic
-          const { getAgent, getProvider } = await import("@/lib/agents");
-          const { allTools } = await import("@/lib/tools");
-          const { generateText, stepCountIs } = await import("ai");
-
-          const agent = getAgent(agentId);
-          if (!agent) {
-            throw new Error(`Unknown agent: ${agentId}`);
-          }
-
-          const providerResult = await getProvider(agent);
-
-          // Build tool subset for this agent
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const agentTools: Record<string, any> = {};
-          for (const toolId of agent.tools) {
-            if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
-          }
-
-          // Build system prompt
-          const systemPrompt = `You are ${agent.name}, ${agent.role}. Execute this task autonomously. Complete the task fully and provide a concise summary of what you did and the results.\n\n${agent.systemPrompt}`;
-
-          const result = await generateText({
-            model: providerResult.model,
-            system: systemPrompt,
-            messages: [
-              {
-                role: "user",
-                content: `${taskDescription}\n\nContext: Manually triggered automation "${auto.name}"`,
-              },
-            ],
-            tools: agentTools,
-            maxOutputTokens: 8192,
-            stopWhen: stepCountIs(15),
-            abortSignal: AbortSignal.timeout(55_000),
-          });
-
-          const durationMs = Date.now() - startTime;
-          const toolCalls = result.steps
-            .flatMap((step: { toolCalls?: unknown[] }) => step.toolCalls || [])
-            .map((tc: unknown) => {
-              const call = tc as { toolName: string; args: Record<string, unknown> };
-              return { name: call.toolName, args: call.args };
-            });
-
-          const resultSummary = {
-            type: "manual_trigger",
-            task_id: null,
-            agent_id: agentId,
-            status: "completed",
-            output: (result.text || "(No text output)").slice(0, 2000),
-            toolCalls: toolCalls.map((tc: { name: string }) => tc.name),
-            durationMs,
-          };
-
-          // Update log to success
+        if (success) {
           await pool.query(
-            `UPDATE automation_logs SET status = 'success', result = $1, duration_ms = $2 WHERE id = $3`,
-            [JSON.stringify(resultSummary), durationMs, logId],
-          );
-          await pool.query(
-            `UPDATE automations SET last_run_at = NOW(), last_status = 'success', run_count = run_count + 1 WHERE id = $1`,
+            `UPDATE automations SET last_run_at = NOW(), run_count = run_count + 1 WHERE id = $1`,
             [id],
           );
-
-          await pool.end();
-          return ok({
-            triggered: true,
-            agent_id: agentId,
-            status: "completed",
-            durationMs,
-            output: resultSummary.output,
-            toolCalls: resultSummary.toolCalls,
-          });
-        } catch (execError) {
-          const durationMs = Date.now() - startTime;
-          const errorMsg = execError instanceof Error ? execError.message : "Unknown execution error";
-
-          // Update log to error
-          await pool.query(
-            `UPDATE automation_logs SET status = 'error', result = $1, duration_ms = $2, error_message = $3 WHERE id = $4`,
-            [JSON.stringify({ type: "manual_trigger", agent_id: agentId, status: "error", error: errorMsg }), durationMs, errorMsg, logId],
-          );
-          await pool.query(
-            `UPDATE automations SET last_run_at = NOW(), last_status = 'error', run_count = run_count + 1 WHERE id = $1`,
-            [id],
-          );
-
-          await pool.end();
-          return ok({
-            triggered: true,
-            agent_id: agentId,
-            status: "error",
-            durationMs,
-            error: errorMsg,
-          });
         }
+
+        await pool.end();
+        return ok({
+          triggered: true,
+          mode: "queued",
+          task_id: taskId,
+          agent_id: agentId,
+          message: success
+            ? `Task #${taskId} queued. The background processor (every minute) will execute it shortly. Check the Logs tab for results.`
+            : "Failed to queue task. Check SUPABASE_DB_URL and database tables.",
+        });
       }
 
       default:

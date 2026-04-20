@@ -66,6 +66,34 @@ export async function GET(request: Request) {
       // Mark as running
       await startTask(task.id);
 
+      // Extract automation_id from trigger_source for logging
+      const autoMatch = (task.trigger_source || "").match(/automation:(\d+)/);
+      const automationId = autoMatch ? parseInt(autoMatch[1], 10) : null;
+
+      // Log to automation_logs if this came from an automation
+      if (automationId) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { Pool } = require("pg");
+          const logPool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+          await logPool.query(
+            `INSERT INTO automation_logs (automation_id, status, result, duration_ms)
+             VALUES ($1, 'running', $2, 0)`,
+            [
+              automationId,
+              JSON.stringify({
+                type: "background_execution",
+                task_id: task.id,
+                agent_id: task.agent_id,
+                task: task.task.slice(0, 200),
+                trigger: task.trigger_type,
+              }),
+            ],
+          );
+          await logPool.end();
+        } catch { /* non-critical */ }
+      }
+
       // Log activity
       logActivity({
         agentId: task.agent_id,
@@ -98,6 +126,32 @@ export async function GET(request: Request) {
         await completeTask(task.id, taskResult.text, taskResult.toolCalls);
         results.tasksSucceeded++;
 
+        // Write success to automation_logs
+        if (automationId) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { Pool } = require("pg");
+            const logPool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+            await logPool.query(
+              `INSERT INTO automation_logs (automation_id, status, result, duration_ms)
+               VALUES ($1, 'success', $2, $3)`,
+              [
+                automationId,
+                JSON.stringify({
+                  type: "background_execution",
+                  task_id: task.id,
+                  agent_id: task.agent_id,
+                  status: "completed",
+                  output: (taskResult.text || "").slice(0, 2000),
+                  tool_calls: (taskResult.toolCalls || []).map((tc: unknown) => (tc as { name: string }).name),
+                }),
+                taskResult.durationMs || 0,
+              ],
+            );
+            await logPool.end();
+          } catch { /* non-critical */ }
+        }
+
         logActivity({
           agentId: task.agent_id,
           action: "task_completed",
@@ -127,6 +181,32 @@ export async function GET(request: Request) {
       } else {
         await failTask(task.id, taskResult.error || "Unknown error");
         results.tasksFailed++;
+
+        // Write error to automation_logs
+        if (automationId) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { Pool } = require("pg");
+            const logPool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+            await logPool.query(
+              `INSERT INTO automation_logs (automation_id, status, result, duration_ms, error_message)
+               VALUES ($1, 'error', $2, $3, $4)`,
+              [
+                automationId,
+                JSON.stringify({
+                  type: "background_execution",
+                  task_id: task.id,
+                  agent_id: task.agent_id,
+                  status: "failed",
+                  error: (taskResult.error || "Unknown").slice(0, 1000),
+                }),
+                taskResult.durationMs || 0,
+                (taskResult.error || "Unknown error").slice(0, 500),
+              ],
+            );
+            await logPool.end();
+          } catch { /* non-critical */ }
+        }
 
         logActivity({
           agentId: task.agent_id,
@@ -172,11 +252,12 @@ async function executeTask(task: {
   agent_id: string;
   task: string;
   context: string;
-}): Promise<{ success: boolean; text: string; error?: string; toolCalls?: unknown[] }> {
+}): Promise<{ success: boolean; text: string; error?: string; toolCalls?: unknown[]; durationMs?: number }> {
+  const startTime = Date.now();
   try {
     const agent = getAgent(task.agent_id);
     if (!agent) {
-      return { success: false, text: "", error: `Unknown agent: ${task.agent_id}` };
+      return { success: false, text: "", error: `Unknown agent: ${task.agent_id}`, durationMs: Date.now() - startTime };
     }
 
     const providerResult = await getProvider(agent);
@@ -218,12 +299,20 @@ async function executeTask(task: {
       success: true,
       text: result.text || "(Task completed with no text output)",
       toolCalls,
+      durationMs: Date.now() - startTime,
     };
   } catch (error) {
+    const durationMs = Date.now() - startTime;
+    const errorMsg = error instanceof Error ? error.message : "Unknown execution error";
+    // If it's a timeout/abort error, add helpful context
+    const enrichedError = errorMsg.includes("abort") || errorMsg.includes("timeout")
+      ? `${errorMsg} — The task took too long for a single Vercel function execution (Hobby plan limit). Consider simplifying the task or upgrading to Vercel Pro for longer execution times.`
+      : errorMsg;
     return {
       success: false,
       text: "",
-      error: error instanceof Error ? error.message : "Unknown execution error",
+      error: enrichedError,
+      durationMs,
     };
   }
 }
