@@ -672,7 +672,7 @@ const agents: AgentConfig[] = [
     color: "teal",
     systemPrompt: RESEARCH_SYSTEM_PROMPT,
     tools: [
-      "web_search", "web_reader",
+      "web_search_advanced", "web_search", "web_reader",
       "research_deep", "research_synthesize",
       "research_save_brief", "research_save_data",
       "vision_analyze", "vision_download_analyze",

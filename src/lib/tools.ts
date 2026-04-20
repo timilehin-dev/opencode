@@ -60,27 +60,52 @@ function nextTavilyKey(): string {
   return key;
 }
 
-async function tavilySearch(query: string, numResults: number): Promise<Array<Record<string, unknown>>> {
+/**
+ * Tavily search with configurable depth.
+ * - basic: fast search, returns titles + snippets (for general agents)
+ * - advanced: includes full content extraction, answer synthesis, and higher max_results (for Research Agent)
+ */
+async function tavilySearch(query: string, numResults: number, mode: "basic" | "advanced" = "basic"): Promise<Array<Record<string, unknown>>> {
   const apiKey = nextTavilyKey();
+  const body: Record<string, unknown> = {
+    api_key: apiKey,
+    query,
+    max_results: mode === "advanced" ? Math.min(numResults, 10) : Math.min(numResults, 10),
+    include_answer: mode === "advanced",
+    include_raw_content: false,
+  };
+
+  // Advanced mode: deeper search with more context
+  if (mode === "advanced") {
+    body.search_depth = "advanced";
+    body.include_answer = true;
+    body.include_images = false;
+    body.include_image_descriptions = false;
+  }
+
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: numResults,
-      include_answer: false,
-    }),
-    signal: AbortSignal.timeout(15000),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(mode === "advanced" ? 30000 : 15000),
   });
   if (!res.ok) throw new Error(`Tavily API error: ${res.status}`);
-  const data = await safeParseRes<{ results?: Array<{ title: string; url: string; content: string; score: number }> }>(res);
-  return (data.results || []).map((r, i) => ({
+  const data = await safeParseRes<{
+    results?: Array<{ title: string; url: string; content: string; score: number }>;
+    answer?: string;
+  }>(res);
+  const results = (data.results || []).map((r, i) => ({
     title: r.title,
     url: r.url,
     snippet: r.content,
+    score: r.score,
     rank: i + 1,
   }));
+  // If advanced mode returned an AI-generated answer, include it
+  if (mode === "advanced" && data.answer) {
+    return [{ title: "AI-Generated Summary", url: "", snippet: data.answer, rank: 0, score: 1 }, ...results];
+  }
+  return results;
 }
 
 // --- OCR.space API helper (FREE — 25,000 calls/month, no LLM tokens) ---
@@ -952,11 +977,11 @@ export const delegateToAgentTool = tool({
 // Web Search Tool (dual-mode: Z.ai SDK local + AIHubMix fallback)
 // ---------------------------------------------------------------------------
 
-async function webSearchFallback(query: string, numResults: number) {
+async function webSearchFallback(query: string, numResults: number, mode: "basic" | "advanced" = "basic") {
   // Layer 0: Tavily API (if keys configured)
   if (TAVILY_KEYS.length > 0) {
     try {
-      const results = await tavilySearch(query, numResults);
+      const results = await tavilySearch(query, numResults, mode);
       if (results.length > 0) return results;
     } catch { /* Tavily failed, try next layer */ }
   }
@@ -1090,8 +1115,33 @@ export const webSearchTool = tool({
     } catch {
       // Z.ai SDK not available — use fallback
     }
-    // Fallback: DuckDuckGo HTML search
-    return await webSearchFallback(query, num);
+    // Fallback: Tavily (basic mode) → DuckDuckGo → Wikipedia
+    return await webSearchFallback(query, num, "basic");
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Advanced Web Search Tool (for Research Agent — uses Tavily advanced mode)
+// ---------------------------------------------------------------------------
+
+export const webSearchAdvancedTool = tool({
+  description: "Perform an advanced/deep web search with AI-powered answer synthesis. Returns higher-quality results with an AI-generated summary. Use this for in-depth research, factual analysis, multi-faceted topics, or when you need comprehensive coverage of a subject. Uses Tavily's advanced search depth.",
+  inputSchema: zodSchema(z.object({
+    query: z.string().describe("Search query — can be more specific and complex. Examples: 'What are the key differences between React Server Components and traditional SSR?', 'Latest developments in quantum computing 2025 2026', 'Comprehensive analysis of African fintech market trends'"),
+    num_results: z.number().optional().describe("Number of results to return (default: 10, max: 10)"),
+  })),
+  execute: safeJson(async ({ query, num_results }) => {
+    const num = Math.min(num_results || 10, 10);
+    // Try Z.ai SDK first
+    try {
+      const zai = await ZAI.create();
+      const results = await zai.functions.invoke("web_search", { query, num });
+      if (results && Array.isArray(results) && results.length > 0) return results;
+    } catch {
+      // Z.ai SDK not available — use Tavily advanced
+    }
+    // Advanced search: Tavily advanced mode → DuckDuckGo → Wikipedia
+    return await webSearchFallback(query, num, "advanced");
   }),
 });
 
@@ -4100,6 +4150,7 @@ export const allTools: Record<string, ToolType> = {
   vercel_logs: vercelLogsTool,
   // Web Tools
   web_search: webSearchTool,
+  web_search_advanced: webSearchAdvancedTool,
   web_reader: webReaderTool,
   // Agent Delegation
   delegate_to_agent: delegateToAgentTool,

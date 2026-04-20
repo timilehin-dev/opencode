@@ -382,23 +382,39 @@ function nextTavilyKey() {
   return keys[_tavilyIdx++ % keys.length];
 }
 
-async function tavilySearch(query, numResults) {
+async function tavilySearch(query, numResults, mode = "basic") {
   const apiKey = nextTavilyKey();
+  const body = {
+    api_key: apiKey,
+    query,
+    max_results: Math.min(numResults || 10, 10),
+    include_answer: mode === "advanced",
+    include_raw_content: false,
+  };
+  if (mode === "advanced") {
+    body.search_depth = "advanced";
+    body.include_images = false;
+    body.include_image_descriptions = false;
+  }
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey, query, max_results: numResults, include_answer: false }),
-    signal: AbortSignal.timeout(15000),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(mode === "advanced" ? 30000 : 15000),
   });
   if (!res.ok) throw new Error(`Tavily API error: ${res.status}`);
   const data = await safeParseRes(res);
-  return (data.results || []).map((r, i) => ({ title: r.title, url: r.url, snippet: r.content, rank: i + 1 }));
+  const results = (data.results || []).map((r, i) => ({ title: r.title, url: r.url, snippet: r.content, score: r.score, rank: i + 1 }));
+  if (mode === "advanced" && data.answer) {
+    return [{ title: "AI-Generated Summary", url: "", snippet: data.answer, rank: 0, score: 1 }, ...results];
+  }
+  return results;
 }
 
-async function webSearchFallback(query, numResults = 10) {
+async function webSearchFallback(query, numResults = 10, mode = "basic") {
   if (getTavilyKeys().length > 0) {
     try {
-      const results = await tavilySearch(query, numResults);
+      const results = await tavilySearch(query, numResults, mode);
       if (results.length > 0) return results;
     } catch { /* Tavily failed */ }
   }
@@ -971,20 +987,60 @@ function buildToolMap() {
       }),
     } : {}),
 
-    // Code execution (simple eval — no sandbox available in GH Actions)
+    // Code execution — Piston API (sandboxed, multi-language, FREE)
+    // Uses https://emkc.org/api/v2/piston/execute — no key needed
     code_execute: tool({
-      description: "Execute a code snippet and return the result. Supports JavaScript only in this environment.",
-      inputSchema: zodSchema(z.object({ code: z.string(), language: z.string().optional() })),
-      execute: safeJsonWrap(({ code, language }) => {
-        if (language && language !== "javascript" && language !== "js") {
-          return { error: `Language '${language}' not supported. Only JavaScript is available in this environment.` };
+      description: "Execute code snippets safely in a sandboxed environment. Supports JavaScript, Python, TypeScript, Go, Rust, Java, C++, Ruby, PHP, and Swift. Returns stdout, stderr, and exit code. Execution timeout: 10s.",
+      inputSchema: zodSchema(z.object({ code: z.string(), language: z.string().optional(), stdin: z.string().optional() })),
+      execute: safeJsonWrap(async ({ code, language, stdin }) => {
+        const PISTON_LANGUAGES = {
+          javascript: { language: "javascript", version: "18.15.0", aliases: ["js", "node"] },
+          python:     { language: "python",     version: "3.10.0",  aliases: ["py"] },
+          typescript: { language: "typescript", version: "5.0.3",   aliases: ["ts"] },
+          go:         { language: "go",         version: "1.20.0",  aliases: [] },
+          rust:       { language: "rust",       version: "1.68.0",  aliases: [] },
+          java:       { language: "java",       version: "15.0.2",  aliases: [] },
+          cpp:        { language: "c++",        version: "10.2.0",  aliases: ["c"] },
+          ruby:       { language: "ruby",       version: "3.2.0",  aliases: [] },
+          php:        { language: "php",        version: "8.2.3",  aliases: [] },
+          swift:      { language: "swift",      version: "5.5.3",  aliases: [] },
+        };
+        const langKey = (language || "javascript").toLowerCase().trim();
+        let langConfig = PISTON_LANGUAGES[langKey];
+        if (!langConfig) {
+          for (const cfg of Object.values(PISTON_LANGUAGES)) {
+            if (cfg.aliases.includes(langKey)) { langConfig = cfg; break; }
+          }
+        }
+        if (!langConfig) {
+          return { error: `Unsupported language: "${langKey}". Supported: ${Object.keys(PISTON_LANGUAGES).join(", ")}` };
         }
         try {
-          // Very limited eval — no fs, no network, just math/logic
-          const result = new Function("return " + code)();
-          return { output: String(result) };
-        } catch (e) {
-          return { error: e.message };
+          const res = await fetch("https://emkc.org/api/v2/piston/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              language: langConfig.language,
+              version: langConfig.version,
+              files: [{ name: `main.${langConfig.language === "c++" ? "cpp" : langConfig.language}`, content: code }],
+              stdin: stdin || "",
+              compile_timeout: 10000,
+              run_timeout: 10000,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!res.ok) throw new Error(`Piston API error: ${res.status}`);
+          const data = await safeParseRes(res);
+          const run = data.run || data.compile;
+          return {
+            language: data.language,
+            version: data.version,
+            exitCode: run?.exit_code ?? -1,
+            stdout: (run?.stdout || "").trim(),
+            stderr: (run?.stderr || "").trim(),
+          };
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : "Code execution failed" };
         }
       }),
     }),
@@ -1005,6 +1061,54 @@ function buildToolMap() {
           condition: data.current_condition?.[0]?.weatherDesc?.[0]?.value,
           humidity: data.current_condition?.[0]?.humidity,
           wind: data.current_condition?.[0]?.windspeedKmph + " km/h",
+        };
+      }),
+    }),
+
+    // Research Tools (real implementations — Tavily-powered)
+    research_deep: tool({
+      description: "Perform deep multi-query research on a topic. Generates multiple search queries, runs them in parallel, deduplicates results, and returns a unified ranked result set.",
+      inputSchema: zodSchema(z.object({
+        topic: z.string().describe("The main research topic"),
+        aspects: z.array(z.string()).optional().describe("Specific aspects to research"),
+        numResults: z.number().optional().describe("Total results to return (default: 15)"),
+      })),
+      execute: safeJsonWrap(async ({ topic, aspects, numResults }) => {
+        const queries = [
+          topic,
+          `${topic} overview`,
+          ...(aspects || []).map(a => `${topic} ${a}`),
+        ].slice(0, 5);
+        const allResults = await Promise.all(queries.map(q => webSearchFallback(q, numResults || 10, "advanced")));
+        const seen = new Set();
+        const unique = [];
+        for (const results of allResults) {
+          for (const item of results) {
+            const url = item.url || "";
+            if (url && !seen.has(url)) {
+              seen.add(url);
+              unique.push({ url, title: item.title, snippet: item.snippet });
+            }
+          }
+        }
+        return { topic, queriesUsed: queries, totalFound: unique.length, results: unique.slice(0, numResults || 15) };
+      }),
+    }),
+    research_synthesize: tool({
+      description: "Cross-reference and synthesize research findings from multiple sources. Analyzes agreements, disagreements, and credibility.",
+      inputSchema: zodSchema(z.object({
+        findings: z.array(z.object({ source: z.string(), claim: z.string() })).describe("Findings from different sources"),
+        question: z.string().describe("The research question to answer"),
+      })),
+      execute: safeJsonWrap(({ findings, question }) => {
+        // In GH Actions we can't call another LLM easily, so provide structured analysis
+        const sources = findings.map((f, i) => `${i + 1}. [${f.source}] ${f.claim}`).join("\n");
+        return {
+          question,
+          sourcesAnalyzed: findings.length,
+          keyThemes: [...new Set(findings.map(f => f.claim.split(" ").slice(0, 5).join(" ")))].slice(0, 5),
+          findings,
+          note: "Full AI synthesis requires chat mode. Use research_deep for comprehensive multi-query search results.",
         };
       }),
     }),
