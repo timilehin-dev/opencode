@@ -487,11 +487,82 @@ async function gmailFetch({ query, maxResults }) {
   return { messages, count: messages.length };
 }
 
-async function gmailSend({ to, subject, body }) {
+/**
+ * Sanitize and wrap HTML content in a professional email template.
+ * Fixes common LLM HTML mistakes (double brackets, broken tags, etc.)
+ * and wraps everything in a styled container that renders well in all email clients.
+ */
+function wrapHtmlEmail(body, subject) {
+  // Fix common LLM-generated HTML mistakes
+  let html = body
+    // Fix double brackets: <<pp> -> <p>, <<hh3> -> <h3>, etc.
+    .replace(/<<([a-zA-Z][a-zA-Z0-9]*)/g, "<$1")
+    .replace(/<\/([a-zA-Z][a-zA-Z0-9]*)>>/g, "</$1>")
+    // Fix <<div, <<span, <<table, <<tr, <<td, <<ul, <<ol, <<li, <<a, <<strong, <<em, <<br
+    .replace(/<([a-zA-Z][a-zA-Z0-9]*)([^>]*)><([a-zA-Z])/g, "<$1$2><$3")
+    // Strip any remaining truly broken tags that start with <<
+    .replace(/<</g, "<");
+
+  // If the body doesn't look like HTML, convert simple text to HTML
+  const htmlTagCount = (html.match(/<[a-zA-Z][a-zA-Z0-9]*[^>]*>/g) || []).length;
+  if (htmlTagCount < 2) {
+    // Treat as plain text and convert to HTML paragraphs
+    const paragraphs = html.split("\n").filter(l => l.trim()).map(p => `<p style="margin:8px 0;">${p.trim()}</p>`);
+    html = paragraphs.join("");
+  }
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;max-width:600px;width:100%;">
+          ${subject ? `
+          <tr>
+            <td style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:28px 32px;color:#ffffff;">
+              <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;">${subject.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h1>
+            </td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding:28px 32px;color:#333333;font-size:15px;line-height:1.65;">
+              ${html}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;border-top:1px solid #e8e8ee;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#999999;">This email was sent by your OpenClaw Mail Agent.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function gmailSend({ to, subject, body, isHtml }) {
   const token = await getGoogleAccessToken();
-  const raw = Buffer.from(
-    `To: ${to}\nSubject: ${subject || ""}\nContent-Type: text/plain; charset=utf-8\n\n${body || ""}`,
-  ).toString("base64");
+  const sanitize = (s) => s.replace(/[\r\n]/g, "");
+
+  // Determine if body is HTML: explicit flag or detect HTML tags
+  const hasHtml = isHtml || /<[a-zA-Z][a-zA-Z0-9]*(\s[^>]*)?>/i.test(body);
+  const emailBody = hasHtml ? wrapHtmlEmail(body, subject) : body;
+  const contentType = hasHtml ? "text/html; charset=utf-8" : "text/plain; charset=utf-8";
+
+  let message = `To: ${sanitize(to)}\r\n`;
+  if (subject) message += `Subject: ${sanitize(subject)}\r\n`;
+  message += `Content-Type: ${contentType}\r\n`;
+  message += "MIME-Version: 1.0\r\n";
+  message += "\r\n";
+  message += emailBody;
+
+  const raw = Buffer.from(message).toString("base64url");
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -603,7 +674,7 @@ function buildToolMap() {
   return {
     // Gmail
     gmail_send: tool({
-      description: "Send an email via Gmail.",
+      description: "Send an email via Gmail. Supports both plain text and HTML bodies. When isHtml is true or the body contains HTML tags, it will be wrapped in a professional styled email template. You can use standard HTML tags like <h3>, <p>, <ul>, <li>, <strong>, <em>, <span style=...> etc.",
       inputSchema: zodSchema(z.object({
         to: z.string(), subject: z.string().optional(), body: z.string(), isHtml: z.boolean().optional(),
       })),
@@ -698,22 +769,28 @@ function buildToolMap() {
       }),
     }),
     gmail_send_attachment: tool({
-      description: "Send an email with a file attachment.",
+      description: "Send an email with a file attachment. Supports both plain text and HTML bodies.",
       inputSchema: zodSchema(z.object({
         to: z.string(), subject: z.string(), body: z.string(),
         fileName: z.string(), fileBase64: z.string(), mimeType: z.string(),
+        isHtml: z.boolean().optional(),
       })),
-      execute: safeJsonWrap(async ({ to, subject, body, fileName, fileBase64, mimeType }) => {
+      execute: safeJsonWrap(async ({ to, subject, body, fileName, fileBase64, mimeType, isHtml }) => {
         const boundary = "boundary_" + Date.now();
+        const sanitize = (s) => s.replace(/[\r\n]/g, "");
+        const hasHtml = isHtml || /<[a-zA-Z][a-zA-Z0-9]*(\s[^>]*)?>/i.test(body);
+        const emailBody = hasHtml ? wrapHtmlEmail(body, subject) : (body || "");
+        const bodyContentType = hasHtml ? "text/html; charset=utf-8" : "text/plain; charset=utf-8";
         const email = [
-          `To: ${to}`,
-          `Subject: ${subject || ""}`,
+          `To: ${sanitize(to)}`,
+          `Subject: ${sanitize(subject || "")}`,
           `Content-Type: multipart/mixed; boundary="${boundary}"`,
+          "MIME-Version: 1.0",
           "",
           `--${boundary}`,
-          "Content-Type: text/plain; charset=utf-8",
+          `Content-Type: ${bodyContentType}`,
           "",
-          body || "",
+          emailBody,
           `--${boundary}`,
           `Content-Type: ${mimeType}; name="${fileName}"`,
           "Content-Transfer-Encoding: base64",
