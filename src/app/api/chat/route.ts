@@ -33,7 +33,7 @@ const MAX_STEPS_SPECIALIST = 25;
 // ---------------------------------------------------------------------------
 
 async function loadUserSettings(): Promise<{ temperature: number; maxTokens: number }> {
-  const defaults = { temperature: 0.7, maxTokens: 16384 };
+  const defaults = { temperature: 0.7, maxTokens: 32768 };
   const supabase = getSupabase();
   if (!supabase) return defaults;
 
@@ -275,7 +275,7 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: Math.max(userSettings.maxTokens, 16384),
+      maxOutputTokens: Math.max(userSettings.maxTokens, 32768),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {

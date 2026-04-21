@@ -542,6 +542,9 @@ const agents: AgentConfig[] = [
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       // Project Management (Phase 2)
       "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
+      // Phase 4: A2A Real-Time Communication
+      "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
+      "a2a_share_context", "a2a_query_context", "a2a_collaborate",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -576,6 +579,8 @@ const agents: AgentConfig[] = [
       "todo_create", "todo_list", "todo_update",
       "weather_get", "code_execute",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
     suggestedActions: [
       { label: "Check inbox", prompt: "Show me my latest unread emails" },
@@ -608,6 +613,8 @@ const agents: AgentConfig[] = [
       "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
     suggestedActions: [
       { label: "Open issues", prompt: "List all open GitHub issues" },
@@ -642,6 +649,8 @@ const agents: AgentConfig[] = [
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_list", "contact_search",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
     suggestedActions: [
       { label: "My files", prompt: "Show me all my Google Drive files and folders" },
@@ -674,6 +683,8 @@ const agents: AgentConfig[] = [
       "reminder_create", "reminder_list",
       "weather_get", "code_execute",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
     suggestedActions: [
       { label: "Draft document", prompt: "Help me draft a new document" },
@@ -703,6 +714,8 @@ const agents: AgentConfig[] = [
       "todo_list",
       "weather_get", "code_execute",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
     suggestedActions: [
       { label: "Deep research", prompt: "Do deep research on a topic with multiple angles" },
@@ -730,6 +743,8 @@ const agents: AgentConfig[] = [
       "todo_stats", "reminder_list",
       "weather_get",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_broadcast",
     ],
     suggestedActions: [
       { label: "System health", prompt: "Check the health status of all services" },

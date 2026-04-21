@@ -1,20 +1,17 @@
 // ---------------------------------------------------------------------------
-// Claw — A2A (Agent-to-Agent) Communication Protocol
+// Claw — A2A (Agent-to-Agent) Real-Time Communication Protocol (Phase 4)
 //
-// Enables agents to communicate, share context, and collaborate.
-// Uses Supabase as the persistence layer for messages and tasks.
+// Enables agents to communicate asynchronously, share context, broadcast
+// to teams, and collaborate via persistent channels. Uses Supabase as the
+// persistence layer with real-time inbox processing.
 //
-// HANDOFF PROTOCOL:
-// When an agent hands off a task to another agent, use the standard format:
-// {
-//   from: "general",
-//   to: "mail",
-//   task: "Send follow-up email to client",
-//   context: "Client asked about pricing. Here's the email thread...",
-//   priority: "high" | "medium" | "low",
-//   deadline: "2026-04-19T09:00:00Z",
-//   callback: true  // send results back to general when done
-// }
+// KEY CAPABILITIES:
+// 1. Async message passing (fire-and-forget + response tracking)
+// 2. Broadcast to multiple agents or entire team
+// 3. Shared context store (versioned key-value with scoped access)
+// 4. Collaboration channels (persistent multi-agent conversations)
+// 5. Priority inbox with unread tracking
+// 6. Correlation IDs for request-response pattern matching
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -25,11 +22,61 @@ export interface A2AMessage {
   id: string;
   fromAgent: string;
   toAgent: string;
-  type: "request" | "response" | "broadcast" | "context_share" | "handoff";
+  type: "request" | "response" | "broadcast" | "context_share" | "handoff" | "collaboration";
   topic: string;
   payload: Record<string, unknown>;
   timestamp: string;
   status: "pending" | "delivered" | "completed" | "failed";
+  priority?: "low" | "normal" | "high" | "urgent";
+  correlationId?: string;
+  parentMessageId?: string;
+  isRead?: boolean;
+}
+
+export interface A2AInboxItem {
+  id: number;
+  fromAgent: string;
+  type: string;
+  topic: string;
+  payload: Record<string, unknown>;
+  priority: string;
+  createdAt: string;
+  correlationId: string | null;
+}
+
+export interface A2ASharedContext {
+  id: number;
+  contextKey: string;
+  agentId: string;
+  content: Record<string, unknown>;
+  contentText: string;
+  tags: string[];
+  scope: "global" | "project" | "session" | "agent";
+  version: number;
+  createdAt: string;
+}
+
+export interface A2AChannel {
+  id: number;
+  name: string;
+  description: string;
+  channelType: string;
+  projectId: number | null;
+  createdBy: string;
+  members: string[];
+  isActive: boolean;
+  lastMessageAt: string | null;
+  messageCount: number;
+}
+
+export interface A2AChannelMessage {
+  id: number;
+  channelId: number;
+  agentId: string;
+  content: string;
+  messageType: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface AgentHandoff {
@@ -57,7 +104,6 @@ export interface A2ATask {
 
 // ---------------------------------------------------------------------------
 // Database helpers — module-level singleton pool with proper config
-// (H5 fix: no more pool-per-call, no connection leaks)
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -78,7 +124,6 @@ function getA2APool(): ReturnType<typeof Pool> | null {
     idleTimeoutMillis: 10000,
   });
 
-  // Handle pool errors (prevent crashes)
   _a2aPool.on("error", (err: Error) => {
     console.error("[A2A] Unexpected pool error:", err.message);
   });
@@ -86,32 +131,62 @@ function getA2APool(): ReturnType<typeof Pool> | null {
   return _a2aPool;
 }
 
-// Execute a query with automatic error handling — never leaks connections
-async function queryDb<T>(sql: string, params: unknown[]): Promise<T[]> {
+async function queryDb<T>(sql: string, params: unknown[] = []): Promise<T[]> {
   const pool = getA2APool();
   if (!pool) return [];
   const result = await pool.query(sql, params);
   return result.rows as T[];
 }
 
+function parseJsonSafely(val: unknown): Record<string, unknown> {
+  if (!val) return {};
+  if (typeof val === "object") return val as Record<string, unknown>;
+  if (typeof val === "string") {
+    try { return JSON.parse(val); } catch { return {}; }
+  }
+  return {};
+}
+
+function parseArraySafely(val: unknown): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.map(String);
+  if (typeof val === "string") {
+    try { return JSON.parse(val); } catch { return []; }
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------------------
-// A2A Message Functions
+// Phase 4: Enhanced A2A Message Functions (Priority + Correlation + Read)
 // ---------------------------------------------------------------------------
 
-/** Send an A2A message between agents. */
+/** Send an A2A message with priority, correlation ID, and parent tracking. */
 export async function sendA2AMessage(msg: {
   fromAgent: string;
   toAgent: string;
   type: A2AMessage["type"];
   topic: string;
   payload: Record<string, unknown>;
+  priority?: "low" | "normal" | "high" | "urgent";
+  correlationId?: string;
+  parentMessageId?: number;
 }): Promise<A2AMessage | null> {
   try {
-    const rows = await queryDb<{ id: string; from_agent: string; to_agent: string; type: string; topic: string; payload: unknown; status: string; created_at: string }>(
-      `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, status)
-       VALUES ($1, $2, $3, $4, $5, 'delivered')
-       RETURNING id, from_agent, to_agent, type, topic, payload, status, created_at`,
-      [msg.fromAgent, msg.toAgent, msg.type, msg.topic, JSON.stringify(msg.payload)],
+    const rows = await queryDb<{
+      id: string; from_agent: string; to_agent: string; type: string;
+      topic: string; payload: unknown; status: string; priority: string;
+      created_at: string; correlation_id: string | null; parent_message_id: number | null; is_read: boolean;
+    }>(
+      `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, status, priority, correlation_id, parent_message_id)
+       VALUES ($1, $2, $3, $4, $5, 'delivered', $6, $7, $8)
+       RETURNING id, from_agent, to_agent, type, topic, payload, status, priority, created_at, correlation_id, parent_message_id, is_read`,
+      [
+        msg.fromAgent, msg.toAgent, msg.type, msg.topic,
+        JSON.stringify(msg.payload),
+        msg.priority || "normal",
+        msg.correlationId || null,
+        msg.parentMessageId || null,
+      ],
     );
 
     if (rows.length > 0) {
@@ -122,9 +197,13 @@ export async function sendA2AMessage(msg: {
         toAgent: row.to_agent,
         type: row.type as A2AMessage["type"],
         topic: row.topic,
-        payload: typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
+        payload: parseJsonSafely(row.payload),
         timestamp: row.created_at,
         status: row.status as A2AMessage["status"],
+        priority: row.priority as A2AMessage["priority"],
+        correlationId: row.correlation_id || undefined,
+        parentMessageId: row.parent_message_id ? String(row.parent_message_id) : undefined,
+        isRead: row.is_read,
       };
     }
     return null;
@@ -134,6 +213,370 @@ export async function sendA2AMessage(msg: {
   }
 }
 
+/** Send a response to a specific message (auto-links via parentMessageId + correlationId). */
+export async function sendA2AResponse(msg: {
+  fromAgent: string;
+  toAgent: string;
+  topic: string;
+  payload: Record<string, unknown>;
+  parentMessageId: number;
+  correlationId?: string;
+  priority?: "low" | "normal" | "high" | "urgent";
+}): Promise<A2AMessage | null> {
+  return sendA2AMessage({
+    ...msg,
+    type: "response",
+    correlationId: msg.correlationId,
+    parentMessageId: msg.parentMessageId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Broadcast — send to multiple agents at once
+// ---------------------------------------------------------------------------
+
+/** Broadcast a message to multiple agents (or ALL agents if targets is empty). */
+export async function broadcastA2AMessage(msg: {
+  fromAgent: string;
+  targets?: string[];
+  topic: string;
+  payload: Record<string, unknown>;
+  priority?: "low" | "normal" | "high" | "urgent";
+  correlationId?: string;
+}): Promise<{ sent: number; agents: string[] }> {
+  const ALL_AGENTS = ["general", "mail", "code", "data", "creative", "research", "ops"];
+  const targets = (msg.targets || ALL_AGENTS).filter(a => a !== msg.fromAgent);
+
+  let sent = 0;
+  const successfulAgents: string[] = [];
+
+  // Send all messages in parallel for speed
+  const results = await Promise.all(
+    targets.map(async (agent) => {
+      const result = await sendA2AMessage({
+        fromAgent: msg.fromAgent,
+        toAgent: agent,
+        type: "broadcast",
+        topic: msg.topic,
+        payload: msg.payload,
+        priority: msg.priority || "normal",
+        correlationId: msg.correlationId,
+      });
+      return { agent, success: !!result };
+    })
+  );
+
+  for (const r of results) {
+    if (r.success) {
+      sent++;
+      successfulAgents.push(r.agent);
+    }
+  }
+
+  console.log(`[A2A] Broadcast from ${msg.fromAgent} to ${sent}/${targets.length} agents: ${msg.topic.slice(0, 60)}`);
+  return { sent, agents: successfulAgents };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Priority Inbox
+// ---------------------------------------------------------------------------
+
+/** Get agent's inbox — unread messages first, sorted by priority, then time. */
+export async function getAgentInbox(
+  agentId: string,
+  limit: number = 50,
+): Promise<A2AInboxItem[]> {
+  try {
+    const rows = await queryDb<{
+      id: number; from_agent: string; type: string; topic: string;
+      payload: unknown; priority: string; created_at: string; correlation_id: string | null;
+    }>(
+      `SELECT id, from_agent, type, topic, payload, priority, created_at, correlation_id
+       FROM get_agent_inbox($1, $2)`,
+      [agentId, limit],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      fromAgent: row.from_agent,
+      type: row.type,
+      topic: row.topic,
+      payload: parseJsonSafely(row.payload),
+      priority: row.priority,
+      createdAt: row.created_at,
+      correlationId: row.correlation_id,
+    }));
+  } catch (error) {
+    console.error("[A2A] Failed to get inbox:", error);
+    return [];
+  }
+}
+
+/** Mark messages as read. Returns count of messages marked. */
+export async function markMessagesRead(
+  agentId: string,
+  messageIds: number[],
+): Promise<number> {
+  try {
+    const rows = await queryDb<{ mark_messages_read: number }>(
+      `SELECT mark_messages_read($1, $2::bigint[])`,
+      [agentId, messageIds],
+    );
+    return rows[0]?.mark_messages_read || 0;
+  } catch (error) {
+    console.error("[A2A] Failed to mark messages read:", error);
+    return 0;
+  }
+}
+
+/** Get unread message count for an agent. */
+export async function getUnreadCount(agentId: string): Promise<number> {
+  try {
+    const rows = await queryDb<{ count: string }>(
+      `SELECT COUNT(*)::text as count FROM a2a_messages WHERE to_agent = $1 AND is_read = FALSE`,
+      [agentId],
+    );
+    return parseInt(rows[0]?.count || "0", 10);
+  } catch (error) {
+    return 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Shared Context Store (Versioned)
+// ---------------------------------------------------------------------------
+
+/** Store or update shared context (auto-versions). Returns context ID. */
+export async function shareContext(ctx: {
+  contextKey: string;
+  agentId: string;
+  content: Record<string, unknown>;
+  contentText?: string;
+  tags?: string[];
+  accessAgents?: string[];
+  scope?: "global" | "project" | "session" | "agent";
+  projectId?: number;
+  sessionId?: string;
+}): Promise<number | null> {
+  try {
+    const rows = await queryDb<{ upsert_shared_context: number }>(
+      `SELECT upsert_shared_context($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        ctx.contextKey,
+        ctx.agentId,
+        JSON.stringify(ctx.content),
+        ctx.contentText || "",
+        JSON.stringify(ctx.tags || []),
+        ctx.accessAgents || [],
+        ctx.scope || "project",
+        ctx.projectId || null,
+        ctx.sessionId || null,
+      ],
+    );
+    const ctxId = rows[0]?.upsert_shared_context;
+    if (ctxId) {
+      console.log(`[A2A] Context stored: ${ctx.contextKey} v${ctxId} by ${ctx.agentId}`);
+    }
+    return ctxId || null;
+  } catch (error) {
+    console.error("[A2A] Failed to share context:", error);
+    return null;
+  }
+}
+
+/** Query shared context by key, scope, or tags. */
+export async function queryContext(filters: {
+  contextKey?: string;
+  agentId?: string;
+  scope?: string;
+  projectId?: number;
+  tags?: string[];
+  limit?: number;
+}): Promise<A2ASharedContext[]> {
+  try {
+    let query = `SELECT id, context_key, agent_id, content, content_text, tags, scope, version, created_at
+                 FROM a2a_shared_context WHERE is_latest = TRUE`;
+    const params: unknown[] = [];
+
+    if (filters.contextKey) {
+      params.push(filters.contextKey);
+      query += ` AND context_key = $${params.length}`;
+    }
+    if (filters.agentId) {
+      params.push(filters.agentId);
+      query += ` AND agent_id = $${params.length}`;
+    }
+    if (filters.scope) {
+      params.push(filters.scope);
+      query += ` AND scope = $${params.length}`;
+    }
+    if (filters.projectId) {
+      params.push(filters.projectId);
+      query += ` AND project_id = $${params.length}`;
+    }
+    if (filters.tags && filters.tags.length > 0) {
+      params.push(filters.tags);
+      query += ` AND tags ?| $${params.length}`;  // postgres array overlap
+    }
+
+    query += ` ORDER BY updated_at DESC`;
+    if (filters.limit) {
+      params.push(filters.limit);
+      query += ` LIMIT $${params.length}`;
+    }
+
+    const rows = await queryDb<{
+      id: number; context_key: string; agent_id: string; content: unknown;
+      content_text: string; tags: unknown; scope: string; version: number; created_at: string;
+    }>(query, params);
+
+    return rows.map((row) => ({
+      id: row.id,
+      contextKey: row.context_key,
+      agentId: row.agent_id,
+      content: parseJsonSafely(row.content),
+      contentText: row.content_text,
+      tags: parseArraySafely(row.tags),
+      scope: row.scope as A2ASharedContext["scope"],
+      version: row.version,
+      createdAt: row.created_at,
+    }));
+  } catch (error) {
+    console.error("[A2A] Failed to query context:", error);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Collaboration Channels
+// ---------------------------------------------------------------------------
+
+/** Get or create a collaboration channel. */
+export async function getOrCreateChannel(params: {
+  name: string;
+  channelType?: string;
+  projectId?: number;
+  members?: string[];
+}): Promise<number | null> {
+  try {
+    const rows = await queryDb<{ get_or_create_channel: number }>(
+      `SELECT get_or_create_channel($1, $2, $3, $4)`,
+      [
+        params.name,
+        params.channelType || "project",
+        params.projectId || null,
+        params.members || [],
+      ],
+    );
+    return rows[0]?.get_or_create_channel || null;
+  } catch (error) {
+    console.error("[A2A] Failed to get/create channel:", error);
+    return null;
+  }
+}
+
+/** Post a message to a channel. */
+export async function postToChannel(channelId: number, msg: {
+  agentId: string;
+  content: string;
+  messageType?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<number | null> {
+  try {
+    const rows = await queryDb<{ id: number }>(
+      `INSERT INTO a2a_channel_messages (channel_id, agent_id, content, message_type, metadata)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [
+        channelId,
+        msg.agentId,
+        msg.content,
+        msg.messageType || "message",
+        JSON.stringify(msg.metadata || {}),
+      ],
+    );
+
+    // Update channel's last_message_at and message_count
+    await queryDb(
+      `UPDATE a2a_channels SET last_message_at = NOW(), message_count = message_count + 1, updated_at = NOW() WHERE id = $1`,
+      [channelId],
+    );
+
+    return rows[0]?.id || null;
+  } catch (error) {
+    console.error("[A2A] Failed to post to channel:", error);
+    return null;
+  }
+}
+
+/** Get recent messages from a channel. */
+export async function getChannelMessages(
+  channelId: number,
+  limit: number = 50,
+): Promise<A2AChannelMessage[]> {
+  try {
+    const rows = await queryDb<{
+      id: number; channel_id: number; agent_id: string; content: string;
+      message_type: string; metadata: unknown; created_at: string;
+    }>(
+      `SELECT id, channel_id, agent_id, content, message_type, metadata, created_at
+       FROM a2a_channel_messages WHERE channel_id = $1
+       ORDER BY created_at DESC LIMIT $2`,
+      [channelId, limit],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      channelId: row.channel_id,
+      agentId: row.agent_id,
+      content: row.content,
+      messageType: row.message_type,
+      metadata: parseJsonSafely(row.metadata),
+      createdAt: row.created_at,
+    })).reverse();
+  } catch (error) {
+    console.error("[A2A] Failed to get channel messages:", error);
+    return [];
+  }
+}
+
+/** Get channels an agent is a member of. */
+export async function getAgentChannels(agentId: string): Promise<A2AChannel[]> {
+  try {
+    const rows = await queryDb<{
+      id: number; name: string; description: string; channel_type: string;
+      project_id: number | null; created_by: string; members: string[];
+      is_active: boolean; last_message_at: string | null; message_count: number;
+    }>(
+      `SELECT id, name, description, channel_type, project_id, created_by, members,
+              is_active, last_message_at, message_count
+       FROM a2a_channels
+       WHERE is_active = TRUE AND ($1 = ANY(members) OR created_by = $1)
+       ORDER BY last_message_at DESC NULLS LAST`,
+      [agentId],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      channelType: row.channel_type,
+      projectId: row.project_id,
+      createdBy: row.created_by,
+      members: parseArraySafely(row.members),
+      isActive: row.is_active,
+      lastMessageAt: row.last_message_at,
+      messageCount: row.message_count,
+    }));
+  } catch (error) {
+    console.error("[A2A] Failed to get agent channels:", error);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy A2A Message Functions (backwards compat — kept for existing code)
+// ---------------------------------------------------------------------------
+
 /** Get messages between two agents. */
 export async function getA2AMessages(
   agent1: string,
@@ -141,8 +584,12 @@ export async function getA2AMessages(
   limit: number = 50,
 ): Promise<A2AMessage[]> {
   try {
-    const rows = await queryDb<{ id: string; from_agent: string; to_agent: string; type: string; topic: string; payload: unknown; status: string; created_at: string }>(
-      `SELECT id, from_agent, to_agent, type, topic, payload, status, created_at
+    const rows = await queryDb<{
+      id: string; from_agent: string; to_agent: string; type: string;
+      topic: string; payload: unknown; status: string; priority: string;
+      created_at: string; correlation_id: string | null; is_read: boolean;
+    }>(
+      `SELECT id, from_agent, to_agent, type, topic, payload, status, priority, created_at, correlation_id, is_read
        FROM a2a_messages
        WHERE (from_agent = $1 AND to_agent = $2) OR (from_agent = $2 AND to_agent = $1)
        ORDER BY created_at DESC
@@ -156,9 +603,12 @@ export async function getA2AMessages(
       toAgent: row.to_agent,
       type: row.type as A2AMessage["type"],
       topic: row.topic,
-      payload: typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
+      payload: parseJsonSafely(row.payload),
       timestamp: row.created_at,
       status: row.status as A2AMessage["status"],
+      priority: row.priority as A2AMessage["priority"],
+      correlationId: row.correlation_id || undefined,
+      isRead: row.is_read,
     })).reverse();
   } catch (error) {
     console.error("[A2A] Failed to get messages:", error);
@@ -172,8 +622,12 @@ export async function getAgentA2AMessages(
   limit: number = 50,
 ): Promise<A2AMessage[]> {
   try {
-    const rows = await queryDb<{ id: string; from_agent: string; to_agent: string; type: string; topic: string; payload: unknown; status: string; created_at: string }>(
-      `SELECT id, from_agent, to_agent, type, topic, payload, status, created_at
+    const rows = await queryDb<{
+      id: string; from_agent: string; to_agent: string; type: string;
+      topic: string; payload: unknown; status: string; priority: string;
+      created_at: string; correlation_id: string | null; is_read: boolean;
+    }>(
+      `SELECT id, from_agent, to_agent, type, topic, payload, status, priority, created_at, correlation_id, is_read
        FROM a2a_messages
        WHERE from_agent = $1 OR to_agent = $1
        ORDER BY created_at DESC
@@ -187,9 +641,12 @@ export async function getAgentA2AMessages(
       toAgent: row.to_agent,
       type: row.type as A2AMessage["type"],
       topic: row.topic,
-      payload: typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
+      payload: parseJsonSafely(row.payload),
       timestamp: row.created_at,
       status: row.status as A2AMessage["status"],
+      priority: row.priority as A2AMessage["priority"],
+      correlationId: row.correlation_id || undefined,
+      isRead: row.is_read,
     })).reverse();
   } catch (error) {
     console.error("[A2A] Failed to get agent messages:", error);
@@ -198,7 +655,7 @@ export async function getAgentA2AMessages(
 }
 
 // ---------------------------------------------------------------------------
-// A2A Task Functions
+// Legacy A2A Task Functions
 // ---------------------------------------------------------------------------
 
 /** Create a new A2A delegation task. */
@@ -210,7 +667,10 @@ export async function createA2ATask(task: {
   delegationChain?: string[];
 }): Promise<A2ATask | null> {
   try {
-    const rows = await queryDb<{ id: string; initiator_agent: string; assigned_agent: string; task: string; context: string; status: string; delegation_chain: unknown; created_at: string }>(
+    const rows = await queryDb<{
+      id: string; initiator_agent: string; assigned_agent: string; task: string;
+      context: string; status: string; delegation_chain: unknown; created_at: string;
+    }>(
       `INSERT INTO a2a_tasks (initiator_agent, assigned_agent, task, context, status, delegation_chain)
        VALUES ($1, $2, $3, $4, 'pending', $5)
        RETURNING id, initiator_agent, assigned_agent, task, context, status, delegation_chain, created_at`,
@@ -233,7 +693,7 @@ export async function createA2ATask(task: {
         context: row.context,
         status: row.status as A2ATask["status"],
         createdAt: row.created_at,
-        delegationChain: typeof row.delegation_chain === "string" ? JSON.parse(row.delegation_chain) : (row.delegation_chain as string[]),
+        delegationChain: parseArraySafely(row.delegation_chain),
       };
     }
     return null;
@@ -303,7 +763,7 @@ export async function getAgentA2ATasks(
       result: row.result as string | undefined,
       createdAt: row.created_at as string,
       completedAt: row.completed_at as string | undefined,
-      delegationChain: typeof row.delegation_chain === "string" ? JSON.parse(row.delegation_chain) : (row.delegation_chain as string[]),
+      delegationChain: parseArraySafely(row.delegation_chain),
     }));
   } catch (error) {
     console.error("[A2A] Failed to get tasks:", error);
@@ -312,19 +772,13 @@ export async function getAgentA2ATasks(
 }
 
 // ---------------------------------------------------------------------------
-// Agent Handoff Protocol — Standard task handoff between agents
+// Agent Handoff Protocol (enhanced with priority)
 // ---------------------------------------------------------------------------
 
-/**
- * Send a structured handoff from one agent to another.
- * Creates both an A2A message (type: "handoff") and an A2A task.
- * If callback=true, the receiving agent is expected to send results back.
- */
 export async function sendAgentHandoff(handoff: AgentHandoff): Promise<{
   messageId: string | null;
   taskId: string | null;
 }> {
-  // Send handoff message
   const msg = await sendA2AMessage({
     fromAgent: handoff.from,
     toAgent: handoff.to,
@@ -337,9 +791,9 @@ export async function sendAgentHandoff(handoff: AgentHandoff): Promise<{
       deadline: handoff.deadline || null,
       callback: handoff.callback,
     },
+    priority: handoff.priority === "high" ? "urgent" : handoff.priority === "medium" ? "normal" : "low",
   });
 
-  // Create a task for tracking
   const task = await createA2ATask({
     initiatorAgent: handoff.from,
     assignedAgent: handoff.to,
@@ -354,4 +808,18 @@ export async function sendAgentHandoff(handoff: AgentHandoff): Promise<{
     messageId: msg?.id || null,
     taskId: task?.id || null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4: Maintenance — Expire old messages
+// ---------------------------------------------------------------------------
+
+/** Run the expiration function to clean up old messages. */
+export async function expireOldMessages(): Promise<void> {
+  try {
+    await queryDb(`SELECT expire_old_a2a_messages()`);
+    console.log("[A2A] Expired old messages");
+  } catch (error) {
+    console.error("[A2A] Failed to expire messages:", error);
+  }
 }

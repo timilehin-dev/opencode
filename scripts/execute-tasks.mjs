@@ -115,6 +115,8 @@ const AGENTS = {
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_broadcast", "a2a_check_inbox", "a2a_share_context", "a2a_query_context", "a2a_collaborate",
     ],
   },
   mail: {
@@ -135,6 +137,8 @@ const AGENTS = {
       "todo_create", "todo_list", "todo_update",
       "weather_get", "code_execute",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
   },
   code: {
@@ -154,6 +158,7 @@ const AGENTS = {
       "create_pdf_report", "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
   },
   data: {
@@ -174,6 +179,7 @@ const AGENTS = {
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_list", "contact_search",
       "query_agent",
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
   },
   creative: {
@@ -193,6 +199,7 @@ const AGENTS = {
       "reminder_create", "reminder_list",
       "weather_get", "code_execute",
       "query_agent",
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
   },
   research: {
@@ -209,6 +216,7 @@ const AGENTS = {
       "contact_list", "contact_search", "todo_list",
       "weather_get", "code_execute",
       "query_agent",
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
   },
   ops: {
@@ -222,6 +230,8 @@ const AGENTS = {
       "ops_github_activity", "ops_agent_stats",
       "create_pdf_report", "code_execute", "weather_get",
       "query_agent",
+      // Phase 4: A2A
+      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
     ],
   },
 };
@@ -2489,7 +2499,7 @@ function buildToolMap() {
           model,
           system: `You are a project planner. Decompose goals into tasks. Output ONLY valid JSON with format: {"tasks":[{"title":"...","description":"...","task_type":"research|code|design|testing|deployment|docs|communication|general","priority":"critical|high|medium|low","assigned_agent":"general|mail|code|data|research|ops|creative","depends_on":[],"task_prompt":"...","sort_order":0}]}`,
           messages: [{ role: "user", content: `Decompose: ${goal}\n${context ? "Context: " + context : ""}\nComplexity: ${complexity || "moderate"}, Max: ${Math.min(max_tasks || 8, 15)} tasks` }],
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
           abortSignal: AbortSignal.timeout(60000),
         });
 
@@ -2502,6 +2512,111 @@ function buildToolMap() {
         } catch {
           return { success: false, error: "Failed to parse decomposition result", raw: result.text.slice(0, 500) };
         }
+      }),
+    }),
+
+    // Phase 4: A2A Real-Time Communication
+    a2a_send_message: tool({
+      description: "Send a direct message to another agent. Available agents: general, mail, code, data, creative, research, ops.",
+      inputSchema: zodSchema(z.object({
+        to_agent: z.string().describe("Target agent ID"),
+        topic: z.string().describe("Message topic"),
+        content: z.string().describe("Message content"),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Priority"),
+      })),
+      execute: safeJsonWrap(async ({ to_agent, topic, content, priority }) => {
+        const result = await pool.query(
+          `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, priority)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [currentAgentId || "general", to_agent, "request", topic, JSON.stringify({ content }), priority || "normal"],
+        );
+        return { success: true, messageId: result.rows[0]?.id, to: to_agent, topic };
+      }),
+    }),
+    a2a_broadcast: tool({
+      description: "Broadcast a message to all agents or a subset.",
+      inputSchema: zodSchema(z.object({
+        topic: z.string().describe("Broadcast topic"),
+        content: z.string().describe("Broadcast content"),
+        targets: z.array(z.string()).optional().describe("Target agents (default: all)"),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Priority"),
+      })),
+      execute: safeJsonWrap(async ({ topic, content, targets, priority }) => {
+        const allAgents = targets || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== (currentAgentId || "general"));
+        const results = await Promise.all(allAgents.map(agent =>
+          pool.query(
+            `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, priority) VALUES ($1, $2, 'broadcast', $3, $4, $5)`,
+            [currentAgentId || "general", agent, topic, JSON.stringify({ content }), priority || "normal"],
+          )
+        ));
+        return { success: true, sentTo: allAgents, totalSent: results.length };
+      }),
+    }),
+    a2a_check_inbox: tool({
+      description: "Check your A2A inbox for unread messages.",
+      inputSchema: zodSchema(z.object({ limit: z.number().optional().describe("Max messages (default: 20)") })),
+      execute: safeJsonWrap(async ({ limit }) => {
+        const result = await pool.query(`SELECT * FROM get_agent_inbox($1, $2)`, [currentAgentId || "general", limit || 20]);
+        const msgs = result.rows;
+        if (msgs.length > 0) {
+          await pool.query(`SELECT mark_messages_read($1, $2::bigint[])`, [currentAgentId || "general", msgs.map(m => m.id)]);
+        }
+        return { unreadCount: msgs.length, messages: msgs.map(m => ({ id: m.id, from: m.from_agent, type: m.type, topic: m.topic, priority: m.priority, content: m.payload?.content || "" })) };
+      }),
+    }),
+    a2a_share_context: tool({
+      description: "Share data/findings with other agents.",
+      inputSchema: zodSchema(z.object({
+        context_key: z.string().describe("Unique key"),
+        content: z.string().describe("Content to share"),
+        tags: z.array(z.string()).optional().describe("Tags"),
+        scope: z.enum(["global", "project", "session", "agent"]).optional().describe("Scope"),
+      })),
+      execute: safeJsonWrap(async ({ context_key, content, tags, scope }) => {
+        const result = await pool.query(
+          `SELECT upsert_shared_context($1, $2, $3, $4, $5, '{}', $6, NULL, NULL)`,
+          [context_key, currentAgentId || "general", JSON.stringify({ text: content }), content, JSON.stringify(tags || []), scope || "project"],
+        );
+        return { success: true, contextId: result.rows[0]?.upsert_shared_context, key: context_key };
+      }),
+    }),
+    a2a_query_context: tool({
+      description: "Query shared context from other agents.",
+      inputSchema: zodSchema(z.object({
+        context_key: z.string().optional().describe("Key to look up"),
+        tags: z.array(z.string()).optional().describe("Filter by tags"),
+        limit: z.number().optional().describe("Max results"),
+      })),
+      execute: safeJsonWrap(async ({ context_key, tags, limit }) => {
+        let query = `SELECT id, context_key, agent_id, content_text, tags, scope, version FROM a2a_shared_context WHERE is_latest = TRUE`;
+        const params = [];
+        if (context_key) { params.push(context_key); query += ` AND context_key = $${params.length}`; }
+        if (tags && tags.length > 0) { params.push(tags); query += ` AND tags ?| $${params.length}`; }
+        query += ` ORDER BY updated_at DESC LIMIT $${params.length + 1}`;
+        params.push(limit || 10);
+        const result = await pool.query(query, params);
+        return { found: result.rows.length, contexts: result.rows };
+      }),
+    }),
+    a2a_collaborate: tool({
+      description: "Post to a multi-agent collaboration channel.",
+      inputSchema: zodSchema(z.object({
+        channel_name: z.string().describe("Channel name"),
+        message: z.string().describe("Message content"),
+        members: z.array(z.string()).optional().describe("Channel members"),
+      })),
+      execute: safeJsonWrap(async ({ channel_name, message, members }) => {
+        const allMembers = members || ["general", "mail", "code", "data", "creative", "research", "ops"];
+        let ch = await pool.query(`SELECT id FROM a2a_channels WHERE name = $1 AND is_active = TRUE LIMIT 1`, [channel_name]);
+        let channelId = ch.rows[0]?.id;
+        if (!channelId) {
+          ch = await pool.query(`INSERT INTO a2a_channels (name, channel_type, members, created_by) VALUES ($1, 'project', $2, $3) RETURNING id`, [channel_name, allMembers, currentAgentId || "general"]);
+          channelId = ch.rows[0]?.id;
+        }
+        if (!channelId) return { success: false, error: "Failed to create channel" };
+        await pool.query(`INSERT INTO a2a_channel_messages (channel_id, agent_id, content, message_type) VALUES ($1, $2, $3, 'message')`, [channelId, currentAgentId || "general", message]);
+        await pool.query(`UPDATE a2a_channels SET last_message_at = NOW(), message_count = message_count + 1 WHERE id = $1`, [channelId]);
+        return { success: true, channelId, channel: channel_name };
       }),
     }),
   };
@@ -2718,7 +2833,7 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
         },
       ],
       tools: agentTools,
-      maxOutputTokens: 16384,
+      maxOutputTokens: 32768,
       stopWhen: stepCountIs(maxSteps),
       abortSignal: AbortSignal.timeout(timeoutS * 1000),
     });
