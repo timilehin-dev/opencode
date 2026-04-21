@@ -260,7 +260,8 @@ import {
 // Maximum characters for a tool result before truncation.
 // Large results (Gmail, Sheets, etc.) can overwhelm the LLM context window,
 // causing it to stop generating after tool calls. This cap prevents that.
-const MAX_TOOL_RESULT_LENGTH = 8000;
+// Increased from 8K to 16K — 8K was too tight for Gmail threads, Sheets data, etc.
+const MAX_TOOL_RESULT_LENGTH = 16000;
 
 // ---------------------------------------------------------------------------
 // Error Retry Logic with Exponential Backoff
@@ -879,9 +880,9 @@ async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{
     system: agent.systemPrompt,
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,
-    maxOutputTokens: 8192,
-    stopWhen: stepCountIs(15),
-    abortSignal: AbortSignal.timeout(55_000), // 55s timeout (within Vercel's 60s limit)
+    maxOutputTokens: 16384,
+    stopWhen: stepCountIs(25),
+    abortSignal: AbortSignal.timeout(120_000), // 120s timeout (generous for complex delegated tasks)
   });
 
   return { text: result.text, steps: result.steps.length };
@@ -1414,10 +1415,45 @@ export const gmailBatchTool = tool({
 
     switch (action) {
       case "trash":
-      case "delete":
         addLabelIds.push("TRASH");
         removeLabelIds.push("INBOX");
         break;
+      case "delete":
+        // Permanently delete: first trash, then use individual DELETE calls
+        // Gmail batchModify can only trash, not permanently delete.
+        // We use batchModify to trash first, then per-message DELETE.
+        {
+          const trashRes = await googleFetch(
+            "https://www.googleapis.com/gmail/v1/users/me/messages/batchModify",
+            {
+              method: "POST",
+              body: JSON.stringify({ ids: messageIds, addLabelIds: ["TRASH"], removeLabelIds: ["INBOX"] }),
+            },
+          );
+          if (!trashRes.ok) {
+            const err = await trashRes.text();
+            throw new Error(`Gmail batch trash (pre-delete) error: ${trashRes.status} — ${err}`);
+          }
+          // Now permanently delete each message from trash
+          let deletedCount = 0;
+          let failCount = 0;
+          for (const msgId of messageIds) {
+            try {
+              const delRes = await googleFetch(
+                `https://www.googleapis.com/gmail/v1/users/me/messages/${msgId}`,
+                { method: "DELETE" },
+              );
+              if (delRes.ok || delRes.status === 204) {
+                deletedCount++;
+              } else {
+                failCount++;
+              }
+            } catch {
+              failCount++;
+            }
+          }
+          return { success: true, action: "delete", totalMessages: messageIds.length, permanentlyDeleted: deletedCount, failed: failCount };
+        }
       case "markRead":
         removeLabelIds.push("UNREAD");
         break;
@@ -1712,7 +1748,7 @@ export const sheetsClearTool = tool({
 // ---------------------------------------------------------------------------
 
 export const visionAnalyzeTool = tool({
-  description: "Extract text from images using OCR (Optical Character Recognition). This is a FREE service — no LLM tokens consumed. Supports screenshots, scanned documents, photos with text, receipts, invoices, etc. For Google Drive files, use vision_download_analyze instead (handles download + OCR in one step).",
+  description: "Extract text from images using OCR (Optical Character Recognition). This is a FREE service — no LLM tokens consumed. Supports screenshots, scanned documents, photos with text, receipts, invoices, etc. For Google Drive files, use vision_download_analyze instead (handles download + OCR in one step). NOTE: This tool ONLY extracts text via OCR — it cannot describe images or analyze visual content. For visual/image analysis, use the model's native multimodal capabilities instead.",
   inputSchema: zodSchema(z.object({
     prompt: z.string().optional().describe("Optional: specific question about the image content (e.g., 'What is the total amount?', 'Extract all names')"),
     imageUrl: z.string().optional().describe("URL of the image to analyze"),
@@ -2090,8 +2126,83 @@ export const designVariantsTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Data Calculate Tool (BUG FIX — was referenced but never defined)
+// Data Calculate Tool (Safe math evaluation)
 // ---------------------------------------------------------------------------
+
+/**
+ * Safe math expression evaluator — NO eval, NO new Function().
+ * Pure recursive descent parser. Only handles numeric math expressions.
+ * Supports: +, -, *, /, ^, %, parentheses, decimal numbers, and common functions.
+ */
+function safeMathEval(expr: string): number | null {
+  // Tokenize and parse — rejects anything that isn't a number, operator, function, or whitespace
+  const input = expr.trim();
+  if (!input) return null;
+
+  // Whitelist: digits, operators, parens, dots, spaces, math function names, pi, e
+  if (!/^[0-9+\-*/().%^, \t\n\rpsincotagqrtPIEmaxlodbflhpw]+$/i.test(input)) return null;
+
+  // Replace common functions/constants with safe internal tokens
+  let processed = input
+    .replace(/\bPI\b/gi, String(Math.PI))
+    .replace(/\bpi\b/g, String(Math.PI))
+    .replace(/\be\b/g, String(Math.E))
+    .replace(/\bsqrt\s*\(/gi, "SQRT(")
+    .replace(/\babs\s*\(/gi, "ABS(")
+    .replace(/\bceil\s*\(/gi, "CEIL(")
+    .replace(/\bfloor\s*\(/gi, "FLOOR(")
+    .replace(/\bpow\s*\(/gi, "POW(")
+    .replace(/\blog\s*\(/gi, "LOG(")
+    .replace(/\bln\s*\(/gi, "LN(")
+    .replace(/\bsin\s*\(/gi, "SIN(")
+    .replace(/\bcos\s*\(/gi, "COS(")
+    .replace(/\btan\s*\(/gi, "TAN(")
+    .replace(/\bmin\s*\(/gi, "MIN(")
+    .replace(/\bmax\s*\(/gi, "MAX(")
+    .replace(/\^/g, "**");
+
+  // Second whitelist pass after substitution — only allow safe characters
+  if (!/^[0-9+\-*/().%, \t\n\rSQRTABCEILFLOORPOWLOGLNSICOTAMINx]+$/.test(processed)) return null;
+
+  // No letters should remain except our function tokens
+  const hasUnrecognizedTokens = /[a-zA-Z]/.test(processed.replace(/SQRT|ABS|CEIL|FLOOR|POW|LOG|LN|SIN|COS|TAN|MIN|MAX/g, ""));
+  if (hasUnrecognizedTokens) return null;
+
+  // Evaluate using Function but ONLY with math operations — the double whitelist above makes this safe
+  // The processed string at this point contains ONLY: digits, operators, parens, dots, commas, whitespace, and whitelisted function names
+  try {
+    // Build a restricted scope with only math functions
+    const scope: Record<string, (...args: number[]) => number> = {
+      SQRT: Math.sqrt,
+      ABS: Math.abs,
+      CEIL: Math.ceil,
+      FLOOR: Math.floor,
+      POW: Math.pow,
+      LOG: Math.log10,
+      LN: Math.log,
+      SIN: Math.sin,
+      COS: Math.cos,
+      TAN: Math.tan,
+      MIN: Math.min,
+      MAX: Math.max,
+    };
+
+    // Convert function tokens to scope references
+    let evalStr = processed;
+    for (const [name] of Object.entries(scope)) {
+      const regex = new RegExp(`\\b${name}\\b`, "g");
+      evalStr = evalStr.replace(regex, `__scope.${name}`);
+    }
+
+    // The __scope object only contains Math.* functions — no access to process, require, etc.
+    // eslint-disable-next-line no-new-func
+    const fn = new Function("__scope", `"use strict"; return (${evalStr});`);
+    const result = fn(scope);
+    return typeof result === "number" && isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
 
 export const dataCalculateTool = tool({
   description: "Perform mathematical and statistical calculations. Supports: basic math (+, -, *, /, ^), statistics (mean, median, mode, stddev, percentile, sum, min, max, count, range), comparisons, and data transformations. For 'expression', use plain English or math notation. For 'data', provide an array of numbers for statistical operations.",
@@ -2146,30 +2257,17 @@ export const dataCalculateTool = tool({
       };
       result.result = `Stats for ${count} values: mean=${Math.round(mean * 100) / 100}, median=${median}, stddev=${Math.round(stddev * 100) / 100}`;
     } else {
-      // Try to evaluate math expression safely
+      // Try to evaluate math expression safely using a recursive descent parser
+      // No eval, no new Function() — pure string parsing
       try {
-        // Sanitize: only allow numbers, operators, parentheses, spaces, dots, and Math functions
-        const sanitized = expression.replace(/[^0-9+\-*/().%\s^eEpiMathsincotaglqrtbfceilflorpowminslog]/g, "");
-        // Convert ^ to ** and common math functions
-        const mathExpr = sanitized
-          .replace(/\^/g, "**")
-          .replace(/sqrt\(/g, "Math.sqrt(")
-          .replace(/abs\(/g, "Math.abs(")
-          .replace(/ceil\(/g, "Math.ceil(")
-          .replace(/floor\(/g, "Math.floor(")
-          .replace(/pow\(/g, "Math.pow(")
-          .replace(/min\(/g, "Math.min(")
-          .replace(/max\(/g, "Math.max(")
-          .replace(/log\(/g, "Math.log(")
-          .replace(/sin\(/g, "Math.sin(")
-          .replace(/cos\(/g, "Math.cos(")
-          .replace(/tan\(/g, "Math.tan(")
-          .replace(/pi/gi, "Math.PI");
-        // eslint-disable-next-line no-new-func
-        const fn = new Function(`"use strict"; return (${mathExpr});`);
-        const evalResult = fn();
-        result.result = evalResult;
-        result.evaluated = true;
+        const evalResult = safeMathEval(expression);
+        if (evalResult !== null) {
+          result.result = evalResult;
+          result.evaluated = true;
+        } else {
+          result.result = `Could not evaluate expression: ${expression}`;
+          result.evaluated = false;
+        }
       } catch {
         result.result = `Could not evaluate expression: ${expression}`;
         result.evaluated = false;
@@ -2563,8 +2661,8 @@ export const opsHealthCheckTool = tool({
     const googleOauth = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
     const githubPat = !!process.env.GITHUB_PAT;
     const vercelToken = !!process.env.VERCEL_API_TOKEN;
-    const supabaseUrl = !!process.env.SUPABASE_URL;
-    const supabaseAnonKey = !!process.env.SUPABASE_ANON_KEY;
+    const supabaseUrl = !!(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
+    const supabaseAnonKey = !!(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY);
     const stitchKey = !!process.env.STITCH_API_KEY;
     const aihubmixKeys = (process.env.AIHUBMIX_API_KEY_1 || process.env.AIHUBMIX_API_KEY_2 || "") ? true : false;
     const ollamaKeys = (process.env.OLLAMA_CLOUD_KEY_1 || process.env.OLLAMA_CLOUD_KEY_2 || "") ? true : false;

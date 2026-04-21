@@ -22,6 +22,12 @@ import { getInsightsForPrompt, recordLearning } from "@/lib/self-learning";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
 
+// Maximum steps per agent — tuned to prevent "stops halfway" while staying within timeout.
+// General: complex orchestration needs more steps. Specialists: fewer, more focused.
+// IMPORTANT: Each step = one LLM turn (tool call + response). A 10-tool task needs ~20 steps.
+const MAX_STEPS_GENERAL = 40;
+const MAX_STEPS_SPECIALIST = 25;
+
 // ---------------------------------------------------------------------------
 // Load user settings (temperature, maxTokens) from Supabase
 // ---------------------------------------------------------------------------
@@ -261,8 +267,8 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
     // Using stopWhen: stepCountIs(N) — each "step" is one LLM turn.
     // With N=1, the model can call tools but NOT explain results afterward.
     // With N>1, after tool results come back, the model gets another turn to explain.
-    // This is the structural fix for the "stop mid-task" bug.
-    const maxSteps = id === "general" ? 25 : 15;
+    // Tuned up from 25/15 to 40/25 to prevent the "stops halfway" bug.
+    const maxSteps = id === "general" ? MAX_STEPS_GENERAL : MAX_STEPS_SPECIALIST;
 
     const result = streamText({
       model,

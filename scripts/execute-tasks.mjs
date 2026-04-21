@@ -40,7 +40,7 @@ const { Pool } = pg;
 
 const MAX_TASKS_DEFAULT = parseInt(process.env.MAX_TASKS || "5", 10);
 const DEFAULT_TIMEOUT_S = parseInt(process.env.DEFAULT_TIMEOUT || "300", 10);
-const DEFAULT_MAX_STEPS = parseInt(process.env.DEFAULT_MAX_STEPS || "25", 10);
+const DEFAULT_MAX_STEPS = parseInt(process.env.DEFAULT_MAX_STEPS || "40", 10);
 
 // ---------------------------------------------------------------------------
 // Parse CLI args
@@ -88,6 +88,7 @@ const AGENTS = {
       "calendar_list", "calendar_events", "calendar_create",
       "calendar_delete", "calendar_freebusy",
       "drive_list", "drive_create_folder", "drive_create_file",
+      "download_drive_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
       "sheets_create", "sheets_add_sheet", "sheets_batch_get", "sheets_clear",
       "docs_list", "docs_read", "docs_create", "docs_append",
@@ -922,6 +923,32 @@ function buildToolMap() {
       }),
     }),
 
+    download_drive_file: tool({
+      description: "Download a file from Google Drive by ID. Returns file content as text (for text-based files) or metadata.",
+      inputSchema: zodSchema(z.object({ fileId: z.string(), mimeType: z.string().optional() })),
+      execute: safeJsonWrap(async ({ fileId, mimeType }) => {
+        const token = await getGoogleAccessToken();
+        // First get metadata
+        const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,size,mimeType`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const meta = await metaRes.json();
+        // Download file content
+        const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) throw new Error(`Drive download error: ${dlRes.status}`);
+        const text = await dlRes.text();
+        return {
+          fileName: meta.name || "unknown",
+          mimeType: meta.mimeType || mimeType || "text/plain",
+          size: meta.size || text.length,
+          content: text.slice(0, 16000),
+          truncated: text.length > 16000,
+        };
+      }),
+    }),
+
     // Web
     web_search: tool({
       description: "Search the web for real-time information.",
@@ -1131,9 +1158,28 @@ function buildToolMap() {
       execute: () => JSON.stringify({ success: false, error: "XLSX generation not available in GitHub Actions." }),
     }),
     query_agent: tool({
-      description: "Route a task to another agent. Note: cross-agent delegation is not available in background task execution. Handle the task with your own tools.",
+      description: "Route a task to another agent. Creates a new background task for the target agent. Available agents: mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning/docs), research (deep research), ops (monitoring). Returns a confirmation that the task was queued. IMPORTANT: The target agent will execute this task in the next executor cycle (~2 minutes). Do NOT expect an immediate result.",
       inputSchema: zodSchema(z.object({ agent_id: z.string(), task: z.string() })),
-      execute: () => JSON.stringify({ success: false, error: "Cross-agent delegation is not available in background execution mode. Use your own tools directly." }),
+      execute: safeJsonWrap(async ({ agent_id, task }) => {
+        // Validate target agent exists
+        const validAgents = Object.keys(AGENTS);
+        if (!validAgents.includes(agent_id)) {
+          return { success: false, error: `Unknown agent: ${agent_id}. Valid agents: ${validAgents.join(", ")}` };
+        }
+        // Queue a new task for the target agent
+        const result = await pool.query(
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+           VALUES ($1, $2, $3, 'agent_delegation', $4, 'high') RETURNING id`,
+          [agent_id, task, `Delegated from background task at ${new Date().toISOString()}`, `delegation:bg-${Date.now()}`],
+        );
+        const newTaskId = result.rows[0]?.id;
+        return {
+          success: true,
+          message: `Task queued for ${AGENTS[agent_id]?.name || agent_id} (task #${newTaskId}). It will execute in the next cycle (~2 minutes).`,
+          taskId: newTaskId,
+          targetAgent: agent_id,
+        };
+      }),
     }),
   };
 }
@@ -1349,7 +1395,7 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
         },
       ],
       tools: agentTools,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 16384,
       stopWhen: stepCountIs(maxSteps),
       abortSignal: AbortSignal.timeout(timeoutS * 1000),
     });

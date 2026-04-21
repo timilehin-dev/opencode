@@ -33,7 +33,7 @@ yarn-error.log*
 .turbo/
 
 # upload (screenshots)
-upload/
+/upload/
 
 # database
 db/*.db

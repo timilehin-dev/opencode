@@ -148,34 +148,44 @@ async function parseCSV(buffer: Buffer): Promise<string> {
 
 async function parseXLSX(buffer: Buffer): Promise<string> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const XLSX = require("xlsx");
-    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const ExcelJS = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
     let result = "";
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      if (data.length === 0) continue;
+    for (const [sheetName, worksheet] of Object.entries(workbook.worksheets)) {
+      if (worksheet.rowCount === 0) continue;
 
       result += `**Sheet: ${sheetName}**\n`;
 
       // Format as markdown table (max 50 rows)
-      const maxRows = Math.min(data.length, 51);
-      const headers = data[0] || [];
+      const maxRows = Math.min(worksheet.rowCount, 51);
 
-      result += `| ${headers.map((h: any) => String(h)).join(" | ")} |\n`;
+      // Get headers from first row
+      const headerRow = worksheet.getRow(1);
+      const headers: string[] = [];
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        headers.push(String(cell.value ?? ""));
+      });
+
+      if (headers.length === 0) continue;
+
+      result += `| ${headers.join(" | ")} |\n`;
       result += `| ${headers.map(() => "---").join(" | ")} |\n`;
 
-      for (let i = 1; i < maxRows; i++) {
-        const row = data[i] || [];
-        result += `| ${row.map((cell: any) => String(cell)).join(" | ")} |\n`;
+      for (let i = 2; i <= maxRows; i++) {
+        const row = worksheet.getRow(i);
+        const cells: string[] = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cells.push(String(cell.value ?? ""));
+        });
+        // Pad cells array to match header count
+        while (cells.length < headers.length) cells.push("");
+        result += `| ${cells.join(" | ")} |\n`;
       }
 
-      if (data.length > 51) {
-        result += `\n... and ${data.length - 51} more rows\n`;
+      if (worksheet.rowCount > 51) {
+        result += `\n... and ${worksheet.rowCount - 51} more rows\n`;
       }
       result += "\n";
     }
