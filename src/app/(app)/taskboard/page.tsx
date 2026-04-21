@@ -305,7 +305,7 @@ export default function TaskBoardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -345,7 +345,7 @@ export default function TaskBoardPage() {
         </div>
         <Button
           size="sm"
-          className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90"
+          className="gap-2 text-xs bg-primary hover:bg-primary/90"
           onClick={() => {
             setPanelMode("create");
             setPanelTask(null);
@@ -358,7 +358,7 @@ export default function TaskBoardPage() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <ClipboardList className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Total</span>
@@ -366,7 +366,7 @@ export default function TaskBoardPage() {
           <p className="text-lg font-bold text-[#3730a3]">{(summary?.backlog ?? 0) + (summary?.in_progress ?? 0) + (summary?.waiting ?? 0) + (summary?.done ?? 0)}</p>
         </div>
         {COLUMNS.map((col) => (
-          <div key={col.key} className="rounded-xl border border-[#e8e5df] bg-white p-3">
+          <div key={col.key} className="rounded-xl border border-border bg-card p-3">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <span className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
               <span className="text-[10px] font-medium uppercase tracking-wider">{col.label}</span>
@@ -384,12 +384,12 @@ export default function TaskBoardPage() {
           <Filter className="w-4 h-4 text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Filters:</span>
         </div>
-        <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
           <button
             onClick={() => setFilterAgent("all")}
             className={cn(
               "px-2.5 py-1 text-[10px] rounded-md transition-colors",
-              filterAgent === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+              filterAgent === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
             )}
           >
             All Agents
@@ -400,21 +400,21 @@ export default function TaskBoardPage() {
               onClick={() => setFilterAgent(agent)}
               className={cn(
                 "px-2.5 py-1 text-[10px] rounded-md transition-colors",
-                filterAgent === agent ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                filterAgent === agent ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
               )}
             >
               {agent}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
           {(["all", "high", "medium", "low"] as const).map((p) => (
             <button
               key={p}
               onClick={() => setFilterPriority(p)}
               className={cn(
                 "px-2.5 py-1 text-[10px] rounded-md transition-colors",
-                filterPriority === p ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                filterPriority === p ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
               )}
             >
               {p === "all" ? "All Priority" : p.charAt(0).toUpperCase() + p.slice(1)}
@@ -431,7 +431,7 @@ export default function TaskBoardPage() {
             <div className="flex items-center gap-2 mb-3 px-1">
               <span className={cn("w-2.5 h-2.5 rounded-full", col.color)} />
               <h2 className="text-sm font-semibold text-foreground">{col.label}</h2>
-              <span className="text-[10px] text-muted-foreground bg-[#f5f3ef] px-1.5 py-0.5 rounded-full">
+              <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
                 {tasksByColumn[col.key].length}
               </span>
             </div>
@@ -448,7 +448,7 @@ export default function TaskBoardPage() {
               }}
             >
               {tasksByColumn[col.key].length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#e8e5df] bg-[#faf9f7] p-8 text-center">
+                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
                   <p className="text-xs text-muted-foreground">No tasks</p>
                 </div>
               ) : (
@@ -486,7 +486,7 @@ export default function TaskBoardPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white shadow-xl overflow-y-auto"
+              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-card shadow-xl overflow-y-auto"
             >
               <TaskPanel
                 task={panelTask}
@@ -523,7 +523,7 @@ function TaskCard({ task, onClick, onDragStart, isDragging }: { task: Task; onCl
       animate="show"
       layout
       className={cn(
-        "rounded-xl border border-[#e8e5df] bg-white p-4 cursor-grab active:cursor-grabbing hover:border-[#3730a3]/20 hover:shadow-sm transition-all group",
+        "rounded-xl border border-border bg-card p-4 cursor-grab active:cursor-grabbing hover:border-primary/20 hover:shadow-sm transition-all group",
         isDragging && "opacity-50 rotate-2 scale-95 shadow-lg"
       )}
       onClick={onClick}
@@ -571,7 +571,7 @@ function TaskCard({ task, onClick, onDragStart, isDragging }: { task: Task; onCl
           {task.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="flex items-center gap-0.5 text-[9px] text-muted-foreground bg-[#f5f3ef] px-1.5 py-0.5 rounded"
+              className="flex items-center gap-0.5 text-[9px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded"
             >
               <Tag className="w-2.5 h-2.5" />
               {tag}
@@ -647,7 +647,7 @@ function TaskPanel({
         </h2>
         <button
           onClick={onClose}
-          className="p-2 rounded-lg hover:bg-[#f5f3ef] text-muted-foreground hover:text-foreground transition-colors"
+          className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -673,7 +673,7 @@ function TaskPanel({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe the task..."
             rows={3}
-            className="flex w-full rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#3730a3]/40 resize-none"
+            className="flex w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-ring/40 resize-none"
           />
         </div>
 
@@ -685,7 +685,7 @@ function TaskPanel({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="w-full px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-sm appearance-none focus:outline-none focus:border-[#3730a3]/40"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm appearance-none focus:outline-none focus:border-ring/40"
               >
                 {COLUMNS.map((col) => (
                   <option key={col.key} value={col.key}>
@@ -710,7 +710,7 @@ function TaskPanel({
                   "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
                   priority === p
                     ? cn(PRIORITY_CONFIG[p].badgeClass, "border-current shadow-sm")
-                    : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                    : "border-border text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {PRIORITY_CONFIG[p].label}
@@ -762,7 +762,7 @@ function TaskPanel({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-4 border-t border-[#e8e5df]">
+        <div className="flex items-center gap-2 pt-4 border-t border-border">
           {isEditing && (
             <Button
               variant="outline"
@@ -780,7 +780,7 @@ function TaskPanel({
           </Button>
           <Button
             size="sm"
-            className="text-xs gap-1.5 bg-[#3730a3] hover:bg-[#3730a3]/90"
+            className="text-xs gap-1.5 bg-primary hover:bg-primary/90"
             onClick={handleSave}
             disabled={!title.trim() || saving}
           >

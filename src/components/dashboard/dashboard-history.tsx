@@ -22,7 +22,7 @@ const AGENT_META: Record<string, { emoji: string; bg: string; name: string }> = 
   creative: { emoji: "🧠", bg: "bg-[#fff1f2]", name: "Creative Agent" },
   research: { emoji: "🔍", bg: "bg-[#f0fdfa]", name: "Research Agent" },
   ops: { emoji: "⚡", bg: "bg-[#fff7ed]", name: "Ops Agent" },
-  unknown: { emoji: "🤖", bg: "bg-[#faf9f7]", name: "Agent" },
+  unknown: { emoji: "🤖", bg: "bg-card", name: "Agent" },
 };
 
 const TYPE_ICONS: Record<string, { icon: string; label: string }> = {
@@ -137,8 +137,8 @@ export function DashboardHistory() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#e8e5df]">
-        <span className="text-[11px] font-semibold text-[#1a1a1a]">Recent History</span>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <span className="text-[11px] font-semibold text-foreground">Recent History</span>
         <button
           onClick={fetchHistory}
           className="text-[10px] text-[#3730a3] hover:underline transition-colors"
@@ -151,17 +151,17 @@ export function DashboardHistory() {
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
         {loading ? (
           <div className="flex items-center justify-center py-10">
-            <div className="w-5 h-5 border-2 border-[#3730a3]/20 border-t-[#3730a3] rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
           </div>
         ) : history.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-10 h-10 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#999999]">
+            <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
                 <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
             </div>
-            <span className="text-[11px] text-[#999999]">No history yet</span>
-            <span className="text-[10px] text-[#d5d0c9] mt-0.5">
+            <span className="text-[11px] text-muted-foreground">No history yet</span>
+            <span className="text-[10px] text-muted-foreground/60 mt-0.5">
               Completed tasks and activity will appear here
             </span>
           </div>
@@ -175,22 +175,22 @@ export function DashboardHistory() {
               return (
                 <div
                   key={entry.id}
-                  className="flex items-start gap-2.5 px-3 py-2 rounded-lg hover:bg-[#faf9f7] transition-colors"
+                  className="flex items-start gap-2.5 px-3 py-2 rounded-lg hover:bg-card transition-colors"
                 >
                   {/* Type icon */}
                   <span className="text-xs flex-shrink-0 mt-0.5">{typeInfo.icon}</span>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-[#1a1a1a] leading-snug truncate">
+                    <div className="text-[11px] text-foreground leading-snug truncate">
                       {entry.summary}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[9px] text-[#999999]">{formatTime(entry.timestamp)}</span>
+                      <span className="text-[9px] text-muted-foreground">{formatTime(entry.timestamp)}</span>
                       {duration && (
-                        <span className="text-[9px] text-[#999999]">{duration}</span>
+                        <span className="text-[9px] text-muted-foreground">{duration}</span>
                       )}
-                      <span className="text-[9px] text-[#d5d0c9]">{agent.name}</span>
+                      <span className="text-[9px] text-muted-foreground/60">{agent.name}</span>
                     </div>
                   </div>
                 </div>

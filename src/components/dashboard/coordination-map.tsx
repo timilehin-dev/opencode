@@ -11,7 +11,7 @@ const AGENT_META: Record<string, { emoji: string; bg: string; name: string }> = 
   creative: { emoji: "🧠", bg: "bg-[#fff1f2]", name: "Creative Agent" },
   research: { emoji: "🔍", bg: "bg-[#f0fdfa]", name: "Research Agent" },
   ops: { emoji: "⚡", bg: "bg-[#fff7ed]", name: "Ops Agent" },
-  unknown: { emoji: "🤖", bg: "bg-[#faf9f7]", name: "Agent" },
+  unknown: { emoji: "🤖", bg: "bg-card", name: "Agent" },
 };
 
 function getAgentMeta(agentId: string) {
@@ -25,7 +25,7 @@ interface CoordinationMapProps {
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700 border border-amber-200",
   running: "bg-[#eef2ff] text-[#3730a3] border border-indigo-200",
-  completed: "bg-[#faf9f7] text-[#999999] border border-[#e8e5df]",
+  completed: "bg-card text-muted-foreground border border-border",
   failed: "bg-red-50 text-red-700 border border-red-200",
 };
 
@@ -62,18 +62,18 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
   });
 
   return (
-    <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col overflow-hidden h-full">
+    <div className="bg-card rounded-lg border border-border shadow-sm flex flex-col overflow-hidden h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#e8e5df]">
-        <span className="text-[13px] font-semibold text-[#1a1a1a]">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <span className="text-[13px] font-semibold text-foreground">
           Agent Coordination Map
         </span>
-        <span className="text-[10px] text-[#999999]">{activeCount} active flows</span>
+        <span className="text-[10px] text-muted-foreground">{activeCount} active flows</span>
       </div>
 
       {/* SVG Network Visualization */}
       {delegations.length > 0 && (
-        <div className="px-4 py-3 border-b border-[#e8e5df]">
+        <div className="px-4 py-3 border-b border-border">
           <svg viewBox="0 0 300 200" className="w-full h-auto" style={{ maxHeight: "160px" }}>
             <defs>
               <filter id="glow">
@@ -139,8 +139,8 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
       )}
 
       {/* Banner */}
-      <div className="px-4 py-2 bg-[#faf9f7] border-b border-[#e8e5df]">
-        <span className="text-[10px] text-[#999999]">
+      <div className="px-4 py-2 bg-card border-b border-border">
+        <span className="text-[10px] text-muted-foreground">
           {delegations.length > 0
             ? `Showing ${Math.min(delegations.length, 10)} recent delegation(s)`
             : "No delegations yet"}
@@ -151,13 +151,13 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
       <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
         {delegations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-10 h-10 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-3">
-              <span className="text-[#999999] text-sm">🔗</span>
+            <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center mb-3">
+              <span className="text-muted-foreground text-sm">🔗</span>
             </div>
-            <span className="text-[11px] text-[#999999]">
+            <span className="text-[11px] text-muted-foreground">
               Agent delegations will appear here
             </span>
-            <span className="text-[10px] text-[#d5d0c9] mt-1">
+            <span className="text-[10px] text-muted-foreground/60 mt-1">
               Use delegate_to_agent or query_agent to start
             </span>
           </div>
@@ -173,21 +173,21 @@ export function CoordinationMap({ delegations }: CoordinationMapProps) {
               return (
                 <div
                   key={delegation.id}
-                  className="flex items-center gap-2 px-2.5 py-2.5 rounded-lg bg-[#faf9f7] hover:bg-white border border-[#f0ede8] transition-colors"
+                  className="flex items-center gap-2 px-2.5 py-2.5 rounded-lg bg-card hover:bg-card border border-border transition-colors"
                 >
                   <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-sm ${from.bg} flex-shrink-0`} title={from.name}>
                     {from.emoji}
                   </div>
-                  <span className="text-[#d5d0c9] text-xs flex-shrink-0">→</span>
+                  <span className="text-muted-foreground/60 text-xs flex-shrink-0">→</span>
                   <div className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-sm ${to.bg} flex-shrink-0`} title={to.name}>
                     {to.emoji}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-[#6b6b6b] leading-snug truncate">
-                      <strong className="text-[#1a1a1a]">{delegation.task}</strong>
+                    <div className="text-[11px] text-muted-foreground leading-snug truncate">
+                      <strong className="text-foreground">{delegation.task}</strong>
                     </div>
                     {delegation.duration_ms != null && (
-                      <div className="text-[9px] text-[#999999] mt-0.5">
+                      <div className="text-[9px] text-muted-foreground mt-0.5">
                         {(delegation.duration_ms / 1000).toFixed(1)}s
                       </div>
                     )}

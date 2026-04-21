@@ -25,7 +25,7 @@ export default function SettingsLoading() {
         {/* Content */}
         <div className="flex-1 space-y-6">
           {/* Card 1 */}
-          <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-4">
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
             <Skeleton className="h-5 w-40" />
             <Skeleton className="h-2 w-56" />
             <div className="space-y-4 pt-2">
@@ -40,7 +40,7 @@ export default function SettingsLoading() {
           </div>
 
           {/* Card 2 */}
-          <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-4">
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
             <Skeleton className="h-5 w-36" />
             <Skeleton className="h-2 w-44" />
             <div className="space-y-3 pt-2">

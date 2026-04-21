@@ -18,7 +18,7 @@ const AGENT_META: Record<string, { emoji: string; bg: string; name: string }> = 
   creative: { emoji: "🧠", bg: "bg-[#fff1f2]", name: "Creative Agent" },
   research: { emoji: "🔍", bg: "bg-[#f0fdfa]", name: "Research Agent" },
   ops: { emoji: "⚡", bg: "bg-[#fff7ed]", name: "Ops Agent" },
-  unknown: { emoji: "🤖", bg: "bg-[#faf9f7]", name: "Agent" },
+  unknown: { emoji: "🤖", bg: "bg-card", name: "Agent" },
 };
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -156,7 +156,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header with filter + create button */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#e8e5df]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-1">
           {(["all", "active", "completed"] as const).map((f) => (
             <button
@@ -165,14 +165,14 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
               className={cn(
                 "text-[10px] font-semibold px-2.5 py-1 rounded-md capitalize transition-colors",
                 filter === f
-                  ? "bg-[#3730a3] text-white"
-                  : "bg-[#faf9f7] text-[#6b6b6b] hover:bg-[#f0ede8]"
+                  ? "bg-primary text-white"
+                  : "bg-card text-muted-foreground hover:bg-muted"
               )}
             >
               {f}
             </button>
           ))}
-          <span className="text-[10px] text-[#999999] ml-1">
+          <span className="text-[10px] text-muted-foreground ml-1">
             {filtered.length}
           </span>
         </div>
@@ -181,8 +181,8 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
           className={cn(
             "text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors",
             showCreate
-              ? "bg-[#3730a3] text-white"
-              : "bg-[#faf9f7] text-[#3730a3] hover:bg-[#eef2ff]"
+              ? "bg-primary text-white"
+              : "bg-card text-[#3730a3] hover:bg-accent"
           )}
         >
           + New
@@ -191,19 +191,19 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
 
       {/* Create Task Form */}
       {showCreate && (
-        <div className="px-4 py-3 border-b border-[#e8e5df] bg-[#faf9f7] space-y-2">
+        <div className="px-4 py-3 border-b border-border bg-card space-y-2">
           <textarea
             value={createText}
             onChange={(e) => setCreateText(e.target.value)}
             placeholder="Describe the task..."
             rows={2}
-            className="w-full resize-none rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-xs text-foreground placeholder:text-[#999999] focus:outline-none focus:border-[#3730a3]/40 transition-all"
+            className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring/40 transition-all"
           />
           <div className="flex items-center gap-2">
             <select
               value={createAgent}
               onChange={(e) => setCreateAgent(e.target.value)}
-              className="flex-1 h-7 rounded-md border border-[#e8e5df] bg-white px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-[#3730a3]/40"
+              className="flex-1 h-7 rounded-md border border-border bg-card px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-ring/40"
             >
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -214,7 +214,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
             <select
               value={createPriority}
               onChange={(e) => setCreatePriority(e.target.value)}
-              className="h-7 rounded-md border border-[#e8e5df] bg-white px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-[#3730a3]/40"
+              className="h-7 rounded-md border border-border bg-card px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-ring/40"
             >
               <option value="critical">Critical</option>
               <option value="high">High</option>
@@ -224,7 +224,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
             <button
               onClick={handleCreateTask}
               disabled={!createText.trim() || creating}
-              className="h-7 px-3 rounded-md bg-[#3730a3] text-white text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1"
+              className="h-7 px-3 rounded-md bg-primary text-white text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1"
             >
               {creating ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -246,14 +246,14 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
 
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-10 h-10 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#999999]">
+            <div className="w-10 h-10 rounded-full bg-card border border-border flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
                 <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
                 <rect x="9" y="3" width="6" height="4" rx="2" />
               </svg>
             </div>
-            <span className="text-[11px] text-[#999999]">No tasks yet</span>
-            <span className="text-[10px] text-[#d5d0c9] mt-0.5">
+            <span className="text-[11px] text-muted-foreground">No tasks yet</span>
+            <span className="text-[10px] text-muted-foreground/60 mt-0.5">
               Click + New to create one
             </span>
           </div>
@@ -272,8 +272,8 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
                   className={cn(
                     "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border transition-colors",
                     task.status === "running"
-                      ? "bg-[#eef2ff]/50 border-[#3730a3]/20"
-                      : "bg-white border-[#f0ede8] hover:border-[#e8e5df]"
+                      ? "bg-[#eef2ff]/50 border-primary/20"
+                      : "bg-card border-border hover:border-border"
                   )}
                 >
                   {/* Agent avatar */}
@@ -289,15 +289,15 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-semibold text-[#1a1a1a] leading-snug truncate">
+                    <div className="text-[11px] font-semibold text-foreground leading-snug truncate">
                       {task.task}
                     </div>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-[9px] text-[#999999]">
+                      <span className="text-[9px] text-muted-foreground">
                         {formatTime(task.created_at)}
                       </span>
                       {duration && (
-                        <span className="text-[9px] text-[#999999]">{duration}</span>
+                        <span className="text-[9px] text-muted-foreground">{duration}</span>
                       )}
                       <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded", statusStyle)}>
                         {task.status}
@@ -319,8 +319,8 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
                       className={cn(
                         "flex-shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
                         completing === task.id
-                          ? "border-[#3730a3]/30 bg-[#3730a3]/10"
-                          : "border-[#d5d0c9] hover:border-emerald-500 hover:bg-emerald-50"
+                          ? "border-primary/30 bg-primary/10"
+                          : "border-border hover:border-emerald-500 hover:bg-emerald-50"
                       )}
                       title="Mark as done"
                     >

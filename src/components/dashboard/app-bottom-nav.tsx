@@ -130,13 +130,13 @@ export function AppBottomNav() {
               <Icon
                 className={cn(
                   "w-6 h-6 transition-all duration-200",
-                  active ? "text-[#3730a3]" : "text-[#999999]"
+                  active ? "text-[#3730a3]" : "text-muted-foreground"
                 )}
               />
               <span
                 className={cn(
                   "text-[10px] font-medium transition-all duration-200",
-                  active ? "text-[#3730a3]" : "text-[#999999]"
+                  active ? "text-[#3730a3]" : "text-muted-foreground"
                 )}
               >
                 {tab.label}
@@ -144,7 +144,7 @@ export function AppBottomNav() {
               {active && (
                 <motion.div
                   layoutId="bottom-nav-indicator"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full bg-[#3730a3]"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full bg-primary"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -171,7 +171,7 @@ export function AppBottomNav() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="absolute bottom-[68px] right-3 z-50 bg-white border border-[#e8e5df] rounded-lg shadow-lg overflow-hidden min-w-[160px]"
+                className="absolute bottom-[68px] right-3 z-50 bg-card border border-border rounded-lg shadow-lg overflow-hidden min-w-[160px]"
               >
                 {MORE_ITEMS.map((item) => {
                   const active = pathname === item.href;
@@ -181,16 +181,16 @@ export function AppBottomNav() {
                       href={item.href}
                       onClick={() => setShowMore(false)}
                       className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-[#f0ede8] last:border-b-0 min-h-[44px]",
+                        "w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-border last:border-b-0 min-h-[44px]",
                         active
                           ? "bg-[#eef2ff] text-[#3730a3]"
-                          : "text-[#1a1a1a] hover:bg-[#faf9f7]"
+                          : "text-foreground hover:bg-card"
                       )}
                     >
                       <span className="text-base">{item.emoji}</span>
                       <span className="text-sm font-medium">{item.label}</span>
                       {active && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#3730a3]" />
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
                       )}
                     </Link>
                   );

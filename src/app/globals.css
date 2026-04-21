@@ -31,6 +31,36 @@
   --sidebar-ring: 239 84% 35%;
 }
 
+.dark {
+  --background: 230 15% 12%;
+  --foreground: 0 0% 93%;
+  --card: 230 15% 16%;
+  --card-foreground: 0 0% 93%;
+  --popover: 230 15% 16%;
+  --popover-foreground: 0 0% 93%;
+  --primary: 239 84% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 230 15% 20%;
+  --secondary-foreground: 0 0% 85%;
+  --muted: 230 10% 24%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 239 84% 20%;
+  --accent-foreground: 239 84% 75%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 230 12% 26%;
+  --input: 230 12% 26%;
+  --ring: 239 84% 55%;
+  --sidebar-background: 230 15% 14%;
+  --sidebar-foreground: 0 0% 85%;
+  --sidebar-primary: 239 84% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 239 84% 18%;
+  --sidebar-accent-foreground: 239 84% 75%;
+  --sidebar-border: 230 12% 22%;
+  --sidebar-ring: 239 84% 55%;
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -65,9 +95,9 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Body background — warm off-white paper */
+/* Body background */
 body {
-  background-color: #f5f3ef;
+  background-color: hsl(var(--background));
 }
 
 /* Custom scrollbar — optimized with will-change for compositing */

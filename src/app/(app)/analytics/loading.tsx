@@ -22,7 +22,7 @@ export default function AnalyticsLoading() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-[#e8e5df] bg-white p-4 space-y-2">
+          <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2">
             <div className="flex items-center justify-between">
               <Skeleton className="h-8 w-8 rounded-lg" />
               <Skeleton className="h-4 w-10 rounded-full" />
@@ -34,7 +34,7 @@ export default function AnalyticsLoading() {
       </div>
 
       {/* Bar chart card */}
-      <div className="rounded-xl border border-[#e8e5df] bg-white p-6 mb-6 space-y-3">
+      <div className="rounded-xl border border-border bg-card p-6 mb-6 space-y-3">
         <Skeleton className="h-4 w-48" />
         <div className="flex items-end gap-1 h-44">
           {[60, 80, 45, 90, 55, 70, 85].map((h, i) => (
@@ -47,7 +47,7 @@ export default function AnalyticsLoading() {
 
       {/* Two column cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
           <Skeleton className="h-4 w-36" />
           <Skeleton className="h-2 w-48" />
           <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-12 gap-1.5">
@@ -56,7 +56,7 @@ export default function AnalyticsLoading() {
             ))}
           </div>
         </div>
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
           <Skeleton className="h-4 w-44" />
           <Skeleton className="h-2 w-52" />
           <div className="flex items-center gap-6">
@@ -75,7 +75,7 @@ export default function AnalyticsLoading() {
       </div>
 
       {/* Agent table skeleton */}
-      <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-3">
+      <div className="rounded-xl border border-border bg-card p-6 space-y-3">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-2 w-56" />
         <div className="space-y-3 pt-2">

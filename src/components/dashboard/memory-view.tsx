@@ -62,7 +62,7 @@ const KNOWN_AGENTS = [
 ];
 
 const CATEGORY_STYLES: Record<string, string> = {
-  general: "bg-slate-500/20 text-[#1a1a1a] border-slate-500/30",
+  general: "bg-slate-500/20 text-foreground border-slate-500/30",
   preference: "bg-blue-500/20 text-blue-600 border-blue-500/30",
   context: "bg-purple-500/20 text-purple-600 border-purple-500/30",
   instruction: "bg-amber-500/20 text-amber-600 border-amber-500/30",

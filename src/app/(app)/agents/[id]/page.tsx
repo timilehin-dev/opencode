@@ -331,7 +331,7 @@ export default function AgentDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -451,8 +451,8 @@ export default function AgentDetailPage() {
             className={cn(
               "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap min-h-[40px]",
               activeTab === tab.id
-                ? "bg-[#3730a3] text-white shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-[#f0ede8]"
+                ? "bg-primary text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
             )}
           >
             {tab.icon}
@@ -574,7 +574,7 @@ function OverviewTab({
           { label: "Active Tools", value: new Set(effectiveTools).size, icon: <Wrench className="w-4 h-4" /> },
           { label: "Provider", value: agent.provider, icon: <Cpu className="w-4 h-4" /> },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-[#e8e5df] bg-white p-4">
+          <div key={s.label} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               {s.icon}
               <span className="text-[10px] font-medium uppercase tracking-wider">{s.label}</span>
@@ -611,7 +611,7 @@ function OverviewTab({
                   {tools.map((tool) => (
                     <span
                       key={tool}
-                      className="inline-flex items-center px-2 py-1 rounded-md bg-[#f5f3ef] border border-[#e8e5df] text-[11px] font-mono text-muted-foreground hover:border-[#3730a3]/30 transition-colors cursor-default"
+                      className="inline-flex items-center px-2 py-1 rounded-md bg-secondary border border-border text-[11px] font-mono text-muted-foreground hover:border-primary/30 transition-colors cursor-default"
                       title={TOOL_META[tool]?.description || tool}
                     >
                       {TOOL_META[tool]?.label || tool}
@@ -639,14 +639,14 @@ function OverviewTab({
               <button
                 key={action.label}
                 onClick={onChat}
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-[#e8e5df] bg-white hover:bg-[#faf9f7] hover:border-[#3730a3]/20 text-left transition-all duration-200 group"
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-card hover:bg-card hover:border-primary/20 text-left transition-all duration-200 group"
               >
                 <Settings className="w-3.5 h-3.5 text-muted-foreground group-hover:text-[#3730a3] transition-colors" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-foreground truncate">{action.label}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{action.prompt}</p>
                 </div>
-                <Clock className="w-3 h-3 text-[#999999] flex-shrink-0" />
+                <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
               </button>
             ))}
           </div>
@@ -739,9 +739,9 @@ function ToolsTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="text-sm font-medium text-foreground">{activeCount} of {totalAvailable} tools active</div>
-          <div className="w-32 h-2 rounded-full bg-[#e8e5df] overflow-hidden">
+          <div className="w-32 h-2 rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full bg-[#3730a3] rounded-full transition-all duration-300"
+              className="h-full bg-primary rounded-full transition-all duration-300"
               style={{ width: `${(activeCount / totalAvailable) * 100}%` }}
             />
           </div>
@@ -753,7 +753,7 @@ function ToolsTab({
             placeholder="Search tools..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-56 pl-9 pr-8 py-2 rounded-lg border border-[#e8e5df] bg-white text-xs focus:outline-none focus:border-[#3730a3]/40 focus:ring-1 focus:ring-[#3730a3]/20 transition-all"
+            className="w-full sm:w-56 pl-9 pr-8 py-2 rounded-lg border border-border bg-card text-xs focus:outline-none focus:border-ring/40 focus:ring-1 focus:ring-ring/20 transition-all"
           />
           {search && (
             <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -792,7 +792,7 @@ function ToolsTab({
                       "text-[10px] font-medium px-2 py-1 rounded-md transition-colors",
                       allEnabled
                         ? "text-muted-foreground hover:text-destructive"
-                        : "text-[#3730a3] hover:bg-[#3730a3]/10"
+                        : "text-[#3730a3] hover:bg-primary/10"
                     )}
                   >
                     {allEnabled ? "Disable all" : "Enable all"}
@@ -821,7 +821,7 @@ function ToolsTab({
                             className={cn(
                               "flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-150",
                               isActive
-                                ? "bg-white border border-[#e8e5df]"
+                                ? "bg-card border border-border"
                                 : "bg-[#f9f8f6] border border-transparent opacity-60"
                             )}
                           >
@@ -830,12 +830,12 @@ function ToolsTab({
                                 onClick={() => toggleTool(toolId)}
                                 className={cn(
                                   "w-8 h-[18px] rounded-full transition-all duration-200 flex-shrink-0 relative",
-                                  isActive ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+                                  isActive ? "bg-primary" : "bg-[#d1d1d1]"
                                 )}
                               >
                                 <span
                                   className={cn(
-                                    "absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-all duration-200",
+                                    "absolute top-[2px] w-[14px] h-[14px] bg-card rounded-full shadow-sm transition-all duration-200",
                                     isActive ? "left-[15px]" : "left-[2px]"
                                   )}
                                 />
@@ -933,7 +933,7 @@ function PromptTab({
             </Button>
           )}
           {!isEditing ? (
-            <Button size="sm" className="text-xs gap-1.5 bg-[#3730a3] hover:bg-[#3730a3]/90" onClick={() => setIsEditing(true)}>
+            <Button size="sm" className="text-xs gap-1.5 bg-primary hover:bg-primary/90" onClick={() => setIsEditing(true)}>
               <Pencil className="w-3 h-3" />
               Edit
             </Button>
@@ -942,7 +942,7 @@ function PromptTab({
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setDraft(currentPrompt); setIsEditing(false); }}>
                 Cancel
               </Button>
-              <Button size="sm" className="text-xs gap-1.5 bg-[#3730a3] hover:bg-[#3730a3]/90" onClick={handleSave}>
+              <Button size="sm" className="text-xs gap-1.5 bg-primary hover:bg-primary/90" onClick={handleSave}>
                 <Save className="w-3 h-3" />
                 Save
               </Button>
@@ -960,18 +960,18 @@ function PromptTab({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={24}
-              className="w-full resize-y rounded-t-none border-0 bg-[#faf9f7] px-4 py-3 text-xs font-mono text-foreground leading-relaxed focus:outline-none focus-visible:ring-0 custom-scrollbar"
+              className="w-full resize-y rounded-t-none border-0 bg-card px-4 py-3 text-xs font-mono text-foreground leading-relaxed focus:outline-none focus-visible:ring-0 custom-scrollbar"
               placeholder="Enter system prompt..."
             />
           ) : (
             <div
-              className="px-4 py-3 min-h-[200px] max-h-[500px] overflow-auto text-xs font-mono text-foreground leading-relaxed whitespace-pre-wrap bg-[#faf9f7] custom-scrollbar"
+              className="px-4 py-3 min-h-[200px] max-h-[500px] overflow-auto text-xs font-mono text-foreground leading-relaxed whitespace-pre-wrap bg-card custom-scrollbar"
             >
               {previewText}
             </div>
           )}
           {!isEditing && draft.length > 1500 && (
-            <div className="px-4 py-2 border-t border-[#e8e5df]">
+            <div className="px-4 py-2 border-t border-border">
               <button
                 onClick={() => setShowFull(!showFull)}
                 className="text-[10px] text-[#3730a3] hover:underline flex items-center gap-1"
@@ -984,7 +984,7 @@ function PromptTab({
       </Card>
 
       {/* Tips */}
-      <div className="rounded-lg border border-[#e8e5df] bg-[#f5f3ef] p-4">
+      <div className="rounded-lg border border-border bg-secondary p-4">
         <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
           <Settings className="w-3.5 h-3.5" />
           Prompt Tips
@@ -1057,8 +1057,8 @@ function ParametersTab({
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Current */}
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#3730a3]/20 bg-[#3730a3]/5">
-            <div className="w-2 h-2 rounded-full bg-[#3730a3]" />
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-primary/20 bg-primary/5">
+            <div className="w-2 h-2 rounded-full bg-primary" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-foreground truncate">{model}</p>
               <p className="text-[10px] text-muted-foreground">
@@ -1078,7 +1078,7 @@ function ParametersTab({
                 type="text"
                 value={model}
                 onChange={(e) => { setModel(e.target.value); onUpdate("model", e.target.value || undefined); }}
-                className="flex-1 px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-xs font-mono focus:outline-none focus:border-[#3730a3]/40 focus:ring-1 focus:ring-[#3730a3]/20 transition-all"
+                className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-xs font-mono focus:outline-none focus:border-ring/40 focus:ring-1 focus:ring-ring/20 transition-all"
                 placeholder="e.g. gpt-4o, claude-3.5-sonnet"
               />
               <Button
@@ -1091,7 +1091,7 @@ function ParametersTab({
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground mt-1.5">
-              Default: <code className="bg-[#f0ede8] px-1 py-0.5 rounded text-[10px]">{agent.model}</code>
+              Default: <code className="bg-muted px-1 py-0.5 rounded text-[10px]">{agent.model}</code>
             </p>
           </div>
 
@@ -1117,8 +1117,8 @@ function ParametersTab({
                   className={cn(
                     "px-2.5 py-1.5 rounded-md border text-[10px] font-medium transition-all",
                     model === m.id
-                      ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3]"
-                      : "border-[#e8e5df] bg-white text-muted-foreground hover:border-[#3730a3]/30"
+                      ? "border-primary bg-primary/10 text-[#3730a3]"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/30"
                   )}
                 >
                   {m.label}
@@ -1161,7 +1161,7 @@ function ParametersTab({
               onChange={(e) => { const v = parseFloat(e.target.value); setTemp(v); onUpdate("temperature", v === 0.7 ? undefined : v); }}
               className="w-full h-2 rounded-full appearance-none cursor-pointer"
               style={{
-                background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((temp / 2) * 100)}%, #e8e5df ${((temp / 2) * 100)}%, #e8e5df 100%)`,
+                background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((temp / 2) * 100)}%, hsl(var(--muted)) ${((temp / 2) * 100)}%, hsl(var(--muted)) 100%)`,
               }}
             />
             {/* Tick marks */}
@@ -1195,8 +1195,8 @@ function ParametersTab({
                 className={cn(
                   "px-3 py-2 rounded-lg border text-left transition-all",
                   temp === p.value
-                    ? "border-[#3730a3] bg-[#3730a3]/10"
-                    : "border-[#e8e5df] bg-white hover:border-[#3730a3]/30"
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:border-primary/30"
                 )}
               >
                 <p className={cn("text-[10px] font-semibold", temp === p.value ? "text-[#3730a3]" : "text-foreground")}>{p.label}</p>
@@ -1236,7 +1236,7 @@ function ParametersTab({
             onChange={(e) => { const v = parseInt(e.target.value); setMaxTokens(v); onUpdate("maxTokens", v === 4096 ? undefined : v); }}
             className="w-full h-2 rounded-full appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 16384) * 100)}%, #e8e5df ${((maxTokens / 16384) * 100)}%, #e8e5df 100%)`,
+              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 16384) * 100)}%, hsl(var(--muted)) ${((maxTokens / 16384) * 100)}%, hsl(var(--muted)) 100%)`,
             }}
           />
           <div className="flex flex-wrap gap-1.5">
@@ -1252,8 +1252,8 @@ function ParametersTab({
                 className={cn(
                   "px-3 py-1.5 rounded-md border text-[10px] font-medium transition-all",
                   maxTokens === p.value
-                    ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3]"
-                    : "border-[#e8e5df] bg-white text-muted-foreground hover:border-[#3730a3]/30"
+                    ? "border-primary bg-primary/10 text-[#3730a3]"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {p.label} ({p.value.toLocaleString()})
@@ -1264,7 +1264,7 @@ function ParametersTab({
       </Card>
 
       {/* Info */}
-      <div className="rounded-lg border border-[#e8e5df] bg-[#f5f3ef] p-4">
+      <div className="rounded-lg border border-border bg-secondary p-4">
         <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
           <Shield className="w-3.5 h-3.5" />
           How Overrides Work

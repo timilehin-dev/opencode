@@ -51,16 +51,16 @@ export function MetricsRow({ metrics, agentStatuses }: MetricsRowProps) {
       {data.map((m) => (
         <div
           key={m.label}
-          className="bg-white px-4 py-3.5 min-w-[140px] rounded-lg border border-[#e8e5df] shadow-sm"
+          className="bg-card px-4 py-3.5 min-w-[140px] rounded-lg border border-border shadow-sm"
         >
           <div>
-            <div className="text-[10px] font-medium uppercase tracking-wider text-[#999999] mb-1.5">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
               {m.label}
             </div>
-            <div className="text-[26px] font-extrabold leading-none text-[#1a1a1a]">
+            <div className="text-[26px] font-extrabold leading-none text-foreground">
               {m.value}
             </div>
-            <div className="text-[10px] mt-1 text-[#999999]">
+            <div className="text-[10px] mt-1 text-muted-foreground">
               {m.delta}
             </div>
           </div>

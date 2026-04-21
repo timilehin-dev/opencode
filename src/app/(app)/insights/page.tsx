@@ -258,7 +258,7 @@ export default function InsightsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -311,7 +311,7 @@ export default function InsightsPage() {
           </Button>
           <Button
             size="sm"
-            className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90"
+            className="gap-2 text-xs bg-primary hover:bg-primary/90"
             onClick={() => setShowRecord(true)}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -322,14 +322,14 @@ export default function InsightsPage() {
 
       {/* Stats overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <BarChart3 className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Total</span>
           </div>
           <p className="text-lg font-bold text-[#3730a3]">{stats?.totalInsights ?? 0}</p>
         </div>
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <Sparkles className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Avg Confidence</span>
@@ -338,7 +338,7 @@ export default function InsightsPage() {
             {stats?.avgConfidence != null ? `${Math.round(stats.avgConfidence * 100)}%` : "—"}
           </p>
         </div>
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <TrendingUp className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Top Agent</span>
@@ -351,7 +351,7 @@ export default function InsightsPage() {
               : "—"}
           </p>
         </div>
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <Brain className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Types</span>
@@ -377,11 +377,11 @@ export default function InsightsPage() {
 
       {/* Type breakdown bar */}
       {stats?.byType && Object.keys(stats.byType).length > 0 && (
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-4 mb-6">
+        <div className="rounded-xl border border-border bg-card p-4 mb-6">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">By Type</span>
           </div>
-          <div className="flex items-center gap-1 h-3 rounded-full overflow-hidden bg-[#f5f3ef]">
+          <div className="flex items-center gap-1 h-3 rounded-full overflow-hidden bg-secondary">
             {(Object.entries(stats.byType) as [InsightType, number][])
               .sort((a, b) => b[1] - a[1])
               .map(([type, count]) => {
@@ -433,12 +433,12 @@ export default function InsightsPage() {
             <Filter className="w-4 h-4 text-muted-foreground" />
             <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Agent:</span>
           </div>
-          <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
             <button
               onClick={() => setFilterAgent("all")}
               className={cn(
                 "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                filterAgent === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                filterAgent === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
               )}
             >
               All
@@ -449,7 +449,7 @@ export default function InsightsPage() {
                 onClick={() => setFilterAgent(agent.id)}
                 className={cn(
                   "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                  filterAgent === agent.id ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                  filterAgent === agent.id ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                 )}
               >
                 {agent.name}
@@ -461,12 +461,12 @@ export default function InsightsPage() {
         {/* Type filter */}
         <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
           <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Type:</span>
-          <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
             <button
               onClick={() => setFilterType("all")}
               className={cn(
                 "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                filterType === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                filterType === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
               )}
             >
               All
@@ -477,7 +477,7 @@ export default function InsightsPage() {
                 onClick={() => setFilterType(key)}
                 className={cn(
                   "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap flex items-center gap-1",
-                  filterType === key ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                  filterType === key ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                 )}
               >
                 {cfg.icon}
@@ -490,12 +490,12 @@ export default function InsightsPage() {
         {/* Source filter + Sort */}
         <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
           <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Source:</span>
-          <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
             <button
               onClick={() => setFilterSource("all")}
               className={cn(
                 "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                filterSource === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                filterSource === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
               )}
             >
               All
@@ -506,7 +506,7 @@ export default function InsightsPage() {
                 onClick={() => setFilterSource(key)}
                 className={cn(
                   "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                  filterSource === key ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                  filterSource === key ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                 )}
               >
                 {cfg.label}
@@ -516,7 +516,7 @@ export default function InsightsPage() {
 
           <div className="flex items-center gap-1 ml-auto">
             <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
-            <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
               {([
                 { key: "recent" as SortKey, label: "Recent" },
                 { key: "confidence" as SortKey, label: "Confidence" },
@@ -527,7 +527,7 @@ export default function InsightsPage() {
                   onClick={() => setSortBy(s.key)}
                   className={cn(
                     "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                    sortBy === s.key ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                    sortBy === s.key ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                   )}
                 >
                   {s.label}
@@ -544,7 +544,7 @@ export default function InsightsPage() {
           <select
             value={detectAgent}
             onChange={(e) => setDetectAgent(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-xs appearance-none focus:outline-none focus:border-[#3730a3]/40 pr-8"
+            className="w-full px-3 py-2 rounded-lg border border-border bg-card text-xs appearance-none focus:outline-none focus:border-ring/40 pr-8"
           >
             <option value="all">All Agents</option>
             {agents.map((a) => (
@@ -561,7 +561,7 @@ export default function InsightsPage() {
           disabled={detecting}
         >
           {detecting ? (
-            <div className="w-3.5 h-3.5 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+            <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           ) : (
             <Sparkles className="w-3.5 h-3.5" />
           )}
@@ -585,7 +585,7 @@ export default function InsightsPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white shadow-xl overflow-y-auto"
+              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-card shadow-xl overflow-y-auto"
             >
               <RecordInsightForm
                 agents={agents}
@@ -602,7 +602,7 @@ export default function InsightsPage() {
       {sortedInsights.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <div className="w-14 h-14 rounded-full bg-[#f5f3ef] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
               <Lightbulb className="w-7 h-7 text-muted-foreground" />
             </div>
             <h3 className="text-base font-semibold text-foreground mb-1">No insights yet</h3>
@@ -612,7 +612,7 @@ export default function InsightsPage() {
             <div className="flex items-center gap-2 justify-center">
               <Button
                 size="sm"
-                className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90"
+                className="gap-2 text-xs bg-primary hover:bg-primary/90"
                 onClick={() => setShowRecord(true)}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -642,7 +642,7 @@ export default function InsightsPage() {
               layout
             >
               <Card
-                className="border border-[#e8e5df] bg-white rounded-xl overflow-hidden cursor-pointer hover:border-[#3730a3]/20 hover:shadow-sm transition-all"
+                className="border border-border bg-card rounded-xl overflow-hidden cursor-pointer hover:border-primary/20 hover:shadow-sm transition-all"
                 onClick={() => setExpandedId(expandedId === insight.id ? null : insight.id)}
               >
                 <CardContent className="p-4">
@@ -672,7 +672,7 @@ export default function InsightsPage() {
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
                           {SOURCE_CONFIG[insight.source]?.label}
                         </Badge>
-                        <span className="flex items-center gap-1 text-[10px] text-[#3730a3] font-medium bg-[#3730a3]/8 px-1.5 py-0.5 rounded">
+                        <span className="flex items-center gap-1 text-[10px] text-[#3730a3] font-medium bg-primary/8 px-1.5 py-0.5 rounded">
                           {getAgentName(insight.agent_id)}
                         </span>
                       </div>
@@ -682,7 +682,7 @@ export default function InsightsPage() {
                       {/* Confidence bar */}
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-[10px] text-muted-foreground flex-shrink-0">Confidence</span>
-                        <div className="flex-1 h-1.5 bg-[#f5f3ef] rounded-full overflow-hidden max-w-[120px]">
+                        <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden max-w-[120px]">
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${insight.confidence * 100}%` }}
@@ -719,8 +719,8 @@ export default function InsightsPage() {
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                       >
-                        <div className="mt-3 pt-3 border-t border-[#f0ede8]">
-                          <div className="bg-[#f5f3ef] rounded-lg p-3">
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <div className="bg-secondary rounded-lg p-3">
                             <p className="text-xs text-foreground leading-relaxed">{insight.content}</p>
                           </div>
                           <div className="grid grid-cols-2 gap-3 mt-3">
@@ -795,7 +795,7 @@ function RecordInsightForm({
         <h2 className="text-lg font-bold text-foreground">Record Insight</h2>
         <button
           onClick={onCancel}
-          className="p-2 rounded-lg hover:bg-[#f5f3ef] text-muted-foreground hover:text-foreground transition-colors"
+          className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -809,7 +809,7 @@ function RecordInsightForm({
             <select
               value={agentId}
               onChange={(e) => setAgentId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-sm appearance-none focus:outline-none focus:border-[#3730a3]/40"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm appearance-none focus:outline-none focus:border-ring/40"
             >
               <option value="">Select agent...</option>
               {agents.map((a) => (
@@ -834,7 +834,7 @@ function RecordInsightForm({
                   "px-2.5 py-1.5 rounded-md border text-[10px] font-medium transition-all flex items-center gap-1",
                   insightType === key
                     ? cn(cfg.badgeClass, "border-current shadow-sm")
-                    : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                    : "border-border text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {cfg.icon}
@@ -852,7 +852,7 @@ function RecordInsightForm({
             onChange={(e) => setContent(e.target.value)}
             placeholder="Describe the insight..."
             rows={4}
-            className="flex w-full rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#3730a3]/40 resize-none"
+            className="flex w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-ring/40 resize-none"
           />
         </div>
 
@@ -863,7 +863,7 @@ function RecordInsightForm({
             <select
               value={source}
               onChange={(e) => setSource(e.target.value as InsightSource)}
-              className="w-full px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-sm appearance-none focus:outline-none focus:border-[#3730a3]/40"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm appearance-none focus:outline-none focus:border-ring/40"
             >
               {(Object.entries(SOURCE_CONFIG) as [InsightSource, { label: string }][]).map(([key, cfg]) => (
                 <option key={key} value={key}>{cfg.label}</option>
@@ -885,7 +885,7 @@ function RecordInsightForm({
             step="0.05"
             value={confidence}
             onChange={(e) => setConfidence(parseFloat(e.target.value))}
-            className="w-full h-2 bg-[#f5f3ef] rounded-lg appearance-none cursor-pointer accent-[#3730a3]"
+            className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-[#3730a3]"
           />
           <div className="flex items-center justify-between mt-1">
             <span className="text-[10px] text-muted-foreground">Low (0%)</span>
@@ -894,13 +894,13 @@ function RecordInsightForm({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-2 pt-4 border-t border-[#e8e5df]">
+        <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
           <Button variant="ghost" size="sm" className="text-xs" onClick={onCancel}>
             Cancel
           </Button>
           <Button
             size="sm"
-            className="text-xs gap-1.5 bg-[#3730a3] hover:bg-[#3730a3]/90"
+            className="text-xs gap-1.5 bg-primary hover:bg-primary/90"
             onClick={handleSubmit}
             disabled={!agentId || !content.trim() || saving}
           >

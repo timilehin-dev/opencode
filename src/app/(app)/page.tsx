@@ -31,7 +31,7 @@ function MetricsSkeleton() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="bg-white px-4 py-3.5 min-w-[140px] rounded-lg border border-[#e8e5df] shadow-sm">
+        <div key={i} className="bg-card px-4 py-3.5 min-w-[140px] rounded-lg border border-border shadow-sm">
           <Skeleton className="h-3 w-16 mb-2" />
           <Skeleton className="h-7 w-12 mb-1" />
           <Skeleton className="h-2 w-20" />
@@ -55,7 +55,7 @@ function ChatViewSkeleton() {
           </div>
         ))}
       </div>
-      <div className="border-t border-[#e8e5df] p-3">
+      <div className="border-t border-border p-3">
         <Skeleton className="h-9 w-full rounded-lg" />
       </div>
     </div>
@@ -64,15 +64,15 @@ function ChatViewSkeleton() {
 
 function TabBar({ activeTab, onTabChange }: { activeTab: TabId; onTabChange: (tab: TabId) => void }) {
   return (
-    <div className="flex border-b border-[#e8e5df] flex-shrink-0">
+    <div className="flex border-b border-border flex-shrink-0">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
           className={`flex-1 py-3 text-center text-xs font-semibold transition-all duration-150 border-b-2 ${
             activeTab === tab.id
-              ? "text-[#3730a3] border-[#3730a3]"
-              : "text-[#999999] border-transparent hover:text-[#6b6b6b]"
+              ? "text-[#3730a3] border-primary"
+              : "text-muted-foreground border-transparent hover:text-muted-foreground"
           }`}
         >
           {tab.label}
@@ -168,18 +168,18 @@ export default function DashboardPage() {
           {/* Left Column (60%) — Desktop only: Ops Feed + Coordination Map stacked */}
           <div className="hidden lg:flex flex-col gap-4 min-w-0 lg:w-[60%] h-full">
             {/* Ops Feed */}
-            <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col min-h-0 max-h-[50%]">
+            <div className="bg-card rounded-lg border border-border shadow-sm flex flex-col min-h-0 max-h-[50%]">
               <OpsFeed events={activity} isConnected={isConnected} />
             </div>
 
             {/* Coordination Map */}
-            <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
+            <div className="bg-card rounded-lg border border-border shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
               <CoordinationMap delegations={delegations || []} />
             </div>
           </div>
 
           {/* Right Column (40%) — Desktop: tabbed panel fills full height */}
-          <div className="hidden lg:flex flex-col bg-white rounded-lg border border-[#e8e5df] shadow-sm w-[40%] min-w-0 overflow-hidden">
+          <div className="hidden lg:flex flex-col bg-card rounded-lg border border-border shadow-sm w-[40%] min-w-0 overflow-hidden">
             <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 min-h-0">
               <TabContent activeTab={activeTab} tasks={tasks} />
@@ -187,7 +187,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Mobile: Full-screen tabbed panel (no duplicate content) */}
-          <div className="lg:hidden flex flex-col bg-white rounded-lg border border-[#e8e5df] shadow-sm h-full min-h-[400px] overflow-hidden">
+          <div className="lg:hidden flex flex-col bg-card rounded-lg border border-border shadow-sm h-full min-h-[400px] overflow-hidden">
             <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 min-h-0">
               <TabContent activeTab={activeTab} tasks={tasks} />

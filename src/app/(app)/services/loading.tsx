@@ -12,7 +12,7 @@ export default function ServicesLoading() {
       {/* Service grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 p-5 rounded-lg bg-white border border-[#e8e5df]">
+          <div key={i} className="flex items-center gap-4 p-5 rounded-lg bg-card border border-border">
             <Skeleton className="w-12 h-12 rounded-lg flex-shrink-0" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-4 w-20" />

@@ -140,14 +140,14 @@ function Toggle({
         onClick={() => onChange(!checked)}
         className={cn(
           "relative rounded-full transition-colors duration-200 flex-shrink-0 min-h-[44px] min-w-[52px]",
-          checked ? "bg-[#3730a3]" : "bg-[#e8e5df]"
+          checked ? "bg-primary" : "bg-muted"
         )}
         style={{ width: "52px", height: "28px" }}
         aria-label={checked ? `Disable ${label}` : `Enable ${label}`}
       >
         <span
           className={cn(
-            "absolute top-[5px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200",
+            "absolute top-[5px] w-[18px] h-[18px] rounded-full bg-card shadow-sm transition-transform duration-200",
             checked ? "translate-x-[29px]" : "translate-x-[5px]"
           )}
         />
@@ -413,7 +413,7 @@ export default function SettingsPage() {
           size="sm"
           onClick={handleSaveToCloud}
           disabled={saving}
-          className="gap-2 bg-[#3730a3] hover:bg-[#3730a3]/90 text-white text-xs font-semibold px-5"
+          className="gap-2 bg-primary hover:bg-primary/90 text-white text-xs font-semibold px-5"
         >
           {saving ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -443,7 +443,7 @@ export default function SettingsPage() {
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group",
                     activeSection === section.id
                       ? "bg-[#eef2ff] text-[#3730a3] font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white"
+                      : "text-muted-foreground hover:text-foreground hover:bg-card"
                   )}
                 >
                   <span
@@ -471,7 +471,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Mobile horizontal scroll — sticky at top */}
-          <div className="lg:hidden overflow-x-auto scrollbar-none -mx-4 px-4 sticky top-0 z-10 bg-[#f5f3ef]/90 backdrop-blur-sm py-2 -mt-2">
+          <div className="lg:hidden overflow-x-auto scrollbar-none -mx-4 px-4 sticky top-0 z-10 bg-secondary/90 backdrop-blur-sm py-2 -mt-2">
             <div className="flex gap-2">
               {SECTIONS.map((section) => (
                 <button
@@ -480,8 +480,8 @@ export default function SettingsPage() {
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-all duration-200 flex-shrink-0 min-h-[36px]",
                     activeSection === section.id
-                      ? "bg-[#eef2ff] text-[#3730a3] border-[#3730a3]/20"
-                      : "bg-white text-muted-foreground border-[#e8e5df] hover:border-[#999999]/30"
+                      ? "bg-[#eef2ff] text-[#3730a3] border-primary/20"
+                      : "bg-card text-muted-foreground border-border hover:border-border"
                   )}
                 >
                   {section.icon}
@@ -558,7 +558,7 @@ export default function SettingsPage() {
                     <select
                       value={settings.timezone}
                       onChange={(e) => patch({ timezone: e.target.value })}
-                      className="w-full h-10 rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3730a3]/20 focus-visible:border-[#3730a3] transition-colors"
+                      className="w-full h-10 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring transition-colors"
                     >
                       {TIMEZONES.map((tz) => (
                         <option key={tz} value={tz}>
@@ -624,8 +624,8 @@ export default function SettingsPage() {
                           className={cn(
                             "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-200",
                             settings.theme === opt.value
-                              ? "border-[#3730a3] bg-[#eef2ff] text-[#3730a3]"
-                              : "border-[#e8e5df] text-muted-foreground hover:border-[#999999]/40 hover:bg-white"
+                              ? "border-primary bg-[#eef2ff] text-[#3730a3]"
+                              : "border-border text-muted-foreground hover:border-border hover:bg-card"
                           )}
                         >
                           {opt.icon}
@@ -635,7 +635,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
 
                   {/* Compact Mode */}
                   <Toggle
@@ -679,28 +679,28 @@ export default function SettingsPage() {
                     label="Email Notifications"
                     description="New emails and important inbox updates"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <Toggle
                     checked={settings.notifCalendar}
                     onChange={(v) => handleNotifChange("notifCalendar", "calendar", v)}
                     label="Calendar Notifications"
                     description="Upcoming events, meeting reminders, and schedule changes"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <Toggle
                     checked={settings.notifGithub}
                     onChange={(v) => handleNotifChange("notifGithub", "github", v)}
                     label="GitHub Notifications"
                     description="Issues, pull requests, and repository activity"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <Toggle
                     checked={settings.notifSystem}
                     onChange={(v) => handleNotifChange("notifSystem", "system", v)}
                     label="System Notifications"
                     description="Deployment status, service health, and errors"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <Toggle
                     checked={settings.notifAgent}
                     onChange={(v) => handleNotifChange("notifAgent", "agent", v)}
@@ -719,7 +719,7 @@ export default function SettingsPage() {
                     label="Desktop Push Notifications"
                     description="Show browser notifications for high-priority items"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <Toggle
                     checked={settings.notifSound}
                     onChange={(v) => handleNotifChange("notifSound", "sound", v)}
@@ -745,7 +745,7 @@ export default function SettingsPage() {
                     <select
                       value={settings.pollIntervalActive}
                       onChange={(e) => patch({ pollIntervalActive: Number(e.target.value) })}
-                      className="w-full h-10 rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3730a3]/20 focus-visible:border-[#3730a3] transition-colors"
+                      className="w-full h-10 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring transition-colors"
                     >
                       <option value={30}>Every 30 seconds</option>
                       <option value={60}>Every 1 minute</option>
@@ -760,7 +760,7 @@ export default function SettingsPage() {
                     <select
                       value={settings.pollIntervalBackground}
                       onChange={(e) => patch({ pollIntervalBackground: Number(e.target.value) })}
-                      className="w-full h-10 rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3730a3]/20 focus-visible:border-[#3730a3] transition-colors"
+                      className="w-full h-10 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring transition-colors"
                     >
                       <option value={120}>Every 2 minutes</option>
                       <option value={300}>Every 5 minutes</option>
@@ -804,7 +804,7 @@ export default function SettingsPage() {
                         try { localStorage.removeItem("claw-last-active-agent"); } catch { /* ignore */ }
                         showToast(`Default agent set to ${agents.find(a => a.id === newAgent)?.name || newAgent}`);
                       }}
-                      className="w-full h-10 rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3730a3]/20 focus-visible:border-[#3730a3] transition-colors"
+                      className="w-full h-10 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring transition-colors"
                     >
                       {agents.map((agent) => (
                         <option key={agent.id} value={agent.id}>
@@ -834,7 +834,7 @@ export default function SettingsPage() {
                       step="0.1"
                       value={settings.temperature}
                       onChange={(e) => patch({ temperature: parseFloat(e.target.value) })}
-                      className="w-full h-2 rounded-full appearance-none bg-[#e8e5df] accent-[#3730a3] cursor-pointer"
+                      className="w-full h-2 rounded-full appearance-none bg-muted accent-[#3730a3] cursor-pointer"
                     />
                     <div className="flex justify-between mt-1">
                       <span className="text-[10px] text-muted-foreground">Precise (0)</span>
@@ -859,7 +859,7 @@ export default function SettingsPage() {
                       step="1024"
                       value={settings.maxTokens}
                       onChange={(e) => patch({ maxTokens: parseInt(e.target.value) })}
-                      className="w-full h-2 rounded-full appearance-none bg-[#e8e5df] accent-[#3730a3] cursor-pointer"
+                      className="w-full h-2 rounded-full appearance-none bg-muted accent-[#3730a3] cursor-pointer"
                     />
                     <div className="flex justify-between mt-1">
                       <span className="text-[10px] text-muted-foreground">Compact (1k)</span>
@@ -882,7 +882,7 @@ export default function SettingsPage() {
                     {agents.map((agent) => (
                       <div
                         key={agent.id}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-[#faf9f7] border border-[#f0ede8]"
+                        className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border"
                       >
                         <span className="text-lg flex-shrink-0">{agent.emoji}</span>
                         <div className="flex-1 min-w-0">
@@ -939,14 +939,14 @@ export default function SettingsPage() {
                     label="Persist Conversations"
                     description="Save chat history to Supabase for continuity across sessions"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <Toggle
                     checked={settings.analyticsEnabled}
                     onChange={(v) => patch({ analyticsEnabled: v })}
                     label="Usage Analytics"
                     description="Track message counts, tool usage, and agent performance metrics"
                   />
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
                   <div className="py-3">
                     <div className="flex items-center justify-between">
                       <div className="pr-4">
@@ -958,7 +958,7 @@ export default function SettingsPage() {
                       <select
                         value={settings.autoPurgeDays}
                         onChange={(e) => patch({ autoPurgeDays: Number(e.target.value) })}
-                        className="h-9 rounded-lg border border-[#e8e5df] bg-white px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3730a3]/20 transition-colors"
+                        className="h-9 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 transition-colors"
                       >
                         <option value={7}>7 days</option>
                         <option value={14}>14 days</option>
@@ -1000,7 +1000,7 @@ export default function SettingsPage() {
                     </Button>
                   </div>
 
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
 
                   {/* Clear Conversations */}
                   <div className="flex items-center justify-between py-2">
@@ -1047,7 +1047,7 @@ export default function SettingsPage() {
                     )}
                   </div>
 
-                  <div className="border-t border-[#f0ede8]" />
+                  <div className="border-t border-border" />
 
                   {/* Clear Analytics */}
                   <div className="flex items-center justify-between py-2">
@@ -1161,7 +1161,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-lg bg-[#faf9f7] border border-[#f0ede8]">
+                  <div className="p-4 rounded-lg bg-card border border-border">
                     <div className="flex items-start gap-3">
                       <RefreshCw className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
@@ -1231,7 +1231,7 @@ function ServiceStatusRow() {
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-4">
-        <div className="w-4 h-4 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-xs text-muted-foreground">Checking services...</span>
       </div>
     );
@@ -1255,13 +1255,13 @@ function ServiceStatusRow() {
         return (
           <div
             key={svc.key}
-            className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#faf9f7]"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-card"
           >
             <div className="flex items-center gap-2.5">
               <span
                 className={cn(
                   "w-2 h-2 rounded-full flex-shrink-0",
-                  connected ? "bg-emerald-500" : "bg-[#e8e5df]"
+                  connected ? "bg-emerald-500" : "bg-muted"
                 )}
               />
               <span className="text-sm text-foreground">{svc.name}</span>

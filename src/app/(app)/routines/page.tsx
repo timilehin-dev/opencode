@@ -219,7 +219,7 @@ export default function RoutinesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -264,7 +264,7 @@ export default function RoutinesPage() {
           </Button>
           <Button
             size="sm"
-            className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90"
+            className="gap-2 text-xs bg-primary hover:bg-primary/90"
             onClick={() => {
               setShowCreate(true);
               setEditRoutine(null);
@@ -278,21 +278,21 @@ export default function RoutinesPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <Timer className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Total</span>
           </div>
           <p className="text-lg font-bold text-[#3730a3]">{stats.total}</p>
         </div>
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <Play className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Active</span>
           </div>
           <p className="text-lg font-bold text-emerald-600">{stats.active}</p>
         </div>
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-3">
+        <div className="rounded-xl border border-border bg-card p-3">
           <div className="flex items-center gap-2 text-muted-foreground mb-1">
             <Pause className="w-4 h-4" />
             <span className="text-[10px] font-medium uppercase tracking-wider">Paused</span>
@@ -307,12 +307,12 @@ export default function RoutinesPage() {
           <Filter className="w-4 h-4 text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Agent:</span>
         </div>
-        <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
           <button
             onClick={() => setFilterAgent("all")}
             className={cn(
               "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-              filterAgent === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+              filterAgent === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
             )}
           >
             All ({stats.total})
@@ -326,7 +326,7 @@ export default function RoutinesPage() {
                 onClick={() => setFilterAgent(agent.id)}
                 className={cn(
                   "px-2.5 py-1 text-[10px] rounded-md transition-colors whitespace-nowrap",
-                  filterAgent === agent.id ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                  filterAgent === agent.id ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                 )}
               >
                 {agent.name} ({count})
@@ -380,7 +380,7 @@ export default function RoutinesPage() {
       {filteredRoutines.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <div className="w-14 h-14 rounded-full bg-[#f5f3ef] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
               <Clock className="w-7 h-7 text-muted-foreground" />
             </div>
             <h3 className="text-base font-semibold text-foreground mb-1">No routines</h3>
@@ -389,7 +389,7 @@ export default function RoutinesPage() {
             </p>
             <Button
               size="sm"
-              className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90"
+              className="gap-2 text-xs bg-primary hover:bg-primary/90"
               onClick={() => setShowCreate(true)}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -407,10 +407,10 @@ export default function RoutinesPage() {
               animate="show"
               layout
             >
-              <Card className="border border-[#e8e5df] bg-white rounded-xl overflow-hidden">
+              <Card className="border border-border bg-card rounded-xl overflow-hidden">
                 <CardContent className="p-0">
                   <div
-                    className="flex items-start gap-3 p-4 cursor-pointer hover:bg-[#faf9f7]/50 transition-colors"
+                    className="flex items-start gap-3 p-4 cursor-pointer hover:bg-card/50 transition-colors"
                     onClick={() => setExpandedId(expandedId === routine.id ? null : routine.id)}
                   >
                     {/* Active toggle */}
@@ -421,12 +421,12 @@ export default function RoutinesPage() {
                       }}
                       className={cn(
                         "w-10 h-[22px] rounded-full transition-all duration-200 relative flex-shrink-0 mt-0.5",
-                        routine.is_active ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+                        routine.is_active ? "bg-primary" : "bg-[#d1d1d1]"
                       )}
                     >
                       <span
                         className={cn(
-                          "absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200",
+                          "absolute top-[3px] w-4 h-4 bg-card rounded-full shadow-sm transition-all duration-200",
                           routine.is_active ? "left-[22px]" : "left-[3px]"
                         )}
                       />
@@ -450,7 +450,7 @@ export default function RoutinesPage() {
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-1">{routine.task}</p>
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        <span className="flex items-center gap-1 text-[10px] text-[#3730a3] font-medium bg-[#3730a3]/8 px-1.5 py-0.5 rounded">
+                        <span className="flex items-center gap-1 text-[10px] text-[#3730a3] font-medium bg-primary/8 px-1.5 py-0.5 rounded">
                           {getAgentName(routine.agent_id)}
                         </span>
                         <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -480,7 +480,7 @@ export default function RoutinesPage() {
                           e.stopPropagation();
                           setEditRoutine(routine);
                         }}
-                        className="p-1.5 rounded-md hover:bg-[#f5f3ef] text-muted-foreground hover:text-[#3730a3] transition-colors"
+                        className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-[#3730a3] transition-colors"
                         title="Edit"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -509,7 +509,7 @@ export default function RoutinesPage() {
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                       >
-                        <div className="px-4 pb-4 pt-0 border-t border-[#f0ede8]">
+                        <div className="px-4 pb-4 pt-0 border-t border-border">
                           <div className="grid grid-cols-2 gap-3 mt-3">
                             <div>
                               <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Last Run</span>
@@ -523,13 +523,13 @@ export default function RoutinesPage() {
                           {routine.context && (
                             <div className="mt-3">
                               <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Context</span>
-                              <p className="text-xs text-foreground mt-0.5 bg-[#f5f3ef] rounded-lg p-2.5">{routine.context}</p>
+                              <p className="text-xs text-foreground mt-0.5 bg-secondary rounded-lg p-2.5">{routine.context}</p>
                             </div>
                           )}
                           {routine.last_result && (
                             <div className="mt-3">
                               <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Last Result</span>
-                              <pre className="text-xs text-foreground mt-0.5 bg-[#f5f3ef] rounded-lg p-2.5 overflow-x-auto max-h-40 whitespace-pre-wrap font-mono">
+                              <pre className="text-xs text-foreground mt-0.5 bg-secondary rounded-lg p-2.5 overflow-x-auto max-h-40 whitespace-pre-wrap font-mono">
                                 {routine.last_result.length > 500
                                   ? routine.last_result.slice(0, 500) + "..."
                                   : routine.last_result}
@@ -563,7 +563,7 @@ export default function RoutinesPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white shadow-xl overflow-y-auto"
+              className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-card shadow-xl overflow-y-auto"
             >
               <RoutineForm
                 agents={agents}
@@ -649,7 +649,7 @@ function RoutineForm({
         </h2>
         <button
           onClick={onCancel}
-          className="p-2 rounded-lg hover:bg-[#f5f3ef] text-muted-foreground hover:text-foreground transition-colors"
+          className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -663,7 +663,7 @@ function RoutineForm({
             <select
               value={agentId}
               onChange={(e) => setAgentId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-sm appearance-none focus:outline-none focus:border-[#3730a3]/40"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm appearance-none focus:outline-none focus:border-ring/40"
             >
               <option value="">Select agent...</option>
               {agents.map((a) => (
@@ -695,7 +695,7 @@ function RoutineForm({
             onChange={(e) => setTask(e.target.value)}
             placeholder="Describe what the agent should do..."
             rows={3}
-            className="flex w-full rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#3730a3]/40 resize-none"
+            className="flex w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-ring/40 resize-none"
           />
         </div>
 
@@ -707,7 +707,7 @@ function RoutineForm({
             onChange={(e) => setContext(e.target.value)}
             placeholder="Additional context for the agent..."
             rows={2}
-            className="flex w-full rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[#3730a3]/40 resize-none"
+            className="flex w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:border-ring/40 resize-none"
           />
         </div>
 
@@ -722,8 +722,8 @@ function RoutineForm({
                 className={cn(
                   "px-2.5 py-1.5 rounded-md border text-[10px] font-medium transition-all",
                   intervalMinutes === preset.value
-                    ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3]"
-                    : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                    ? "border-primary bg-primary/10 text-[#3730a3]"
+                    : "border-border text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {preset.label}
@@ -744,7 +744,7 @@ function RoutineForm({
                   "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
                   priority === p
                     ? cn(PRIORITY_CONFIG[p].badgeClass, "border-current shadow-sm")
-                    : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                    : "border-border text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {PRIORITY_CONFIG[p].label}
@@ -765,12 +765,12 @@ function RoutineForm({
             onClick={() => setIsActive(!isActive)}
             className={cn(
               "w-11 h-[26px] rounded-full transition-all duration-200 relative flex-shrink-0",
-              isActive ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+              isActive ? "bg-primary" : "bg-[#d1d1d1]"
             )}
           >
             <span
               className={cn(
-                "absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200",
+                "absolute top-[3px] w-4 h-4 bg-card rounded-full shadow-sm transition-all duration-200",
                 isActive ? "left-[22px]" : "left-[3px]"
               )}
             />
@@ -778,13 +778,13 @@ function RoutineForm({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-2 pt-4 border-t border-[#e8e5df]">
+        <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
           <Button variant="ghost" size="sm" className="text-xs" onClick={onCancel}>
             Cancel
           </Button>
           <Button
             size="sm"
-            className="text-xs gap-1.5 bg-[#3730a3] hover:bg-[#3730a3]/90"
+            className="text-xs gap-1.5 bg-primary hover:bg-primary/90"
             onClick={handleSubmit}
             disabled={!agentId || !name.trim() || !task.trim() || saving}
           >

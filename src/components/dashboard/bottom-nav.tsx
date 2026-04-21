@@ -201,7 +201,7 @@ export function BottomNav({ activePage, onPageChange }: BottomNavProps) {
                         "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer border-b border-white/[0.04] last:border-b-0",
                         active
                           ? "bg-emerald-500/10 text-emerald-400"
-                          : "text-slate-300 hover:bg-white/[0.04]"
+                          : "text-slate-300 hover:bg-card/[0.04]"
                       )}
                     >
                       <span className="text-base">{item.emoji}</span>

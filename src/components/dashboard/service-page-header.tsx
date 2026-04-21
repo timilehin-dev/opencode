@@ -35,14 +35,14 @@ export function ServicePageHeader({
       <div className="flex items-center gap-3 mb-2">
         <Link
           href="/services"
-          className="text-xs text-[#999999] hover:text-[#3730a3] transition-colors font-medium"
+          className="text-xs text-muted-foreground hover:text-[#3730a3] transition-colors font-medium"
         >
           &larr; Services
         </Link>
       </div>
       <div className="flex items-center gap-3 mb-1">
-        <span className="text-[#6b6b6b]">{icon}</span>
-        <h1 className="text-2xl font-bold text-[#1a1a1a]">{title}</h1>
+        <span className="text-muted-foreground">{icon}</span>
+        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
         {serviceKey && (
           <span
             className={cn(
@@ -65,12 +65,12 @@ export function ServicePageHeader({
 
       {/* GitHub specific stats */}
       {repo && title === "GitHub" && (
-        <div className="flex items-center gap-4 mt-2 text-sm text-[#6b6b6b] flex-wrap">
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
           <span>
             <span className="text-[#d97706] font-semibold">{repo.stargazers_count.toLocaleString()}</span> stars
           </span>
           <span>
-            <span className="text-[#1a1a1a] font-semibold">{repo.forks_count.toLocaleString()}</span> forks
+            <span className="text-foreground font-semibold">{repo.forks_count.toLocaleString()}</span> forks
           </span>
           <span>
             <span className="text-[#059669] font-semibold">{repo.open_issues_count}</span> open issues
@@ -94,8 +94,8 @@ export function ServicePageHeader({
 
       {/* Gmail specific stats */}
       {gmProfile && title === "Gmail" && (
-        <div className="flex items-center gap-4 mt-2 text-sm text-[#6b6b6b] flex-wrap">
-          <span className="font-medium text-[#1a1a1a]">{gmProfile.emailAddress}</span>
+        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+          <span className="font-medium text-foreground">{gmProfile.emailAddress}</span>
           <span>
             <span className="text-[#3730a3] font-semibold">{gmProfile.messagesTotal.toLocaleString()}</span> messages
           </span>

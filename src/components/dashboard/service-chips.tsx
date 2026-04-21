@@ -29,7 +29,7 @@ const SERVICES = [
     name: "Gmail",
     href: "/services/gmail",
     icon: GmailIcon,
-    iconBg: "bg-white border border-[#dadce0]",
+    iconBg: "bg-card border border-[#dadce0]",
     iconColor: "text-[#EA4335]",
     statusKey: "gmail" as const,
   },
@@ -38,7 +38,7 @@ const SERVICES = [
     name: "Calendar",
     href: "/services/calendar",
     icon: GoogleCalendarIcon,
-    iconBg: "bg-white border border-[#dadce0]",
+    iconBg: "bg-card border border-[#dadce0]",
     iconColor: "text-[#4285F4]",
     statusKey: "googlecalendar" as const,
   },
@@ -47,7 +47,7 @@ const SERVICES = [
     name: "Drive",
     href: "/services/drive",
     icon: GoogleDriveIcon,
-    iconBg: "bg-white border border-[#dadce0]",
+    iconBg: "bg-card border border-[#dadce0]",
     iconColor: "text-[#0066DA]",
     statusKey: "googledrive" as const,
   },
@@ -56,7 +56,7 @@ const SERVICES = [
     name: "Sheets",
     href: "/services/sheets",
     icon: GoogleSheetsIcon,
-    iconBg: "bg-white border border-[#dadce0]",
+    iconBg: "bg-card border border-[#dadce0]",
     iconColor: "text-[#0F9D58]",
     statusKey: "googlesheets" as const,
   },
@@ -65,7 +65,7 @@ const SERVICES = [
     name: "Docs",
     href: "/services/docs",
     icon: GoogleDocsIcon,
-    iconBg: "bg-white border border-[#dadce0]",
+    iconBg: "bg-card border border-[#dadce0]",
     iconColor: "text-[#4285F4]",
     statusKey: "googledocs" as const,
   },
@@ -95,16 +95,16 @@ export function ServiceChips({ serviceStatus }: ServiceChipsProps) {
           <Link
             key={svc.key}
             href={svc.href}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-[#e8e5df] cursor-pointer transition-all duration-200 whitespace-nowrap flex-shrink-0 hover:bg-[#faf9f7] hover:border-[#d5d0c9] shadow-sm"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-card border border-border cursor-pointer transition-all duration-200 whitespace-nowrap flex-shrink-0 hover:bg-card hover:border-border shadow-sm"
           >
             <div className={cn("w-7 h-7 rounded-md flex items-center justify-center", svc.iconBg)}>
               <Icon className="w-3.5 h-3.5" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-[#1a1a1a]">
+              <div className="text-xs font-semibold text-foreground">
                 {svc.name}
               </div>
-              <div className={cn("text-[9px] font-semibold uppercase tracking-wider", connected ? "text-emerald-600" : "text-[#999999]")}>
+              <div className={cn("text-[9px] font-semibold uppercase tracking-wider", connected ? "text-emerald-600" : "text-muted-foreground")}>
                 {connected ? "Connected" : "Offline"}
               </div>
             </div>

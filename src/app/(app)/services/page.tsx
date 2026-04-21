@@ -41,8 +41,8 @@ export default function ServicesPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1a1a1a] mb-1">Connected Services</h1>
-        <p className="text-sm text-[#6b6b6b]">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Connected Services</h1>
+        <p className="text-sm text-muted-foreground">
           Manage your connected services and integrations.
         </p>
       </div>
@@ -54,16 +54,16 @@ export default function ServicesPage() {
             <Link
               key={svc.key}
               href={`/services/${svc.key}`}
-              className="flex items-center gap-4 p-4 sm:p-5 rounded-lg bg-white border border-[#e8e5df] hover:bg-[#faf9f7] hover:border-[#d5d0c9] transition-all duration-200 shadow-sm active:bg-[#faf9f7] min-h-[60px]"
+              className="flex items-center gap-4 p-4 sm:p-5 rounded-lg bg-card border border-border hover:bg-card hover:border-border transition-all duration-200 shadow-sm active:bg-card min-h-[60px]"
             >
-              <div className="w-11 h-11 rounded-lg bg-[#faf9f7] flex items-center justify-center text-[#6b6b6b] flex-shrink-0">
+              <div className="w-11 h-11 rounded-lg bg-card flex items-center justify-center text-muted-foreground flex-shrink-0">
                 {svc.icon}
               </div>
               <div>
-                <div className="text-sm font-semibold text-[#1a1a1a]">
+                <div className="text-sm font-semibold text-foreground">
                   {svc.name}
                 </div>
-                <div className={`text-xs mt-0.5 ${connected ? "text-emerald-600" : "text-[#999999]"}`}>
+                <div className={`text-xs mt-0.5 ${connected ? "text-emerald-600" : "text-muted-foreground"}`}>
                   {connected ? "Connected" : "Not connected"}
                 </div>
               </div>

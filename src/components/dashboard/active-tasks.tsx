@@ -90,15 +90,15 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
   };
 
   const getAgentMeta = (todo: TodoView) => {
-    if (!todo.assigned_agent) return { emoji: "📋", bg: "bg-[#faf9f7]" };
-    return AGENT_EMOJI[todo.assigned_agent] || { emoji: "📋", bg: "bg-[#faf9f7]" };
+    if (!todo.assigned_agent) return { emoji: "📋", bg: "bg-card" };
+    return AGENT_EMOJI[todo.assigned_agent] || { emoji: "📋", bg: "bg-card" };
   };
 
   return (
-    <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col overflow-hidden h-full">
+    <div className="bg-card rounded-lg border border-border shadow-sm flex flex-col overflow-hidden h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#e8e5df]">
-        <span className="text-[13px] font-semibold text-[#1a1a1a]">Active Tasks</span>
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+        <span className="text-[13px] font-semibold text-foreground">Active Tasks</span>
         <span className="text-[10px] text-[#3730a3] cursor-pointer hover:underline transition-colors">
           View All →
         </span>
@@ -108,14 +108,14 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
       <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
         {displayTodos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="w-8 h-8 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#999999]">
+            <div className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center mb-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
                 <path d="M9 11l3 3L22 4" />
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
               </svg>
             </div>
-            <div className="text-[11px] text-[#999999]">No tasks yet</div>
-            <div className="text-[10px] text-[#d5d0c9] mt-0.5">Ask an agent to create tasks</div>
+            <div className="text-[11px] text-muted-foreground">No tasks yet</div>
+            <div className="text-[10px] text-muted-foreground/60 mt-0.5">Ask an agent to create tasks</div>
           </div>
         ) : (
           displayTodos.map((todo) => {
@@ -127,7 +127,7 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
             return (
               <div
                 key={todo.id}
-                className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b last:border-b-0 border-[#f0ede8]"
+                className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border-b last:border-b-0 border-border"
               >
                 <button
                   onClick={() => toggleDone(todo)}
@@ -135,8 +135,8 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
                   className={cn(
                     "w-[18px] h-[18px] rounded-md border-2 flex-shrink-0 flex items-center justify-center cursor-pointer transition-all duration-150",
                     done
-                      ? "bg-[#3730a3] border-[#3730a3]"
-                      : "border-[#d5d0c9] hover:border-[#999999]",
+                      ? "bg-primary border-primary"
+                      : "border-border hover:border-border",
                     isUpdating && "opacity-50"
                   )}
                 >
@@ -147,10 +147,10 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
                   )}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className={cn("text-xs font-semibold", done ? "line-through text-[#999999]" : "text-[#1a1a1a]")}>
+                  <div className={cn("text-xs font-semibold", done ? "line-through text-muted-foreground" : "text-foreground")}>
                     {todo.title}
                   </div>
-                  <div className="text-[10px] text-[#999999] mt-0.5">{formatMeta(todo)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{formatMeta(todo)}</div>
                 </div>
                 <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0", PRIORITY_STYLES[priorityKey] || PRIORITY_STYLES.medium)}>
                   {getPriorityLabel(priorityKey, done)}

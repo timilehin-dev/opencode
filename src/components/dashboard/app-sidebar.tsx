@@ -75,13 +75,13 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo / Brand */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-[#e8e5df]">
-        <div className="w-8 h-8 rounded-lg bg-[#3730a3] flex items-center justify-center">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
           <span className="text-sm font-black text-white">C</span>
         </div>
         <div>
-          <h1 className="text-base font-bold text-[#1a1a1a] tracking-tight">CLAW</h1>
-          <p className="text-[11px] text-[#999999] font-medium">Agent Hub</p>
+          <h1 className="text-base font-bold text-foreground tracking-tight">CLAW</h1>
+          <p className="text-[11px] text-muted-foreground font-medium">Agent Hub</p>
         </div>
       </div>
 
@@ -98,8 +98,8 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
                 active
-                  ? "bg-[#eef2ff] text-[#3730a3] font-semibold border-l-[3px] border-[#3730a3]"
-                  : "text-[#6b6b6b] hover:text-[#1a1a1a] hover:bg-[#faf9f7] border-l-[3px] border-transparent"
+                  ? "bg-[#eef2ff] text-[#3730a3] font-semibold border-l-[3px] border-l-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-card border-l-[3px] border-transparent"
               )}
             >
               <span
@@ -107,7 +107,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
                   "transition-colors duration-200",
                   active
                     ? "text-[#3730a3]"
-                    : "text-[#999999] group-hover:text-[#6b6b6b]"
+                    : "text-muted-foreground group-hover:text-muted-foreground"
                 )}
               >
                 {item.icon}
@@ -118,7 +118,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
         })}
 
         {/* Divider */}
-        <div className="my-2 mx-3 border-t border-[#f0ede8]" />
+        <div className="my-2 mx-3 border-t border-border" />
 
         {/* Services collapsible folder */}
         <button
@@ -126,23 +126,23 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group border-l-[3px]",
             isServicesActive
-              ? "text-[#3730a3] border-[#3730a3]"
-              : "text-[#6b6b6b] hover:text-[#1a1a1a] border-transparent"
+              ? "text-[#3730a3] border-primary"
+              : "text-muted-foreground hover:text-foreground border-transparent"
           )}
         >
           <span className={cn(
             "transition-colors duration-200",
             isServicesActive
               ? "text-[#3730a3]"
-              : "text-[#999999] group-hover:text-[#6b6b6b]"
+              : "text-muted-foreground group-hover:text-muted-foreground"
           )}>
             <ServicesIcon className="w-5 h-5" />
           </span>
           <span className="flex-1 text-left">Services</span>
           {servicesOpen ? (
-            <ChevronDownIcon className="w-3.5 h-3.5 text-[#999999]" />
+            <ChevronDownIcon className="w-3.5 h-3.5 text-muted-foreground" />
           ) : (
-            <ChevronRightIcon className="w-3.5 h-3.5 text-[#999999]" />
+            <ChevronRightIcon className="w-3.5 h-3.5 text-muted-foreground" />
           )}
         </button>
 
@@ -156,7 +156,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
               transition={{ duration: 0.2, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <div className="ml-3 pl-3 border-l border-[#f0ede8] space-y-0.5 py-1">
+              <div className="ml-3 pl-3 border-l border-border space-y-0.5 py-1">
                 {serviceNavItems.map((item) => {
                   const active = isActive(item.href);
                   return (
@@ -168,7 +168,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
                         "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 group",
                         active
                           ? "bg-[#eef2ff] text-[#3730a3] font-semibold"
-                          : "text-[#6b6b6b] hover:text-[#1a1a1a] hover:bg-[#faf9f7]"
+                          : "text-muted-foreground hover:text-foreground hover:bg-card"
                       )}
                     >
                       <span
@@ -176,7 +176,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
                           "transition-colors duration-200",
                           active
                             ? "text-[#3730a3]"
-                            : "text-[#999999] group-hover:text-[#6b6b6b]"
+                            : "text-muted-foreground group-hover:text-muted-foreground"
                         )}
                       >
                         {item.icon}
@@ -192,13 +192,13 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
       </nav>
 
       {/* Bottom section — Notifications */}
-      <div className="px-3 py-4 border-t border-[#e8e5df]">
+      <div className="px-3 py-4 border-t border-border">
         <Link
           href="/notifications"
           onClick={onItemClick}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#6b6b6b] hover:text-[#1a1a1a] hover:bg-[#faf9f7] border-l-[3px] border-transparent transition-all duration-200 group"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-card border-l-[3px] border-transparent transition-all duration-200 group"
         >
-          <Bell className="w-5 h-5 text-[#999999] group-hover:text-[#6b6b6b]" />
+          <Bell className="w-5 h-5 text-muted-foreground group-hover:text-muted-foreground" />
           <span className="flex-1 text-left">Notifications</span>
         </Link>
       </div>
@@ -219,12 +219,12 @@ export function AppSidebar() {
       <button
         onClick={() => setMobileOpen(true)}
         className={cn(
-          "fixed top-4 left-4 z-50 lg:hidden p-2 rounded-lg bg-white border border-[#e8e5df] shadow-sm transition-colors",
+          "fixed top-4 left-4 z-50 lg:hidden p-2 rounded-lg bg-card border border-border shadow-sm transition-colors",
           mobileOpen && "hidden"
         )}
         aria-label="Open navigation"
       >
-        <Menu className="w-5 h-5 text-[#1a1a1a]" />
+        <Menu className="w-5 h-5 text-foreground" />
       </button>
 
       {/* Mobile overlay */}
@@ -244,7 +244,7 @@ export function AppSidebar() {
       {/* Sidebar — Desktop: always visible, Mobile: slide in */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-50 h-full w-[240px] bg-white border-r border-[#e8e5df] flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto",
+          "fixed top-0 left-0 z-50 h-full w-[240px] bg-card border-r border-border flex flex-col transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -252,10 +252,10 @@ export function AppSidebar() {
         <div className="flex items-center justify-end px-4 pt-3 lg:hidden">
           <button
             onClick={() => setMobileOpen(false)}
-            className="p-1.5 rounded-lg hover:bg-[#faf9f7] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-card transition-colors"
             aria-label="Close navigation"
           >
-            <X className="w-5 h-5 text-[#6b6b6b]" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 

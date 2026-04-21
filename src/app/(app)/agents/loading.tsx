@@ -17,7 +17,7 @@ export default function AgentsLoading() {
       {/* Agent grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-[#e8e5df] bg-white p-5 space-y-3">
+          <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
             <div className="flex items-center gap-3">
               <Skeleton className="w-12 h-12 rounded-xl" />
               <div className="flex-1 space-y-1.5">

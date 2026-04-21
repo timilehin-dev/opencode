@@ -19,7 +19,7 @@ export default function NotificationsLoading() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-[#e8e5df] bg-white p-3 space-y-2">
+          <div key={i} className="rounded-xl border border-border bg-card p-3 space-y-2">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-5 w-10" />
           </div>
@@ -36,7 +36,7 @@ export default function NotificationsLoading() {
       {/* Notification list */}
       <div className="space-y-2">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-[#e8e5df] bg-white">
+          <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
             <Skeleton className="w-9 h-9 rounded-lg flex-shrink-0" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3 w-48" />

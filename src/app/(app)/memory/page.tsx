@@ -258,7 +258,7 @@ export default function MemoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -305,7 +305,7 @@ export default function MemoryPage() {
             <Download className="w-3.5 h-3.5" />
             Export
           </Button>
-          <Button size="sm" className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90" onClick={() => setPanelOpen(true)}>
+          <Button size="sm" className="gap-2 text-xs bg-primary hover:bg-primary/90" onClick={() => setPanelOpen(true)}>
             <Plus className="w-3.5 h-3.5" />
             Add Memory
           </Button>
@@ -320,7 +320,7 @@ export default function MemoryPage() {
           { label: "Categories", value: Object.keys(stats.categoryCounts).length, icon: <Tag className="w-4 h-4" /> },
           { label: "Active Agents", value: Object.keys(stats.agentCounts).length, icon: <Bot className="w-4 h-4" /> },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-[#e8e5df] bg-white p-3">
+          <div key={s.label} className="rounded-xl border border-border bg-card p-3">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               {s.icon}
               <span className="text-[10px] font-medium uppercase tracking-wider">{s.label}</span>
@@ -341,7 +341,7 @@ export default function MemoryPage() {
               placeholder="Search memories..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-8 py-3 rounded-lg border border-[#e8e5df] bg-[#faf9f7] text-sm focus:outline-none focus:border-[#3730a3]/40 focus:ring-1 focus:ring-[#3730a3]/20 transition-all min-h-[44px]"
+              className="w-full pl-10 pr-8 py-3 rounded-lg border border-border bg-card text-sm focus:outline-none focus:border-ring/40 focus:ring-1 focus:ring-ring/20 transition-all min-h-[44px]"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -358,12 +358,12 @@ export default function MemoryPage() {
             </div>
 
             {/* Agent filter */}
-            <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
               <button
                 onClick={() => setFilterAgent("all")}
                 className={cn(
                   "px-2 py-1 text-[10px] rounded-md transition-colors",
-                  filterAgent === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                  filterAgent === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                 )}
               >
                 All Agents
@@ -374,7 +374,7 @@ export default function MemoryPage() {
                   onClick={() => setFilterAgent(a.id)}
                   className={cn(
                     "px-2 py-1 text-[10px] rounded-md transition-colors flex items-center gap-1",
-                    filterAgent === a.id ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                    filterAgent === a.id ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                   )}
                 >
                   {a.emoji} {a.name.split(" ")[0]}
@@ -384,12 +384,12 @@ export default function MemoryPage() {
             </div>
 
             {/* Category filter */}
-            <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
               <button
                 onClick={() => setFilterCategory("all")}
                 className={cn(
                   "px-2 py-1 text-[10px] rounded-md transition-colors",
-                  filterCategory === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                  filterCategory === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                 )}
               >
                 All
@@ -400,7 +400,7 @@ export default function MemoryPage() {
                   onClick={() => setFilterCategory(c.id)}
                   className={cn(
                     "px-2 py-1 text-[10px] rounded-md transition-colors",
-                    filterCategory === c.id ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                    filterCategory === c.id ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
                   )}
                 >
                   {c.label}
@@ -439,7 +439,7 @@ export default function MemoryPage() {
         <Card>
           <CardContent className="py-16">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-[#f5f3ef] flex items-center justify-center mx-auto mb-4">
+              <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
                 <Brain className="w-7 h-7 text-muted-foreground" />
               </div>
               <h3 className="text-base font-semibold text-foreground mb-1">
@@ -466,7 +466,7 @@ export default function MemoryPage() {
               const agent = getAgentInfo(mem.agentId);
               return (
                 <motion.div key={mem.id} variants={itemVariants} initial="hidden" animate="show" exit={{ opacity: 0, height: 0 }}>
-                  <Card className="hover:border-[#3730a3]/20 transition-all duration-200 active:bg-[#faf9f7]">
+                  <Card className="hover:border-primary/20 transition-all duration-200 active:bg-card">
                     <CardContent className="p-4 sm:p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -556,15 +556,15 @@ export default function MemoryPage() {
               onClick={() => setPanelOpen(false)}
             />
             <motion.div
-              className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white border-l border-[#e8e5df] shadow-2xl flex flex-col"
+              className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-card border-l border-border shadow-2xl flex flex-col"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 250 }}
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-[#e8e5df]">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <h2 className="text-base font-semibold text-foreground">Add Memory</h2>
-                <button onClick={() => setPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-[#f5f3ef] transition-colors">
+                <button onClick={() => setPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
                   <X className="w-5 h-5 text-muted-foreground" />
                 </button>
               </div>
@@ -573,7 +573,7 @@ export default function MemoryPage() {
                 {/* Agent */}
                 <div>
                   <label className="block text-xs font-medium text-foreground mb-1.5">Agent</label>
-                  <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+                  <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
                     {KNOWN_AGENTS.map((a) => (
                       <button
                         key={a.id}
@@ -581,7 +581,7 @@ export default function MemoryPage() {
                         className={cn(
                           "px-2.5 py-1.5 text-[11px] rounded-md transition-colors flex items-center gap-1",
                           formAgent === a.id
-                            ? "bg-white text-foreground shadow-sm font-medium"
+                            ? "bg-card text-foreground shadow-sm font-medium"
                             : "text-muted-foreground"
                         )}
                       >
@@ -619,8 +619,8 @@ export default function MemoryPage() {
                         className={cn(
                           "text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5",
                           formCategory === c.id
-                            ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3] font-medium"
-                            : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                            ? "border-primary bg-primary/10 text-[#3730a3] font-medium"
+                            : "border-border text-muted-foreground hover:border-primary/30"
                         )}
                       >
                         <Tag className="w-3 h-3" />
@@ -644,7 +644,7 @@ export default function MemoryPage() {
                       onChange={(e) => setFormImportance(parseInt(e.target.value, 10))}
                       className="flex-1 accent-[#3730a3]"
                       style={{
-                        background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((formImportance - 1) / 9) * 100}%, #e8e5df ${((formImportance - 1) / 9) * 100}%, #e8e5df 100%)`,
+                        background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((formImportance - 1) / 9) * 100}%, hsl(var(--muted)) ${((formImportance - 1) / 9) * 100}%, hsl(var(--muted)) 100%)`,
                       }}
                     />
                     <div className="flex items-center gap-0.5">
@@ -678,8 +678,8 @@ export default function MemoryPage() {
                       className={cn(
                         "px-2.5 py-1.5 rounded-md border text-[10px] transition-all",
                         formImportance === p.value
-                          ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3] font-medium"
-                          : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                          ? "border-primary bg-primary/10 text-[#3730a3] font-medium"
+                          : "border-border text-muted-foreground hover:border-primary/30"
                       )}
                     >
                       {p.label}
@@ -689,14 +689,14 @@ export default function MemoryPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#e8e5df]">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
                 <Button variant="outline" onClick={() => setPanelOpen(false)} disabled={saving} className="text-xs">
                   Cancel
                 </Button>
                 <Button
                   onClick={handleAdd}
                   disabled={!formContent.trim() || saving}
-                  className="gap-2 text-xs bg-[#3730a3] hover:bg-[#3730a3]/90"
+                  className="gap-2 text-xs bg-primary hover:bg-primary/90"
                 >
                   {saving ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

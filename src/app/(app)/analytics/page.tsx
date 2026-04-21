@@ -175,11 +175,11 @@ function SkeletonCard() {
     <Card>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="p-2 rounded-lg bg-[#f0ede8] w-9 h-9 animate-pulse" />
-          <div className="w-14 h-5 rounded-full bg-[#f0ede8] animate-pulse" />
+          <div className="p-2 rounded-lg bg-muted w-9 h-9 animate-pulse" />
+          <div className="w-14 h-5 rounded-full bg-muted animate-pulse" />
         </div>
-        <div className="w-20 h-7 rounded bg-[#f0ede8] animate-pulse" />
-        <div className="w-28 h-3 rounded bg-[#f0ede8] animate-pulse" />
+        <div className="w-20 h-7 rounded bg-muted animate-pulse" />
+        <div className="w-28 h-3 rounded bg-muted animate-pulse" />
       </CardContent>
     </Card>
   );
@@ -189,10 +189,10 @@ function SkeletonWide() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="w-40 h-5 rounded bg-[#f0ede8] animate-pulse" />
+        <div className="w-40 h-5 rounded bg-muted animate-pulse" />
       </CardHeader>
       <CardContent>
-        <div className="h-44 w-full rounded bg-[#f0ede8]/50 animate-pulse" />
+        <div className="h-44 w-full rounded bg-muted/50 animate-pulse" />
       </CardContent>
     </Card>
   );
@@ -219,7 +219,7 @@ function BarChart({ data, maxVal }: { data: { date: string; count: number }[]; m
             </span>
             <div className="w-full relative">
               <motion.div
-                className="w-full rounded-t bg-[#3730a3]/70 hover:bg-[#3730a3] transition-colors cursor-default min-h-[2px]"
+                className="w-full rounded-t bg-primary/70 hover:bg-primary transition-colors cursor-default min-h-[2px]"
                 initial={{ height: 0 }}
                 animate={{ height: `${pct}%` }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
@@ -248,7 +248,7 @@ function HourHeatmap({ data }: { data: Record<number, number> }) {
       {hours.map((h) => {
         const val = data[h] || 0;
         const intensity = val / maxVal;
-        const bg = intensity === 0 ? "bg-[#f5f3ef]" : "bg-[#3730a3]";
+        const bg = intensity === 0 ? "bg-secondary" : "bg-primary";
         const opacity = intensity === 0 ? 1 : Math.max(0.15, intensity);
 
         return (
@@ -419,14 +419,14 @@ export default function AnalyticsPage() {
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-5 h-5 rounded bg-[#f0ede8] animate-pulse" />
-              <div className="w-28 h-6 rounded bg-[#f0ede8] animate-pulse" />
+              <div className="w-5 h-5 rounded bg-muted animate-pulse" />
+              <div className="w-28 h-6 rounded bg-muted animate-pulse" />
             </div>
-            <div className="w-64 h-4 rounded bg-[#f0ede8] animate-pulse ml-8" />
+            <div className="w-64 h-4 rounded bg-muted animate-pulse ml-8" />
           </div>
           <div className="flex items-center gap-2 ml-8 sm:ml-0">
-            <div className="w-32 h-8 rounded-lg bg-[#f0ede8] animate-pulse" />
-            <div className="w-20 h-8 rounded bg-[#f0ede8] animate-pulse" />
+            <div className="w-32 h-8 rounded-lg bg-muted animate-pulse" />
+            <div className="w-20 h-8 rounded bg-muted animate-pulse" />
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -493,14 +493,14 @@ export default function AnalyticsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 ml-8 sm:ml-0 flex-wrap">
-          <div className="flex items-center gap-1 bg-white border border-[#e8e5df] rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-0.5">
             {[3, 7, 14, 30].map((d) => (
               <button
                 key={d}
                 onClick={() => setDays(d)}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium rounded-md transition-colors min-h-[32px]",
-                  days === d ? "bg-[#3730a3] text-white" : "text-muted-foreground hover:text-foreground"
+                  days === d ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {d}d
@@ -624,7 +624,7 @@ export default function AnalyticsPage() {
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {data.agentStatuses.map((agent) => (
-                  <div key={agent.agentId} className="flex items-center gap-3 p-3 rounded-lg bg-[#faf9f7] border border-[#f0ede8]">
+                  <div key={agent.agentId} className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border">
                     {getStatusIcon(agent.status)}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -677,7 +677,7 @@ export default function AnalyticsPage() {
                     <span className="text-sm font-bold text-foreground">{data.tasks.total}</span>
                   </div>
                   {/* Progress bar */}
-                  <div className="w-full h-3 rounded-full bg-[#f0ede8] overflow-hidden flex">
+                  <div className="w-full h-3 rounded-full bg-muted overflow-hidden flex">
                     {data.tasks.total > 0 && (
                       <>
                         <motion.div
@@ -748,7 +748,7 @@ export default function AnalyticsPage() {
                     <span className="text-muted-foreground">Total runs</span>
                     <span className="font-bold text-foreground">{data.automations.totalRuns.toLocaleString()}</span>
                   </div>
-                  <div className="border-t border-[#f0ede8] pt-3 mt-3 space-y-2 max-h-36 overflow-y-auto custom-scrollbar">
+                  <div className="border-t border-border pt-3 mt-3 space-y-2 max-h-36 overflow-y-auto custom-scrollbar">
                     {data.automations.list.slice(0, 5).map((auto) => (
                       <div key={auto.name} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -791,7 +791,7 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto scrollbar-none -mx-6 px-6">
                 <table className="w-full min-w-[500px]">
                   <thead>
-                    <tr className="border-b border-[#e8e5df]">
+                    <tr className="border-b border-border">
                       <th className="text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Agent</th>
                       <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Messages</th>
                       <th className="text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pb-3">Tools</th>
@@ -808,7 +808,7 @@ export default function AnalyticsPage() {
                       const pct = Math.max((agent.messages / maxAgentMessages) * 100, 2);
 
                       return (
-                        <tr key={agent.agentId} className="border-b border-[#f0ede8] last:border-0">
+                        <tr key={agent.agentId} className="border-b border-border last:border-0">
                           <td className="py-3 pr-4">
                             <div className="flex items-center gap-2">
                               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
@@ -818,7 +818,7 @@ export default function AnalyticsPage() {
                           <td className="py-3 pr-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <span className="text-sm font-semibold text-foreground">{agent.messages}</span>
-                              <div className="w-16 h-1.5 rounded-full bg-[#f0ede8] hidden sm:block">
+                              <div className="w-16 h-1.5 rounded-full bg-muted hidden sm:block">
                                 <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
                               </div>
                             </div>
@@ -862,7 +862,7 @@ export default function AnalyticsPage() {
                             <span className="text-xs font-mono text-foreground truncate">{tool.toolName}</span>
                             <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{tool.count}</span>
                           </div>
-                          <div className="w-full h-1.5 rounded-full bg-[#f0ede8]">
+                          <div className="w-full h-1.5 rounded-full bg-muted">
                             <motion.div className="h-full rounded-full bg-amber-500/70" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.5, ease: "easeOut", delay: i * 0.03 }} />
                           </div>
                         </div>
@@ -889,8 +889,8 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
                   {data.recentActivity.map((event, i) => (
-                    <div key={`${event.id || `evt-${i}`}`} className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-[#faf9f7] border border-[#f0ede8] hover:border-[#3730a3]/20 transition-colors">
-                      <div className="w-7 h-7 rounded-full bg-white border border-[#e8e5df] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div key={`${event.id || `evt-${i}`}`} className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-card border border-border hover:border-primary/20 transition-colors">
+                      <div className="w-7 h-7 rounded-full bg-card border border-border flex items-center justify-center flex-shrink-0 mt-0.5">
                         {getActivityIcon(event.type)}
                       </div>
                       <div className="flex-1 min-w-0">

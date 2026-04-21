@@ -66,17 +66,17 @@ export function DocsView({ serviceStatus }: DocsViewProps) {
         {docLoading && <Spinner color="blue" />}
         {!docLoading && (
           <div>
-            <h2 className="text-lg font-semibold text-[#1a1a1a] mb-3">
-              Documents <span className="ml-2 text-sm font-normal text-[#6b6b6b]">({docList.length})</span>
+            <h2 className="text-lg font-semibold text-foreground mb-3">
+              Documents <span className="ml-2 text-sm font-normal text-muted-foreground">({docList.length})</span>
             </h2>
             {docList.length === 0 ? (
-              <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl p-8 text-center text-[#6b6b6b]">
+              <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
                 <DocsIcon />
                 <p className="mt-3 text-sm">No documents found.</p>
               </div>
             ) : (
-              <div className="bg-[#faf9f7] border border-[#e8e5df] rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-[#faf9f7] border-b border-[#e8e5df] text-xs font-medium text-[#6b6b6b] uppercase tracking-wider">
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto] px-5 py-2.5 bg-card border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   <span>Name</span>
                   <span className="text-right w-32">Modified</span>
                 </div>
@@ -87,14 +87,14 @@ export function DocsView({ serviceStatus }: DocsViewProps) {
                         <DocsIcon />
                         {doc.webViewLink ? (
                           <a href={doc.webViewLink} target="_blank" rel="noopener noreferrer"
-                            className="text-[#1a1a1a] font-medium hover:text-blue-600 transition-colors truncate">
+                            className="text-foreground font-medium hover:text-blue-600 transition-colors truncate">
                             {doc.name}
                           </a>
                         ) : (
-                          <span className="text-[#1a1a1a] font-medium truncate">{doc.name}</span>
+                          <span className="text-foreground font-medium truncate">{doc.name}</span>
                         )}
                       </div>
-                      <span className="text-xs text-[#999999] text-right w-32">
+                      <span className="text-xs text-muted-foreground text-right w-32">
                         {doc.modifiedTime ? timeAgo(doc.modifiedTime) : ""}
                       </span>
                     </div>

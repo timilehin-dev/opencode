@@ -126,7 +126,7 @@ export default function NotificationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -160,7 +160,7 @@ export default function NotificationsPage() {
             <Bell className="w-5 h-5 text-[#3730a3]" />
             <h1 className="text-xl font-bold text-foreground">Notifications</h1>
             {stats.unread > 0 && (
-              <Badge className="text-[10px] gap-1 bg-[#3730a3] text-white border-[#3730a3]">
+              <Badge className="text-[10px] gap-1 bg-primary text-white border-primary">
                 {stats.unread} unread
               </Badge>
             )}
@@ -183,7 +183,7 @@ export default function NotificationsPage() {
           { label: "Webhooks", value: deliveryConfig?.webhooks.length || 0, icon: <Link2 className="w-4 h-4" /> },
           { label: "Desktop", value: deliveryConfig?.desktopEnabled ? "On" : "Off", icon: <MonitorUp className="w-4 h-4" /> },
         ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-[#e8e5df] bg-white p-3">
+          <div key={s.label} className="rounded-xl border border-border bg-card p-3">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               {s.icon}
               <span className="text-[10px] font-medium uppercase tracking-wider">{s.label}</span>
@@ -202,8 +202,8 @@ export default function NotificationsPage() {
             className={cn(
               "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap min-h-[40px]",
               activeTab === tab.id
-                ? "bg-[#3730a3] text-white shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-[#f0ede8]"
+                ? "bg-primary text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
             )}
           >
             {tab.icon}
@@ -279,12 +279,12 @@ function HistoryTab({
       {/* Filter */}
       <div className="flex items-center gap-2">
         <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Filter:</span>
-        <div className="flex items-center gap-1 bg-[#f5f3ef] rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
           <button
             onClick={() => setFilter("all")}
             className={cn(
               "px-2.5 py-1 text-[10px] rounded-md transition-colors",
-              filter === "all" ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+              filter === "all" ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
             )}
           >
             All ({stats.total})
@@ -295,7 +295,7 @@ function HistoryTab({
               onClick={() => setFilter(type)}
               className={cn(
                 "px-2.5 py-1 text-[10px] rounded-md transition-colors",
-                filter === type ? "bg-white text-foreground shadow-sm font-medium" : "text-muted-foreground"
+                filter === type ? "bg-card text-foreground shadow-sm font-medium" : "text-muted-foreground"
               )}
             >
               {TYPE_STYLES[type as keyof typeof TYPE_STYLES]?.label || type} ({count})
@@ -308,7 +308,7 @@ function HistoryTab({
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <div className="w-14 h-14 rounded-full bg-[#f5f3ef] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
               <Bell className="w-7 h-7 text-muted-foreground" />
             </div>
             <h3 className="text-base font-semibold text-foreground mb-1">No notifications</h3>
@@ -352,7 +352,7 @@ function NotifRow({ notif }: { notif: AppNotification }) {
   return (
     <div
       className={cn(
-        "flex items-start gap-3 px-3 py-3.5 rounded-lg border border-[#e8e5df] bg-white transition-all hover:border-[#3730a3]/20 min-h-[60px]",
+        "flex items-start gap-3 px-3 py-3.5 rounded-lg border border-border bg-card transition-all hover:border-primary/20 min-h-[60px]",
         !notif.read && "bg-[#eef2ff]/40"
       )}
     >
@@ -463,12 +463,12 @@ function ChannelsTab({
                 onClick={() => onUpdate({ ...config, desktopEnabled: !config.desktopEnabled })}
                 className={cn(
                   "w-11 h-[26px] rounded-full transition-all duration-200 relative flex-shrink-0 min-h-[44px]",
-                  config.desktopEnabled ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+                  config.desktopEnabled ? "bg-primary" : "bg-[#d1d1d1]"
                 )}
               >
                 <span
                   className={cn(
-                    "absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200",
+                    "absolute top-[3px] w-4 h-4 bg-card rounded-full shadow-sm transition-all duration-200",
                     config.desktopEnabled ? "left-[22px]" : "left-[3px]"
                   )}
                 />
@@ -507,7 +507,7 @@ function ChannelsTab({
         </CardHeader>
         <CardContent className="space-y-3">
           {config.webhooks.length === 0 ? (
-            <div className="text-center py-8 border border-dashed border-[#e8e5df] rounded-lg">
+            <div className="text-center py-8 border border-dashed border-border rounded-lg">
               <Link2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No webhooks configured</p>
               <p className="text-[10px] text-muted-foreground mt-1">
@@ -521,18 +521,18 @@ function ChannelsTab({
                 variants={itemVariants}
                 initial="hidden"
                 animate="show"
-                className="flex items-center gap-3 p-3 rounded-lg border border-[#e8e5df] bg-white"
+                className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card"
               >
                 <button
                   onClick={() => handleToggle(i)}
                   className={cn(
                     "w-8 h-[18px] rounded-full transition-all duration-200 relative flex-shrink-0",
-                    webhook.enabled ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+                    webhook.enabled ? "bg-primary" : "bg-[#d1d1d1]"
                   )}
                 >
                   <span
                     className={cn(
-                      "absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-all duration-200",
+                      "absolute top-[2px] w-[14px] h-[14px] bg-card rounded-full shadow-sm transition-all duration-200",
                       webhook.enabled ? "left-[15px]" : "left-[2px]"
                     )}
                   />
@@ -555,11 +555,11 @@ function ChannelsTab({
                   <button
                     onClick={() => handleTest(i)}
                     disabled={testingIdx === i || !webhook.enabled}
-                    className="p-1.5 rounded-md hover:bg-[#f5f3ef] text-muted-foreground hover:text-[#3730a3] transition-colors disabled:opacity-50"
+                    className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-[#3730a3] transition-colors disabled:opacity-50"
                     title="Send test notification"
                   >
                     {testingIdx === i ? (
-                      <div className="w-3.5 h-3.5 border-2 border-[#3730a3] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <TestTube className="w-3.5 h-3.5" />
                     )}
@@ -584,7 +584,7 @@ function ChannelsTab({
                 exit={{ opacity: 0, height: 0 }}
                 className="overflow-hidden"
               >
-                <div className="p-4 rounded-lg border border-[#3730a3]/20 bg-[#3730a3]/5 space-y-3">
+                <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1.5">Webhook URL</label>
                     <div className="flex items-center gap-2">
@@ -593,7 +593,7 @@ function ChannelsTab({
                         value={newUrl}
                         onChange={(e) => setNewUrl(e.target.value)}
                         placeholder="https://hooks.slack.com/services/..."
-                        className="flex-1 px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-xs font-mono focus:outline-none focus:border-[#3730a3]/40"
+                        className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-xs font-mono focus:outline-none focus:border-ring/40"
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">
@@ -613,8 +613,8 @@ function ChannelsTab({
                           className={cn(
                             "px-2 py-1 rounded-md border text-[10px] transition-all",
                             newEvents.includes(e.id)
-                              ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3]"
-                              : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                              ? "border-primary bg-primary/10 text-[#3730a3]"
+                              : "border-border text-muted-foreground hover:border-primary/30"
                           )}
                         >
                           {e.label}
@@ -629,7 +629,7 @@ function ChannelsTab({
                     </Button>
                     <Button
                       size="sm"
-                      className="text-xs gap-1.5 bg-[#3730a3] hover:bg-[#3730a3]/90"
+                      className="text-xs gap-1.5 bg-primary hover:bg-primary/90"
                       onClick={handleAdd}
                       disabled={!newUrl.trim()}
                     >
@@ -700,12 +700,12 @@ function PreferencesTab({
               onClick={() => onUpdate({ ...config, soundEnabled: !config.soundEnabled })}
               className={cn(
                 "w-10 h-[22px] rounded-full transition-all duration-200 relative",
-                config.soundEnabled ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+                config.soundEnabled ? "bg-primary" : "bg-[#d1d1d1]"
               )}
             >
               <span
                 className={cn(
-                  "absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200",
+                  "absolute top-[3px] w-4 h-4 bg-card rounded-full shadow-sm transition-all duration-200",
                   config.soundEnabled ? "left-[22px]" : "left-[3px]"
                 )}
               />
@@ -734,12 +734,12 @@ function PreferencesTab({
                 onClick={() => onUpdate({ ...config, quietHoursEnabled: !config.quietHoursEnabled })}
                 className={cn(
                   "w-10 h-[22px] rounded-full transition-all duration-200 relative",
-                  config.quietHoursEnabled ? "bg-[#3730a3]" : "bg-[#d1d1d1]"
+                  config.quietHoursEnabled ? "bg-primary" : "bg-[#d1d1d1]"
                 )}
               >
                 <span
                   className={cn(
-                    "absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200",
+                    "absolute top-[3px] w-4 h-4 bg-card rounded-full shadow-sm transition-all duration-200",
                     config.quietHoursEnabled ? "left-[22px]" : "left-[3px]"
                   )}
                 />
@@ -760,7 +760,7 @@ function PreferencesTab({
                   type="time"
                   value={config.quietHoursStart || "22:00"}
                   onChange={(e) => onUpdate({ ...config, quietHoursStart: e.target.value })}
-                  className="px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-xs focus:outline-none focus:border-[#3730a3]/40"
+                  className="px-3 py-2 rounded-lg border border-border bg-card text-xs focus:outline-none focus:border-ring/40"
                 />
               </div>
               <div className="flex items-center pt-5">
@@ -774,7 +774,7 @@ function PreferencesTab({
                   type="time"
                   value={config.quietHoursEnd || "08:00"}
                   onChange={(e) => onUpdate({ ...config, quietHoursEnd: e.target.value })}
-                  className="px-3 py-2 rounded-lg border border-[#e8e5df] bg-white text-xs focus:outline-none focus:border-[#3730a3]/40"
+                  className="px-3 py-2 rounded-lg border border-border bg-card text-xs focus:outline-none focus:border-ring/40"
                 />
               </div>
             </div>
@@ -794,8 +794,8 @@ function PreferencesTab({
                 className={cn(
                   "px-2.5 py-1.5 rounded-md border text-[10px] transition-all",
                   config.quietHoursStart === p.start && config.quietHoursEnd === p.end
-                    ? "border-[#3730a3] bg-[#3730a3]/10 text-[#3730a3] font-medium"
-                    : "border-[#e8e5df] text-muted-foreground hover:border-[#3730a3]/30"
+                    ? "border-primary bg-primary/10 text-[#3730a3] font-medium"
+                    : "border-border text-muted-foreground hover:border-primary/30"
                 )}
               >
                 {p.label}
@@ -806,7 +806,7 @@ function PreferencesTab({
       </Card>
 
       {/* Info */}
-      <div className="rounded-lg border border-[#e8e5df] bg-[#f5f3ef] p-4">
+      <div className="rounded-lg border border-border bg-secondary p-4">
         <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
           <Sun className="w-3.5 h-3.5" />
           How Notifications Work

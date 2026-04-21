@@ -7,7 +7,7 @@ export default function AgentDetailLoading() {
       <Skeleton className="h-4 w-28 mb-6" />
 
       {/* Agent header card */}
-      <div className="rounded-xl border border-[#e8e5df] bg-white p-6 mb-6">
+      <div className="rounded-xl border border-border bg-card p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <Skeleton className="w-16 h-16 rounded-xl" />
           <div className="flex-1 space-y-1.5">
@@ -39,7 +39,7 @@ export default function AgentDetailLoading() {
       {/* Tab content */}
       <div className="space-y-6">
         {/* About card */}
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
           <Skeleton className="h-4 w-16" />
           <div className="space-y-2">
             <Skeleton className="h-3 w-full" />
@@ -51,7 +51,7 @@ export default function AgentDetailLoading() {
         {/* Stats grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-[#e8e5df] bg-white p-4 space-y-2">
+            <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-2">
               <Skeleton className="h-3 w-24" />
               <Skeleton className="h-5 w-12" />
             </div>
@@ -59,7 +59,7 @@ export default function AgentDetailLoading() {
         </div>
 
         {/* Tools section */}
-        <div className="rounded-xl border border-[#e8e5df] bg-white p-6 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-3">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-2 w-40" />
           <div className="space-y-3 pt-2">

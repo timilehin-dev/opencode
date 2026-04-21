@@ -207,7 +207,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     {
       label: "Deployments",
       value: vc.projectCount,
-      icon: <Rocket className="w-5 h-5 text-[#1a1a1a]" />,
+      icon: <Rocket className="w-5 h-5 text-foreground" />,
       bgColor: "bg-slate-500/10",
     },
   ];
@@ -277,7 +277,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     timeline.push({
       id: `github-${i}`,
       type: "github",
-      icon: <GitHubIcon className="w-4 h-4 text-[#1a1a1a]" />,
+      icon: <GitHubIcon className="w-4 h-4 text-foreground" />,
       description: `Commit: ${commit.message}`,
       detail: `by ${commit.author}`,
       time: commit.date,
@@ -316,7 +316,7 @@ export function OverviewPage({ onNavigate }: OverviewProps) {
     timeline.push({
       id: `vercel-${i}`,
       type: "vercel",
-      icon: <VercelIcon className="w-4 h-4 text-[#1a1a1a]" />,
+      icon: <VercelIcon className="w-4 h-4 text-foreground" />,
       description: `Deployment: ${project.name}`,
       detail: project.framework || "Unknown framework",
       time: new Date(project.updatedAt).toISOString(),
