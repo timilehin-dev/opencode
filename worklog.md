@@ -202,3 +202,55 @@ Stage Summary:
 - Shared context store enables cross-agent data sharing with versioning
 - 32K output tokens will reduce truncation for complex tasks
 - Deferred: /api/a2a/stream SSE endpoint (nice-to-have, not critical for Phase 4 functionality)
+
+---
+Task ID: Cron Migration
+Agent: Main Agent
+Task: Migrate all cron jobs from Vercel to GitHub Actions
+
+Work Log:
+- Removed vercel.json crons block (was blocking deployments — requires Pro plan)
+- Created scripts/cron-runner.mjs: unified standalone cron runner for 3 job types
+  - task-processor (*/5 min): evaluates automations, queues tasks
+  - agent-routines (*/10 min): executes due agent routines via AI
+  - process-reminders (daily 9am): fires due reminders
+- Created 3 separate GH Actions workflows:
+  - .github/workflows/cron-task-processor.yml
+  - .github/workflows/cron-agent-routines.yml
+  - .github/workflows/cron-process-reminders.yml
+- Removed stale .github/workflows/cron.yml that was pinging Vercel endpoint
+- All workflows support manual workflow_dispatch trigger
+
+Stage Summary:
+- All 3 cron jobs now run on GitHub Actions (no Vercel Pro dependency)
+- Commits: 4f342cc, ea969c7, 6a08075
+
+---
+Task ID: Phase 5
+Agent: Main Agent
+Task: Full Autonomous Project Lifecycle
+
+Work Log:
+- Created 2 new DB functions in Supabase:
+  - on_project_status_change_notify(): auto-creates proactive_notification when project completes/fails
+  - get_project_health_report(): returns health status for all active projects (stalled/overdue/degraded detection)
+- Added 6 new project lifecycle tools to src/lib/tools.ts:
+  - project_update: update metadata/status/priority/deadline
+  - project_delete: cancel/archive project + stop pending tasks
+  - project_retry_task: reset failed task to pending
+  - project_skip_task: skip blocked task + unblock dependents
+  - project_decompose_and_add: ALL-IN-ONE decompose + auto-add tasks
+  - project_health: portfolio health dashboard
+- Registered all 6 tools in allTools record
+- Added 6 tools to general agent's tool list in src/lib/agents.ts
+- Updated general agent system prompt with full lifecycle documentation
+- Added same 6 tools to scripts/execute-tasks.mjs buildToolMap() + agent tool lists
+- TypeScript: 0 production errors
+- Node syntax check: both execute-tasks.mjs and cron-runner.mjs pass
+
+Stage Summary:
+- Phase 5 complete: full autonomous project lifecycle from creation to completion
+- Projects auto-transition: planning → in_progress → completed (or failed/cancelled)
+- Auto-notifications on project completion/failure
+- Health monitoring catches stalled/overdue/degraded projects
+- Commit: b8cec9e pushed to GitHub
