@@ -80,7 +80,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
       if (filter === "completed") return t.status === "completed" || t.status === "failed";
       return true;
     })
-    .slice(0, 15);
+    .slice(0, 5);
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
