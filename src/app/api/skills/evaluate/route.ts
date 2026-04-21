@@ -82,12 +82,12 @@ export async function POST(req: Request) {
       // Non-critical: execution logging may fail if table doesn't exist yet
     });
 
-    // 3. Call LLM to evaluate execution quality
+    // 3. Call LLM to evaluate execution quality (Ollama Gemma 4 31B)
     const provider = createOpenAI({
-      apiKey: process.env.AI_KEY_1,
-      baseURL: "https://aihubmix.com/v1",
+      apiKey: process.env.OLLAMA_CLOUD_KEY_1 || "ollama",
+      baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
     });
-    const model = provider.chat("claude-sonnet-4-20250514");
+    const model = provider.chat("gemma4:31b-cloud");
 
     const evaluationPrompt = `You are an AI quality judge evaluating the execution of a skill. Evaluate this skill execution objectively and provide structured scores.
 
@@ -144,7 +144,7 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
       const llmResult = await generateText({
         model,
         prompt: evaluationPrompt,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
         temperature: 0.3,
         abortSignal: AbortSignal.timeout(30000),
       });
