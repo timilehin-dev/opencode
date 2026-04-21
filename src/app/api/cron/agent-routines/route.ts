@@ -337,8 +337,8 @@ async function executeRoutine(
         { role: "user", content: `${task}\n\n${context ? `Context: ${context}` : ""}` },
       ],
       tools: agentTools,
-      maxOutputTokens: 4096,
-      stopWhen: stepCountIs(10),
+      maxOutputTokens: 8192,
+      stopWhen: stepCountIs(15),
       abortSignal: AbortSignal.timeout(120_000),
     });
 

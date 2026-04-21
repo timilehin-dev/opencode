@@ -377,22 +377,30 @@ export async function clearConversationHistory(agentId?: string): Promise<void> 
 }
 
 /** Purge ALL conversation history — localStorage + Supabase + session maps.
- *  Used to start completely fresh. */
-export async function purgeAllConversations(): Promise<{ localStorage: boolean; supabase: boolean }> {
+ *  Used to start completely fresh.
+ *  @param scope - 'conversations' (default) purges only conversation data;
+ *                'all' also purges agent_memory, agent_activity, and learning_insights tables. */
+export async function purgeAllConversations(scope: 'conversations' | 'all' = 'conversations'): Promise<{ localStorage: boolean; supabase: boolean; agentMemory: boolean; agentActivity: boolean; learningInsights: boolean }> {
   let localStorageCleared = false;
   let supabaseCleared = false;
+  let agentMemoryCleared = false;
+  let agentActivityCleared = false;
+  let learningInsightsCleared = false;
 
   // Clear localStorage conversation data
   try {
     localStorage.removeItem(CONV_KEY);
     localStorage.removeItem("claw-agent-sessions");
     localStorage.removeItem("claw-last-active-agent");
+    if (scope === 'all') {
+      localStorage.removeItem(MEMORY_KEY);
+    }
     localStorageCleared = true;
   } catch {
     // ignore
   }
 
-  // Clear Supabase
+  // Clear Supabase conversations
   const supabase = getSupabase();
   if (supabase) {
     try {
@@ -401,9 +409,33 @@ export async function purgeAllConversations(): Promise<{ localStorage: boolean; 
     } catch {
       // ignore
     }
+
+    // Optionally purge additional tables
+    if (scope === 'all') {
+      try {
+        await supabase.from("agent_memory").delete().neq("id", 0);
+        agentMemoryCleared = true;
+      } catch {
+        // ignore — don't cascade failure
+      }
+
+      try {
+        await supabase.from("agent_activity").delete().neq("id", 0);
+        agentActivityCleared = true;
+      } catch {
+        // ignore — don't cascade failure
+      }
+
+      try {
+        await supabase.from("learning_insights").delete().neq("id", 0);
+        learningInsightsCleared = true;
+      } catch {
+        // ignore — don't cascade failure
+      }
+    }
   }
 
-  return { localStorage: localStorageCleared, supabase: supabaseCleared };
+  return { localStorage: localStorageCleared, supabase: supabaseCleared, agentMemory: agentMemoryCleared, agentActivity: agentActivityCleared, learningInsights: learningInsightsCleared };
 }
 
 /** Delete a specific session's messages (both localStorage + Supabase).
@@ -505,7 +537,8 @@ export async function getAgentMemories(agentId: string): Promise<AgentMemory[]> 
         .select("*")
         .eq("agent_id", agentId)
         .order("importance", { ascending: false })
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .limit(50);
 
       if (!error && data) {
         return data.map(rowToMemory);
@@ -522,6 +555,7 @@ export async function getAgentMemories(agentId: string): Promise<AgentMemory[]> 
 
 /** Get a summary of all agent memories (for context injection). */
 export async function getMemorySummary(agentId: string): Promise<string> {
+  const MAX_MEMORY_CHARS = 4000;
   const memories = await getAgentMemories(agentId);
   if (memories.length === 0) return "";
 
@@ -539,7 +573,17 @@ export async function getMemorySummary(agentId: string): Promise<string> {
     }
   }
 
-  return parts.join("\n");
+  const result = parts.join("\n");
+  if (result.length > MAX_MEMORY_CHARS) {
+    // Keep as many complete items as possible
+    let truncated = "";
+    for (const part of parts) {
+      if (truncated.length + part.length + 1 > MAX_MEMORY_CHARS) break;
+      truncated += (truncated ? "\n" : "") + part;
+    }
+    return truncated + "\n[Memory truncated — older items omitted to save context]";
+  }
+  return result;
 }
 
 /** Delete a memory by ID. */

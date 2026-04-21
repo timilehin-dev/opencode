@@ -439,7 +439,7 @@ export const gmailSendTool = tool({
 });
 
 export const gmailFetchTool = tool({
-  description: "Fetch emails from Gmail inbox. Use this to read recent emails or get messages with optional filters.",
+  description: "Fetch/search emails from Gmail inbox. Supports full Gmail search syntax (e.g., 'is:unread', 'from:someone@example.com', 'subject:urgent').",
   inputSchema: zodSchema(z.object({
     query: z.string().optional().describe("Gmail search query (e.g., 'is:unread', 'from:someone@example.com', 'subject:urgent')"),
     maxResults: z.number().optional().describe("Max number of emails to fetch (default: 10)"),
@@ -450,16 +450,7 @@ export const gmailFetchTool = tool({
   }),
 });
 
-export const gmailSearchTool = tool({
-  description: "Search Gmail messages using a query string. Returns matching messages with metadata.",
-  inputSchema: zodSchema(z.object({
-    query: z.string().describe("Search query string"),
-    maxResults: z.number().optional().describe("Max results to return (default: 20)"),
-  })),
-  execute: safeJson(async ({ query, maxResults }) => {
-    return await gGmailFetchEmails({ query, maxResults: maxResults || 20 });
-  }),
-});
+
 
 export const gmailLabelsTool = tool({
   description: "List all Gmail labels (both system and user-created).",
@@ -1321,7 +1312,6 @@ export const gmailReplyTool = tool({
     const threadRes = await googleFetch(
       `https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=metadata&metadataHeaders=Message-Id&metadataHeaders=References&metadataHeaders=Subject`,
     );
-    if (!threadRes.ok) throw new Error(`Failed to fetch thread: ${threadRes.status}`);
     const threadData = (await threadRes.json()) as { messages?: Array<{ payload?: { headers?: Array<{ name: string; value: string }> } }> };
     const lastMsg = threadData.messages?.[threadData.messages.length - 1];
     const headers = lastMsg?.payload?.headers || [];
@@ -1348,10 +1338,6 @@ export const gmailReplyTool = tool({
       method: "POST",
       body: JSON.stringify({ raw: encoded, threadId }),
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Gmail reply error: ${res.status} — ${err}`);
-    }
     return safeParseRes(res);
   }),
 });
@@ -1369,7 +1355,6 @@ export const gmailThreadTool = tool({
     const res = await googleFetch(
       `https://www.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`,
     );
-    if (!res.ok) throw new Error(`Gmail thread error: ${res.status}`);
     const data = await safeJsonParse(res) as {
       id: string;
       messages?: Array<{
@@ -1451,24 +1436,16 @@ export const gmailBatchTool = tool({
               body: JSON.stringify({ ids: messageIds, addLabelIds: ["TRASH"], removeLabelIds: ["INBOX"] }),
             },
           );
-          if (!trashRes.ok) {
-            const err = await trashRes.text();
-            throw new Error(`Gmail batch trash (pre-delete) error: ${trashRes.status} — ${err}`);
-          }
           // Now permanently delete each message from trash
           let deletedCount = 0;
           let failCount = 0;
           for (const msgId of messageIds) {
             try {
-              const delRes = await googleFetch(
+              await googleFetch(
                 `https://www.googleapis.com/gmail/v1/users/me/messages/${msgId}`,
                 { method: "DELETE" },
               );
-              if (delRes.ok || delRes.status === 204) {
-                deletedCount++;
-              } else {
-                failCount++;
-              }
+              deletedCount++;
             } catch {
               failCount++;
             }
@@ -1495,10 +1472,6 @@ export const gmailBatchTool = tool({
         body: JSON.stringify({ ids: messageIds, addLabelIds, removeLabelIds }),
       },
     );
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Gmail batch modify error: ${res.status} — ${err}`);
-    }
     return { success: true, action, messageIdsProcessed: messageIds.length };
   }),
 });
@@ -1523,7 +1496,6 @@ export const calendarFreebusyTool = tool({
         items: attendeeEmails.map(e => ({ id: e })),
       }),
     });
-    if (!res.ok) throw new Error(`Calendar freebusy error: ${res.status}`);
     return safeParseRes(res);
   }),
 });
@@ -1759,7 +1731,6 @@ export const sheetsClearTool = tool({
         body: JSON.stringify({}),
       },
     );
-    if (!res.ok) throw new Error(`Sheets clear error: ${res.status}`);
     return safeParseRes(res);
   }),
 });
@@ -4194,10 +4165,6 @@ export const gmailSendWithAttachmentTool = tool({
       method: "POST",
       body: JSON.stringify({ raw: encoded }),
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Gmail send error: ${res.status} — ${err}`);
-    }
     const data = await safeParseRes(res);
     return { success: true, messageId: (data as { id?: string }).id, attachments: attachments?.length || 0 };
   }),
@@ -4330,6 +4297,88 @@ export const projectListTool = tool({
   }),
 });
 
+export const projectDecomposeTool = tool({
+  description: "Decompose a project into executable tasks using AI. Takes a project goal and returns a structured task plan with dependencies, assigned agents, and task prompts. Use this when you need to break a complex goal into manageable steps. You can then add the tasks to a project using project_add_task.",
+  inputSchema: zodSchema(z.object({
+    goal: z.string().describe("The project goal or high-level objective to decompose"),
+    context: z.string().optional().describe("Additional context, constraints, or requirements"),
+    max_tasks: z.number().optional().describe("Maximum number of tasks (default: 8, max: 15)"),
+    complexity: z.enum(["simple", "moderate", "complex"]).optional().describe("Project complexity level"),
+  })),
+  execute: safeJson(async ({ goal, context, max_tasks, complexity }) => {
+    const { generateText } = await import("ai");
+    const { createOpenAI } = await import("@ai-sdk/openai");
+
+    const apiKey = process.env.AIHUBMIX_API_KEY_1 || process.env.AIHUBMIX_API_KEY_2;
+    if (!apiKey) return JSON.stringify({ success: false, error: "No AI API key available for decomposition" });
+
+    const provider = createOpenAI({
+      apiKey,
+      baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
+    });
+    const model = provider.chat("coding-glm-5.1-free");
+
+    const systemPrompt = `You are a project planning assistant. Given a project goal, decompose it into a structured task plan.
+
+Rules:
+- Output ONLY valid JSON — no markdown, no explanation, no code fences
+- Each task must be specific and actionable
+- Set dependencies between tasks (depends_on uses 1-based task IDs)
+- Assign the best agent for each task
+- Keep task prompts detailed enough for autonomous execution
+- Max ${max_tasks || 8} tasks
+
+Available agents:
+- "general": Multi-service orchestration, project management
+- "mail": Email, calendar, communications
+- "code": GitHub, Vercel, development
+- "data": Google Drive, Sheets, Docs, data analysis
+- "research": Deep web research, synthesis
+- "ops": Monitoring, health checks, deployment
+- "creative": Content, design, documents
+
+Output format (EXACT JSON):
+{
+  "tasks": [
+    {
+      "title": "Task title",
+      "description": "What this task accomplishes",
+      "task_type": "research|code|design|testing|deployment|docs|communication|general",
+      "priority": "critical|high|medium|low",
+      "assigned_agent": "agent_id",
+      "depends_on": [],
+      "task_prompt": "Detailed instruction for the executing agent",
+      "sort_order": 0
+    }
+  ]
+}`;
+
+    const userPrompt = `Decompose this project goal into tasks:\n\nGoal: ${goal}\n${context ? `Context: ${context}` : ""}\nComplexity: ${complexity || "moderate"}\nMax tasks: ${Math.min(max_tasks || 8, 15)}`;
+
+    try {
+      const result = await generateText({
+        model,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+        maxOutputTokens: 4096,
+        abortSignal: AbortSignal.timeout(60000),
+      });
+
+      // Parse the JSON from the response
+      let jsonStr = result.text.trim();
+      // Remove code fences if present
+      const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fenceMatch) jsonStr = fenceMatch[1];
+
+      const plan = JSON.parse(jsonStr);
+      return JSON.stringify({ success: true, tasks: plan.tasks || [], total: (plan.tasks || []).length });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Decomposition failed";
+      return JSON.stringify({ success: false, error: errMsg });
+    }
+  }),
+});
+
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4339,7 +4388,6 @@ export const allTools: Record<string, ToolType> = {
   // Gmail
   gmail_send: gmailSendTool,
   gmail_fetch: gmailFetchTool,
-  gmail_search: gmailSearchTool,
   gmail_labels: gmailLabelsTool,
   gmail_create_label: gmailCreateLabelTool,
   gmail_delete_label: gmailDeleteLabelTool,
@@ -4452,6 +4500,7 @@ export const allTools: Record<string, ToolType> = {
   project_add_task: projectAddTaskTool,
   project_status: projectStatusTool,
   project_list: projectListTool,
+  project_decompose: projectDecomposeTool,
   // New Tools
   code_execute: codeExecuteTool,
   weather_get: weatherGetTool,

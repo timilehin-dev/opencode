@@ -82,7 +82,7 @@ const AGENTS = {
     provider: "aihubmix",
     model: "coding-glm-5.1-free",
     tools: [
-      "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
+      "gmail_send", "gmail_fetch", "gmail_labels",
       "gmail_create_label", "gmail_delete_label", "gmail_profile",
       "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
@@ -114,7 +114,7 @@ const AGENTS = {
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
-      "project_create", "project_add_task", "project_status", "project_list",
+      "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
     ],
   },
   mail: {
@@ -123,7 +123,7 @@ const AGENTS = {
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
-      "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
+      "gmail_send", "gmail_fetch", "gmail_labels",
       "gmail_create_label", "gmail_delete_label",
       "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create", "calendar_freebusy",
@@ -590,10 +590,6 @@ async function gmailSend({ to, subject, body, isHtml }) {
   return await safeParseRes(res);
 }
 
-async function gmailSearch({ query, maxResults }) {
-  return gmailFetch({ query, maxResults: maxResults || 20 });
-}
-
 async function gmailLabels() {
   const token = await getGoogleAccessToken();
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels", {
@@ -699,16 +695,11 @@ function buildToolMap() {
       execute: safeJsonWrap(({ to, subject, body, isHtml }) => gmailSend({ to, subject, body, isHtml })),
     }),
     gmail_fetch: tool({
-      description: "Fetch emails from Gmail inbox.",
+      description: "Fetch/search emails from Gmail inbox. Supports full Gmail search syntax (e.g., 'is:unread', 'from:someone@example.com', 'subject:urgent').",
       inputSchema: zodSchema(z.object({
         query: z.string().optional(), maxResults: z.number().optional(), labelIds: z.array(z.string()).optional(),
       })),
       execute: safeJsonWrap(({ query, maxResults, labelIds }) => gmailFetch({ query, maxResults, labelIds })),
-    }),
-    gmail_search: tool({
-      description: "Search Gmail messages.",
-      inputSchema: zodSchema(z.object({ query: z.string(), maxResults: z.number().optional() })),
-      execute: safeJsonWrap(({ query, maxResults }) => gmailSearch({ query, maxResults })),
     }),
     gmail_labels: tool({
       description: "List all Gmail labels.",
@@ -2480,6 +2471,39 @@ function buildToolMap() {
         return result.rows;
       }),
     }),
+    project_decompose: tool({
+      description: "Decompose a project goal into structured tasks with dependencies. Returns a task plan that can be added to a project using project_add_task.",
+      inputSchema: zodSchema(z.object({
+        goal: z.string().describe("Project goal to decompose"),
+        context: z.string().optional().describe("Additional context or constraints"),
+        max_tasks: z.number().optional().describe("Max tasks (default 8, max 15)"),
+        complexity: z.enum(["simple", "moderate", "complex"]).optional().describe("Complexity level"),
+      })),
+      execute: safeJsonWrap(async ({ goal, context, max_tasks, complexity }) => {
+        // Use the general agent's model for decomposition
+        const agent = AGENTS.general;
+        const model = getProvider(agent);
+        const { generateText } = await import("ai");
+
+        const result = await generateText({
+          model,
+          system: `You are a project planner. Decompose goals into tasks. Output ONLY valid JSON with format: {"tasks":[{"title":"...","description":"...","task_type":"research|code|design|testing|deployment|docs|communication|general","priority":"critical|high|medium|low","assigned_agent":"general|mail|code|data|research|ops|creative","depends_on":[],"task_prompt":"...","sort_order":0}]}`,
+          messages: [{ role: "user", content: `Decompose: ${goal}\n${context ? "Context: " + context : ""}\nComplexity: ${complexity || "moderate"}, Max: ${Math.min(max_tasks || 8, 15)} tasks` }],
+          maxOutputTokens: 4096,
+          abortSignal: AbortSignal.timeout(60000),
+        });
+
+        let jsonStr = result.text.trim();
+        const fenceMatch = jsonStr.match(/\`\`\`(?:json)?\s*([\s\S]*?)\s*\`\`\`/);
+        if (fenceMatch) jsonStr = fenceMatch[1];
+        try {
+          const plan = JSON.parse(jsonStr);
+          return { success: true, tasks: plan.tasks || [], total: (plan.tasks || []).length };
+        } catch {
+          return { success: false, error: "Failed to parse decomposition result", raw: result.text.slice(0, 500) };
+        }
+      }),
+    }),
   };
 }
 
@@ -2730,10 +2754,37 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
 // Main
 // ---------------------------------------------------------------------------
 
+// Detect stale running tasks (from crashed previous executions)
+async function recoverStaleTasks() {
+  const result = await pool.query(
+    `UPDATE agent_tasks SET status = 'pending', error = '[Auto-recovered] Previous execution may have crashed'
+     WHERE status = 'running' AND started_at < NOW() - INTERVAL '10 minutes'
+     RETURNING id, task`
+  );
+  if (result.rows.length > 0) {
+    console.log(`[Recovery] Reset ${result.rows.length} stale tasks to pending`);
+    for (const row of result.rows) {
+      console.log(`  - Task #${row.id}: ${row.task.slice(0, 60)}`);
+    }
+  }
+  // Also recover stale project tasks
+  const ptResult = await pool.query(
+    `UPDATE project_tasks SET status = 'pending', error = '[Auto-recovered] Previous execution may have crashed'
+     WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '10 minutes'
+     RETURNING id, title`
+  );
+  if (ptResult.rows.length > 0) {
+    console.log(`[Recovery] Reset ${ptResult.rows.length} stale project tasks to pending`);
+  }
+}
+
 async function main() {
   const summary = { tasksProcessed: 0, succeeded: 0, failed: 0, automationsTriggered: 0, skipped: 0 };
 
   try {
+    // Recover stale tasks from crashed previous executions
+    await recoverStaleTasks();
+
     // Phase 1: Evaluate automations
     console.log("\n[Phase 1] Evaluating automations...");
     const autoResult = await evaluateAutomations();
@@ -2818,6 +2869,12 @@ async function main() {
         await logActivity(task.agent_id, AGENTS[task.agent_id]?.name, "task_failed", `Background task failed: ${result.error?.slice(0, 80)}`, { taskId: task.id });
         await persistAgentStatus(task.agent_id, { status: "error", currentTask: null, lastActivity: new Date().toISOString() });
       }
+
+      // Rate limit: wait between tasks to avoid API throttling
+      if (i < maxTasks - 1) {
+        console.log(`[Rate Limit] Waiting 3s before next task...`);
+        await new Promise(r => setTimeout(r, 3000));
+      }
     }
 
     // Phase 3: Process project tasks (task graph execution)
@@ -2862,7 +2919,31 @@ async function main() {
 
         // Build task prompt from project task
         const taskPrompt = pt.task_prompt || pt.title;
-        const taskContext = pt.description ? `Task: ${pt.title}\nDescription: ${pt.description}\nProject: ${pt.project_name}` : `Project: ${pt.project_name}`;
+
+        // Collect project context for richer system prompt
+        let projectContext = "";
+        try {
+          const projResult = await pool.query(`SELECT name, description, tags FROM projects WHERE id = $1`, [pt.project_id]);
+          if (projResult.rows.length > 0) {
+            const proj = projResult.rows[0];
+            projectContext = `\n\n[PROJECT CONTEXT]\nProject: ${proj.name}\nDescription: ${proj.description || "N/A"}\nYour task: ${pt.title}\n${pt.description ? "Task Details: " + pt.description + "\n" : ""}`;
+            // Collect completed dependency results for context
+            if (pt.depends_on && pt.depends_on.length > 0) {
+              const depResults = await pool.query(
+                `SELECT title, result FROM project_tasks WHERE id = ANY($1::bigint[]) AND status = 'completed'`,
+                [pt.depends_on]
+              );
+              if (depResults.rows.length > 0) {
+                projectContext += "\n[COMPLETED DEPENDENCY RESULTS]\n";
+                for (const dep of depResults.rows) {
+                  projectContext += `- ${dep.title}: ${(dep.result || "(no output)").slice(0, 1000)}\n`;
+                }
+              }
+            }
+          }
+        } catch { /* non-critical */ }
+
+        const taskContext = `${projectContext || ""}\nProject: ${pt.project_name}`;
 
         // Execute using the existing executeTask function, wrapped as a virtual task
         const virtualTask = {
@@ -2909,6 +2990,12 @@ async function main() {
             summary.failed++;
             console.log(`[Phase 3] Task #${pt.id} permanently failed: ${result.error?.slice(0, 100)}`);
           }
+        }
+
+        // Rate limit: wait between project tasks to avoid API throttling
+        if (projectTasksResult.rows.indexOf(pt) < projectTasksResult.rows.length - 1 && summary.tasksProcessed < maxTasks) {
+          console.log(`[Rate Limit] Waiting 3s before next project task...`);
+          await new Promise(r => setTimeout(r, 3000));
         }
       }
 

@@ -104,6 +104,26 @@ You have ALL tools directly — you do NOT need to delegate to use other agents'
 - **XLSX Creation**: create Excel spreadsheets with multiple sheets
 - **Gmail with Attachments**: send emails with PDF/DOCX/XLSX files attached
 - **Agent Delegation**: delegate tasks to specialist agents
+- **Project Management**: create projects, add tasks with dependencies, track progress, decompose complex goals into executable task graphs
+
+## Project Management — Multi-Step Execution
+You can create and manage **projects** with dependency-ordered task graphs. When a user gives you a complex, multi-step goal:
+
+1. **Create a project** with \`project_create\` — give it a clear name and description
+2. **Decompose into tasks** — break the goal into 4-10 concrete, actionable tasks using \`project_add_task\`
+   - Each task should be specific enough that an agent can execute it independently
+   - Set \`depends_on\` to enforce ordering (e.g., "Write report" depends on "Research competitors")
+   - Set \`assigned_agent\` to the best agent for each task (general, mail, code, data, research, ops, creative)
+   - Set \`priority\` (critical/high/medium/low) to control execution order
+   - Set \`task_prompt\` to the exact instruction the executing agent should follow
+3. **Monitor progress** with \`project_status\` — shows which tasks are done, blocked, or next to execute
+4. The **executor** automatically picks up and runs tasks whose dependencies are satisfied every ~2 minutes
+
+**Best practices for task decomposition:**
+- Start with research/analysis tasks, then move to creation/execution, then review/delivery
+- Each task should produce a specific output (a document, code, email, etc.)
+- Include enough context in \`task_prompt\` so the executing agent knows exactly what to do
+- Don't create more than 8-10 tasks per project to avoid complexity
 
 ## Decision Framework — When to Use What
 | Situation | Tool to Use |
@@ -487,7 +507,7 @@ const agents: AgentConfig[] = [
     color: "emerald",
     systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools: [
-      "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
+      "gmail_send", "gmail_fetch", "gmail_labels",
       "gmail_create_label", "gmail_delete_label", "gmail_profile",
       "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
@@ -521,7 +541,7 @@ const agents: AgentConfig[] = [
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       // Project Management (Phase 2)
-      "project_create", "project_add_task", "project_status", "project_list",
+      "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -544,7 +564,7 @@ const agents: AgentConfig[] = [
     color: "blue",
     systemPrompt: MAIL_SYSTEM_PROMPT,
     tools: [
-      "gmail_send", "gmail_fetch", "gmail_search", "gmail_labels",
+      "gmail_send", "gmail_fetch", "gmail_labels",
       "gmail_create_label", "gmail_delete_label",
       "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
