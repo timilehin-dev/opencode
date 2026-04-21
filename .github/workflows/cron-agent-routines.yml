@@ -1,0 +1,44 @@
+name: Cron — Agent Routines
+
+on:
+  schedule:
+    # Every 10 minutes — execute due agent routines
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: agent-routines
+  cancel-in-progress: false
+
+jobs:
+  agent-routines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci --ignore-scripts
+
+      - name: Execute due agent routines
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          AIHUBMIX_API_KEY_1: ${{ secrets.AIHUBMIX_API_KEY_1 }}
+          AIHUBMIX_API_KEY_2: ${{ secrets.AIHUBMIX_API_KEY_2 }}
+          AIHUBMIX_API_KEY_3: ${{ secrets.AIHUBMIX_API_KEY_3 }}
+          AIHUBMIX_API_KEY_4: ${{ secrets.AIHUBMIX_API_KEY_4 }}
+          AIHUBMIX_API_KEY_5: ${{ secrets.AIHUBMIX_API_KEY_5 }}
+          AIHUBMIX_BASE_URL: ${{ secrets.AIHUBMIX_BASE_URL }}
+          OLLAMA_CLOUD_KEY_1: ${{ secrets.OLLAMA_CLOUD_KEY_1 }}
+          OLLAMA_CLOUD_KEY_2: ${{ secrets.OLLAMA_CLOUD_KEY_2 }}
+          OLLAMA_CLOUD_KEY_3: ${{ secrets.OLLAMA_CLOUD_KEY_3 }}
+          OLLAMA_CLOUD_KEY_4: ${{ secrets.OLLAMA_CLOUD_KEY_4 }}
+          OLLAMA_CLOUD_KEY_5: ${{ secrets.OLLAMA_CLOUD_KEY_5 }}
+          OLLAMA_CLOUD_KEY_6: ${{ secrets.OLLAMA_CLOUD_KEY_6 }}
+          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        run: node scripts/cron-runner.mjs --job agent-routines --max-routines 3
