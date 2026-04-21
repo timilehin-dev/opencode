@@ -119,18 +119,18 @@ const containerVariants = {
     opacity: 1,
     transition: { staggerChildren: 0.06, delayChildren: 0.1 },
   },
-};
+} as const;
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
-};
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" as const } },
+} as const;
 
 const modalOverlayVariants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { duration: 0.2 } },
   exit: { opacity: 0, transition: { duration: 0.15 } },
-};
+} as const;
 
 const modalContentVariants = {
   hidden: { opacity: 0, scale: 0.95, y: 10 },
@@ -138,7 +138,7 @@ const modalContentVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+    transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const },
   },
   exit: {
     opacity: 0,
@@ -146,7 +146,7 @@ const modalContentVariants = {
     y: 5,
     transition: { duration: 0.15 },
   },
-};
+} as const;
 
 // ---------------------------------------------------------------------------
 // Helper Functions
