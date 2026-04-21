@@ -152,3 +152,29 @@ Stage Summary:
 - Execute-tasks.mjs now has 94 tools (up from 38)
 - A2A module rewritten with zero connection leaks
 - API key middleware protects all mutating endpoints
+---
+Task ID: 1
+Agent: main
+Task: Phase 2 — Projects & Task Graph tables + enhanced executor
+
+Work Log:
+- Explored full Supabase setup: confirmed no local SUPABASE_DB_URL configured
+- Found that Phase 2/5 SQL already exists in src/app/api/setup/phase5/route.ts
+- Found project management tools already exist in src/lib/tools.ts and src/lib/agents.ts
+- Provided complete SQL for 3 tables + 3 functions + triggers to user for manual execution
+- Enhanced scripts/execute-tasks.mjs with 4 project management tools (project_create, project_add_task, project_status, project_list)
+- Added project tools to general agent's tool list in executor
+- Added Phase 3: project task graph execution in main loop
+  - Queries pending project_tasks with satisfied dependencies
+  - Blocks tasks with failed dependencies
+  - Executes via virtual tasks with retry logic (up to max_retries)
+  - Logs execution to project_task_logs table
+  - Limits to 3 project tasks per cycle
+- Syntax check passed (node -c), 2749 → 2937 lines
+- Committed and pushed to GitHub
+
+Stage Summary:
+- SQL provided for manual Supabase execution (projects, project_tasks, project_task_logs tables)
+- Executor now supports project task graph execution
+- 4 project tools available to general agent in both chat route and executor
+- User needs to run the SQL in Supabase Dashboard to activate tables
