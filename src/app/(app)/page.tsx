@@ -287,7 +287,7 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-dvh h-screen lg:h-full">
       {/* ── Slim Top Bar (48px) ── */}
       <header className="flex items-center justify-between h-12 px-4 lg:px-5 border-b border-border/60 flex-shrink-0 bg-background/80 backdrop-blur-sm">
         {/* Left: Agent identity */}

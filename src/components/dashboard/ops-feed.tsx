@@ -28,8 +28,8 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export function OpsFeed({ events, isConnected }: OpsFeedProps) {
-  // Show newest events first, cap at 10
-  const displayEvents = useMemo(() => [...events].reverse().slice(0, 10), [events]);
+  // Show newest events first, cap at 5
+  const displayEvents = useMemo(() => [...events].reverse().slice(0, 5), [events]);
 
   const formatTime = (iso: string) => {
     try {
