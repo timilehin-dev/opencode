@@ -174,9 +174,11 @@ function RightPanel({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {activeTab === "activity" ? (
-          <OpsFeed events={events} isConnected={isConnected} />
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <OpsFeed events={events} isConnected={isConnected} />
+          </div>
         ) : (
           <div className="flex flex-col h-full overflow-hidden">
             <div className="flex-1 min-h-0 overflow-hidden">
@@ -335,7 +337,7 @@ export default function DashboardPage() {
       </header>
 
       {/* ── Main Content Area ── */}
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* ── Chat Area (hero) ── */}
         <div className="flex-1 min-w-0 min-h-0">
           <Suspense fallback={<ChatViewSkeleton />}>
@@ -345,7 +347,7 @@ export default function DashboardPage() {
 
         {/* ── Right Panel (desktop only, collapsible) ── */}
         {!rightPanelCollapsed && (
-          <aside className="hidden lg:flex w-[320px] xl:w-[360px] flex-shrink-0 border-l border-border bg-card">
+          <aside className="hidden lg:flex w-[320px] xl:w-[360px] flex-shrink-0 border-l border-border bg-card overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col">
               <RightPanel
                 events={activity}
