@@ -149,7 +149,7 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
 
   try {
     // 1. Fetch all active skills
-    const result = await pool.query<SkillRow>(
+    const result = await pool.query(
       `SELECT id, name, display_name, description, category, difficulty,
               tags, agent_bindings, performance_score, prompt_template, total_uses
        FROM skills
