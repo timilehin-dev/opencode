@@ -254,3 +254,40 @@ Stage Summary:
 - Auto-notifications on project completion/failure
 - Health monitoring catches stalled/overdue/degraded projects
 - Commit: b8cec9e pushed to GitHub
+
+---
+Task ID: Frontend Overhaul
+Agent: Main Agent
+Task: Massive frontend overhaul — 12 improvements across the entire OpenClaw dashboard
+
+Work Log:
+- Audited full project structure and existing functionality
+- Read all 12 target files + supporting API routes and libraries
+- Fixed dashboard mobile layout: removed duplicate content, single tabbed panel fills available height on mobile (no more 50vh bottom panel)
+- Updated ServiceChips with brand SVG icons: Gmail (red), Google Calendar (blue), Google Drive (green), Google Sheets (green), Google Docs (blue), Vercel (black triangle), GitHub (octocat)
+- Added 7 new brand icon components to icons.tsx: GmailIcon, GoogleCalendarIcon, GoogleDriveIcon, GoogleSheetsIcon, GoogleDocsIcon, VercelBrandIcon
+- Enhanced DashboardTasks with: inline create form (agent + priority + description), mark-done button on active tasks, toast notifications
+- Verified DashboardHistory already uses real data from /api/dashboard (tasks + delegations + activity)
+- Verified OpsFeed already uses real SSE stream data from useDashboardStream
+- Verified Insights page already functional with /api/learning endpoints
+- Verified Routines page already functional with /api/cron/agent-routines
+- Verified Memory page has search, filter, add/delete/export, purge
+- Changed Analytics auto-refresh from 15s to 5 minutes (300000ms)
+- Added "Save Settings to Cloud" button to settings page with Supabase sync
+- Updated /api/agents GET to filter tool lists against allTools registry for accurate counts
+- Added HTML5 drag-and-drop to TaskBoard kanban columns with visual feedback (opacity, rotation, scale on drag; blue highlight on dragover)
+- Updated TaskCard component with draggable attribute and drag states
+- TypeScript compilation: 0 production errors
+- Committed (d8c9b83) and pushed to main
+
+Stage Summary:
+- All 12 improvements implemented and verified
+- Dashboard: Fixed mobile responsive layout (no duplicate panels)
+- Service Icons: All 7 services now use brand-specific SVGs
+- Tasks: Create tasks and mark done directly from dashboard
+- Settings: Prominent save-to-cloud button added
+- Analytics: Reduced refresh rate to 5 minutes
+- Taskboard: Drag-and-drop between kanban columns
+- Tool Counts: Dynamically verified against allTools registry
+- All pages verified functional — routines, insights, memory already worked
+- 0 production TypeScript errors
