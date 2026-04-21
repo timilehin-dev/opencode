@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pollIntervalBackground: 300,
 
   defaultAgent: "general",
-  maxTokens: 4096,
+  maxTokens: 32768,
   temperature: 0.7,
 
   persistConversations: true,

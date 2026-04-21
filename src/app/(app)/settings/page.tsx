@@ -797,7 +797,13 @@ export default function SettingsPage() {
                     </label>
                     <select
                       value={settings.defaultAgent}
-                      onChange={(e) => patch({ defaultAgent: e.target.value })}
+                      onChange={(e) => {
+                        const newAgent = e.target.value;
+                        patch({ defaultAgent: newAgent });
+                        // Clear last-active preference so chat loads the new default
+                        try { localStorage.removeItem("claw-last-active-agent"); } catch { /* ignore */ }
+                        showToast(`Default agent set to ${agents.find(a => a.id === newAgent)?.name || newAgent}`);
+                      }}
                       className="w-full h-10 rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3730a3]/20 focus-visible:border-[#3730a3] transition-colors"
                     >
                       {agents.map((agent) => (
@@ -807,7 +813,7 @@ export default function SettingsPage() {
                       ))}
                     </select>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Agent selected when you open the chat page
+                      Agent selected when you open the chat page. Changing this takes effect immediately.
                     </p>
                   </div>
 
@@ -840,7 +846,7 @@ export default function SettingsPage() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-xs font-medium text-foreground">
-                        Max Tokens
+                        Max Output Tokens
                       </label>
                       <span className="text-xs font-mono text-[#3730a3] bg-[#eef2ff] px-2 py-0.5 rounded">
                         {settings.maxTokens.toLocaleString()}
@@ -848,16 +854,16 @@ export default function SettingsPage() {
                     </div>
                     <input
                       type="range"
-                      min="256"
-                      max="16384"
-                      step="256"
+                      min="1024"
+                      max="32768"
+                      step="1024"
                       value={settings.maxTokens}
                       onChange={(e) => patch({ maxTokens: parseInt(e.target.value) })}
                       className="w-full h-2 rounded-full appearance-none bg-[#e8e5df] accent-[#3730a3] cursor-pointer"
                     />
                     <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-muted-foreground">Short (256)</span>
-                      <span className="text-[10px] text-muted-foreground">Long (16k)</span>
+                      <span className="text-[10px] text-muted-foreground">Compact (1k)</span>
+                      <span className="text-[10px] text-muted-foreground">Maximum (32k)</span>
                     </div>
                   </div>
                 </CardContent>

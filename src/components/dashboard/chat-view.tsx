@@ -198,7 +198,22 @@ function saveSessionMap(map: Record<string, string>): void {
 function getLastActiveAgent(): string {
   if (typeof window === "undefined") return "general";
   try {
-    return localStorage.getItem(LAST_AGENT_KEY) || "general";
+    // First check if user has a last-active preference
+    const lastActive = localStorage.getItem(LAST_AGENT_KEY);
+    if (lastActive) return lastActive;
+    // Fall back to the settings default agent (respects Settings > Agent Configuration)
+    const raw = localStorage.getItem("claw-settings");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.defaultAgent && typeof parsed.defaultAgent === "string") {
+          return parsed.defaultAgent;
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+    return "general";
   } catch {
     return "general";
   }

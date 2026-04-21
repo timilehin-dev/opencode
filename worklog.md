@@ -291,3 +291,25 @@ Stage Summary:
 - Tool Counts: Dynamically verified against allTools registry
 - All pages verified functional — routines, insights, memory already worked
 - 0 production TypeScript errors
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix chatbox height, default agent selection, and max tokens settings
+
+Work Log:
+- Reduced dashboard top section padding (pt-4→pt-3, pt-6→pt-4, space-y-4→space-y-2.5)
+- Reduced bottom section padding (pb-4→pb-3, pb-6→pb-4, pt-4→pt-2.5)
+- Updated getLastActiveAgent() to check settings store defaultAgent as fallback (was hardcoded "general")
+- Updated settings page default agent selector to clear LAST_AGENT_KEY on change (so new default takes effect immediately)
+- Updated DEFAULT_SETTINGS maxTokens from 4096 to 32768
+- Updated max tokens slider range: min 256→1024, max 16384→32768, step 256→1024
+- Updated labels: "Max Tokens" → "Max Output Tokens", "Short (256)" → "Compact (1k)", "Long (16k)" → "Maximum (32k)"
+- Added toast confirmation when default agent is changed
+- Updated help text for default agent selector
+
+Stage Summary:
+- Chatbox now has more vertical space (reduced padding on dashboard)
+- Default agent setting in Settings page now actually controls which agent loads in chat
+- Max tokens default matches the 32K system default, slider range expanded to 32K
+- 0 production TypeScript errors

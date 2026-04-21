@@ -149,8 +149,8 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* ── Top Section — Fixed, not scrollable ── */}
-      <div className="flex-shrink-0 px-4 lg:px-6 pt-4 lg:pt-6 space-y-4">
+      {/* ── Top Section — Fixed, compact to maximize chat space ── */}
+      <div className="flex-shrink-0 px-4 lg:px-6 pt-3 lg:pt-4 space-y-2.5">
         {/* Service Chips */}
         <section>
           <ServiceChips serviceStatus={serviceStatus} />
@@ -163,7 +163,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Bottom Section — Fills remaining height ── */}
-      <div className="flex-1 min-h-0 px-4 lg:px-6 pb-4 lg:pb-6 pt-4">
+      <div className="flex-1 min-h-0 px-4 lg:px-6 pb-3 lg:pb-4 pt-2.5">
         <div className="flex flex-col lg:flex-row gap-4 h-full">
           {/* Left Column (60%) — Desktop only: Ops Feed + Coordination Map stacked */}
           <div className="hidden lg:flex flex-col gap-4 min-w-0 lg:w-[60%] h-full">
