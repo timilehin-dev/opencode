@@ -4927,7 +4927,7 @@ export const skillEquipTool = tool({
     unequip_skill_ids: z.array(z.string()).optional().describe("Skill UUIDs to unequip"),
   })),
   execute: safeJson(async ({ agent_id, skill_ids, unequip_skill_ids }) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/agent-skills", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/agent-skills`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agent_id, skill_ids, unequip_skill_ids }),
