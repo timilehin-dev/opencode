@@ -1,45 +1,109 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
-import { lazy } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { OpsFeed } from "@/components/dashboard/ops-feed";
-import { ServiceChips } from "@/components/dashboard/service-chips";
-import { MetricsRow } from "@/components/dashboard/metrics-row";
-import { CoordinationMap } from "@/components/dashboard/coordination-map";
 import { DashboardTasks } from "@/components/dashboard/dashboard-tasks";
 import { DashboardHistory } from "@/components/dashboard/dashboard-history";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardStream } from "@/hooks/use-dashboard-stream";
-import type { ServiceStatus, RepoInfo as _RepoInfo, GmailProfile as _GmailProfile } from "@/lib/types";
-type RepoInfo = _RepoInfo;
-type GmailProfile = _GmailProfile;
+import type { ServiceStatus } from "@/lib/types";
+import type { DashboardMetricsView } from "@/hooks/use-dashboard-stream";
+import { cn } from "@/lib/utils";
+import {
+  MessageSquare,
+  Activity,
+  ListTodo,
+  X,
+  PanelRightOpen,
+  PanelRightClose,
+} from "lucide-react";
 
 // Lazy-load heavy chat component
 const ChatView = lazy(() =>
-  import("@/components/dashboard/chat-view").then((m) => ({ default: m.ChatView }))
+  import("@/components/dashboard/chat-view").then((m) => ({
+    default: m.ChatView,
+  }))
 );
 
-type TabId = "chat" | "tasks" | "history";
+// ---------------------------------------------------------------------------
+// Service metadata for dots
+// ---------------------------------------------------------------------------
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "chat", label: "💬 Chat" },
-  { id: "tasks", label: "📋 Tasks" },
-  { id: "history", label: "🕐 History" },
+const SERVICE_META: {
+  key: keyof ServiceStatus;
+  label: string;
+}[] = [
+  { key: "gmail", label: "Gmail" },
+  { key: "github", label: "GitHub" },
+  { key: "googlecalendar", label: "Calendar" },
+  { key: "googledrive", label: "Drive" },
+  { key: "googlesheets", label: "Sheets" },
+  { key: "googledocs", label: "Docs" },
+  { key: "vercel", label: "Vercel" },
 ];
 
-function MetricsSkeleton() {
+// ---------------------------------------------------------------------------
+// Service Status Dots — compact inline component
+// ---------------------------------------------------------------------------
+
+function ServiceDots({ services }: { services: ServiceStatus | null }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="bg-card px-4 py-3.5 min-w-[140px] rounded-lg border border-border shadow-sm">
-          <Skeleton className="h-3 w-16 mb-2" />
-          <Skeleton className="h-7 w-12 mb-1" />
-          <Skeleton className="h-2 w-20" />
-        </div>
-      ))}
+    <div className="flex items-center gap-1.5">
+      {SERVICE_META.map((svc) => {
+        const connected = services?.[svc.key]?.connected ?? false;
+        return (
+          <span
+            key={svc.key}
+            title={`${svc.label}: ${connected ? "Connected" : "Offline"}`}
+            className={cn(
+              "w-2 h-2 rounded-full transition-colors",
+              connected ? "bg-emerald-500" : "bg-muted-foreground/30"
+            )}
+          />
+        );
+      })}
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Compact Metrics — inline text in the top bar
+// ---------------------------------------------------------------------------
+
+function CompactMetrics({
+  metrics,
+  agentStatuses,
+}: {
+  metrics?: DashboardMetricsView | null;
+  agentStatuses?: Array<{ status: string }>;
+}) {
+  const msgs = metrics ? String(metrics.messagesToday) : "—";
+  const tasks = metrics ? String(metrics.tasksDone) : "—";
+  const agents = agentStatuses
+    ? String(agentStatuses.filter((s) => s.status === "busy").length)
+    : "—";
+
+  return (
+    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+      <span className="flex items-center gap-1">
+        <MessageSquare className="w-3 h-3" />
+        {msgs} msgs
+      </span>
+      <span className="flex items-center gap-1">
+        <ListTodo className="w-3 h-3" />
+        {tasks} done
+      </span>
+      <span className="flex items-center gap-1">
+        <Activity className="w-3 h-3" />
+        {agents} active
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Chat Loading Skeleton
+// ---------------------------------------------------------------------------
 
 function ChatViewSkeleton() {
   return (
@@ -62,139 +126,245 @@ function ChatViewSkeleton() {
   );
 }
 
-function TabBar({ activeTab, onTabChange }: { activeTab: TabId; onTabChange: (tab: TabId) => void }) {
+// ---------------------------------------------------------------------------
+// Right Panel Tabs
+// ---------------------------------------------------------------------------
+
+type RightTab = "activity" | "tasks";
+
+function RightPanel({
+  events,
+  isConnected,
+  tasks,
+}: {
+  events: Parameters<typeof OpsFeed>[0]["events"];
+  isConnected: boolean;
+  tasks: Parameters<typeof DashboardTasks>[0]["tasks"];
+}) {
+  const [activeTab, setActiveTab] = useState<RightTab>("activity");
+
   return (
-    <div className="flex border-b border-border flex-shrink-0">
-      {TABS.map((tab) => (
+    <div className="flex flex-col h-full">
+      {/* Tab bar */}
+      <div className="flex items-center border-b border-border flex-shrink-0 px-1">
         <button
-          key={tab.id}
-          onClick={() => onTabChange(tab.id)}
-          className={`flex-1 py-3 text-center text-xs font-semibold transition-all duration-150 border-b-2 ${
-            activeTab === tab.id
-              ? "text-[#3730a3] border-primary"
-              : "text-muted-foreground border-transparent hover:text-muted-foreground"
-          }`}
+          onClick={() => setActiveTab("activity")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-semibold transition-colors border-b-2 -mb-px",
+            activeTab === "activity"
+              ? "text-foreground border-primary"
+              : "text-muted-foreground border-transparent hover:text-foreground/70"
+          )}
         >
-          {tab.label}
+          <Activity className="w-3 h-3" />
+          Activity
         </button>
-      ))}
+        <button
+          onClick={() => setActiveTab("tasks")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-semibold transition-colors border-b-2 -mb-px",
+            activeTab === "tasks"
+              ? "text-foreground border-primary"
+              : "text-muted-foreground border-transparent hover:text-foreground/70"
+          )}
+        >
+          <ListTodo className="w-3 h-3" />
+          Tasks
+        </button>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {activeTab === "activity" ? (
+          <OpsFeed events={events} isConnected={isConnected} />
+        ) : (
+          <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <DashboardTasks tasks={tasks} />
+            </div>
+            <div className="h-px bg-border" />
+            <div className="h-[200px] min-h-0 overflow-hidden">
+              <DashboardHistory />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function TabContent({ activeTab, tasks }: { activeTab: TabId; tasks: Parameters<typeof DashboardTasks>[0]["tasks"] }) {
-  switch (activeTab) {
-    case "tasks":
-      return <DashboardTasks tasks={tasks} />;
-    case "history":
-      return <DashboardHistory />;
-    case "chat":
-    default:
-      return (
-        <Suspense fallback={<ChatViewSkeleton />}>
-          <ChatView />
-        </Suspense>
-      );
-  }
+// ---------------------------------------------------------------------------
+// Mobile Overlay Panel
+// ---------------------------------------------------------------------------
+
+function MobileOverlayPanel({
+  events,
+  isConnected,
+  tasks,
+  open,
+  onClose,
+}: {
+  events: Parameters<typeof OpsFeed>[0]["events"];
+  isConnected: boolean;
+  tasks: Parameters<typeof DashboardTasks>[0]["tasks"];
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 lg:hidden">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Panel — slides up from bottom */}
+      <div className="absolute inset-x-0 bottom-0 max-h-[80vh] bg-background border-t border-border rounded-t-2xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-200">
+        {/* Drag handle + title */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+          <span className="text-sm font-semibold text-foreground">
+            Dashboard
+          </span>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <RightPanel
+            events={events}
+            isConnected={isConnected}
+            tasks={tasks}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
+// ---------------------------------------------------------------------------
+// Main Dashboard Page
+// ---------------------------------------------------------------------------
+
 export default function DashboardPage() {
-  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
-  const [, setRepo] = useState<RepoInfo | null>(null);
-  const [, setGmProfile] = useState<GmailProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(
+    null
+  );
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
 
-  const { agentStatuses, activity, metrics, delegations, tasks, isConnected } = useDashboardStream();
+  const {
+    agentStatuses,
+    activity,
+    metrics,
+    tasks,
+    isConnected,
+  } = useDashboardStream();
 
-  // Service-level data fetching
-  const fetchServiceStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/services?action=status");
-      const json = await res.json();
-      if (json.success) setServiceStatus(json.data);
-    } catch {
-      /* silent */
-    }
-  }, []);
-
-  const fetchRepo = useCallback(async () => {
-    try {
-      const res = await fetch("/api/github?action=repo");
-      const json = await res.json();
-      if (json.success) setRepo(json.data);
-    } catch {
-      /* silent */
-    }
-  }, []);
-
-  const fetchGmailProfile = useCallback(async () => {
-    try {
-      const res = await fetch("/api/gmail?action=profile");
-      const json = await res.json();
-      if (json.success) setGmProfile(json.data);
-    } catch {
-      /* silent */
-    }
-  }, []);
-
+  // Service-level data fetching (runs once on mount)
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
-      await fetchServiceStatus();
-      await fetchRepo();
-      await fetchGmailProfile();
+      try {
+        const res = await fetch("/api/services?action=status", {
+          signal: controller.signal,
+        });
+        const json = await res.json();
+        if (json.success) setServiceStatus(json.data);
+      } catch {
+        /* silent */
+      }
     })();
     return () => controller.abort();
-  }, [fetchServiceStatus, fetchRepo, fetchGmailProfile]);
+  }, []);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* ── Top Section — Fixed, compact to maximize chat space ── */}
-      <div className="flex-shrink-0 px-4 lg:px-6 pt-3 lg:pt-4 space-y-2.5">
-        {/* Service Chips */}
-        <section>
-          <ServiceChips serviceStatus={serviceStatus} />
-        </section>
-
-        {/* Metrics Row */}
-        <section>
-          <MetricsRow metrics={metrics} agentStatuses={agentStatuses} />
-        </section>
-      </div>
-
-      {/* ── Bottom Section — Fills remaining height ── */}
-      <div className="flex-1 min-h-0 px-4 lg:px-6 pb-3 lg:pb-4 pt-2.5">
-        <div className="flex flex-col lg:flex-row gap-4 h-full">
-          {/* Left Column (60%) — Desktop only: Ops Feed + Coordination Map stacked */}
-          <div className="hidden lg:flex flex-col gap-4 min-w-0 lg:w-[60%] h-full">
-            {/* Ops Feed */}
-            <div className="bg-card rounded-lg border border-border shadow-sm flex flex-col min-h-0 max-h-[50%]">
-              <OpsFeed events={activity} isConnected={isConnected} />
-            </div>
-
-            {/* Coordination Map */}
-            <div className="bg-card rounded-lg border border-border shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
-              <CoordinationMap delegations={delegations || []} />
-            </div>
-          </div>
-
-          {/* Right Column (40%) — Desktop: tabbed panel fills full height */}
-          <div className="hidden lg:flex flex-col bg-card rounded-lg border border-border shadow-sm w-[40%] min-w-0 overflow-hidden">
-            <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-            <div className="flex-1 min-h-0">
-              <TabContent activeTab={activeTab} tasks={tasks} />
-            </div>
-          </div>
-
-          {/* Mobile: Full-screen tabbed panel (no duplicate content) */}
-          <div className="lg:hidden flex flex-col bg-card rounded-lg border border-border shadow-sm h-full min-h-[400px] overflow-hidden">
-            <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-            <div className="flex-1 min-h-0">
-              <TabContent activeTab={activeTab} tasks={tasks} />
-            </div>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* ── Slim Top Bar (48px) ── */}
+      <header className="flex items-center justify-between h-12 px-4 lg:px-5 border-b border-border/60 flex-shrink-0 bg-background/80 backdrop-blur-sm">
+        {/* Left: Agent identity */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+          <span className="text-xs font-semibold text-foreground truncate">
+            🤖 Claw General
+          </span>
         </div>
+
+        {/* Center: Service dots (desktop only) */}
+        <div className="hidden md:flex items-center">
+          <ServiceDots services={serviceStatus} />
+        </div>
+
+        {/* Right: Compact metrics (desktop) + mobile panel toggle */}
+        <div className="flex items-center gap-3">
+          <div className="hidden lg:flex items-center">
+            <CompactMetrics
+              metrics={metrics}
+              agentStatuses={agentStatuses}
+            />
+          </div>
+
+          {/* Desktop right-panel toggle */}
+          <button
+            onClick={() => setRightPanelCollapsed((v) => !v)}
+            className="hidden lg:flex p-1.5 rounded-lg hover:bg-accent transition-colors"
+            title={rightPanelCollapsed ? "Show panel" : "Hide panel"}
+          >
+            {rightPanelCollapsed ? (
+              <PanelRightOpen className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <PanelRightClose className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {/* Mobile panel toggle */}
+          <button
+            onClick={() => setMobilePanelOpen(true)}
+            className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-secondary border border-border text-[11px] font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            <Activity className="w-3 h-3" />
+            <span className="hidden sm:inline">Feed</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── Main Content Area ── */}
+      <div className="flex-1 min-h-0 flex">
+        {/* ── Chat Area (hero) ── */}
+        <div className="flex-1 min-w-0 min-h-0">
+          <Suspense fallback={<ChatViewSkeleton />}>
+            <ChatView />
+          </Suspense>
+        </div>
+
+        {/* ── Right Panel (desktop only, collapsible) ── */}
+        {!rightPanelCollapsed && (
+          <aside className="hidden lg:flex w-[320px] xl:w-[360px] flex-shrink-0 border-l border-border bg-card">
+            <div className="flex-1 min-h-0 flex flex-col">
+              <RightPanel
+                events={activity}
+                isConnected={isConnected}
+                tasks={tasks}
+              />
+            </div>
+          </aside>
+        )}
       </div>
+
+      {/* ── Mobile Overlay Panel ── */}
+      <MobileOverlayPanel
+        events={activity}
+        isConnected={isConnected}
+        tasks={tasks}
+        open={mobilePanelOpen}
+        onClose={() => setMobilePanelOpen(false)}
+      />
     </div>
   );
 }
