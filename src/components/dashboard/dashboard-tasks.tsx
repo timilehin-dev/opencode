@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { Plus, Check, Loader2 } from "lucide-react";
 import type { AgentTaskView } from "@/hooks/use-dashboard-stream";
+import { getAllAgents } from "@/lib/agents";
 
 interface DashboardTasksProps {
   tasks: AgentTaskView[];
@@ -20,6 +22,7 @@ const AGENT_META: Record<string, { emoji: string; bg: string; name: string }> = 
 };
 
 const PRIORITY_STYLES: Record<string, string> = {
+  critical: "bg-red-50 text-red-700 border border-red-200",
   high: "bg-red-50 text-red-600 border border-red-100",
   medium: "bg-amber-50 text-amber-700 border border-amber-200",
   low: "bg-[#eef2ff] text-[#3730a3] border border-indigo-200",
@@ -35,6 +38,18 @@ const STATUS_STYLES: Record<string, string> = {
 export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
   const [tasks, setTasks] = useState<AgentTaskView[]>([]);
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [showCreate, setShowCreate] = useState(false);
+  const [createAgent, setCreateAgent] = useState("general");
+  const [createPriority, setCreatePriority] = useState("medium");
+  const [createText, setCreateText] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [completing, setCompleting] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   // Fetch latest tasks from API on mount and periodically
   const fetchTasks = useCallback(async () => {
@@ -65,7 +80,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
       if (filter === "completed") return t.status === "completed" || t.status === "failed";
       return true;
     })
-    .slice(0, 10); // Always cap at 10, newest first
+    .slice(0, 15);
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
@@ -88,9 +103,59 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
     return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
   };
 
+  const handleCreateTask = async () => {
+    if (!createText.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "dispatch",
+          agentId: createAgent,
+          task: createText.trim(),
+          priority: createPriority,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Task created");
+        setCreateText("");
+        setShowCreate(false);
+        fetchTasks();
+      } else {
+        showToast(json.error || "Failed to create task");
+      }
+    } catch {
+      showToast("Failed to create task");
+    }
+    setCreating(false);
+  };
+
+  const handleMarkDone = async (taskId: number) => {
+    setCompleting(taskId);
+    try {
+      const res = await fetch("/api/taskboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", taskId: String(taskId), status: "done" }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Task completed ✓");
+        fetchTasks();
+      }
+    } catch {
+      showToast("Failed to update task");
+    }
+    setCompleting(null);
+  };
+
+  const agents = getAllAgents();
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header with filter */}
+      {/* Header with filter + create button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#e8e5df]">
         <div className="flex items-center gap-1">
           {(["all", "active", "completed"] as const).map((f) => (
@@ -107,14 +172,78 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
               {f}
             </button>
           ))}
+          <span className="text-[10px] text-[#999999] ml-1">
+            {filtered.length}
+          </span>
         </div>
-        <span className="text-[10px] text-[#999999]">
-          {filtered.length} shown
-        </span>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className={cn(
+            "text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors",
+            showCreate
+              ? "bg-[#3730a3] text-white"
+              : "bg-[#faf9f7] text-[#3730a3] hover:bg-[#eef2ff]"
+          )}
+        >
+          + New
+        </button>
       </div>
 
+      {/* Create Task Form */}
+      {showCreate && (
+        <div className="px-4 py-3 border-b border-[#e8e5df] bg-[#faf9f7] space-y-2">
+          <textarea
+            value={createText}
+            onChange={(e) => setCreateText(e.target.value)}
+            placeholder="Describe the task..."
+            rows={2}
+            className="w-full resize-none rounded-lg border border-[#e8e5df] bg-white px-3 py-2 text-xs text-foreground placeholder:text-[#999999] focus:outline-none focus:border-[#3730a3]/40 transition-all"
+          />
+          <div className="flex items-center gap-2">
+            <select
+              value={createAgent}
+              onChange={(e) => setCreateAgent(e.target.value)}
+              className="flex-1 h-7 rounded-md border border-[#e8e5df] bg-white px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-[#3730a3]/40"
+            >
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.emoji} {a.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={createPriority}
+              onChange={(e) => setCreatePriority(e.target.value)}
+              className="h-7 rounded-md border border-[#e8e5df] bg-white px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-[#3730a3]/40"
+            >
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <button
+              onClick={handleCreateTask}
+              disabled={!createText.trim() || creating}
+              className="h-7 px-3 rounded-md bg-[#3730a3] text-white text-[10px] font-semibold disabled:opacity-50 flex items-center gap-1"
+            >
+              {creating ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : null}
+              Create
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Task list */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 relative">
+        {/* Toast */}
+        {toast && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-lg bg-[#1a1a2e] text-white text-[10px] font-medium shadow-lg">
+            {toast}
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <div className="w-10 h-10 rounded-full bg-[#faf9f7] border border-[#e8e5df] flex items-center justify-center mb-2">
@@ -125,7 +254,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
             </div>
             <span className="text-[11px] text-[#999999]">No tasks yet</span>
             <span className="text-[10px] text-[#d5d0c9] mt-0.5">
-              Assign a task from the Agents page
+              Click + New to create one
             </span>
           </div>
         ) : (
@@ -135,6 +264,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
               const priorityStyle = PRIORITY_STYLES[task.priority] || PRIORITY_STYLES["medium"];
               const statusStyle = STATUS_STYLES[task.status] || STATUS_STYLES["pending"];
               const duration = formatDuration(task.started_at, task.completed_at);
+              const isActive = task.status === "pending" || task.status === "running";
 
               return (
                 <div
@@ -162,7 +292,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
                     <div className="text-[11px] font-semibold text-[#1a1a1a] leading-snug truncate">
                       {task.task}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-[9px] text-[#999999]">
                         {formatTime(task.created_at)}
                       </span>
@@ -181,10 +311,26 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
                     )}
                   </div>
 
-                  {/* Task ID */}
-                  <span className="text-[9px] text-[#d5d0c9] font-mono flex-shrink-0">
-                    #{task.id}
-                  </span>
+                  {/* Mark done button for active tasks */}
+                  {isActive && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleMarkDone(task.id); }}
+                      disabled={completing === task.id}
+                      className={cn(
+                        "flex-shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
+                        completing === task.id
+                          ? "border-[#3730a3]/30 bg-[#3730a3]/10"
+                          : "border-[#d5d0c9] hover:border-emerald-500 hover:bg-emerald-50"
+                      )}
+                      title="Mark as done"
+                    >
+                      {completing === task.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-[#3730a3]" />
+                      ) : (
+                        <Check className="w-3 h-3 text-transparent group-hover:text-emerald-600" />
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })}

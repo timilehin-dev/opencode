@@ -165,6 +165,84 @@ export function GitHubIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+// Gmail brand icon
+export function GmailIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} className={props.className ?? "w-5 h-5"} viewBox="0 0 24 24">
+      <path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z" fill="#EA4335" />
+      <path d="M20 6l-8 5-8-5" fill="none" stroke="#FFFFFF" strokeWidth="0" />
+      <path d="M4 6v12l6.5-6L4 6z" fill="#FBBC04" opacity="0.9" />
+      <path d="M20 6l-6.5 6L20 18V6z" fill="#34A853" opacity="0.8" />
+      <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="#EA4335" strokeWidth="0" />
+    </svg>
+  );
+}
+
+// Google Calendar brand icon
+export function GoogleCalendarIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} className={props.className ?? "w-5 h-5"} viewBox="0 0 24 24">
+      <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z" fill="#4285F4" />
+      <rect x="7" y="11" width="3" height="3" rx="0.5" fill="#4285F4" />
+      <rect x="11" y="11" width="3" height="3" rx="0.5" fill="#4285F4" opacity="0.6" />
+      <rect x="15" y="11" width="3" height="3" rx="0.5" fill="#4285F4" opacity="0.6" />
+      <rect x="7" y="15" width="3" height="3" rx="0.5" fill="#4285F4" opacity="0.6" />
+    </svg>
+  );
+}
+
+// Google Drive brand icon
+export function GoogleDriveIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} className={props.className ?? "w-5 h-5"} viewBox="0 0 24 24">
+      <path d="M7.41 15.17L12 21l4.59-5.83H7.41z" fill="#0066DA" />
+      <path d="M12 3L1.64 16.17h6.77L12 3z" fill="#00AC47" />
+      <path d="M15.59 16.17L22.36 16.17L12 3l3.59 13.17z" fill="#0066DA" opacity="0.7" />
+      <path d="M12 3L7.41 10.17h9.18L12 3z" fill="#FFBA00" />
+      <path d="M1.64 16.17L5.16 21l6.59-8.41-3.41-3.42L1.64 16.17z" fill="#0066DA" />
+    </svg>
+  );
+}
+
+// Google Sheets brand icon
+export function GoogleSheetsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} className={props.className ?? "w-5 h-5"} viewBox="0 0 24 24">
+      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" fill="#0F9D58" />
+      <path d="M5 5h14v4H5V5z" fill="#0F9D58" opacity="0.7" />
+      <rect x="5" y="11" width="14" height="2" fill="#0F9D58" opacity="0.3" />
+      <rect x="5" y="15" width="14" height="2" fill="#0F9D58" opacity="0.3" />
+      <rect x="5" y="11" width="3.5" height="2" fill="#0F9D58" opacity="0.2" />
+      <rect x="8.5" y="11" width="3.5" height="2" fill="#0F9D58" opacity="0.2" />
+      <rect x="12" y="11" width="3.5" height="2" fill="#0F9D58" opacity="0.2" />
+      <rect x="5" y="15" width="3.5" height="2" fill="#0F9D58" opacity="0.2" />
+      <rect x="8.5" y="15" width="3.5" height="2" fill="#0F9D58" opacity="0.2" />
+      <rect x="12" y="15" width="3.5" height="2" fill="#0F9D58" opacity="0.2" />
+    </svg>
+  );
+}
+
+// Google Docs brand icon
+export function GoogleDocsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} className={props.className ?? "w-5 h-5"} viewBox="0 0 24 24">
+      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z" fill="#4285F4" />
+      <path d="M14 2v6h6" fill="#A1C2FA" />
+      <rect x="8" y="12" width="8" height="1.5" rx="0.75" fill="#FFFFFF" opacity="0.7" />
+      <rect x="8" y="15" width="6" height="1.5" rx="0.75" fill="#FFFFFF" opacity="0.5" />
+    </svg>
+  );
+}
+
+// Vercel brand icon
+export function VercelBrandIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} className={props.className ?? "w-5 h-5"} viewBox="0 0 76 65" fill="currentColor">
+      <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
+    </svg>
+  );
+}
+
 export function Spinner({ color = "emerald" }: { color?: string }) {
   const colorMap: Record<string, string> = {
     emerald: "text-emerald-500",

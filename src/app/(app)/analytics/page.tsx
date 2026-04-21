@@ -375,7 +375,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => {
-    const interval = setInterval(refresh, 15000);
+    const interval = setInterval(refresh, 300000);
     return () => clearInterval(interval);
   }, [refresh]);
 

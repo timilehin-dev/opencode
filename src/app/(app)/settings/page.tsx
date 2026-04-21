@@ -194,6 +194,7 @@ export default function SettingsPage() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { updatePreferences, preferences: notifPrefs } = useNotifications();
   const { theme, setTheme } = useTheme();
+  const [saving, setSaving] = useState(false);
 
   // Load settings on mount — localStorage first, then sync from cloud
   useEffect(() => {
@@ -248,6 +249,30 @@ export default function SettingsPage() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(""), 3000);
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Save to Supabase explicitly
+  // ---------------------------------------------------------------------------
+
+  const handleSaveToCloud = useCallback(async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Settings saved to cloud ✓");
+      } else {
+        showToast("Failed to save — " + (json.error || "unknown error"));
+      }
+    } catch {
+      showToast("Failed to save — network error");
+    }
+    setSaving(false);
+  }, [settings, showToast]);
 
   // ---------------------------------------------------------------------------
   // Sync notification settings with the notification context
@@ -380,6 +405,26 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground ml-8">
           Configure your workspace, agents, and preferences
         </p>
+      </div>
+
+      {/* Save to Cloud Button */}
+      <div className="flex items-center gap-3 mb-6">
+        <Button
+          size="sm"
+          onClick={handleSaveToCloud}
+          disabled={saving}
+          className="gap-2 bg-[#3730a3] hover:bg-[#3730a3]/90 text-white text-xs font-semibold px-5"
+        >
+          {saving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5" />
+          )}
+          {saving ? "Saving..." : "Save Settings to Cloud"}
+        </Button>
+        <span className="text-[10px] text-muted-foreground hidden sm:inline">
+          Auto-saved locally. Click to sync to Supabase.
+        </span>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">

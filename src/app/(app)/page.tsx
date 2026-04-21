@@ -22,9 +22,9 @@ const ChatView = lazy(() =>
 type TabId = "chat" | "tasks" | "history";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "chat", label: "Chat" },
-  { id: "tasks", label: "Tasks" },
-  { id: "history", label: "History" },
+  { id: "chat", label: "💬 Chat" },
+  { id: "tasks", label: "📋 Tasks" },
+  { id: "history", label: "🕐 History" },
 ];
 
 function MetricsSkeleton() {
@@ -165,34 +165,34 @@ export default function DashboardPage() {
       {/* ── Bottom Section — Fills remaining height ── */}
       <div className="flex-1 min-h-0 px-4 lg:px-6 pb-4 lg:pb-6 pt-4">
         <div className="flex flex-col lg:flex-row gap-4 h-full">
-          {/* Left Column (60%) — Ops Feed + Coordination Map stacked */}
-          <div className="flex flex-col gap-4 min-w-0 lg:w-[60%] h-[50vh] lg:h-full">
-            {/* Ops Feed — scrollable, max-h ~45vh on lg */}
-            <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col min-h-0 lg:max-h-[45vh]">
+          {/* Left Column (60%) — Desktop only: Ops Feed + Coordination Map stacked */}
+          <div className="hidden lg:flex flex-col gap-4 min-w-0 lg:w-[60%] h-full">
+            {/* Ops Feed */}
+            <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col min-h-0 max-h-[50%]">
               <OpsFeed events={activity} isConnected={isConnected} />
             </div>
 
-            {/* Coordination Map — scrollable, max-h ~45vh on lg */}
-            <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col min-h-0 lg:max-h-[45vh] overflow-hidden">
+            {/* Coordination Map */}
+            <div className="bg-white rounded-lg border border-[#e8e5df] shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
               <CoordinationMap delegations={delegations || []} />
             </div>
           </div>
 
-          {/* Right Column (40%) — Tabbed Panel — fills full height */}
+          {/* Right Column (40%) — Desktop: tabbed panel fills full height */}
           <div className="hidden lg:flex flex-col bg-white rounded-lg border border-[#e8e5df] shadow-sm w-[40%] min-w-0 overflow-hidden">
             <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 min-h-0">
               <TabContent activeTab={activeTab} tasks={tasks} />
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* ── Mobile Tabbed Panel — full width at bottom ── */}
-      <div className="lg:hidden flex-shrink-0 border-t border-[#e8e5df] bg-white" style={{ height: "50vh" }}>
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-        <div className="flex-1 min-h-0 overflow-hidden" style={{ height: "calc(50vh - 42px)" }}>
-          <TabContent activeTab={activeTab} tasks={tasks} />
+          {/* Mobile: Full-screen tabbed panel (no duplicate content) */}
+          <div className="lg:hidden flex flex-col bg-white rounded-lg border border-[#e8e5df] shadow-sm h-full min-h-[400px] overflow-hidden">
+            <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+            <div className="flex-1 min-h-0">
+              <TabContent activeTab={activeTab} tasks={tasks} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

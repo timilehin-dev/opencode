@@ -188,6 +188,9 @@ export default function TaskBoardPage() {
     return map;
   }, [filteredTasks]);
 
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+
   // Handlers
   const handleDelete = async (taskId: string) => {
     if (!confirm("Delete this task? This cannot be undone.")) return;
@@ -207,6 +210,47 @@ export default function TaskBoardPage() {
     } catch {
       showToast("Failed to delete task");
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, task: Task) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", task.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, col: TaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverColumn(col);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, col: TaskStatus) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    if (!draggedTask || draggedTask.status === col) {
+      setDraggedTask(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/taskboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", taskId: draggedTask.id, status: col }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(`Moved to ${col.replace("_", " ")}`);
+        fetchTasks();
+        fetchSummary();
+      }
+    } catch {
+      showToast("Failed to move task");
+    }
+    setDraggedTask(null);
   };
 
   const handleCreate = async (data: Partial<Task>) => {
@@ -392,15 +436,30 @@ export default function TaskBoardPage() {
               </span>
             </div>
 
-            {/* Column cards */}
-            <div className="space-y-2 min-h-[200px]">
+            {/* Column cards — drop target */}
+            <div
+              className="space-y-2 min-h-[200px] rounded-xl border-2 border-dashed border-transparent transition-colors p-1"
+              onDragOver={(e) => handleDragOver(e, col.key)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, col.key)}
+              style={{
+                borderColor: dragOverColumn === col.key ? "#3730a3" : "transparent",
+                backgroundColor: dragOverColumn === col.key ? "#eef2ff" : "transparent",
+              }}
+            >
               {tasksByColumn[col.key].length === 0 ? (
                 <div className="rounded-xl border border-dashed border-[#e8e5df] bg-[#faf9f7] p-8 text-center">
                   <p className="text-xs text-muted-foreground">No tasks</p>
                 </div>
               ) : (
                 tasksByColumn[col.key].map((task) => (
-                  <TaskCard key={task.id} task={task} onClick={() => setPanelTask(task)} />
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => setPanelTask(task)}
+                    onDragStart={(e) => handleDragStart(e, task)}
+                    isDragging={draggedTask?.id === task.id}
+                  />
                 ))
               )}
             </div>
@@ -453,7 +512,7 @@ export default function TaskBoardPage() {
 // Task Card
 // ===========================================================================
 
-function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
+function TaskCard({ task, onClick, onDragStart, isDragging }: { task: Task; onClick: () => void; onDragStart?: (e: React.DragEvent, task: Task) => void; isDragging?: boolean }) {
   const priority = PRIORITY_CONFIG[task.priority];
   const overdue = isOverdue(task.deadline, task.status);
 
@@ -463,8 +522,13 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
       initial="hidden"
       animate="show"
       layout
-      className="rounded-xl border border-[#e8e5df] bg-white p-4 cursor-pointer hover:border-[#3730a3]/20 hover:shadow-sm transition-all group"
+      className={cn(
+        "rounded-xl border border-[#e8e5df] bg-white p-4 cursor-grab active:cursor-grabbing hover:border-[#3730a3]/20 hover:shadow-sm transition-all group",
+        isDragging && "opacity-50 rotate-2 scale-95 shadow-lg"
+      )}
       onClick={onClick}
+      draggable
+      onDragStart={onDragStart ? (e) => onDragStart(e as unknown as React.DragEvent<HTMLDivElement>, task) : undefined}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-2 flex-1">

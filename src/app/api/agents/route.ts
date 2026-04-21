@@ -9,6 +9,7 @@ import {
   getAllAgentStatuses,
   updateAgentStatus,
 } from "@/lib/agents";
+import { allTools } from "@/lib/tools";
 import {
   sendA2AMessage,
   getAgentA2AMessages,
@@ -32,10 +33,15 @@ export async function GET() {
     const agents = getAllAgents();
     const statuses = getAllAgentStatuses();
 
-    const data = agents.map((agent) => ({
-      ...agent,
-      status: getAgentStatus(agent.id),
-    }));
+    const data = agents.map((agent) => {
+      // Count actual available tools from allTools based on agent's tool list
+      const availableTools = agent.tools.filter((toolName) => toolName in allTools);
+      return {
+        ...agent,
+        tools: availableTools,
+        status: getAgentStatus(agent.id),
+      };
+    });
 
     return ok(data);
   } catch (e) {
