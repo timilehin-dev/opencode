@@ -4848,6 +4848,124 @@ export const a2aCollaborateTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Skills Tools — Phase 6A: Skill Library Foundation
+// ---------------------------------------------------------------------------
+
+export const skillListTool = tool({
+  description: "List available skills in the skill library. Supports filtering by category, search query, or agent compatibility. Returns skill names, descriptions, categories, performance scores, and required tools.",
+  inputSchema: zodSchema(z.object({
+    search: z.string().optional().describe("Search query to filter skills by name or description"),
+    category: z.string().optional().describe("Filter by category (research, code, communication, data, planning, ops, content)"),
+    agent: z.string().optional().describe("Filter to skills available for a specific agent ID"),
+  })),
+  execute: safeJson(async ({ search, category, agent }) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (category) params.set("category", category);
+    if (agent) params.set("agent", agent);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills?${params.toString()}`);
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillUseTool = tool({
+  description: "Apply a skill's prompt template and workflow to enhance task execution. Use this when you want to follow a structured methodology for a task. Returns the skill's prompt template and workflow steps to guide your approach.",
+  inputSchema: zodSchema(z.object({
+    skill_name: z.string().describe("The name of the skill to use (e.g., 'research_deep', 'code_review', 'email_compose')"),
+    context: z.string().optional().describe("Optional context about the current task to customize the skill application"),
+  })),
+  execute: safeJson(async ({ skill_name, context }) => {
+    const params = new URLSearchParams({ search: skill_name, limit: "1" });
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills?${params.toString()}`);
+    const data = await safeParseRes<{ success: boolean; data?: Array<Record<string, unknown>> }>(res);
+    if (data.success && data.data && data.data.length > 0) {
+      const skill = data.data[0];
+      return {
+        success: true,
+        skill_name: skill.name,
+        display_name: skill.display_name,
+        prompt_template: skill.prompt_template,
+        workflow_steps: skill.workflow_steps,
+        required_tools: skill.required_tools,
+        difficulty: skill.difficulty,
+        performance_score: skill.performance_score,
+        context_applied: context || null,
+      };
+    }
+    return { success: false, error: `Skill '${skill_name}' not found. Use skill_list to see available skills.` };
+  }),
+});
+
+export const skillCreateTool = tool({
+  description: "Create a new custom skill in the skill library. Define a reusable prompt template and workflow that agents can apply to future tasks. Custom skills can be rated and evolve based on performance feedback.",
+  inputSchema: zodSchema(z.object({
+    name: z.string().describe("Unique skill name (snake_case, e.g., 'my_custom_skill')"),
+    display_name: z.string().describe("Human-readable skill name (e.g., 'My Custom Skill')"),
+    description: z.string().describe("Clear description of what the skill does and when to use it"),
+    category: z.string().optional().describe("Category: research, code, communication, data, planning, ops, content, general"),
+    difficulty: z.string().optional().describe("Difficulty level: beginner, intermediate, advanced, expert"),
+    prompt_template: z.string().describe("The prompt template that guides the agent when using this skill"),
+    workflow_steps: z.array(z.string()).optional().describe("Ordered list of workflow step descriptions"),
+    required_tools: z.array(z.string()).optional().describe("List of tool names required by this skill"),
+    tags: z.array(z.string()).optional().describe("Tags for searchability"),
+  })),
+  execute: safeJson(async ({ name, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillEquipTool = tool({
+  description: "Equip or unequip skills for a specific agent. When a skill is equipped, the agent can discover and use it. Use this to customize which skills each agent has access to.",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.string().describe("The agent ID to equip skills for (e.g., 'general', 'mail', 'code', 'data', 'research', 'ops', 'creative')"),
+    skill_ids: z.array(z.string()).optional().describe("Skill UUIDs to equip"),
+    unequip_skill_ids: z.array(z.string()).optional().describe("Skill UUIDs to unequip"),
+  })),
+  execute: safeJson(async ({ agent_id, skill_ids, unequip_skill_ids }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/agent-skills", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent_id, skill_ids, unequip_skill_ids }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillRateTool = tool({
+  description: "Rate a skill's performance after using it. Ratings (1-5) help improve the skill library by tracking quality and guiding future skill selection. Rate 4-5 for excellent results, 3 for adequate, 1-2 for poor.",
+  inputSchema: zodSchema(z.object({
+    skill_id: z.string().describe("The UUID of the skill to rate"),
+    agent_id: z.string().describe("Your agent ID"),
+    rating: z.number().min(1).max(5).describe("Rating from 1 (poor) to 5 (excellent)"),
+    feedback: z.string().optional().describe("Optional text feedback about the skill's performance"),
+  })),
+  execute: safeJson(async ({ skill_id, agent_id, rating, feedback }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/rate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skill_id, agent_id, rating, feedback }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillInspectTool = tool({
+  description: "Get detailed information about a specific skill including its full prompt template, workflow steps, required tools, performance metrics, and usage history. Use this before deciding whether to apply a skill.",
+  inputSchema: zodSchema(z.object({
+    skill_id: z.string().describe("The UUID of the skill to inspect"),
+  })),
+  execute: safeJson(async ({ skill_id }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/${skill_id}`);
+    return await safeParseRes(res);
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -4986,6 +5104,13 @@ export const allTools: Record<string, ToolType> = {
   // New Tools
   code_execute: codeExecuteTool,
   weather_get: weatherGetTool,
+  // Phase 6A: Skill Library
+  skill_list: skillListTool,
+  skill_use: skillUseTool,
+  skill_create: skillCreateTool,
+  skill_equip: skillEquipTool,
+  skill_rate: skillRateTool,
+  skill_inspect: skillInspectTool,
 };
 
 // ---------------------------------------------------------------------------

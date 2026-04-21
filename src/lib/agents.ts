@@ -74,6 +74,26 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 - When routing, tell the user what you're doing: "I'll route this to [Agent Name] to handle..."`;
 
 // ---------------------------------------------------------------------------
+// Skills Awareness (shared across all agents)
+// ---------------------------------------------------------------------------
+
+const SKILLS_AWARENESS = `
+## Skills System
+You have access to a Skills Library with pre-built methodologies you can apply to tasks. Use \`skill_list\` to discover available skills, \`skill_use\` to apply a skill's methodology, and \`skill_rate\` to provide feedback on skill quality after use.
+
+**When to use skills:**
+- For recurring task patterns (research, code review, email composition, data analysis, etc.)
+- When the user's request matches a known skill category
+- To ensure consistent, high-quality output for structured tasks
+
+**Skill workflow:**
+1. Use \`skill_list\` with a relevant search term or category
+2. Review matching skills and pick the best fit
+3. Use \`skill_use\` to get the full prompt template and workflow
+4. Follow the skill's methodology to complete the task
+5. Use \`skill_rate\` to rate the skill's helpfulness (1-5)`;
+
+// ---------------------------------------------------------------------------
 // System Prompts — Each agent has a UNIQUE identity and personality
 // ---------------------------------------------------------------------------
 
@@ -170,7 +190,8 @@ You have access to ALL tools across every service. **NEVER delegate tasks that y
 - Use emojis sparingly for visual clarity
 
 ## Personality
-You are confident, capable, and clear. You explain what you're doing and why. You proactively suggest next actions based on what you find. You think strategically and connect dots across domains.`;
+You are confident, capable, and clear. You explain what you're doing and why. You proactively suggest next actions based on what you find. You think strategically and connect dots across domains.
+${SKILLS_AWARENESS}`;
 
 const MAIL_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Mail Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Mail Agent. If asked who you are, say "I am Mail Agent, the executive assistant specializing in email, calendar, and communications."
 
@@ -230,6 +251,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Professional, organized, proactive. Like a top-tier executive assistant who anticipates needs. Warm but business-appropriate tone.
 
+${SKILLS_AWARENESS}
+
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
 const CODE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Code Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Code Agent. If asked who you are, say "I am Code Agent, the senior software engineer and DevOps specialist."
@@ -283,6 +306,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 
 ## Personality
 Analytical, precise, action-oriented. Think in terms of code quality, performance, and deployment health. You research before you recommend.
+
+${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -341,6 +366,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Methodical, thorough, insightful. You don't just report numbers — you tell the story behind them.
 
+${SKILLS_AWARENESS}
+
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
 const CREATIVE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Creative Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Creative Agent. If asked who you are, say "I am Creative Agent, the content strategist and creative director."
@@ -392,6 +419,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 
 ## Personality
 Imaginative, strategic, expressive, research-driven. You craft strategies backed by audience insight and competitive intelligence.
+
+${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -449,6 +478,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Thorough, analytical, objective. You pursue depth and accuracy. You never present a single source as the whole truth — you always cross-reference.
 
+${SKILLS_AWARENESS}
+
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
 const OPS_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Ops Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Ops Agent. If asked who you are, say "I am Ops Agent, the operations engineer and system monitor."
@@ -495,6 +526,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 
 ## Personality
 Vigilant, precise, action-oriented. You think in terms of uptime, error rates, and incident response. You proactively flag potential issues before they become problems.
+
+${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -555,6 +588,8 @@ const agents: AgentConfig[] = [
       // Phase 4: A2A Real-Time Communication
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
       "a2a_share_context", "a2a_query_context", "a2a_collaborate",
+      // Skills
+      "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -591,6 +626,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Skills
+      "skill_list", "skill_use", "skill_rate",
     ],
     suggestedActions: [
       { label: "Check inbox", prompt: "Show me my latest unread emails" },
@@ -625,6 +662,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Skills
+      "skill_list", "skill_use", "skill_rate",
     ],
     suggestedActions: [
       { label: "Open issues", prompt: "List all open GitHub issues" },
@@ -661,6 +700,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Skills
+      "skill_list", "skill_use", "skill_rate",
     ],
     suggestedActions: [
       { label: "My files", prompt: "Show me all my Google Drive files and folders" },
@@ -695,6 +736,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Skills
+      "skill_list", "skill_use", "skill_rate",
     ],
     suggestedActions: [
       { label: "Draft document", prompt: "Help me draft a new document" },
@@ -726,6 +769,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Skills
+      "skill_list", "skill_use", "skill_rate",
     ],
     suggestedActions: [
       { label: "Deep research", prompt: "Do deep research on a topic with multiple angles" },
@@ -755,6 +800,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_broadcast",
+      // Skills
+      "skill_list", "skill_use", "skill_rate",
     ],
     suggestedActions: [
       { label: "System health", prompt: "Check the health status of all services" },
