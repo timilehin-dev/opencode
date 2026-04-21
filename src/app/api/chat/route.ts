@@ -145,6 +145,26 @@ export async function POST(req: Request) {
       getInsightsForPrompt(id, 8).catch(() => ""),
     ]);
 
+    // Phase 6B: Auto skill routing
+    // If the last user message contains a clear task, try to route to a matching skill
+    let skillRoutingBlock = "";
+    if (lastContent && lastContent.length > 10) {
+      try {
+        const { routeSkill } = await import("@/lib/skill-router");
+        const routeResult = await routeSkill(lastContent, id);
+        if (routeResult.skill) {
+          const altStr = routeResult.alternatives.length > 0
+            ? `\nAlternative skills: ${routeResult.alternatives.map(a => a.display_name).join(", ")}`
+            : "";
+          skillRoutingBlock = `\n\n## AUTO-ROUTED SKILL SUGGESTION
+The system detected that your task may benefit from the "${routeResult.skill.display_name}" skill (confidence: ${Math.round(routeResult.confidence * 100)}%, method: ${routeResult.method}).
+You MAY use \`skill_use\` with name "${routeResult.skill.name}" to apply this skill's methodology, OR proceed without it if you deem it unnecessary.${altStr}`;
+        }
+      } catch {
+        // Skill routing is non-critical
+      }
+    }
+
     // Save the user's message to conversation history (fire-and-forget)
     if (lastContent) {
       const sessionId = body.sessionId || `session-${Date.now()}`;
@@ -260,7 +280,7 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
     const systemPrompt =
       id !== "general"
         ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
-        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}`;
+        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}${skillRoutingBlock}`;
 
     // Determine step limit: specialist agents get fewer steps to be efficient,
        // Claw General gets more for complex multi-step orchestration.

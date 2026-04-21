@@ -589,7 +589,7 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
       "a2a_share_context", "a2a_query_context", "a2a_collaborate",
       // Skills
-      "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect",
+      "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect", "skill_evaluate",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.

@@ -4965,6 +4965,26 @@ export const skillInspectTool = tool({
   }),
 });
 
+export const skillEvaluateTool = tool({
+  description: "Evaluate a skill's execution quality using structured multi-dimensional assessment. Use this after applying a skill to assess how well it performed across relevance, accuracy, completeness, clarity, and efficiency.",
+  inputSchema: zodSchema(z.object({
+    skill_id: z.string().describe("The UUID of the skill to evaluate"),
+    agent_id: z.string().describe("Your agent ID"),
+    task_id: z.string().optional().describe("Optional task ID for tracking"),
+    input_summary: z.string().describe("Summary of what the user asked for"),
+    output_summary: z.string().describe("Summary of what the skill produced"),
+    success: z.boolean().optional().describe("Whether the skill execution was successful"),
+  })),
+  execute: safeJson(async ({ skill_id, agent_id, task_id, input_summary, output_summary, success }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skill_id, agent_id, task_id, input_summary, output_summary, success }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -5111,6 +5131,8 @@ export const allTools: Record<string, ToolType> = {
   skill_equip: skillEquipTool,
   skill_rate: skillRateTool,
   skill_inspect: skillInspectTool,
+  // Phase 6B: Skill Evaluation
+  skill_evaluate: skillEvaluateTool,
 };
 
 // ---------------------------------------------------------------------------
