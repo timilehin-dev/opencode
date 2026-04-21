@@ -4945,7 +4945,7 @@ export const skillRateTool = tool({
     feedback: z.string().optional().describe("Optional text feedback about the skill's performance"),
   })),
   execute: safeJson(async ({ skill_id, agent_id, rating, feedback }) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/rate", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/rate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ skill_id, agent_id, rating, feedback }),
