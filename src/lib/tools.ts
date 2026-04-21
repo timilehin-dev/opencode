@@ -4382,6 +4382,289 @@ Output format (EXACT JSON):
 });
 
 // ---------------------------------------------------------------------------
+// Phase 5: Full Autonomous Project Lifecycle Tools
+// ---------------------------------------------------------------------------
+
+export const projectUpdateTool = tool({
+  description: "Update project metadata or status. Can change project name, description, priority, deadline, status (to 'in_progress', 'on_hold', 'cancelled'), or add notes. Does NOT affect individual tasks directly — use project_retry_task or project_skip_task for task-level changes.",
+  inputSchema: zodSchema(z.object({
+    project_id: z.number().describe("Project ID to update"),
+    name: z.string().optional().describe("New project name"),
+    description: z.string().optional().describe("New project description"),
+    priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("New priority level"),
+    status: z.enum(["in_progress", "on_hold", "cancelled"]).optional().describe("New status (cannot set to 'completed' or 'failed' — those are auto-detected)"),
+    deadline: z.string().optional().describe("New deadline (ISO 8601 datetime)"),
+    tags: z.array(z.string()).optional().describe("Replace tags array"),
+  })),
+  execute: safeJson(async ({ project_id, name, description, priority, status, deadline, tags }) => {
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+
+    if (name) { setClauses.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { setClauses.push(`description = $${idx++}`); values.push(description); }
+    if (priority) { setClauses.push(`priority = $${idx++}`); values.push(priority); }
+    if (status) { setClauses.push(`status = $${idx++}`); values.push(status); }
+    if (deadline) { setClauses.push(`deadline = $${idx++}`); values.push(deadline); }
+    if (tags) { setClauses.push(`tags = $${idx++}`); values.push(tags); }
+
+    if (setClauses.length === 0) return { success: false, error: "No fields to update" };
+
+    values.push(project_id);
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const result = await pool.query(
+        `UPDATE projects SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING id, name, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks, deadline`,
+        values,
+      );
+      if (result.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+      return { success: true, project: result.rows[0] };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectDeleteTool = tool({
+  description: "Soft-delete (archive) a project by setting its status to 'cancelled'. This stops all task execution for the project. Use this when a project is no longer needed or was created by mistake.",
+  inputSchema: zodSchema(z.object({
+    project_id: z.number().describe("Project ID to archive/cancel"),
+    reason: z.string().optional().describe("Reason for cancellation (stored in metadata)"),
+  })),
+  execute: safeJson(async ({ project_id, reason }) => {
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const result = await pool.query(
+        `UPDATE projects SET status = 'cancelled', metadata = jsonb_set(COALESCE(metadata, '{}'), '{cancelled_reason}', $1) WHERE id = $2 RETURNING id, name, status`,
+        [JSON.stringify(reason || "User cancelled"), project_id],
+      );
+      if (result.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+      // Also cancel pending/queued tasks
+      await pool.query(
+        `UPDATE project_tasks SET status = 'cancelled' WHERE project_id = $1 AND status IN ('pending', 'queued', 'in_progress')`,
+        [project_id],
+      );
+      return { success: true, project: result.rows[0], message: "Project cancelled and all pending tasks stopped" };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectRetryTaskTool = tool({
+  description: "Retry a failed project task. Resets the task to 'pending' status and clears error info. The executor will pick it up within 2 minutes. Use this when a task failed due to a transient error and you want to re-run it.",
+  inputSchema: zodSchema(z.object({
+    task_id: z.number().describe("Project task ID to retry"),
+  })),
+  execute: safeJson(async ({ task_id }) => {
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      // Get current task info
+      const current = await pool.query(
+        `SELECT pt.*, p.name as project_name FROM project_tasks pt JOIN projects p ON p.id = pt.project_id WHERE pt.id = $1`,
+        [task_id],
+      );
+      if (current.rows.length === 0) return { success: false, error: `Task ${task_id} not found` };
+      if (current.rows[0].status !== "failed") return { success: false, error: `Task ${task_id} is not failed (current: ${current.rows[0].status})` };
+
+      // Reset task
+      const result = await pool.query(
+        `UPDATE project_tasks SET status = 'pending', error = NULL, result = NULL, retries = retries + 1, started_at = NULL, completed_at = NULL WHERE id = $1 RETURNING id, title, status, retries`,
+        [task_id],
+      );
+
+      // Log retry
+      await pool.query(
+        `INSERT INTO project_task_logs (project_id, task_id, action, status, message, attempt_number) VALUES ($1, $2, 'retry', 'started', 'Manual retry requested', $3)`,
+        [current.rows[0].project_id, task_id, current.rows[0].retries + 1],
+      );
+
+      return { success: true, task: result.rows[0], message: "Task reset to pending — executor will pick it up within 2 min" };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectSkipTaskTool = tool({
+  description: "Skip a blocked or failed project task. Sets status to 'skipped' which allows dependent tasks to proceed. Use this when a task is non-critical and blocking progress, or when manual intervention isn't worth it.",
+  inputSchema: zodSchema(z.object({
+    task_id: z.number().describe("Project task ID to skip"),
+    reason: z.string().optional().describe("Reason for skipping"),
+  })),
+  execute: safeJson(async ({ task_id, reason }) => {
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const current = await pool.query(
+        `SELECT pt.*, p.name as project_name FROM project_tasks pt JOIN projects p ON p.id = pt.project_id WHERE pt.id = $1`,
+        [task_id],
+      );
+      if (current.rows.length === 0) return { success: false, error: `Task ${task_id} not found` };
+      if (!["pending", "queued", "in_progress", "blocked", "failed"].includes(current.rows[0].status)) {
+        return { success: false, error: `Task ${task_id} cannot be skipped (current: ${current.rows[0].status})` };
+      }
+
+      const result = await pool.query(
+        `UPDATE project_tasks SET status = 'skipped', metadata = jsonb_set(COALESCE(metadata, '{}'), '{skip_reason}', $1) WHERE id = $2 RETURNING id, title, status`,
+        [JSON.stringify(reason || "Skipped by user"), task_id],
+      );
+
+      // Log skip
+      await pool.query(
+        `INSERT INTO project_task_logs (project_id, task_id, action, status, message) VALUES ($1, $2, 'skip', 'completed', $3)`,
+        [current.rows[0].project_id, task_id, `Skipped: ${reason || "User request"}`],
+      );
+
+      return { success: true, task: result.rows[0], message: "Task skipped — dependent tasks can now proceed" };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectDecomposeAndAddTool = tool({
+  description: "ALL-IN-ONE project decomposition: Takes a project ID and a goal, decomposes it into structured tasks via AI, and automatically adds all tasks to the project. This is the recommended way to set up a new project — create the project first with project_create, then use this tool to fill it with tasks. The executor will automatically start executing tasks that have no dependencies.",
+  inputSchema: zodSchema(z.object({
+    project_id: z.number().describe("Project ID to add tasks to"),
+    goal: z.string().describe("Project goal to decompose into tasks"),
+    context: z.string().optional().describe("Additional context, constraints, or requirements"),
+    complexity: z.enum(["simple", "moderate", "complex"]).optional().describe("Complexity level (default: moderate)"),
+    max_tasks: z.number().optional().describe("Max tasks to create (default 8, max 15)"),
+  })),
+  execute: safeJson(async ({ project_id, goal, context, complexity, max_tasks }) => {
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      // Verify project exists
+      const proj = await pool.query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
+      if (proj.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+
+      // Get AI decomposition
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      const { generateText } = await import("ai");
+
+      const aihubmixKey = process.env.AIHUBMIX_API_KEY_1;
+      if (!aihubmixKey) return { success: false, error: "No AI API key configured for decomposition" };
+
+      const provider = createOpenAI({
+        apiKey: aihubmixKey,
+        baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
+      });
+      const model = provider("coding-glm-5.1-free");
+
+      const systemPrompt = `You are a project planning expert. Decompose the given goal into a structured task plan.
+Each task should be specific, actionable, and assigned to the right agent.
+Available agents: general, mail, code, data, creative, research, ops
+Task types: research, code, design, testing, deployment, docs, communication, general
+Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "priority", "assigned_agent", "depends_on": [], "task_prompt", "sort_order" }] }`;
+
+      const userPrompt = `Decompose this project goal into tasks:\n\nGoal: ${goal}\n${context ? `Context: ${context}` : ""}\nComplexity: ${complexity || "moderate"}\nMax tasks: ${Math.min(max_tasks || 8, 15)}`;
+
+      const result = await generateText({
+        model,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+        maxOutputTokens: 4096,
+        abortSignal: AbortSignal.timeout(60000),
+      });
+
+      let jsonStr = result.text.trim();
+      const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fenceMatch) jsonStr = fenceMatch[1];
+
+      const plan = JSON.parse(jsonStr);
+      const tasks = plan.tasks || [];
+
+      if (tasks.length === 0) return { success: false, error: "AI returned no tasks" };
+
+      // Insert all tasks into the project
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertedTasks: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const titleToId: Record<string, any> = {}; // Map title → task ID for dependency resolution
+
+      for (const task of tasks) {
+        // Resolve depends_on: titles → IDs
+        const dependsOnIds = (task.depends_on || []).map((title: string) => titleToId[title]).filter(Boolean);
+
+        const insertResult = await pool.query(
+          `INSERT INTO project_tasks (project_id, title, description, task_type, priority, assigned_agent, depends_on, task_prompt, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, title, priority, assigned_agent`,
+          [
+            project_id, task.title, task.description || "", task.task_type || "general",
+            task.priority || "medium", task.assigned_agent || "general",
+            dependsOnIds.length > 0 ? dependsOnIds : null,
+            task.task_prompt || task.description || "",
+            task.sort_order || insertedTasks.length,
+          ],
+        );
+
+        insertedTasks.push(insertResult.rows[0]);
+        titleToId[task.title] = insertResult.rows[0].id;
+      }
+
+      // Force recalculate project task counts
+      await pool.query("SELECT update_project_task_counts($1)", [project_id]);
+
+      return {
+        success: true,
+        project_id,
+        project_name: proj.rows[0].name,
+        tasks_added: insertedTasks.length,
+        tasks: insertedTasks,
+        message: `${insertedTasks.length} tasks added to project "${proj.rows[0].name}". The executor will start picking up tasks with no dependencies within 2 minutes.`,
+      };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectHealthTool = tool({
+  description: "Get a health report for all active projects. Shows project status, progress, and identifies stalled, overdue, or degraded projects. Use this to monitor your project portfolio and catch issues early.",
+  inputSchema: zodSchema(z.object({
+    include_completed: z.boolean().optional().describe("Also show completed projects (default: false)"),
+  })),
+  execute: safeJson(async ({ include_completed }) => {
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const result = await pool.query("SELECT * FROM get_project_health_report()");
+      const projects = result.rows;
+
+      // If requested, also get completed projects
+      let completed = [];
+      if (include_completed) {
+        const compResult = await pool.query(
+          `SELECT id as project_id, name as project_name, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks,
+           'healthy' as health_status, 'All tasks completed' as health_reason, completed_at as last_activity, deadline, false as is_overdue
+           FROM projects WHERE status IN ('completed', 'failed') ORDER BY completed_at DESC LIMIT 10`,
+        );
+        completed = compResult.rows;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const summary = {
+        total_active: projects.length,
+        healthy: projects.filter((p: any) => p.health_status === "on_track" || p.health_status === "ready_to_start").length,
+        stalled: projects.filter((p: any) => p.health_status === "stalled").length,
+        overdue: projects.filter((p: any) => p.health_status === "overdue").length,
+        degraded: projects.filter((p: any) => p.health_status === "degraded").length,
+        needs_attention: projects.filter((p: any) => ["stalled", "overdue", "degraded", "failed"].includes(p.health_status)).length,
+      };
+
+      return { success: true, summary, projects, completed_projects: completed };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // Phase 4: A2A Real-Time Communication Tools
 // ---------------------------------------------------------------------------
 
@@ -4686,6 +4969,13 @@ export const allTools: Record<string, ToolType> = {
   project_status: projectStatusTool,
   project_list: projectListTool,
   project_decompose: projectDecomposeTool,
+  // Phase 5: Full Autonomous Project Lifecycle
+  project_update: projectUpdateTool,
+  project_delete: projectDeleteTool,
+  project_retry_task: projectRetryTaskTool,
+  project_skip_task: projectSkipTaskTool,
+  project_decompose_and_add: projectDecomposeAndAddTool,
+  project_health: projectHealthTool,
   // Phase 4: A2A Real-Time Communication
   a2a_send_message: a2aSendMessageTool,
   a2a_broadcast: a2aBroadcastTool,

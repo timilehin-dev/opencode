@@ -106,24 +106,31 @@ You have ALL tools directly — you do NOT need to delegate to use other agents'
 - **Agent Delegation**: delegate tasks to specialist agents
 - **Project Management**: create projects, add tasks with dependencies, track progress, decompose complex goals into executable task graphs
 
-## Project Management — Multi-Step Execution
-You can create and manage **projects** with dependency-ordered task graphs. When a user gives you a complex, multi-step goal:
+## Project Management — Full Autonomous Lifecycle
+You can create and manage **projects** that execute autonomously from start to finish. When a user gives you a complex, multi-step goal:
 
-1. **Create a project** with \`project_create\` — give it a clear name and description
-2. **Decompose into tasks** — break the goal into 4-10 concrete, actionable tasks using \`project_add_task\`
-   - Each task should be specific enough that an agent can execute it independently
-   - Set \`depends_on\` to enforce ordering (e.g., "Write report" depends on "Research competitors")
-   - Set \`assigned_agent\` to the best agent for each task (general, mail, code, data, research, ops, creative)
-   - Set \`priority\` (critical/high/medium/low) to control execution order
-   - Set \`task_prompt\` to the exact instruction the executing agent should follow
+1. **Create a project** with \`project_create\` — give it a clear name, description, and optional deadline
+2. **Decompose & add tasks in one step** with \`project_decompose_and_add\` — AI breaks the goal into 4-10 concrete tasks with dependencies and auto-adds them
+   - Or use \`project_add_task\` to manually add tasks one by one
+   - Each task needs: \`title\`, \`task_prompt\` (exact instruction for executor), \`assigned_agent\`, \`depends_on\` (task titles), \`priority\`
 3. **Monitor progress** with \`project_status\` — shows which tasks are done, blocked, or next to execute
-4. The **executor** automatically picks up and runs tasks whose dependencies are satisfied every ~2 minutes
+4. **Check portfolio health** with \`project_health\` — identifies stalled, overdue, or degraded projects
+5. **Recover from failures** — use \`project_retry_task\` for transient errors, \`project_skip_task\` to unblock dependencies
+6. **Manage projects** — use \`project_update\` to change priority/deadline/status, \`project_delete\` to cancel a project
+7. The **executor** automatically picks up and runs tasks whose dependencies are satisfied every ~2 minutes
+8. **Auto-completion**: When ALL tasks finish, the project status automatically changes to "completed" and a notification is created
 
-**Best practices for task decomposition:**
-- Start with research/analysis tasks, then move to creation/execution, then review/delivery
-- Each task should produce a specific output (a document, code, email, etc.)
-- Include enough context in \`task_prompt\` so the executing agent knows exactly what to do
-- Don't create more than 8-10 tasks per project to avoid complexity
+**Key lifecycle states**: planning → in_progress → completed (or failed/cancelled)
+- Projects auto-transition from "planning" to "in_progress" when the first task starts
+- Projects auto-transition to "completed" when all tasks are done
+- Projects auto-transition to "failed" when >30% of tasks have failed
+
+**Best practices:**
+- Start with research/analysis tasks, then creation/execution, then review/delivery
+- Use \`project_decompose_and_add\` for fast setup — it handles dependency resolution automatically
+- Set realistic deadlines — \`project_health\` will alert on overdue projects
+- Check \`project_health\` periodically to catch stalled projects early
+- Don't create more than 8-10 tasks per project
 
 ## Decision Framework — When to Use What
 | Situation | Tool to Use |
@@ -542,6 +549,9 @@ const agents: AgentConfig[] = [
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       // Project Management (Phase 2)
       "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
+      // Phase 5: Full Autonomous Project Lifecycle
+      "project_update", "project_delete", "project_retry_task", "project_skip_task",
+      "project_decompose_and_add", "project_health",
       // Phase 4: A2A Real-Time Communication
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
       "a2a_share_context", "a2a_query_context", "a2a_collaborate",

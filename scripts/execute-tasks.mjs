@@ -115,6 +115,8 @@ const AGENTS = {
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
+      // Phase 5: Full Autonomous Project Lifecycle
+      "project_update", "project_delete", "project_retry_task", "project_skip_task", "project_decompose_and_add", "project_health",
       // Phase 4: A2A
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox", "a2a_share_context", "a2a_query_context", "a2a_collaborate",
     ],
@@ -2512,6 +2514,141 @@ function buildToolMap() {
         } catch {
           return { success: false, error: "Failed to parse decomposition result", raw: result.text.slice(0, 500) };
         }
+      }),
+    }),
+
+    // Phase 5: Full Autonomous Project Lifecycle
+    project_update: tool({
+      description: "Update project metadata or status. Can change name, description, priority, deadline, status (in_progress, on_hold, cancelled).",
+      inputSchema: zodSchema(z.object({
+        project_id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        priority: z.enum(["critical", "high", "medium", "low"]).optional(),
+        status: z.enum(["in_progress", "on_hold", "cancelled"]).optional(),
+        deadline: z.string().optional(),
+      })),
+      execute: safeJsonWrap(async ({ project_id, name, description, priority, status, deadline }) => {
+        const setClauses = [];
+        const values = [];
+        let idx = 1;
+        if (name) { setClauses.push(`name = $${idx++}`); values.push(name); }
+        if (description !== undefined) { setClauses.push(`description = $${idx++}`); values.push(description); }
+        if (priority) { setClauses.push(`priority = $${idx++}`); values.push(priority); }
+        if (status) { setClauses.push(`status = $${idx++}`); values.push(status); }
+        if (deadline) { setClauses.push(`deadline = $${idx++}`); values.push(deadline); }
+        if (setClauses.length === 0) return { success: false, error: "No fields to update" };
+        values.push(project_id);
+        const result = await pool.query(`UPDATE projects SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING id, name, status, priority, total_tasks, completed_tasks, failed_tasks`, values);
+        if (result.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+        return { success: true, project: result.rows[0] };
+      }),
+    }),
+    project_delete: tool({
+      description: "Cancel/archive a project and stop all its pending tasks.",
+      inputSchema: zodSchema(z.object({
+        project_id: z.number(),
+        reason: z.string().optional(),
+      })),
+      execute: safeJsonWrap(async ({ project_id, reason }) => {
+        const result = await pool.query(
+          `UPDATE projects SET status = 'cancelled', metadata = jsonb_set(COALESCE(metadata, '{}'), '{cancelled_reason}', $1) WHERE id = $2 RETURNING id, name, status`,
+          [JSON.stringify(reason || "User cancelled"), project_id],
+        );
+        if (result.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+        await pool.query(`UPDATE project_tasks SET status = 'cancelled' WHERE project_id = $1 AND status IN ('pending', 'queued', 'in_progress')`, [project_id]);
+        return { success: true, project: result.rows[0], message: "Project cancelled, pending tasks stopped" };
+      }),
+    }),
+    project_retry_task: tool({
+      description: "Retry a failed project task. Resets it to 'pending' so the executor picks it up.",
+      inputSchema: zodSchema(z.object({ task_id: z.number() })),
+      execute: safeJsonWrap(async ({ task_id }) => {
+        const current = await pool.query(`SELECT * FROM project_tasks WHERE id = $1`, [task_id]);
+        if (current.rows.length === 0) return { success: false, error: `Task ${task_id} not found` };
+        if (current.rows[0].status !== "failed") return { success: false, error: `Task ${task_id} is not failed (current: ${current.rows[0].status})` };
+        await pool.query(`UPDATE project_tasks SET status = 'pending', error = NULL, result = NULL, retries = retries + 1, started_at = NULL, completed_at = NULL WHERE id = $1`, [task_id]);
+        await pool.query(`INSERT INTO project_task_logs (project_id, task_id, action, status, message) VALUES ($1, $2, 'retry', 'started', 'Manual retry')`, [current.rows[0].project_id, task_id]);
+        return { success: true, task_id, retries: current.rows[0].retries + 1, message: "Task reset to pending" };
+      }),
+    }),
+    project_skip_task: tool({
+      description: "Skip a blocked or failed task. Unblocks dependent tasks.",
+      inputSchema: zodSchema(z.object({ task_id: z.number(), reason: z.string().optional() })),
+      execute: safeJsonWrap(async ({ task_id, reason }) => {
+        const current = await pool.query(`SELECT * FROM project_tasks WHERE id = $1`, [task_id]);
+        if (current.rows.length === 0) return { success: false, error: `Task ${task_id} not found` };
+        await pool.query(`UPDATE project_tasks SET status = 'skipped' WHERE id = $1`, [task_id]);
+        await pool.query(`INSERT INTO project_task_logs (project_id, task_id, action, status, message) VALUES ($1, $2, 'skip', 'completed', $3)`, [current.rows[0].project_id, task_id, `Skipped: ${reason || "User request"}`]);
+        return { success: true, task_id, message: "Task skipped — dependents unblocked" };
+      }),
+    }),
+    project_decompose_and_add: tool({
+      description: "ALL-IN-ONE: Decompose a goal into tasks AND add them to a project. Use this for fast project setup.",
+      inputSchema: zodSchema(z.object({
+        project_id: z.number(),
+        goal: z.string(),
+        context: z.string().optional(),
+        complexity: z.enum(["simple", "moderate", "complex"]).optional(),
+        max_tasks: z.number().optional(),
+      })),
+      execute: safeJsonWrap(async ({ project_id, goal, context, complexity, max_tasks }) => {
+        const proj = await pool.query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
+        if (proj.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+
+        const model = getProvider(AGENTS.general);
+        const { generateText } = await import("ai");
+        const result = await generateText({
+          model,
+          system: `Decompose goals into JSON: {"tasks":[{"title","description","task_type":"research|code|design|testing|deployment|docs|communication|general","priority":"critical|high|medium|low","assigned_agent":"general|mail|code|data|research|ops|creative","depends_on":[],"task_prompt":"...","sort_order":0}]}`,
+          messages: [{ role: "user", content: `Decompose: ${goal}\n${context ? "Context: " + context : ""}\nComplexity: ${complexity || "moderate"}, Max: ${Math.min(max_tasks || 8, 15)}` }],
+          maxOutputTokens: 8192,
+          abortSignal: AbortSignal.timeout(60000),
+        });
+
+        let jsonStr = result.text.trim();
+        const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (fenceMatch) jsonStr = fenceMatch[1];
+        const plan = JSON.parse(jsonStr);
+        const tasks = plan.tasks || [];
+        if (tasks.length === 0) return { success: false, error: "AI returned no tasks" };
+
+        const inserted = [];
+        const titleToId = {};
+        for (const t of tasks) {
+          const depIds = (t.depends_on || []).map(title => titleToId[title]).filter(Boolean);
+          const r = await pool.query(
+            `INSERT INTO project_tasks (project_id, title, description, task_type, priority, assigned_agent, depends_on, task_prompt, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, title, priority, assigned_agent`,
+            [project_id, t.title, t.description || "", t.task_type || "general", t.priority || "medium", t.assigned_agent || "general", depIds.length > 0 ? depIds : null, t.task_prompt || t.description || "", t.sort_order || inserted.length],
+          );
+          inserted.push(r.rows[0]);
+          titleToId[t.title] = r.rows[0].id;
+        }
+        await pool.query("SELECT update_project_task_counts($1)", [project_id]);
+        return { success: true, project_id, project_name: proj.rows[0].name, tasks_added: inserted.length, tasks: inserted };
+      }),
+    }),
+    project_health: tool({
+      description: "Get health report for all active projects. Identifies stalled, overdue, and degraded projects.",
+      inputSchema: zodSchema(z.object({ include_completed: z.boolean().optional() })),
+      execute: safeJsonWrap(async ({ include_completed }) => {
+        const result = await pool.query("SELECT * FROM get_project_health_report()");
+        let completed = [];
+        if (include_completed) {
+          const comp = await pool.query(`SELECT id as project_id, name as project_name, status, total_tasks, completed_tasks, failed_tasks, 'healthy' as health_status, 'All tasks completed' as health_reason FROM projects WHERE status IN ('completed', 'failed') ORDER BY completed_at DESC LIMIT 10`);
+          completed = comp.rows;
+        }
+        return {
+          summary: {
+            total_active: result.rows.length,
+            healthy: result.rows.filter(p => ["on_track", "ready_to_start"].includes(p.health_status)).length,
+            stalled: result.rows.filter(p => p.health_status === "stalled").length,
+            overdue: result.rows.filter(p => p.health_status === "overdue").length,
+            needs_attention: result.rows.filter(p => ["stalled", "overdue", "degraded", "failed"].includes(p.health_status)).length,
+          },
+          projects: result.rows,
+          completed_projects: completed,
+        };
       }),
     }),
 
