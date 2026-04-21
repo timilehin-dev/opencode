@@ -520,6 +520,8 @@ const agents: AgentConfig[] = [
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
+      // Project Management (Phase 2)
+      "project_create", "project_add_task", "project_status", "project_list",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -697,7 +699,7 @@ const agents: AgentConfig[] = [
     description: "Operations engineer for system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics.",
     provider: "ollama",
     model: "gemma4:31b-cloud",
-    keyEnvVars: ["OLLAMA_CLOUD_KEY_6"],
+    keyEnvVars: ["OLLAMA_CLOUD_KEY_6", "OLLAMA_CLOUD_KEY_1", "OLLAMA_CLOUD_KEY_2"],
     color: "orange",
     systemPrompt: OPS_SYSTEM_PROMPT,
     tools: [

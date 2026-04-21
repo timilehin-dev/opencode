@@ -16,6 +16,8 @@ import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/activ
 import type { AgentTask } from "@/lib/task-queue";
 import type { Delegation } from "@/lib/delegations";
 
+export const maxDuration = 300; // SSE streams need long-lived connections on Vercel Pro
+
 const POLL_INTERVAL_MS = 3000;
 
 // Map agent IDs to their names/emojis/colors for the frontend

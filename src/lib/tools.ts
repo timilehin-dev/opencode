@@ -858,7 +858,7 @@ export const vercelDomainsTool = tool({
 // authentication issues with internal API calls.
 // ---------------------------------------------------------------------------
 
-async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{ text: string; steps: number }> {
+async function callAgentDirectly(agentId: string, taskPrompt: string, _delegationDepth: number = 0): Promise<{ text: string; steps: number }> {
   const { generateText, stepCountIs } = await import("ai");
   const { getAgent, getProvider } = await import("@/lib/agents");
   const { allTools } = await import("@/lib/tools");
@@ -866,14 +866,22 @@ async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{
   const agent = getAgent(agentId);
   if (!agent) throw new Error(`Unknown agent: ${agentId}`);
 
-  // Build subset of tools for the target agent
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // H9: Prevent cascading delegation loops — max 1 level of nesting
+  // If we're already in a delegation call, strip query_agent from tools to prevent nesting
   const agentTools: Record<string, any> = {};
   for (const toolId of agent.tools) {
-    if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
+    if (allTools[toolId]) {
+      // Remove query_agent in nested calls to prevent cascading timeouts
+      if (_delegationDepth > 0 && toolId === "query_agent") continue;
+      agentTools[toolId] = allTools[toolId];
+    }
   }
 
   const providerResult = await getProvider(agent);
+
+  // Reduce timeout and steps for nested calls to prevent cascading timeouts
+  const timeoutMs = _delegationDepth > 0 ? 60_000 : 120_000;
+  const maxSteps = _delegationDepth > 0 ? 15 : 25;
 
   const result = await generateText({
     model: providerResult.model,
@@ -881,11 +889,24 @@ async function callAgentDirectly(agentId: string, taskPrompt: string): Promise<{
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,
     maxOutputTokens: 16384,
-    stopWhen: stepCountIs(25),
-    abortSignal: AbortSignal.timeout(120_000), // 120s timeout (generous for complex delegated tasks)
+    stopWhen: stepCountIs(maxSteps),
+    abortSignal: AbortSignal.timeout(timeoutMs),
   });
 
-  return { text: result.text, steps: result.steps.length };
+  // H10: Recovery after step exhaustion — if no text was produced, summarize what was done
+  const toolCalls = result.steps.flatMap((s: { toolCalls?: Array<{ toolName: string }> }) => s.toolCalls || []);
+  let responseText = result.text;
+
+  if (!responseText || responseText.trim().length < 50) {
+    if (toolCalls.length > 0) {
+      const toolSummary = toolCalls.map((tc: { toolName: string }) => tc.toolName).join(", ");
+      responseText = `[Delegation to ${agent.name} completed ${toolCalls.length} tool call(s) but did not produce a final text summary. Tools used: ${toolSummary}. The tool calls completed successfully — ask me for details about any specific result.]`;
+    } else {
+      responseText = `[Delegation to ${agent.name} returned no output. The task may have exceeded the step limit (${maxSteps} steps) or timeout (${Math.round(timeoutMs / 1000)}s).]`;
+    }
+  }
+
+  return { text: responseText, steps: result.steps.length };
 }
 
 export const delegateToAgentTool = tool({
@@ -1197,7 +1218,7 @@ async function webReaderFallback(url: string) {
 }
 
 export const webReaderTool = tool({
-  description: "Read and extract content from a web page URL. Returns the page title, main content (HTML), publication time, and URL. Use this to read articles, documentation pages, reports, or any web content for detailed analysis. Always use this after web_search when you need the full content of a result.",
+  description: "Read and extract content from a web page URL. Returns the page title, main content as plain text, and URL. Use this to read articles, documentation pages, reports, or any web content for detailed analysis. Always use this after web_search when you need the full content of a result.",
   inputSchema: zodSchema(z.object({
     url: z.string().describe("The full URL of the web page to read. Must include protocol (https://)"),
   })),
@@ -2716,9 +2737,9 @@ export const opsDeploymentStatusTool = tool({
   description: "Get the latest deployment status for the Claw HQ project on Vercel.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
-    const deployments = await listDeployments("claw-hq", 1);
+    const deployments = await listDeployments(process.env.VERCEL_PROJECT_NAME || "claw-hq", 1);
     if (!deployments.length) {
-      return { status: "no_deployments", message: "No deployments found for claw-hq" };
+      return { status: "no_deployments", message: `No deployments found for ${process.env.VERCEL_PROJECT_NAME || "claw-hq"}` };
     }
 
     const latest = deployments[0];
@@ -4185,6 +4206,131 @@ export const gmailSendWithAttachmentTool = tool({
 // ---------------------------------------------------------------------------
 // All Tools Registry
 // ---------------------------------------------------------------------------
+// Project Management Tools (Phase 2)
+// Enables agents to create projects, break them into tasks, and track progress
+// ---------------------------------------------------------------------------
+
+export const projectCreateTool = tool({
+  description: "Create a new project for tracking a multi-step initiative. Projects can contain multiple tasks with dependencies. Use this when starting a complex initiative that requires multiple steps (e.g., building an app, conducting research, setting up infrastructure).",
+  inputSchema: zodSchema(z.object({
+    name: z.string().describe("Project name"),
+    description: z.string().optional().describe("Project description"),
+    priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("Project priority"),
+    deadline: z.string().optional().describe("ISO date string for project deadline"),
+    tags: z.array(z.string()).optional().describe("Project tags"),
+  })),
+  execute: safeJson(async ({ name, description, priority, deadline, tags }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const result = await pool.query(
+        `INSERT INTO projects (name, description, priority, agent_id, tags, deadline)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, status, created_at`,
+        [name, description || null, priority || "medium", "general", tags || [], deadline || null],
+      );
+      return { success: true, project: result.rows[0] };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectAddTaskTool = tool({
+  description: "Add a task to an existing project. Tasks can have dependencies on other tasks (by task ID). Use sort_order to control execution order. The assigned_agent determines which agent will execute the task.",
+  inputSchema: zodSchema(z.object({
+    project_id: z.number().describe("Project ID"),
+    title: z.string().describe("Task title"),
+    description: z.string().optional().describe("Task description"),
+    task_prompt: z.string().optional().describe("The exact prompt to send to the agent when executing this task"),
+    assigned_agent: z.string().optional().describe("Agent ID to assign (general, mail, code, data, creative, research, ops)"),
+    depends_on: z.array(z.number()).optional().describe("Array of task IDs that must complete before this task"),
+    priority: z.enum(["critical", "high", "medium", "low"]).optional(),
+    task_type: z.enum(["research", "code", "design", "testing", "deployment", "docs", "communication", "general"]).optional(),
+    sort_order: z.number().optional(),
+  })),
+  execute: safeJson(async ({ project_id, title, description, task_prompt, assigned_agent, depends_on, priority, task_type, sort_order }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const agentId = assigned_agent || "general";
+      const result = await pool.query(
+        `INSERT INTO project_tasks (project_id, title, description, task_prompt, assigned_agent, depends_on, priority, task_type, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, title, status`,
+        [project_id, title, description || null, task_prompt || null, agentId, depends_on || [], priority || "medium", task_type || "general", sort_order || 0],
+      );
+      return { success: true, task: result.rows[0] };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectStatusTool = tool({
+  description: "Get the status of a project including all tasks and their progress. Shows completed/failed/pending counts and which tasks are ready to execute next.",
+  inputSchema: zodSchema(z.object({
+    project_id: z.number().describe("Project ID"),
+  })),
+  execute: safeJson(async ({ project_id }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      const projectResult = await pool.query("SELECT * FROM projects WHERE id = $1", [project_id]);
+      if (!projectResult.rows.length) return { success: false, error: "Project not found" };
+
+      const tasksResult = await pool.query(
+        "SELECT id, title, status, priority, assigned_agent, depends_on, sort_order, error FROM project_tasks WHERE project_id = $1 ORDER BY sort_order, id",
+        [project_id],
+      );
+
+      const nextTasks = await pool.query("SELECT * FROM get_next_executable_tasks($1, 5)", [project_id]);
+
+      return {
+        success: true,
+        project: projectResult.rows[0],
+        total_tasks: tasksResult.rows.length,
+        tasks: tasksResult.rows,
+        next_executable_tasks: nextTasks.rows,
+      };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+export const projectListTool = tool({
+  description: "List all projects with their status and progress. Optionally filter by status.",
+  inputSchema: zodSchema(z.object({
+    status: z.string().optional().describe("Filter by status (planning, in_progress, completed, failed)"),
+    limit: z.number().optional().describe("Max projects to return (default 10)"),
+  })),
+  execute: safeJson(async ({ status, limit }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Pool } = require("pg");
+    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+    try {
+      let query = "SELECT id, name, description, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks, created_at, updated_at FROM projects WHERE 1=1";
+      const params: unknown[] = [];
+
+      if (status) {
+        query += " AND status = $1";
+        params.push(status);
+      }
+
+      query += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
+      params.push(limit || 10);
+
+      const result = await pool.query(query, params);
+      return { success: true, projects: result.rows, count: result.rows.length };
+    } finally {
+      await pool.end();
+    }
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -4301,6 +4447,11 @@ export const allTools: Record<string, ToolType> = {
   contact_search: contactSearchTool,
   contact_update: contactUpdateTool,
   contact_delete: contactDeleteTool,
+  // Project Management (Phase 2)
+  project_create: projectCreateTool,
+  project_add_task: projectAddTaskTool,
+  project_status: projectStatusTool,
+  project_list: projectListTool,
   // New Tools
   code_execute: codeExecuteTool,
   weather_get: weatherGetTool,

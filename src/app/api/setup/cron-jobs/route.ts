@@ -14,7 +14,15 @@
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+  const setupSecret = process.env.SETUP_SECRET;
+  if (!setupSecret) {
+    return NextResponse.json({ error: "SETUP_SECRET not configured" }, { status: 500 });
+  }
   const { searchParams } = new URL(request.url);
+  if (searchParams.get("secret") !== setupSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const action = searchParams.get("action") || "setup";
 
   if (!process.env.SUPABASE_DB_URL) {
@@ -37,7 +45,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const cronSecret = process.env.CRON_SECRET || "claw-cron-2025";
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
 
   if (action === "setup") {
     try {

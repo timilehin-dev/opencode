@@ -63,8 +63,9 @@ async function ensureTable(pool: ReturnType<typeof getPool>) {
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
+  let pool: ReturnType<typeof getPool> | undefined;
   try {
-    const pool = getPool();
+    pool = getPool();
     await ensureTable(pool);
 
     const { searchParams } = new URL(req.url);
@@ -86,7 +87,6 @@ export async function GET(req: NextRequest) {
       params.push(limit);
 
       const result = await pool.query(query, params);
-      await pool.end();
       return ok(result.rows);
     }
 
@@ -111,11 +111,12 @@ export async function GET(req: NextRequest) {
       lastLog: logsMap.get(Number(row.id)) || null,
     }));
 
-    await pool.end();
     return ok(automations);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Internal server error";
     return err(message);
+  } finally {
+    if (pool) await pool.end().catch(() => {});
   }
 }
 
@@ -124,8 +125,9 @@ export async function GET(req: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
+  let pool: ReturnType<typeof getPool> | undefined;
   try {
-    const pool = getPool();
+    pool = getPool();
     await ensureTable(pool);
 
     const body = await req.json();
@@ -164,7 +166,6 @@ export async function POST(req: NextRequest) {
           ],
         );
 
-        await pool.end();
         return ok(result.rows[0]);
       }
 
@@ -201,7 +202,6 @@ export async function POST(req: NextRequest) {
           values,
         );
 
-        await pool.end();
         return ok(result.rows[0]);
       }
 
@@ -211,7 +211,6 @@ export async function POST(req: NextRequest) {
 
         await pool.query(`DELETE FROM automation_logs WHERE automation_id = $1`, [id]);
         await pool.query(`DELETE FROM automations WHERE id = $1`, [id]);
-        await pool.end();
         return ok({ deleted: true });
       }
 
@@ -224,7 +223,6 @@ export async function POST(req: NextRequest) {
           [enabled, id],
         );
 
-        await pool.end();
         return ok(result.rows[0]);
       }
 
@@ -281,7 +279,6 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        await pool.end();
         return ok({
           triggered: true,
           mode: "queued",
@@ -299,5 +296,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Internal server error";
     return err(message);
+  } finally {
+    if (pool) await pool.end().catch(() => {});
   }
 }

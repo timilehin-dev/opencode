@@ -190,14 +190,15 @@ async function processAutomation(automation: Automation, pool: ReturnType<typeof
   }
 
   if (taskId > 0) {
-    // Log the run
+    // Log the run as "queued" — the task hasn't executed yet
+    // The executor will update this log when the task completes (or fails)
     await pool.query(
       `INSERT INTO automation_logs (automation_id, status, result, duration_ms)
-       VALUES ($1, 'success', $2, 0)`,
+       VALUES ($1, 'queued', $2, 0)`,
       [
         automation.id,
         JSON.stringify({
-          type: "automation_triggered",
+          type: "automation_queued",
           task_id: taskId,
           agent_id: agentId,
           trigger_type: automation.trigger_type,
@@ -205,9 +206,10 @@ async function processAutomation(automation: Automation, pool: ReturnType<typeof
       ],
     );
 
-    // Update last_run_at and run_count
+    // Update last_run_at and run_count — but use 'queued' as last_status
+    // The actual status will be updated by the executor when the task finishes
     await pool.query(
-      `UPDATE automations SET last_run_at = NOW(), last_status = 'success', run_count = run_count + 1 WHERE id = $1`,
+      `UPDATE automations SET last_run_at = NOW(), last_status = 'queued', run_count = run_count + 1 WHERE id = $1`,
       [automation.id],
     );
 

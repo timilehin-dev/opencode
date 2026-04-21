@@ -27,7 +27,10 @@ export const maxDuration = 300; // 5 min for routine execution
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret");
-  const expectedSecret = process.env.CRON_SECRET || "claw-cron-2025";
+  const expectedSecret = process.env.CRON_SECRET;
+  if (!expectedSecret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
 
   if (secret !== expectedSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

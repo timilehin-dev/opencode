@@ -949,6 +949,1213 @@ function buildToolMap() {
       }),
     }),
 
+    // =======================================================================
+    // Google Sheets API v4
+    // =======================================================================
+    sheets_read: tool({
+      description: "Read spreadsheet metadata and content from Google Sheets.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        ranges: z.string().optional().describe("Range(s) to read (e.g., 'Sheet1!A1:B10')"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, ranges }) => {
+        const token = await getGoogleAccessToken();
+        const params = new URLSearchParams({ includeGridData: "true", fields: "spreadsheetId,properties,sheets(data,rowData,values)" });
+        if (ranges) params.set("ranges", ranges);
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_values: tool({
+      description: "Get cell values from a Google Sheets range.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        range: z.string().describe("Range to read (e.g., 'Sheet1!A1:B10')"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, range }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_append: tool({
+      description: "Append rows of data to a Google Sheets spreadsheet.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        range: z.string().describe("Target range (e.g., 'Sheet1!A1')"),
+        values: z.array(z.array(z.string())).describe("2D array of values to append (each inner array is a row)"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, range, values }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values }),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_update: tool({
+      description: "Update cell values in a Google Sheets range.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        range: z.string().describe("Range to update (e.g., 'Sheet1!A1:B5')"),
+        values: z.array(z.array(z.string())).describe("2D array of new values"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, range, values }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values }),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_create: tool({
+      description: "Create a new Google Spreadsheet.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Title for the new spreadsheet"),
+      })),
+      execute: safeJsonWrap(async ({ title }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: { title } }),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_add_sheet: tool({
+      description: "Add a new sheet tab to an existing Google Spreadsheet.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        sheetName: z.string().describe("Name for the new sheet tab"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, sheetName }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetName } } }] }),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_batch_get: tool({
+      description: "Batch read values from multiple ranges in a Google Spreadsheet in a single API call.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        ranges: z.array(z.string()).describe("Array of ranges to read (e.g., ['Sheet1!A1:B10', 'Sheet2!A1:A5'])"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, ranges }) => {
+        const token = await getGoogleAccessToken();
+        const params = new URLSearchParams({ ranges: ranges.join(",") });
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    sheets_clear: tool({
+      description: "Clear all values from a range in a Google Spreadsheet.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().describe("The spreadsheet ID"),
+        range: z.string().describe("Range to clear (e.g., 'Sheet1!A1:B10')"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, range }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:clear`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+
+    // =======================================================================
+    // Google Docs API v1
+    // =======================================================================
+    docs_list: tool({
+      description: "List all Google Docs in the user's Drive.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const token = await getGoogleAccessToken();
+        const params = new URLSearchParams({
+          q: "mimeType='application/vnd.google-apps.document'",
+          pageSize: "50",
+          fields: "files(id,name,modifiedTime)",
+        });
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    docs_read: tool({
+      description: "Read the content of a Google Doc.",
+      inputSchema: zodSchema(z.object({
+        documentId: z.string().describe("The document ID"),
+      })),
+      execute: safeJsonWrap(async ({ documentId }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch(`https://docs.googleapis.com/v1/documents/${documentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`Docs read error: ${res.status}`);
+        const data = await safeParseRes(res);
+        // Extract text content from the document structure
+        const paragraphs = [];
+        const walk = (node) => {
+          if (node.paragraph) {
+            const elements = node.paragraph.elements || [];
+            const text = elements.map(e => e.textRun?.content || "").join("");
+            if (text.trim()) paragraphs.push(text.trim());
+          }
+          if (node.table) {
+            for (const row of node.table.tableRows || []) {
+              const cells = (row.tableCells || []).map(c => {
+                const parts = [];
+                const walkCell = (n) => {
+                  if (n.paragraph) {
+                    parts.push((n.paragraph.elements || []).map(e => e.textRun?.content || "").join(""));
+                  }
+                  for (const child of n.tableCell?.content || []) walkCell(child);
+                };
+                walkCell(c);
+                return parts.join(" ").trim();
+              });
+              paragraphs.push(cells.join(" | "));
+            }
+          }
+          for (const child of (node.body?.content || [])) walk(child);
+        };
+        walk(data);
+        return { documentId, title: data.title, content: paragraphs.join("\n\n"), paragraphCount: paragraphs.length };
+      }),
+    }),
+    docs_create: tool({
+      description: "Create a new Google Doc.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Title for the new document"),
+      })),
+      execute: safeJsonWrap(async ({ title }) => {
+        const token = await getGoogleAccessToken();
+        const res = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: title, mimeType: "application/vnd.google-apps.document" }),
+        });
+        const data = await safeParseRes(res);
+        return { id: data.id, name: data.name, webViewLink: `https://docs.google.com/document/d/${data.id}/edit` };
+      }),
+    }),
+    docs_append: tool({
+      description: "Append text to an existing Google Doc.",
+      inputSchema: zodSchema(z.object({
+        documentId: z.string().describe("The document ID"),
+        text: z.string().describe("Text to append"),
+      })),
+      execute: safeJsonWrap(async ({ documentId, text }) => {
+        const token = await getGoogleAccessToken();
+        const lines = text.split("\n").filter(l => l.trim());
+        const requests = [];
+        for (const line of lines) {
+          requests.push({
+            insertText: {
+              location: { index: 1 },
+              text: line + "\n",
+            },
+          });
+        }
+        const res = await fetch(`https://docs.googleapis.com/v1/documents/${documentId}:batchUpdate`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ requests }),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+
+    // =======================================================================
+    // GitHub Extended (only if repo/token configured)
+    // =======================================================================
+    ...(GITHUB_REPO ? {
+      github_create_issue: tool({
+        description: "Create a new GitHub issue.",
+        inputSchema: zodSchema(z.object({
+          title: z.string().describe("Issue title"),
+          body: z.string().describe("Issue body/description (supports Markdown)"),
+          labels: z.array(z.string()).optional().describe("Label names to apply"),
+        })),
+        execute: safeJsonWrap(async ({ title, body, labels }) => {
+          const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues`, {
+            method: "POST",
+            headers: { "Accept": "application/vnd.github.v3+json", ...(GITHUB_TOKEN ? { "Authorization": `token ${GITHUB_TOKEN}` } : {}), "Content-Type": "application/json" },
+            body: JSON.stringify({ title, body, labels }),
+          });
+          return safeParseRes(res);
+        }),
+      }),
+      github_read_file: tool({
+        description: "Read the content of a file from the GitHub repository.",
+        inputSchema: zodSchema(z.object({
+          path: z.string().describe("File path in the repository"),
+        })),
+        execute: safeJsonWrap(async ({ path }) => {
+          return githubFetch(`/repos/${GITHUB_REPO}/contents/${path}`);
+        }),
+      }),
+      github_update_issue: tool({
+        description: "Update an existing GitHub issue — change state, title, body, or labels.",
+        inputSchema: zodSchema(z.object({
+          issueNumber: z.number().describe("The issue number to update"),
+          state: z.enum(["open", "closed"]).optional().describe("New state for the issue"),
+          title: z.string().optional().describe("New title for the issue"),
+          body: z.string().optional().describe("New body/description (supports Markdown)"),
+          labels: z.array(z.string()).optional().describe("New set of label names to apply"),
+        })),
+        execute: safeJsonWrap(async ({ issueNumber, state, title, body, labels }) => {
+          const patch = {};
+          if (state !== undefined) patch.state = state;
+          if (title !== undefined) patch.title = title;
+          if (body !== undefined) patch.body = body;
+          if (labels !== undefined) patch.labels = labels;
+          const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues/${issueNumber}`, {
+            method: "PATCH",
+            headers: { "Accept": "application/vnd.github.v3+json", ...(GITHUB_TOKEN ? { "Authorization": `token ${GITHUB_TOKEN}` } : {}), "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          });
+          return safeParseRes(res);
+        }),
+      }),
+      github_create_pr: tool({
+        description: "Create a new pull request. Specify the head branch, base branch, title, and description.",
+        inputSchema: zodSchema(z.object({
+          title: z.string().describe("PR title"),
+          body: z.string().describe("PR description (supports Markdown)"),
+          head: z.string().describe("The name of the branch containing your changes"),
+          base: z.string().describe("The name of the branch you want to merge into (e.g., 'main')"),
+        })),
+        execute: safeJsonWrap(async ({ title, body, head, base }) => {
+          const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/pulls`, {
+            method: "POST",
+            headers: { "Accept": "application/vnd.github.v3+json", ...(GITHUB_TOKEN ? { "Authorization": `token ${GITHUB_TOKEN}` } : {}), "Content-Type": "application/json" },
+            body: JSON.stringify({ title, body, head, base }),
+          });
+          return safeParseRes(res);
+        }),
+      }),
+      github_pr_review: tool({
+        description: "Get detailed pull request review information including PR details and all changed files with their diffs.",
+        inputSchema: zodSchema(z.object({
+          pullNumber: z.number().describe("The pull request number"),
+        })),
+        execute: safeJsonWrap(async ({ pullNumber }) => {
+          const [pr, files] = await Promise.all([
+            githubFetch(`/repos/${GITHUB_REPO}/pulls/${pullNumber}`),
+            githubFetch(`/repos/${GITHUB_REPO}/pulls/${pullNumber}/files`),
+          ]);
+          return { pullRequest: pr, changedFiles: files, fileCount: Array.isArray(files) ? files.length : 0 };
+        }),
+      }),
+      github_pr_comment: tool({
+        description: "Create a comment on a GitHub pull request (or issue).",
+        inputSchema: zodSchema(z.object({
+          pullNumber: z.number().describe("The pull request or issue number"),
+          body: z.string().describe("Comment body (supports Markdown)"),
+        })),
+        execute: safeJsonWrap(async ({ pullNumber, body }) => {
+          const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/issues/${pullNumber}/comments`, {
+            method: "POST",
+            headers: { "Accept": "application/vnd.github.v3+json", ...(GITHUB_TOKEN ? { "Authorization": `token ${GITHUB_TOKEN}` } : {}), "Content-Type": "application/json" },
+            body: JSON.stringify({ body }),
+          });
+          return safeParseRes(res);
+        }),
+      }),
+      github_create_branch: tool({
+        description: "Create a new branch in the GitHub repository from an existing branch (defaults to 'main').",
+        inputSchema: zodSchema(z.object({
+          branchName: z.string().describe("Name for the new branch"),
+          fromBranch: z.string().optional().describe("Source branch to create from (default: 'main')"),
+        })),
+        execute: safeJsonWrap(async ({ branchName, fromBranch }) => {
+          // Get the SHA of the source branch
+          const ref = await githubFetch(`/repos/${GITHUB_REPO}/git/ref/heads/${fromBranch || "main"}`);
+          const sha = ref.object.sha;
+          // Create the new branch
+          const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/refs`, {
+            method: "POST",
+            headers: { "Accept": "application/vnd.github.v3+json", ...(GITHUB_TOKEN ? { "Authorization": `token ${GITHUB_TOKEN}` } : {}), "Content-Type": "application/json" },
+            body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha }),
+          });
+          return safeParseRes(res);
+        }),
+      }),
+    } : {}),
+
+    // =======================================================================
+    // Vercel Extended (only if token configured)
+    // =======================================================================
+    ...(VERCEL_TOKEN ? {
+      vercel_domains: tool({
+        description: "List all Vercel domains.",
+        inputSchema: zodSchema(z.object({
+          projectId: z.string().optional().describe("Filter by project ID"),
+        })),
+        execute: safeJsonWrap(async ({ projectId }) => {
+          const params = projectId ? `?projectId=${projectId}` : "";
+          return vercelFetch(`/v2/domains${params}`);
+        }),
+      }),
+      vercel_deploy: tool({
+        description: "Trigger a redeployment on Vercel for a project using the latest production commit.",
+        inputSchema: zodSchema(z.object({
+          projectIdOrName: z.string().describe("Vercel project ID or name"),
+        })),
+        execute: safeJsonWrap(async ({ projectIdOrName }) => {
+          // Step 1: Get project details
+          const project = await vercelFetch(`/v9/projects/${encodeURIComponent(projectIdOrName)}`);
+          // Step 2: Get latest deployment
+          const deployments = await vercelFetch(`/v6/deployments?projectId=${project.id}&limit=1`);
+          const latest = (deployments.deployments || [])[0];
+          if (!latest) throw new Error("No previous deployments found to redeploy from");
+          // Step 3: Trigger redeployment
+          const deployBody = { name: project.name, projectId: project.id, target: latest.target || "production" };
+          if (latest.meta?.githubCommitSha) deployBody.githubCommitSha = latest.meta.githubCommitSha;
+          const res = await fetch("https://api.vercel.com/v13/deployments", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${VERCEL_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify(deployBody),
+          });
+          return safeParseRes(res);
+        }),
+      }),
+      vercel_logs: tool({
+        description: "Get build logs for the most recent deployment of a Vercel project.",
+        inputSchema: zodSchema(z.object({
+          projectIdOrName: z.string().describe("Vercel project ID or name"),
+          limit: z.number().optional().describe("Max log entries to return (default: 100)"),
+        })),
+        execute: safeJsonWrap(async ({ projectIdOrName, limit }) => {
+          const deployments = await vercelFetch(`/v2/projects/${projectIdOrName}/deployments?limit=1`);
+          const latest = (deployments.deployments || [])[0];
+          if (!latest) throw new Error("No deployments found");
+          const events = await vercelFetch(`/v2/deployments/${latest.id}/events`);
+          return {
+            deploymentId: latest.id,
+            state: latest.state,
+            url: latest.url,
+            events: (events.events || []).slice(0, limit || 100).map(e => ({
+              type: e.type,
+              text: e.text,
+              timestamp: e.created ? new Date(e.created).toISOString() : null,
+            })),
+          };
+        }),
+      }),
+    } : {}),
+
+    // =======================================================================
+    // Vision Tools (OCR — OCR.space API, FREE, no LLM tokens)
+    // =======================================================================
+    vision_analyze: tool({
+      description: "Extract text from images using OCR. Accepts an image URL or base64-encoded data. This is a FREE service — no LLM tokens consumed.",
+      inputSchema: zodSchema(z.object({
+        prompt: z.string().optional().describe("Optional question about the image content"),
+        imageUrl: z.string().optional().describe("URL of the image to analyze"),
+        imageBase64: z.string().optional().describe("Base64-encoded image data"),
+      })),
+      execute: safeJsonWrap(async ({ prompt, imageUrl, imageBase64 }) => {
+        if (!imageUrl && !imageBase64) return { analysis: "No image provided. Please provide an imageUrl or imageBase64." };
+        const formData = new FormData();
+        formData.append("language", "eng");
+        formData.append("isOverlayRequired", "false");
+        formData.append("scale", "true");
+        formData.append("OCREngine", "2");
+        if (imageBase64) {
+          const clean = imageBase64.startsWith("data:") ? imageBase64.split(",")[1] : imageBase64;
+          formData.append("base64Image", `data:image/png;base64,${clean}`);
+        } else if (imageUrl) {
+          formData.append("url", imageUrl);
+        }
+        const headers = {};
+        if (process.env.OCR_SPACE_API_KEY) headers["apikey"] = process.env.OCR_SPACE_API_KEY;
+        const res = await fetch("https://api.ocr.space/parse/image", {
+          method: "POST", headers, body: formData, signal: AbortSignal.timeout(30000),
+        });
+        if (!res.ok) throw new Error(`OCR API error: ${res.status}`);
+        const data = await safeParseRes(res);
+        const fullText = (data.ParsedResults || []).map(r => r.ParsedText || "").join("\n").trim();
+        if (!fullText) return { analysis: "No text could be extracted from this image.", prompt };
+        const analysis = prompt
+          ? `**Your question:** ${prompt}\n\n**Extracted text:**\n\n${fullText}`
+          : `**Extracted text:**\n\n${fullText}`;
+        return { analysis };
+      }),
+    }),
+    vision_download_analyze: tool({
+      description: "Download a file from Google Drive AND analyze it. For images: uses OCR to extract text. For text files: returns content directly.",
+      inputSchema: zodSchema(z.object({
+        fileId: z.string().describe("The Google Drive file ID to download and analyze"),
+        prompt: z.string().optional().describe("Optional question about the file content"),
+      })),
+      execute: safeJsonWrap(async ({ fileId, prompt }) => {
+        const token = await getGoogleAccessToken();
+        // Step 1: Get file metadata
+        const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const meta = await metaRes.json();
+        const isImage = (meta.mimeType || "").startsWith("image/");
+        const isGoogleApp = (meta.mimeType || "").startsWith("application/vnd.google-apps");
+        // Step 2: Download/export
+        let fileContent;
+        let actualMime = meta.mimeType;
+        if (isGoogleApp) {
+          const exportMime = meta.mimeType.includes("document") ? "text/plain" : "text/csv";
+          const exportRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMime)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          fileContent = await exportRes.text();
+          actualMime = exportMime;
+        } else {
+          const dlRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (isImage) {
+            const buf = Buffer.from(await dlRes.arrayBuffer());
+            fileContent = buf.toString("base64");
+          } else {
+            fileContent = await dlRes.text();
+          }
+        }
+        // Step 3: Process
+        if (isImage && fileContent) {
+          const formData = new FormData();
+          formData.append("language", "eng");
+          formData.append("isOverlayRequired", "false");
+          formData.append("scale", "true");
+          formData.append("OCREngine", "2");
+          formData.append("base64Image", `data:image/png;base64,${fileContent.slice(0, 1000000)}`);
+          const headers = {};
+          if (process.env.OCR_SPACE_API_KEY) headers["apikey"] = process.env.OCR_SPACE_API_KEY;
+          const ocrRes = await fetch("https://api.ocr.space/parse/image", {
+            method: "POST", headers, body: formData, signal: AbortSignal.timeout(30000),
+          });
+          const ocrData = await safeParseRes(ocrRes);
+          const ocrText = (ocrData.ParsedResults || []).map(r => r.ParsedText || "").join("\n").trim();
+          if (!ocrText) return { fileName: meta.name, mimeType: actualMime, analysis: "No readable text found in this image." };
+          const analysis = prompt
+            ? `**Your question:** ${prompt}\n\n**Extracted text:**\n\n${ocrText}`
+            : `**Extracted text:**\n\n${ocrText}`;
+          return { fileName: meta.name, mimeType: actualMime, size: meta.size, analysis };
+        }
+        return { fileName: meta.name, mimeType: actualMime, size: meta.size, content: (fileContent || "").slice(0, 50000), contentTruncated: (fileContent || "").length > 50000 };
+      }),
+    }),
+
+    // =======================================================================
+    // Media Generation (AIHubMix API)
+    // =======================================================================
+    image_generate: tool({
+      description: "Generate images from text prompts using AI (DALL-E via AIHubMix). Returns base64-encoded image data or a URL.",
+      inputSchema: zodSchema(z.object({
+        prompt: z.string().describe("Text description of the image to generate"),
+        size: z.enum(["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"]).optional().describe("Image size (default: '1024x1024')"),
+      })),
+      execute: safeJsonWrap(async ({ prompt, size }) => {
+        try {
+          const apiKey = nextAIHubMixKey();
+          const res = await fetch("https://aihubmix.com/v1/images/generations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: "dall-e-3", prompt, size: size || "1024x1024", n: 1 }),
+            signal: AbortSignal.timeout(60000),
+          });
+          if (!res.ok) throw new Error(`Image generation error: ${res.status}`);
+          const data = await safeParseRes(res);
+          const img = (data.data || [])[0];
+          return img?.b64_json ? { imageBase64: img.b64_json } : img?.url ? { imageUrl: img.url } : { imageBase64: JSON.stringify(data) };
+        } catch (err) {
+          return { error: `Image generation failed: ${err.message}`, note: "Ensure AIHUBMIX_API_KEY is configured." };
+        }
+      }),
+    }),
+    tts_generate: tool({
+      description: "Convert text to speech audio using AI (OpenAI TTS via AIHubMix). Returns base64-encoded MP3 audio data.",
+      inputSchema: zodSchema(z.object({
+        text: z.string().describe("Text to convert to speech"),
+        voice: z.string().optional().describe("Voice name (default: 'alloy')"),
+        speed: z.number().optional().describe("Speech speed multiplier (default: 1.0)"),
+      })),
+      execute: safeJsonWrap(async ({ text, voice, speed }) => {
+        try {
+          const apiKey = nextAIHubMixKey();
+          const res = await fetch("https://aihubmix.com/v1/audio/speech", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: "tts-1", input: text, voice: voice || "alloy", speed: speed || 1.0, response_format: "mp3" }),
+            signal: AbortSignal.timeout(30000),
+          });
+          if (!res.ok) throw new Error(`TTS error: ${res.status}`);
+          const buf = Buffer.from(await res.arrayBuffer());
+          return { audioBase64: buf.toString("base64"), format: "mp3" };
+        } catch (err) {
+          return { error: `TTS generation failed: ${err.message}` };
+        }
+      }),
+    }),
+    asr_transcribe: tool({
+      description: "Transcribe audio to text using AI speech recognition (Whisper via AIHubMix). Accepts base64-encoded audio data.",
+      inputSchema: zodSchema(z.object({
+        audioBase64: z.string().describe("Base64-encoded audio data to transcribe"),
+      })),
+      execute: safeJsonWrap(async ({ audioBase64 }) => {
+        try {
+          const apiKey = nextAIHubMixKey();
+          const audioBuffer = Buffer.from(audioBase64, "base64");
+          const formData = new FormData();
+          formData.append("file", new Blob([audioBuffer]), "audio.mp3");
+          formData.append("model", "whisper-1");
+          const res = await fetch("https://aihubmix.com/v1/audio/transcriptions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: formData,
+            signal: AbortSignal.timeout(30000),
+          });
+          if (!res.ok) throw new Error(`ASR error: ${res.status}`);
+          const data = await safeParseRes(res);
+          return { transcription: data.text || JSON.stringify(data) };
+        } catch (err) {
+          return { error: `Transcription failed: ${err.message}` };
+        }
+      }),
+    }),
+    video_generate: tool({
+      description: "Generate video using AI from text prompt or image. Note: Video generation requires specific API support and may not be available in all environments.",
+      inputSchema: zodSchema(z.object({
+        prompt: z.string().optional().describe("Text description of the video to generate"),
+        imageUrl: z.string().optional().describe("URL of a source image for image-to-video generation"),
+        quality: z.enum(["speed", "quality"]).optional().describe("Generation quality (default: 'speed')"),
+      })),
+      execute: () => JSON.stringify({ success: false, error: "Video generation is not available in the GitHub Actions executor environment." }),
+    }),
+
+    // =======================================================================
+    // Design Tools (Stitch API)
+    // =======================================================================
+    design_generate: tool({
+      description: "Generate a high-fidelity UI design from a text prompt using the Stitch design platform.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Title for the design project"),
+        prompt: z.string().describe("Description of the UI design to generate"),
+        deviceType: z.enum(["MOBILE", "DESKTOP", "TABLET"]).optional().describe("Target device type (default: 'DESKTOP')"),
+      })),
+      execute: safeJsonWrap(async ({ title, prompt, deviceType }) => {
+        if (!process.env.STITCH_API_KEY) return { success: false, error: "STITCH_API_KEY not configured." };
+        const res = await fetch("https://api.stitchdesign.ai/v1/designs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": process.env.STITCH_API_KEY },
+          body: JSON.stringify({ title, prompt, deviceType: deviceType || "DESKTOP" }),
+          signal: AbortSignal.timeout(60000),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    design_edit: tool({
+      description: "Edit an existing Stitch design screen using a text prompt.",
+      inputSchema: zodSchema(z.object({
+        projectId: z.string().describe("The Stitch project ID"),
+        screenId: z.string().describe("The screen ID to edit"),
+        prompt: z.string().describe("Instructions for what to change in the design"),
+      })),
+      execute: safeJsonWrap(async ({ projectId, screenId, prompt }) => {
+        if (!process.env.STITCH_API_KEY) return { success: false, error: "STITCH_API_KEY not configured." };
+        const res = await fetch(`https://api.stitchdesign.ai/v1/designs/${projectId}/screens/${screenId}/edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": process.env.STITCH_API_KEY },
+          body: JSON.stringify({ prompt }),
+          signal: AbortSignal.timeout(60000),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+    design_variants: tool({
+      description: "Generate design variants of an existing Stitch screen.",
+      inputSchema: zodSchema(z.object({
+        projectId: z.string().describe("The Stitch project ID"),
+        screenId: z.string().describe("The screen ID to generate variants for"),
+        prompt: z.string().describe("Description of what variations to explore"),
+        count: z.number().optional().describe("Number of variants to generate (default: 3)"),
+      })),
+      execute: safeJsonWrap(async ({ projectId, screenId, prompt, count }) => {
+        if (!process.env.STITCH_API_KEY) return { success: false, error: "STITCH_API_KEY not configured." };
+        const res = await fetch(`https://api.stitchdesign.ai/v1/designs/${projectId}/screens/${screenId}/variants`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": process.env.STITCH_API_KEY },
+          body: JSON.stringify({ prompt, count: count || 3 }),
+          signal: AbortSignal.timeout(60000),
+        });
+        return safeParseRes(res);
+      }),
+    }),
+
+    // =======================================================================
+    // Data Analysis Tools
+    // =======================================================================
+    data_calculate: tool({
+      description: "Perform mathematical and statistical calculations. Supports basic math and statistics (mean, median, mode, stddev, sum, min, max, count).",
+      inputSchema: zodSchema(z.object({
+        expression: z.string().describe("Math expression to evaluate (e.g., '2 + 3 * 4')"),
+        data: z.array(z.number()).optional().describe("Array of numbers for statistical operations"),
+      })),
+      execute: safeJsonWrap(({ expression, data }) => {
+        const result = { expression, dataType: data ? "statistical" : "math" };
+        if (data && data.length > 0) {
+          const sorted = [...data].sort((a, b) => a - b);
+          const sum = data.reduce((a, b) => a + b, 0);
+          const count = data.length;
+          const mean = sum / count;
+          const median = count % 2 === 0 ? (sorted[count / 2 - 1] + sorted[count / 2]) / 2 : sorted[Math.floor(count / 2)];
+          const freq = {};
+          data.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+          const maxFreq = Math.max(...Object.values(freq));
+          const mode = Object.entries(freq).filter(([, f]) => f === maxFreq).map(([v]) => Number(v));
+          const variance = data.reduce((acc, v) => acc + (v - mean) ** 2, 0) / count;
+          result.statistics = { sum, count, mean: Math.round(mean * 1000) / 1000, median, mode, min: sorted[0], max: sorted[count - 1], range: sorted[count - 1] - sorted[0], stddev: Math.round(Math.sqrt(variance) * 1000) / 1000 };
+          result.result = `Stats for ${count} values: mean=${Math.round(mean * 100) / 100}, median=${median}, stddev=${Math.round(Math.sqrt(variance) * 100) / 100}`;
+        } else {
+          try {
+            const sanitized = expression.replace(/[^0-9+\-*/().%, \t]/g, "");
+            if (!sanitized) { result.result = "Could not evaluate expression"; result.evaluated = false; return result; }
+            result.result = Function(`"use strict"; return (${sanitized})`)();
+            result.evaluated = true;
+          } catch { result.result = `Could not evaluate expression: ${expression}`; result.evaluated = false; }
+        }
+        return result;
+      }),
+    }),
+    data_clean: tool({
+      description: "Clean and normalize tabular data. Apply operations like trimming, case conversion, removing duplicates, empty rows, number/date formatting.",
+      inputSchema: zodSchema(z.object({
+        data: z.array(z.array(z.string())).describe("2D array of string data to clean (first row may be headers)"),
+        operations: z.array(z.enum(["trim", "uppercase", "lowercase", "removeDuplicates", "removeEmpty", "numberFormat", "dateFormat"])).describe("Sequence of cleaning operations"),
+      })),
+      execute: safeJsonWrap(({ data, operations }) => {
+        let cleaned = data.map(row => [...row]);
+        for (const op of operations) {
+          switch (op) {
+            case "trim": cleaned = cleaned.map(row => row.map(cell => cell.trim())); break;
+            case "uppercase": cleaned = cleaned.map(row => row.map(cell => cell.toUpperCase())); break;
+            case "lowercase": cleaned = cleaned.map(row => row.map(cell => cell.toLowerCase())); break;
+            case "removeDuplicates": { const seen = new Set(); cleaned = cleaned.filter(row => { const k = row.join("|||"); if (seen.has(k)) return false; seen.add(k); return true; }); break; }
+            case "removeEmpty": cleaned = cleaned.filter(row => row.some(cell => cell.trim() !== "")); break;
+            case "numberFormat": cleaned = cleaned.map(row => row.map(cell => { const n = parseFloat(cell.replace(/[^0-9.\-]/g, "")); return isNaN(n) ? cell : n.toLocaleString(); })); break;
+            case "dateFormat": cleaned = cleaned.map(row => row.map(cell => { const d = new Date(cell); return isNaN(d.getTime()) ? cell : d.toISOString().split("T")[0]; })); break;
+          }
+        }
+        return { originalRows: data.length, cleanedRows: cleaned.length, operationsApplied: operations, data: cleaned };
+      }),
+    }),
+    data_pivot: tool({
+      description: "Pivot, group, and aggregate tabular data. Group rows by a column and apply an aggregate function to another column.",
+      inputSchema: zodSchema(z.object({
+        data: z.array(z.array(z.string())).describe("2D array of data (first row should be headers)"),
+        groupByColumn: z.number().describe("Zero-based column index to group by"),
+        aggregateColumn: z.number().describe("Zero-based column index to aggregate"),
+        aggregateFunction: z.enum(["sum", "average", "count", "min", "max"]).describe("Aggregate function to apply"),
+      })),
+      execute: safeJsonWrap(({ data, groupByColumn, aggregateColumn, aggregateFunction }) => {
+        if (data.length < 2) throw new Error("Data must have at least a header row and one data row");
+        const headers = data[0];
+        const rows = data.slice(1);
+        const groups = {};
+        for (const row of rows) {
+          const key = row[groupByColumn] || "(empty)";
+          if (!groups[key]) groups[key] = [];
+          const val = parseFloat(row[aggregateColumn]);
+          if (!isNaN(val)) groups[key].push(val);
+        }
+        const pivoted = [];
+        for (const [group, values] of Object.entries(groups)) {
+          let value = 0;
+          switch (aggregateFunction) {
+            case "sum": value = values.reduce((a, b) => a + b, 0); break;
+            case "average": value = values.reduce((a, b) => a + b, 0) / values.length; break;
+            case "count": value = values.length; break;
+            case "min": value = Math.min(...values); break;
+            case "max": value = Math.max(...values); break;
+          }
+          pivoted.push({ group, value: Math.round(value * 1000) / 1000 });
+        }
+        return { groupBy: headers[groupByColumn], aggregateOn: headers[aggregateColumn], aggregateFunction, groups: pivoted, totalGroups: pivoted.length };
+      }),
+    }),
+
+    // =======================================================================
+    // Research Extended (save brief/data to Google Docs/Sheets)
+    // =======================================================================
+    research_save_brief: tool({
+      description: "Save a research brief to a new Google Doc with formatted sections.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Title for the research brief document"),
+        objective: z.string().describe("Research objective"),
+        methodology: z.string().describe("Research methodology used"),
+        findings: z.string().describe("Key findings summary"),
+        sources: z.array(z.string()).describe("List of source URLs or citations"),
+        recommendations: z.string().describe("Recommendations based on findings"),
+      })),
+      execute: safeJsonWrap(async ({ title, objective, methodology, findings, sources, recommendations }) => {
+        const token = await getGoogleAccessToken();
+        // Create the doc
+        const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: title, mimeType: "application/vnd.google-apps.document" }),
+        });
+        const doc = await safeParseRes(createRes);
+        // Append content
+        const content = `RESEARCH BRIEF: ${title}\n\n========================================\n\nOBJECTIVE\n${objective}\n\nMETHODOLOGY\n${methodology}\n\nKEY FINDINGS\n${findings}\n\nSOURCES\n${sources.map(s => `- ${s}`).join("\n")}\n\nRECOMMENDATIONS\n${recommendations}\n`;
+        const lines = content.split("\n").filter(l => l.trim());
+        const requests = lines.map(line => ({ insertText: { location: { index: 1 }, text: line + "\n" } }));
+        await fetch(`https://docs.googleapis.com/v1/documents/${doc.id}:batchUpdate`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ requests }),
+        });
+        return { success: true, documentId: doc.id, documentUrl: `https://docs.google.com/document/d/${doc.id}/edit`, title };
+      }),
+    }),
+    research_save_data: tool({
+      description: "Save research data to a Google Sheet. Creates a new spreadsheet if no ID is provided.",
+      inputSchema: zodSchema(z.object({
+        spreadsheetId: z.string().optional().describe("Existing spreadsheet ID (creates new if omitted)"),
+        title: z.string().optional().describe("Title for new spreadsheet"),
+        data: z.array(z.array(z.string())).describe("2D array of data to save (first row = headers)"),
+      })),
+      execute: safeJsonWrap(async ({ spreadsheetId, title, data }) => {
+        const token = await getGoogleAccessToken();
+        let sheetId = spreadsheetId;
+        if (!sheetId) {
+          const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: { title: title || "Research Data" } }),
+          });
+          const created = await safeParseRes(createRes);
+          sheetId = created.spreadsheetId;
+        }
+        const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values: data }),
+        });
+        const result = await safeParseRes(res);
+        return { success: true, spreadsheetId: sheetId, updatedRange: result.updates?.updatedRange, rowsAppended: result.updates?.updatedRows || data.length };
+      }),
+    }),
+
+    // =======================================================================
+    // Ops / Monitoring Tools
+    // =======================================================================
+    ops_health_check: tool({
+      description: "Check the health status of all connected services (GitHub API, Vercel API, Google API). Returns a structured health report.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const checks = [];
+        // GitHub
+        try {
+          const ghRes = await fetch("https://api.github.com", { signal: AbortSignal.timeout(5000) });
+          checks.push({ service: "github-api", status: ghRes.ok ? "healthy" : "unhealthy", statusCode: ghRes.status });
+        } catch (err) { checks.push({ service: "github-api", status: "unreachable", error: err.message }); }
+        // Vercel
+        try {
+          const headers = { Authorization: `Bearer ${VERCEL_TOKEN}` };
+          const vRes = await fetch("https://api.vercel.com/v2/user", { headers, signal: AbortSignal.timeout(5000) });
+          checks.push({ service: "vercel-api", status: vRes.ok ? "healthy" : "unhealthy", statusCode: vRes.status });
+        } catch (err) { checks.push({ service: "vercel-api", status: "unreachable", error: err.message }); }
+        // Google
+        try {
+          const token = await getGoogleAccessToken();
+          const gRes = await fetch("https://www.googleapis.com/drive/v3/files?pageSize=1", {
+            headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000),
+          });
+          checks.push({ service: "google-api", status: gRes.ok ? "healthy" : "unhealthy", statusCode: gRes.status });
+        } catch (err) { checks.push({ service: "google-api", status: "unreachable", error: err.message }); }
+        // Supabase (pool)
+        try {
+          await pool.query("SELECT 1");
+          checks.push({ service: "supabase-db", status: "healthy" });
+        } catch (err) { checks.push({ service: "supabase-db", status: "unreachable", error: err.message }); }
+        const healthy = checks.filter(c => c.status === "healthy").length;
+        return { overallStatus: healthy === checks.length ? "all_healthy" : healthy >= Math.ceil(checks.length * 0.5) ? "degraded" : "down", healthyServices: healthy, totalServices: checks.length, timestamp: new Date().toISOString(), checks };
+      }),
+    }),
+    ops_deployment_status: tool({
+      description: "Get the latest deployment status from Vercel.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const projectName = process.env.VERCEL_PROJECT_NAME || process.env.GITHUB_REPO?.split("/")[1] || "unknown";
+        const deployments = await vercelFetch(`/v2/projects/${projectName}/deployments?limit=1`);
+        const latest = (deployments.deployments || [])[0];
+        if (!latest) return { status: "no_deployments", project: projectName };
+        return { id: latest.id, state: latest.state, url: latest.url, createdAt: latest.created, project: projectName };
+      }),
+    }),
+    ops_github_activity: tool({
+      description: "Get recent GitHub activity including commits and issues with anomaly flags.",
+      inputSchema: zodSchema(z.object({
+        since: z.string().optional().describe("ISO 8601 date to filter activity from"),
+      })),
+      execute: safeJsonWrap(async ({ since }) => {
+        const [commits, issues] = await Promise.all([
+          githubFetch(`/repos/${GITHUB_REPO}/commits?per_page=10`),
+          githubFetch(`/repos/${GITHUB_REPO}/issues?state=all&per_page=10`),
+        ]);
+        const sinceDate = since ? new Date(since) : null;
+        const filteredCommits = sinceDate ? (Array.isArray(commits) ? commits : []).filter(c => new Date(c.commit?.author?.date) >= sinceDate) : (Array.isArray(commits) ? commits : []);
+        const filteredIssues = sinceDate ? (Array.isArray(issues) ? issues : []).filter(i => new Date(i.updated_at) >= sinceDate) : (Array.isArray(issues) ? issues : []);
+        const openIssues = (Array.isArray(issues) ? issues : []).filter(i => i.state === "open");
+        const anomalies = [];
+        if (openIssues.length > 20) anomalies.push("High number of open issues");
+        return {
+          commitCount: filteredCommits.length,
+          issueCount: filteredIssues.length,
+          openIssues: openIssues.length,
+          recentCommits: filteredCommits.slice(0, 5).map(c => ({ sha: (c.sha || "").slice(0, 7), message: (c.commit?.message || "").split("\n")[0], author: c.commit?.author?.name, date: c.commit?.author?.date })),
+          recentIssues: filteredIssues.slice(0, 5).map(i => ({ number: i.number, title: i.title, state: i.state, author: i.user?.login, updated: i.updated_at })),
+          anomalies: anomalies.length > 0 ? anomalies : "No anomalies detected",
+          timestamp: new Date().toISOString(),
+        };
+      }),
+    }),
+    ops_agent_stats: tool({
+      description: "Get performance statistics for all Claw agents from the database.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        try {
+          const statusResult = await pool.query(`
+            SELECT agent_id, COUNT(*) as total_tasks,
+              COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+              COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+              COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+              COUNT(CASE WHEN status = 'running' THEN 1 END) as running
+            FROM agent_tasks GROUP BY agent_id ORDER BY agent_id
+          `);
+          return { agents: statusResult.rows, timestamp: new Date().toISOString() };
+        } catch (err) {
+          return { error: `Failed to query agent stats: ${err.message}`, agents: [] };
+        }
+      }),
+    }),
+
+    // =======================================================================
+    // Reminders (workspace — database)
+    // =======================================================================
+    reminder_create: tool({
+      description: "Create a reminder. Supports priority levels, recurring schedules, and agent assignment.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Reminder title — what to be reminded about"),
+        description: z.string().optional().describe("Additional context or details"),
+        reminder_time: z.string().describe("When to fire (ISO 8601 datetime, e.g., '2025-01-15T09:00:00Z')"),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Priority (default: 'normal')"),
+        repeat_config: z.object({ type: z.enum(["daily", "weekly", "monthly"]) }).optional().describe("Recurring config"),
+        assigned_agent: z.string().optional().describe("Which agent should handle this reminder"),
+      })),
+      execute: safeJsonWrap(async ({ title, description, reminder_time, priority, repeat_config, assigned_agent }) => {
+        const result = await pool.query(
+          `INSERT INTO reminders (title, description, reminder_time, priority, repeat_config, assigned_agent, context)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [title, description || "", reminder_time, priority || "normal", JSON.stringify(repeat_config || {}), assigned_agent || null, "{}"],
+        );
+        return result.rows[0];
+      }),
+    }),
+    reminder_list: tool({
+      description: "List reminders with optional filters. Returns reminders ordered by time.",
+      inputSchema: zodSchema(z.object({
+        status: z.enum(["pending", "fired", "dismissed", "snoozed"]).optional().describe("Filter by status"),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Filter by priority"),
+        limit: z.number().optional().describe("Max results (default: 50)"),
+      })),
+      execute: safeJsonWrap(async ({ status, priority, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+        if (priority) { conditions.push(`priority = $${idx++}`); params.push(priority); }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT * FROM reminders ${where} ORDER BY reminder_time ASC LIMIT $${idx}`, [...params, limit || 50]);
+        return result.rows;
+      }),
+    }),
+    reminder_update: tool({
+      description: "Update an existing reminder — change time, title, description, priority, or status.",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Reminder ID to update"),
+        title: z.string().optional().describe("New title"),
+        description: z.string().optional().describe("New description"),
+        reminder_time: z.string().optional().describe("New reminder time (ISO 8601)"),
+        status: z.enum(["pending", "fired", "dismissed", "snoozed"]).optional().describe("New status"),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("New priority"),
+      })),
+      execute: safeJsonWrap(async ({ id, title, description, reminder_time, status, priority }) => {
+        const fields = [];
+        const params = [];
+        let idx = 1;
+        if (title !== undefined) { fields.push(`title = $${idx++}`); params.push(title); }
+        if (description !== undefined) { fields.push(`description = $${idx++}`); params.push(description); }
+        if (reminder_time !== undefined) { fields.push(`reminder_time = $${idx++}`); params.push(reminder_time); }
+        if (status !== undefined) { fields.push(`status = $${idx++}`); params.push(status); }
+        if (priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(priority); }
+        if (fields.length === 0) throw new Error("No fields to update");
+        fields.push(`updated_at = NOW()`);
+        const result = await pool.query(`UPDATE reminders SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, [...params, id]);
+        return result.rows[0] || null;
+      }),
+    }),
+    reminder_delete: tool({
+      description: "Delete a reminder permanently.",
+      inputSchema: zodSchema(z.object({ id: z.number().describe("Reminder ID to delete") })),
+      execute: safeJsonWrap(async ({ id }) => {
+        await pool.query(`DELETE FROM reminders WHERE id = $1`, [id]);
+        return { deleted: true, id };
+      }),
+    }),
+    reminder_complete: tool({
+      description: "Mark a reminder as completed — dismiss it or snooze it (push time forward).",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Reminder ID to complete"),
+        action: z.enum(["dismiss", "snooze"]).describe("'dismiss' marks as dismissed, 'snooze' pushes time forward"),
+        snooze_minutes: z.number().optional().describe("If snoozing, minutes to push forward (default: 30)"),
+      })),
+      execute: safeJsonWrap(async ({ id, action, snooze_minutes }) => {
+        const existing = await pool.query(`SELECT * FROM reminders WHERE id = $1`, [id]);
+        const reminder = existing.rows[0];
+        if (!reminder) throw new Error(`Reminder ${id} not found`);
+        if (action === "dismiss") {
+          const result = await pool.query(`UPDATE reminders SET status = 'dismissed', updated_at = NOW() WHERE id = $1 RETURNING *`, [id]);
+          return result.rows[0];
+        }
+        const minutes = snooze_minutes || 30;
+        const newTime = new Date(new Date(reminder.reminder_time).getTime() + minutes * 60 * 1000).toISOString();
+        const result = await pool.query(`UPDATE reminders SET status = 'pending', reminder_time = $1, updated_at = NOW() WHERE id = $2 RETURNING *`, [newTime, id]);
+        return result.rows[0];
+      }),
+    }),
+
+    // =======================================================================
+    // Todos (workspace — database)
+    // =======================================================================
+    todo_create: tool({
+      description: "Create a task/todo item. Supports categories, tags, due dates, priority, and agent assignment.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Task title"),
+        description: z.string().optional().describe("Detailed description"),
+        priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Priority (default: 'medium')"),
+        due_date: z.string().optional().describe("Due date (ISO date, e.g., '2025-01-15')"),
+        category: z.string().optional().describe("Category label (default: 'general')"),
+        tags: z.array(z.string()).optional().describe("Tags for categorization"),
+        assigned_agent: z.string().optional().describe("Which agent owns this task"),
+      })),
+      execute: safeJsonWrap(async ({ title, description, priority, due_date, category, tags, assigned_agent }) => {
+        const result = await pool.query(
+          `INSERT INTO todos (title, description, priority, due_date, category, tags, assigned_agent, context)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          [title, description || "", priority || "medium", due_date || null, category || "general", tags || [], assigned_agent || null, "{}"],
+        );
+        return result.rows[0];
+      }),
+    }),
+    todo_list: tool({
+      description: "List tasks/todos with optional filters. Returns tasks ordered by creation date (newest first).",
+      inputSchema: zodSchema(z.object({
+        status: z.enum(["open", "in_progress", "done", "archived"]).optional().describe("Filter by status"),
+        priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Filter by priority"),
+        category: z.string().optional().describe("Filter by category"),
+        tag: z.string().optional().describe("Filter by a specific tag"),
+        limit: z.number().optional().describe("Max results (default: 50)"),
+      })),
+      execute: safeJsonWrap(async ({ status, priority, category, tag, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+        if (priority) { conditions.push(`priority = $${idx++}`); params.push(priority); }
+        if (category) { conditions.push(`category = $${idx++}`); params.push(category); }
+        if (tag) { conditions.push(`$${idx} = ANY(tags)`); params.push(tag); idx++; }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT * FROM todos ${where} ORDER BY created_at DESC LIMIT $${idx}`, [...params, limit || 50]);
+        return result.rows;
+      }),
+    }),
+    todo_update: tool({
+      description: "Update a task/todo. Change status, title, description, priority, due date, or tags.",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Task ID to update"),
+        title: z.string().optional().describe("New title"),
+        description: z.string().optional().describe("New description"),
+        status: z.enum(["open", "in_progress", "done", "archived"]).optional().describe("New status"),
+        priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("New priority"),
+        due_date: z.string().optional().describe("New due date (ISO date)"),
+        category: z.string().optional().describe("New category"),
+        tags: z.array(z.string()).optional().describe("New tags (replaces existing)"),
+      })),
+      execute: safeJsonWrap(async ({ id, title, description, status, priority, due_date, category, tags }) => {
+        const fields = [];
+        const params = [];
+        let idx = 1;
+        if (title !== undefined) { fields.push(`title = $${idx++}`); params.push(title); }
+        if (description !== undefined) { fields.push(`description = $${idx++}`); params.push(description); }
+        if (status !== undefined) { fields.push(`status = $${idx++}`); params.push(status); }
+        if (priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(priority); }
+        if (due_date !== undefined) { fields.push(`due_date = $${idx++}`); params.push(due_date); }
+        if (category !== undefined) { fields.push(`category = $${idx++}`); params.push(category); }
+        if (tags !== undefined) { fields.push(`tags = $${idx++}`); params.push(tags); }
+        if (status === "done") fields.push(`completed_at = NOW()`);
+        if (fields.length === 0) throw new Error("No fields to update");
+        fields.push(`updated_at = NOW()`);
+        const result = await pool.query(`UPDATE todos SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, [...params, id]);
+        return result.rows[0] || null;
+      }),
+    }),
+    todo_delete: tool({
+      description: "Delete a task/todo permanently.",
+      inputSchema: zodSchema(z.object({ id: z.number().describe("Task ID to delete") })),
+      execute: safeJsonWrap(async ({ id }) => {
+        await pool.query(`DELETE FROM todos WHERE id = $1`, [id]);
+        return { deleted: true, id };
+      }),
+    }),
+    todo_stats: tool({
+      description: "Get task statistics — counts by status, priority breakdown, and overdue count.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const [statusResult, priorityResult, overdueResult, totalResult] = await Promise.all([
+          pool.query(`SELECT status, COUNT(*) as count FROM todos GROUP BY status ORDER BY status`),
+          pool.query(`SELECT priority, COUNT(*) as count FROM todos GROUP BY priority ORDER BY priority`),
+          pool.query(`SELECT COUNT(*) as count FROM todos WHERE status NOT IN ('done', 'archived') AND due_date IS NOT NULL AND due_date < CURRENT_DATE`),
+          pool.query(`SELECT COUNT(*) as count FROM todos`),
+        ]);
+        const byStatus = {};
+        for (const row of statusResult.rows) byStatus[row.status] = parseInt(row.count, 10);
+        const byPriority = {};
+        for (const row of priorityResult.rows) byPriority[row.priority] = parseInt(row.count, 10);
+        return { total: parseInt(totalResult.rows[0].count, 10), by_status: byStatus, by_priority: byPriority, overdue: parseInt(overdueResult.rows[0].count, 10) };
+      }),
+    }),
+
+    // =======================================================================
+    // Contacts (workspace — database)
+    // =======================================================================
+    contact_create: tool({
+      description: "Create a contact in the workspace address book. Supports company, role, notes, tags, VIP flag.",
+      inputSchema: zodSchema(z.object({
+        first_name: z.string().optional().describe("Contact first name"),
+        last_name: z.string().optional().describe("Contact last name"),
+        email: z.string().optional().describe("Email address (must be unique)"),
+        phone: z.string().optional().describe("Phone number"),
+        company: z.string().optional().describe("Company/organization name"),
+        role: z.string().optional().describe("Job title or role"),
+        notes: z.string().optional().describe("Notes about this contact"),
+        tags: z.array(z.string()).optional().describe("Tags for categorization"),
+        is_vip: z.boolean().optional().describe("Mark as VIP (default: false)"),
+      })),
+      execute: safeJsonWrap(async ({ first_name, last_name, email, phone, company, role, notes, tags, is_vip }) => {
+        const result = await pool.query(
+          `INSERT INTO contacts (first_name, last_name, email, phone, company, role, notes, tags, context, is_vip, frequency)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+          [first_name || null, last_name || null, email || null, phone || null, company || null, role || null, notes || "", tags || [], "{}", is_vip || false, "occasional"],
+        );
+        return result.rows[0];
+      }),
+    }),
+    contact_list: tool({
+      description: "List contacts with optional filters. Returns contacts ordered by last interaction.",
+      inputSchema: zodSchema(z.object({
+        tag: z.string().optional().describe("Filter by tag"),
+        company: z.string().optional().describe("Filter by company (partial match)"),
+        is_vip: z.boolean().optional().describe("Filter VIP contacts"),
+        search: z.string().optional().describe("Search across name, email, and company"),
+        limit: z.number().optional().describe("Max results (default: 50)"),
+      })),
+      execute: safeJsonWrap(async ({ tag, company, is_vip, search, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (tag) { conditions.push(`$${idx} = ANY(tags)`); params.push(tag); idx++; }
+        if (company) { conditions.push(`company ILIKE $${idx}`); params.push(`%${company}%`); idx++; }
+        if (is_vip !== undefined) { conditions.push(`is_vip = $${idx}`); params.push(is_vip); idx++; }
+        if (search) { conditions.push(`(first_name ILIKE $${idx} OR last_name ILIKE $${idx} OR email ILIKE $${idx} OR company ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT * FROM contacts ${where} ORDER BY last_interaction DESC NULLS LAST, created_at DESC LIMIT $${idx}`, [...params, limit || 50]);
+        return result.rows;
+      }),
+    }),
+    contact_search: tool({
+      description: "Search contacts across all fields — name, email, company, notes. Returns ranked results.",
+      inputSchema: zodSchema(z.object({
+        query: z.string().describe("Search query — searches across name, email, company, and notes"),
+      })),
+      execute: safeJsonWrap(async ({ query }) => {
+        const pattern = `%${query}%`;
+        const result = await pool.query(
+          `SELECT * FROM contacts
+           WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR email ILIKE $1 OR company ILIKE $1 OR notes ILIKE $1
+           ORDER BY CASE WHEN email ILIKE $1 THEN 1 WHEN first_name ILIKE $1 OR last_name ILIKE $1 THEN 2 WHEN company ILIKE $1 THEN 3 ELSE 4 END,
+             last_interaction DESC NULLS LAST
+           LIMIT 20`,
+          [pattern],
+        );
+        return result.rows;
+      }),
+    }),
+    contact_update: tool({
+      description: "Update a contact's information — edit details, notes, tags, company/role, VIP status.",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Contact ID to update"),
+        first_name: z.string().optional().describe("New first name"),
+        last_name: z.string().optional().describe("New last name"),
+        email: z.string().optional().describe("New email address"),
+        phone: z.string().optional().describe("New phone number"),
+        company: z.string().optional().describe("New company"),
+        role: z.string().optional().describe("New job title/role"),
+        notes: z.string().optional().describe("New notes"),
+        tags: z.array(z.string()).optional().describe("New tags (replaces existing)"),
+        is_vip: z.boolean().optional().describe("VIP status"),
+      })),
+      execute: safeJsonWrap(async ({ id, first_name, last_name, email, phone, company, role, notes, tags, is_vip }) => {
+        const fields = [];
+        const params = [];
+        let idx = 1;
+        const map = { first_name, last_name, email, phone, company, role, notes, is_vip };
+        for (const [key, val] of Object.entries(map)) {
+          if (val !== undefined) { fields.push(`${key} = $${idx++}`); params.push(val); }
+        }
+        if (tags !== undefined) { fields.push(`tags = $${idx++}`); params.push(tags); }
+        if (fields.length === 0) throw new Error("No fields to update");
+        fields.push(`updated_at = NOW()`);
+        const result = await pool.query(`UPDATE contacts SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, [...params, id]);
+        return result.rows[0] || null;
+      }),
+    }),
+    contact_delete: tool({
+      description: "Delete a contact permanently from the address book.",
+      inputSchema: zodSchema(z.object({ id: z.number().describe("Contact ID to delete") })),
+      execute: safeJsonWrap(async ({ id }) => {
+        await pool.query(`DELETE FROM contacts WHERE id = $1`, [id]);
+        return { deleted: true, id };
+      }),
+    }),
+
     // Web
     web_search: tool({
       description: "Search the web for real-time information.",

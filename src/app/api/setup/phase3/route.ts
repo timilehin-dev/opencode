@@ -8,7 +8,16 @@
 import { NextResponse } from "next/server";
 import { PHASE3_SCHEMA_SQL } from "@/lib/supabase";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const setupSecret = process.env.SETUP_SECRET;
+  if (!setupSecret) {
+    return NextResponse.json({ error: "SETUP_SECRET not configured" }, { status: 500 });
+  }
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("secret") !== setupSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!process.env.SUPABASE_DB_URL) {
     return NextResponse.json(
       { error: "SUPABASE_DB_URL environment variable is not configured" },

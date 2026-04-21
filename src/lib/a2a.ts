@@ -56,19 +56,42 @@ export interface A2ATask {
 }
 
 // ---------------------------------------------------------------------------
-// Database helpers (using pg directly for performance)
+// Database helpers — module-level singleton pool with proper config
+// (H5 fix: no more pool-per-call, no connection leaks)
 // ---------------------------------------------------------------------------
 
-function getPgPool() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require('pg');
-    const connectionString = process.env.SUPABASE_DB_URL;
-    if (!connectionString) return null;
-    return new Pool({ connectionString });
-  } catch {
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Pool } = require("pg");
+
+let _a2aPool: ReturnType<typeof Pool> | null = null;
+
+function getA2APool(): ReturnType<typeof Pool> | null {
+  if (_a2aPool) return _a2aPool;
+  const connectionString = process.env.SUPABASE_DB_URL;
+  if (!connectionString) {
+    console.warn("[A2A] SUPABASE_DB_URL not configured — A2A features disabled");
     return null;
   }
+  _a2aPool = new Pool({
+    connectionString,
+    max: 5,
+    idleTimeoutMillis: 10000,
+  });
+
+  // Handle pool errors (prevent crashes)
+  _a2aPool.on("error", (err: Error) => {
+    console.error("[A2A] Unexpected pool error:", err.message);
+  });
+
+  return _a2aPool;
+}
+
+// Execute a query with automatic error handling — never leaks connections
+async function queryDb<T>(sql: string, params: unknown[]): Promise<T[]> {
+  const pool = getA2APool();
+  if (!pool) return [];
+  const result = await pool.query(sql, params);
+  return result.rows as T[];
 }
 
 // ---------------------------------------------------------------------------
@@ -83,35 +106,30 @@ export async function sendA2AMessage(msg: {
   topic: string;
   payload: Record<string, unknown>;
 }): Promise<A2AMessage | null> {
-  const pool = getPgPool();
-  if (!pool) return null;
-
   try {
-    const result = await pool.query(
+    const rows = await queryDb<{ id: string; from_agent: string; to_agent: string; type: string; topic: string; payload: unknown; status: string; created_at: string }>(
       `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, status)
        VALUES ($1, $2, $3, $4, $5, 'delivered')
        RETURNING id, from_agent, to_agent, type, topic, payload, status, created_at`,
-      [msg.fromAgent, msg.toAgent, msg.type, msg.topic, JSON.stringify(msg.payload)]
+      [msg.fromAgent, msg.toAgent, msg.type, msg.topic, JSON.stringify(msg.payload)],
     );
 
-    await pool.end();
-
-    if (result.rows.length > 0) {
-      const row = result.rows[0];
+    if (rows.length > 0) {
+      const row = rows[0];
       return {
         id: String(row.id),
         fromAgent: row.from_agent,
         toAgent: row.to_agent,
-        type: row.type,
+        type: row.type as A2AMessage["type"],
         topic: row.topic,
-        payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload,
+        payload: typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
         timestamp: row.created_at,
-        status: row.status,
+        status: row.status as A2AMessage["status"],
       };
     }
     return null;
   } catch (error) {
-    console.error('[A2A] Failed to send message:', error);
+    console.error("[A2A] Failed to send message:", error);
     return null;
   }
 }
@@ -122,33 +140,28 @@ export async function getA2AMessages(
   agent2: string,
   limit: number = 50,
 ): Promise<A2AMessage[]> {
-  const pool = getPgPool();
-  if (!pool) return [];
-
   try {
-    const result = await pool.query(
+    const rows = await queryDb<{ id: string; from_agent: string; to_agent: string; type: string; topic: string; payload: unknown; status: string; created_at: string }>(
       `SELECT id, from_agent, to_agent, type, topic, payload, status, created_at
        FROM a2a_messages
        WHERE (from_agent = $1 AND to_agent = $2) OR (from_agent = $2 AND to_agent = $1)
        ORDER BY created_at DESC
        LIMIT $3`,
-      [agent1, agent2, limit]
+      [agent1, agent2, limit],
     );
 
-    await pool.end();
-
-    return result.rows.map((row: Record<string, unknown>) => ({
+    return rows.map((row) => ({
       id: String(row.id),
-      fromAgent: row.from_agent as string,
-      toAgent: row.to_agent as string,
+      fromAgent: row.from_agent,
+      toAgent: row.to_agent,
       type: row.type as A2AMessage["type"],
-      topic: row.topic as string,
-      payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
-      timestamp: row.created_at as string,
+      topic: row.topic,
+      payload: typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
+      timestamp: row.created_at,
       status: row.status as A2AMessage["status"],
     })).reverse();
   } catch (error) {
-    console.error('[A2A] Failed to get messages:', error);
+    console.error("[A2A] Failed to get messages:", error);
     return [];
   }
 }
@@ -158,33 +171,28 @@ export async function getAgentA2AMessages(
   agentId: string,
   limit: number = 50,
 ): Promise<A2AMessage[]> {
-  const pool = getPgPool();
-  if (!pool) return [];
-
   try {
-    const result = await pool.query(
+    const rows = await queryDb<{ id: string; from_agent: string; to_agent: string; type: string; topic: string; payload: unknown; status: string; created_at: string }>(
       `SELECT id, from_agent, to_agent, type, topic, payload, status, created_at
        FROM a2a_messages
        WHERE from_agent = $1 OR to_agent = $1
        ORDER BY created_at DESC
        LIMIT $2`,
-      [agentId, limit]
+      [agentId, limit],
     );
 
-    await pool.end();
-
-    return result.rows.map((row: Record<string, unknown>) => ({
+    return rows.map((row) => ({
       id: String(row.id),
-      fromAgent: row.from_agent as string,
-      toAgent: row.to_agent as string,
+      fromAgent: row.from_agent,
+      toAgent: row.to_agent,
       type: row.type as A2AMessage["type"],
-      topic: row.topic as string,
-      payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
-      timestamp: row.created_at as string,
+      topic: row.topic,
+      payload: typeof row.payload === "string" ? JSON.parse(row.payload) : (row.payload as Record<string, unknown>),
+      timestamp: row.created_at,
       status: row.status as A2AMessage["status"],
     })).reverse();
   } catch (error) {
-    console.error('[A2A] Failed to get agent messages:', error);
+    console.error("[A2A] Failed to get agent messages:", error);
     return [];
   }
 }
@@ -201,11 +209,8 @@ export async function createA2ATask(task: {
   context?: string;
   delegationChain?: string[];
 }): Promise<A2ATask | null> {
-  const pool = getPgPool();
-  if (!pool) return null;
-
   try {
-    const result = await pool.query(
+    const rows = await queryDb<{ id: string; initiator_agent: string; assigned_agent: string; task: string; context: string; status: string; delegation_chain: unknown; created_at: string }>(
       `INSERT INTO a2a_tasks (initiator_agent, assigned_agent, task, context, status, delegation_chain)
        VALUES ($1, $2, $3, $4, 'pending', $5)
        RETURNING id, initiator_agent, assigned_agent, task, context, status, delegation_chain, created_at`,
@@ -213,29 +218,27 @@ export async function createA2ATask(task: {
         task.initiatorAgent,
         task.assignedAgent,
         task.task,
-        task.context || '',
-        JSON.stringify(task.delegationChain || [task.initiatorAgent, task.assignedAgent])
-      ]
+        task.context || "",
+        JSON.stringify(task.delegationChain || [task.initiatorAgent, task.assignedAgent]),
+      ],
     );
 
-    await pool.end();
-
-    if (result.rows.length > 0) {
-      const row = result.rows[0];
+    if (rows.length > 0) {
+      const row = rows[0];
       return {
         id: String(row.id),
         initiatorAgent: row.initiator_agent,
         assignedAgent: row.assigned_agent,
         task: row.task,
         context: row.context,
-        status: row.status,
+        status: row.status as A2ATask["status"],
         createdAt: row.created_at,
-        delegationChain: typeof row.delegation_chain === 'string' ? JSON.parse(row.delegation_chain) : row.delegation_chain,
+        delegationChain: typeof row.delegation_chain === "string" ? JSON.parse(row.delegation_chain) : (row.delegation_chain as string[]),
       };
     }
     return null;
   } catch (error) {
-    console.error('[A2A] Failed to create task:', error);
+    console.error("[A2A] Failed to create task:", error);
     return null;
   }
 }
@@ -246,29 +249,24 @@ export async function updateA2ATaskStatus(
   status: A2ATask["status"],
   result?: string,
 ): Promise<boolean> {
-  const pool = getPgPool();
-  if (!pool) return false;
-
   try {
-    const numId = parseInt(taskId.split('-').pop() || '0', 10);
+    const numId = parseInt(taskId.split("-").pop() || "0", 10);
     if (isNaN(numId)) return false;
 
-    if (status === 'completed') {
-      await pool.query(
+    if (status === "completed") {
+      await queryDb(
         `UPDATE a2a_tasks SET status = $1, result = $2, completed_at = NOW() WHERE id = $3`,
-        [status, result || null, numId]
+        [status, result || null, numId],
       );
     } else {
-      await pool.query(
+      await queryDb(
         `UPDATE a2a_tasks SET status = $1, result = $2 WHERE id = $3`,
-        [status, result || null, numId]
+        [status, result || null, numId],
       );
     }
-
-    await pool.end();
     return true;
   } catch (error) {
-    console.error('[A2A] Failed to update task:', error);
+    console.error("[A2A] Failed to update task:", error);
     return false;
   }
 }
@@ -279,9 +277,6 @@ export async function getAgentA2ATasks(
   status?: A2ATask["status"],
   limit: number = 20,
 ): Promise<A2ATask[]> {
-  const pool = getPgPool();
-  if (!pool) return [];
-
   try {
     let query = `SELECT * FROM a2a_tasks WHERE initiator_agent = $1 OR assigned_agent = $1`;
     const params: (string | number)[] = [agentId];
@@ -296,10 +291,9 @@ export async function getAgentA2ATasks(
       params.push(limit);
     }
 
-    const result = await pool.query(query, params);
-    await pool.end();
+    const rows = await queryDb<Record<string, unknown>>(query, params);
 
-    return result.rows.map((row: Record<string, unknown>) => ({
+    return rows.map((row) => ({
       id: String(row.id),
       initiatorAgent: row.initiator_agent as string,
       assignedAgent: row.assigned_agent as string,
@@ -309,10 +303,10 @@ export async function getAgentA2ATasks(
       result: row.result as string | undefined,
       createdAt: row.created_at as string,
       completedAt: row.completed_at as string | undefined,
-      delegationChain: typeof row.delegation_chain === 'string' ? JSON.parse(row.delegation_chain) : (row.delegation_chain as string[]),
+      delegationChain: typeof row.delegation_chain === "string" ? JSON.parse(row.delegation_chain) : (row.delegation_chain as string[]),
     }));
   } catch (error) {
-    console.error('[A2A] Failed to get tasks:', error);
+    console.error("[A2A] Failed to get tasks:", error);
     return [];
   }
 }
