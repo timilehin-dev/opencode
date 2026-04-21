@@ -114,6 +114,7 @@ const AGENTS = {
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
+      "project_create", "project_add_task", "project_status", "project_list",
     ],
   },
   mail: {
@@ -2388,6 +2389,97 @@ function buildToolMap() {
         };
       }),
     }),
+
+    // Project Management
+    project_create: tool({
+      description: "Create a new project with a name, description, and optional priority/deadline.",
+      inputSchema: zodSchema(z.object({
+        name: z.string().describe("Project name"),
+        description: z.string().optional().describe("Project description"),
+        priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("Project priority"),
+        deadline: z.string().optional().describe("Deadline in ISO format"),
+        tags: z.array(z.string()).optional().describe("Tags"),
+      })),
+      execute: safeJsonWrap(async ({ name, description, priority, deadline, tags }) => {
+        const result = await pool.query(
+          `INSERT INTO projects (name, description, priority, deadline, tags) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [name, description || null, priority || "medium", deadline || null, tags || []],
+        );
+        return result.rows[0];
+      }),
+    }),
+    project_add_task: tool({
+      description: "Add a task to an existing project. Supports dependencies via depends_on (array of task IDs).",
+      inputSchema: zodSchema(z.object({
+        project_id: z.number().describe("Project ID"),
+        title: z.string().describe("Task title"),
+        description: z.string().optional().describe("Task description"),
+        task_type: z.enum(["research", "code", "design", "testing", "deployment", "docs", "communication", "general"]).optional().describe("Task type"),
+        priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("Task priority"),
+        assigned_agent: z.string().optional().describe("Agent ID to assign (general/mail/code/data/creative/research/ops)"),
+        depends_on: z.array(z.number()).optional().describe("Array of task IDs this task depends on"),
+        task_prompt: z.string().optional().describe("The prompt/instruction the agent should execute for this task"),
+        sort_order: z.number().optional().describe("Sort order for execution sequence"),
+      })),
+      execute: safeJsonWrap(async ({ project_id, title, description, task_type, priority, assigned_agent, depends_on, task_prompt, sort_order }) => {
+        const result = await pool.query(
+          `INSERT INTO project_tasks (project_id, title, description, task_type, priority, assigned_agent, depends_on, task_prompt, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+          [project_id, title, description || null, task_type || "general", priority || "medium", assigned_agent || "general", depends_on || [], task_prompt || null, sort_order || 0],
+        );
+        return result.rows[0];
+      }),
+    }),
+    project_status: tool({
+      description: "Get the status of a project including all tasks and the next executable tasks (those whose dependencies are met).",
+      inputSchema: zodSchema(z.object({
+        project_id: z.number().describe("Project ID"),
+      })),
+      execute: safeJsonWrap(async ({ project_id }) => {
+        // Get project
+        const projResult = await pool.query(`SELECT * FROM projects WHERE id = $1`, [project_id]);
+        if (projResult.rows.length === 0) return { error: "Project not found" };
+        // Get all tasks
+        const tasksResult = await pool.query(
+          `SELECT id, title, status, priority, assigned_agent, depends_on, started_at, completed_at, retries, sort_order
+           FROM project_tasks WHERE project_id = $1 ORDER BY sort_order ASC, created_at ASC`,
+          [project_id],
+        );
+        // Get next executable tasks using DB function
+        let nextTasks = [];
+        try {
+          const nextResult = await pool.query(`SELECT * FROM get_next_executable_tasks($1, 10)`, [project_id]);
+          nextTasks = nextResult.rows;
+        } catch { /* function may not exist yet */ }
+        return {
+          project: projResult.rows[0],
+          tasks: tasksResult.rows,
+          nextExecutableTasks: nextTasks,
+        };
+      }),
+    }),
+    project_list: tool({
+      description: "List all projects, optionally filtered by status.",
+      inputSchema: zodSchema(z.object({
+        status: z.string().optional().describe("Filter by status (planning/in_progress/completed/failed/cancelled)"),
+        limit: z.number().optional().describe("Max projects to return"),
+      })),
+      execute: safeJsonWrap(async ({ status, limit }) => {
+        let query = `SELECT * FROM projects`;
+        const params = [];
+        if (status) {
+          params.push(status);
+          query += ` WHERE status = $1`;
+        }
+        query += ` ORDER BY created_at DESC`;
+        if (limit) {
+          params.push(limit);
+          query += ` LIMIT $${params.length}`;
+        }
+        const result = await pool.query(query, params);
+        return result.rows;
+      }),
+    }),
   };
 }
 
@@ -2728,7 +2820,104 @@ async function main() {
       }
     }
 
-    console.log(`\n[Phase 2] Done: ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run)`);
+    // Phase 3: Process project tasks (task graph execution)
+    console.log(`\n[Phase 3] Processing project tasks...`);
+    try {
+      const projectTasksResult = await pool.query(
+        `SELECT pt.*, p.name as project_name
+         FROM project_tasks pt
+         JOIN projects p ON p.id = pt.project_id
+         WHERE pt.status IN ('pending', 'queued')
+         AND (array_length(pt.depends_on, 1) IS NULL OR NOT EXISTS (
+           SELECT 1 FROM project_tasks dep WHERE dep.id = ANY(pt.depends_on) AND dep.status NOT IN ('completed', 'skipped')
+         ))
+         AND NOT EXISTS (
+           SELECT 1 FROM project_tasks dep WHERE dep.id = ANY(pt.depends_on) AND dep.status = 'failed'
+         )
+         ORDER BY CASE pt.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 2 END, pt.sort_order ASC
+         LIMIT 3`
+      );
+
+      for (const pt of projectTasksResult.rows) {
+        if (summary.tasksProcessed >= maxTasks) break;
+        summary.tasksProcessed++;
+
+        const agentId = pt.assigned_agent || "general";
+        const agentDef = AGENTS[agentId];
+        if (!agentDef) {
+          console.log(`[Phase 3] Skipping project task #${pt.id}: unknown agent ${agentId}`);
+          continue;
+        }
+
+        console.log(`[Phase 3] Project "${pt.project_name}" task #${pt.id}: "${pt.title}" (agent: ${agentId})`);
+
+        // Mark as in_progress
+        await pool.query(`UPDATE project_tasks SET status = 'in_progress', started_at = NOW() WHERE id = $1`, [pt.id]);
+
+        // Log execution start
+        await pool.query(
+          `INSERT INTO project_task_logs (project_id, task_id, action, status, agent_id, agent_name) VALUES ($1, $2, 'execute', 'started', $3, $4)`,
+          [pt.project_id, pt.id, agentId, agentDef.name],
+        );
+
+        // Build task prompt from project task
+        const taskPrompt = pt.task_prompt || pt.title;
+        const taskContext = pt.description ? `Task: ${pt.title}\nDescription: ${pt.description}\nProject: ${pt.project_name}` : `Project: ${pt.project_name}`;
+
+        // Execute using the existing executeTask function, wrapped as a virtual task
+        const virtualTask = {
+          id: `pt-${pt.id}`,
+          agent_id: agentId,
+          task: taskPrompt,
+          context: taskContext,
+          trigger_type: "project",
+          trigger_source: `project:${pt.project_id}:task:${pt.id}`,
+        };
+
+        const result = await executeTask(virtualTask);
+        const durationMs = result.durationMs || 0;
+
+        // Log execution result
+        await pool.query(
+          `INSERT INTO project_task_logs (project_id, task_id, action, status, agent_id, agent_name, message, tool_calls, steps_used, duration_ms) VALUES ($1, $2, 'execute', $3, $4, $5, $6, $7, $8, $9)`,
+          [pt.project_id, pt.id, result.success ? "completed" : "failed", agentId, agentDef.name,
+           (result.text || result.error || "").slice(0, 2000),
+           JSON.stringify(result.toolCalls || []),
+           result.stepsUsed || 0, durationMs],
+        );
+
+        if (result.success) {
+          await pool.query(
+            `UPDATE project_tasks SET status = 'completed', result = $1, completed_at = NOW(), steps_used = $2, duration_ms = $3 WHERE id = $4`,
+            [result.text.slice(0, 10000), result.stepsUsed || 0, durationMs, pt.id],
+          );
+          summary.succeeded++;
+          console.log(`[Phase 3] Task #${pt.id} completed in ${durationMs}ms`);
+        } else {
+          const newRetries = (pt.retries || 0) + 1;
+          if (newRetries < (pt.max_retries || 2)) {
+            await pool.query(
+              `UPDATE project_tasks SET status = 'pending', retries = $1, error = $2, completed_at = NOW() WHERE id = $3`,
+              [newRetries, result.error?.slice(0, 5000), pt.id],
+            );
+            console.log(`[Phase 3] Task #${pt.id} failed (retry ${newRetries}/${pt.max_retries || 2}): ${result.error?.slice(0, 100)}`);
+          } else {
+            await pool.query(
+              `UPDATE project_tasks SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
+              [result.error?.slice(0, 5000), pt.id],
+            );
+            summary.failed++;
+            console.log(`[Phase 3] Task #${pt.id} permanently failed: ${result.error?.slice(0, 100)}`);
+          }
+        }
+      }
+
+      console.log(`[Phase 3] Processed ${projectTasksResult.rows.length} project tasks`);
+    } catch (e) {
+      console.error(`[Phase 3] Error:`, e.message);
+    }
+
+    console.log(`\n[Done] ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run) | ${summary.automationsTriggered} automations triggered`);
   } catch (error) {
     console.error("[Fatal Error]", error);
   } finally {
