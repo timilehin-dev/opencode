@@ -56,7 +56,13 @@ export async function GET(req: Request) {
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
-    return NextResponse.json({ success: true, data: result.rows, total, limit, offset });
+    const data = result.rows.map((row: Record<string, unknown>) => ({
+      ...row,
+      performance_score: Number(row.performance_score) || 0,
+      avg_rating: Number(row.avg_rating) || 0,
+      total_uses: Number(row.total_uses) || 0,
+    }));
+    return NextResponse.json({ success: true, data, total, limit, offset });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch skills";
     return NextResponse.json({ success: false, error: message }, { status: 500 });

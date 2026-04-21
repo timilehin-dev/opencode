@@ -25,7 +25,14 @@ export async function GET(
     if (result.rows.length === 0) {
       return NextResponse.json({ success: false, error: "Skill not found" }, { status: 404 });
     }
-    return NextResponse.json({ success: true, data: result.rows[0] });
+    const row = result.rows[0];
+    const data = {
+      ...row,
+      performance_score: Number(row.performance_score) || 0,
+      avg_rating: Number(row.avg_rating) || 0,
+      total_uses: Number(row.total_uses) || 0,
+    };
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch skill";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
