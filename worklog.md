@@ -115,3 +115,40 @@ Stage Summary:
 - Real gmail permanent delete (was just trash)
 - Health check no longer falsely reports Supabase as disconnected
 - XLSX parsing no longer crashes (exceljs instead of missing xlsx package)
+
+---
+Task ID: Phase 2 + High Severity Fixes
+Agent: Main Agent
+Task: Fix all 14 high severity issues + implement Phase 2 (projects + task_graph)
+
+Work Log:
+- Read HIGH_SEVERITY_14_issues.txt — identified 14 issues across security, reliability, and functionality
+- H1: Created src/middleware.ts — API key auth for all non-GET /api/* routes
+- H2: Removed hardcoded "claw-cron-2025" from 4 files (3 cron + 1 setup)
+- H3: Added SETUP_SECRET auth check to 5 setup routes (tables, phase2, phase3, phase4, cron-jobs)
+- H4: Added OLLAMA_CLOUD_KEY_1/2 fallback to Ops agent keyEnvVars
+- H5: Rewrote src/lib/a2a.ts — module-level singleton pool (max=5, idleTimeout=10s), fixed all connection leaks in 6 functions
+- H6: Changed automation engine logging from 'success' to 'queued' (task hasn't executed yet)
+- H7: Added export const maxDuration = 300 to events/stream/route.ts
+- H8: Implemented 56 missing tools in execute-tasks.mjs buildToolMap() — Sheets (8), Docs (4), GitHub (7), Vercel (3), Vision (2), Media (4), Design (3), Data (3), Research (2), Ops (4), Reminders (5), Todos (5), Contacts (5)
+- H9: Added delegation depth tracking — strips query_agent in nested calls, reduces timeout/steps
+- H10: Added step exhaustion recovery — returns tool call summary when no text produced
+- H11: Fixed automations/route.ts connection leaks with try/finally pattern
+- H12: Cleared vercel.json crons (GH Actions handles execution)
+- H13: Fixed web_reader description (removed false "publication time" claim)
+- H14: ops_deployment_status uses VERCEL_PROJECT_NAME env var
+- Phase 2: Created phase5 setup route with 3 tables (projects, project_tasks, project_task_logs)
+- Phase 2: Created /api/projects REST API (GET/POST/PATCH)
+- Phase 2: Added 4 project tools (create, add_task, status, list) to tools.ts
+- Phase 2: Registered project tools in General agent's tool list
+- TypeScript compilation: 0 production errors
+- Committed (c09398e) and pushed to main
+
+Stage Summary:
+- All 14 high severity issues resolved
+- Phase 2 complete: persistent project management infrastructure
+- 3 new DB tables with triggers, helper functions, and dependency resolution
+- 4 new project management tools available to agents
+- Execute-tasks.mjs now has 94 tools (up from 38)
+- A2A module rewritten with zero connection leaks
+- API key middleware protects all mutating endpoints
