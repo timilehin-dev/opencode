@@ -38,8 +38,8 @@ export async function GET(req: Request) {
 
     // --- Execution History (use actual DB column names) ---
     const executionsResult = await pool.query(
-      `SELECT se.id, se.skill_id, se.agent_id, se.task_description, se.quality_score,
-              se.duration_ms, se.status, se.steps_taken, se.tokens_used, se.created_at,
+      `SELECT se.id, se.skill_id, se.agent_id, se.task_description,
+              se.duration_ms, se.status, se.created_at,
               s.display_name as skill_name, s.category as skill_category
        FROM skill_executions se
        JOIN skills s ON s.id = se.skill_id
@@ -52,9 +52,7 @@ export async function GET(req: Request) {
 
     const executions = executionsResult.rows.map((row: Record<string, unknown>) => ({
       ...row,
-      quality_score: row.quality_score ? Number(row.quality_score) : null,
       duration_ms: row.duration_ms ? Number(row.duration_ms) : null,
-      tokens_used: row.tokens_used ? Number(row.tokens_used) : null,
     }));
 
     // --- Evaluation Trends (use actual DB column names with _score suffix) ---
@@ -113,7 +111,7 @@ export async function GET(req: Request) {
           COUNT(DISTINCT se.id) as total_executions,
           COUNT(DISTINCT sve.id) as total_evaluations,
           ROUND(AVG(sve.overall_score)::numeric, 1) as avg_performance_score,
-          COUNT(DISTINCT CASE WHEN se.success = true THEN se.id END) as successful_executions,
+          COUNT(DISTINCT CASE WHEN se.status = 'completed' THEN se.id END) as successful_executions,
           COUNT(DISTINCT ev.id) as skills_evolved
        FROM skill_executions se
        LEFT JOIN skill_evaluations sve ON sve.skill_id = se.skill_id
