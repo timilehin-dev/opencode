@@ -94,7 +94,9 @@ export async function POST(req: Request) {
     );
 
     // 5. Restore the skill to previous state via PUT to /api/skills/[id]
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const updateRes = await fetch(`${baseUrl}/api/skills/${skill_id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

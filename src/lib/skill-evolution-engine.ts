@@ -250,7 +250,9 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
     );
 
     // 8. Update the skill via PUT to /api/skills/[id]
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const updateRes = await fetch(`${baseUrl}/api/skills/${skillId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

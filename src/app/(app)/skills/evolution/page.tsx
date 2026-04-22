@@ -241,7 +241,9 @@ export default function SkillEvolutionPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "error">("success");
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+  const baseUrl = typeof window !== "undefined"
+    ? window.location.origin
+    : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToastMessage(message);
