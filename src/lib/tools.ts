@@ -4367,7 +4367,7 @@ Output format (EXACT JSON):
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
         maxOutputTokens: 4096,
-        abortSignal: AbortSignal.timeout(60000),
+        abortSignal: AbortSignal.timeout(120000),
       });
 
       // Parse the JSON from the response
@@ -4541,14 +4541,14 @@ export const projectDecomposeAndAddTool = tool({
       const { createOpenAI } = await import("@ai-sdk/openai");
       const { generateText } = await import("ai");
 
-      const aihubmixKey = process.env.AIHUBMIX_API_KEY_1;
+      const aihubmixKey = nextAIHubMixKey();
       if (!aihubmixKey) return { success: false, error: "No AI API key configured for decomposition" };
 
       const provider = createOpenAI({
         apiKey: aihubmixKey,
         baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
       });
-      const model = provider("coding-glm-5.1-free");
+      const model = provider.chat("coding-glm-5.1-free");
 
       const systemPrompt = `You are a project planning expert. Decompose the given goal into a structured task plan.
 Each task should be specific, actionable, and assigned to the right agent.
@@ -4563,7 +4563,7 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
         maxOutputTokens: 4096,
-        abortSignal: AbortSignal.timeout(60000),
+        abortSignal: AbortSignal.timeout(120000),
       });
 
       let jsonStr = result.text.trim();
