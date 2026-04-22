@@ -23,6 +23,7 @@ import {
   Loader2,
   Wrench,
   Activity,
+  Database,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,7 @@ interface Skill {
   avg_rating: number;
   is_builtin: boolean;
   is_active: boolean;
+  has_embedding: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -774,6 +776,23 @@ export default function SkillsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [embeddingStatus, setEmbeddingStatus] = useState<{ total: number; withEmbeddings: number } | null>(null);
+  const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
+
+  // --- Fetch embedding status ---
+  useEffect(() => {
+    fetch("/api/skills/embeddings")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data) {
+          setEmbeddingStatus({
+            total: json.data.total_active,
+            withEmbeddings: json.data.with_embeddings,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // --- Toast helpers ---
   const addToast = useCallback((type: "success" | "error", message: string) => {
@@ -833,6 +852,44 @@ export default function SkillsPage() {
     return () => window.removeEventListener("open-create-skill", handler);
   }, []);
 
+  // --- Generate embeddings handler ---
+  const handleGenerateEmbeddings = useCallback(async () => {
+    setGeneratingEmbeddings(true);
+    try {
+      // First, setup pgvector
+      const setupRes = await fetch("/api/skills/embeddings/setup", { method: "POST" });
+      const setupJson = await setupRes.json();
+      if (!setupJson.success) {
+        addToast("error", "Failed to setup pgvector: " + (setupJson.error || "Unknown error"));
+        return;
+      }
+
+      // Then generate embeddings
+      const genRes = await fetch("/api/skills/embeddings", { method: "POST" });
+      const genJson = await genRes.json();
+      if (genJson.success) {
+        addToast("success", `Embeddings generated for ${genJson.processed} skill(s)`);
+        // Refresh embedding status
+        const statusRes = await fetch("/api/skills/embeddings");
+        const statusJson = await statusRes.json();
+        if (statusJson.success && statusJson.data) {
+          setEmbeddingStatus({
+            total: statusJson.data.total_active,
+            withEmbeddings: statusJson.data.with_embeddings,
+          });
+        }
+        // Refresh skills list to pick up has_embedding field
+        fetchSkills(searchQuery, activeCategory);
+      } else {
+        addToast("error", genJson.error || "Failed to generate embeddings");
+      }
+    } catch {
+      addToast("error", "Network error generating embeddings");
+    } finally {
+      setGeneratingEmbeddings(false);
+    }
+  }, [addToast, fetchSkills, searchQuery, activeCategory]);
+
   // --- Handle create success ---
   const handleCreateSuccess = useCallback(
     (skill: Skill) => {
@@ -876,14 +933,35 @@ export default function SkillsPage() {
               </p>
             </div>
           </div>
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            className="gap-2 shrink-0"
-            size="default"
-          >
-            <Plus className="w-4 h-4" />
-            Create Skill
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="default"
+              className="gap-2"
+              onClick={handleGenerateEmbeddings}
+              disabled={generatingEmbeddings}
+            >
+              {generatingEmbeddings ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Database className="w-4 h-4" />
+              )}
+              {generatingEmbeddings ? "Generating..." : "Embeddings"}
+              {embeddingStatus && embeddingStatus.withEmbeddings > 0 && (
+                <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
+                  {embeddingStatus.withEmbeddings}/{embeddingStatus.total}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              onClick={() => setShowCreateModal(true)}
+              className="gap-2"
+              size="default"
+            >
+              <Plus className="w-4 h-4" />
+              Create Skill
+            </Button>
+          </div>
         </div>
       </motion.div>
 
@@ -997,8 +1075,16 @@ export default function SkillsPage() {
                       )}
                     </div>
 
-                    {/* Category & Difficulty Badges */}
+                    {/* Category & Difficulty Badges + Embedding Indicator */}
                     <div className="flex items-center gap-1.5 mb-3">
+                      {/* Embedding indicator dot */}
+                      <span
+                        className={cn(
+                          "w-2 h-2 rounded-full shrink-0",
+                          skill.has_embedding ? "bg-emerald-500" : "bg-muted-foreground/30"
+                        )}
+                        title={skill.has_embedding ? "Has vector embedding" : "No embedding yet"}
+                      />
                       <Badge className={cn("text-[10px] gap-1", catColor.bg, catColor.text, catColor.border)}>
                         {skill.category}
                       </Badge>
@@ -1079,6 +1165,24 @@ export default function SkillsPage() {
               </motion.div>
             );
           })}
+        </motion.div>
+      )}
+
+      {/* Vector Search Status */}
+      {embeddingStatus && embeddingStatus.withEmbeddings > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mb-4 flex items-center gap-2"
+        >
+          <Badge variant="outline" className="text-[10px] gap-1 text-emerald-600 border-emerald-500/30">
+            <Database className="w-3 h-3" />
+            Vector Search Active
+          </Badge>
+          <span className="text-[11px] text-muted-foreground">
+            {embeddingStatus.withEmbeddings}/{embeddingStatus.total} skills indexed
+          </span>
         </motion.div>
       )}
 

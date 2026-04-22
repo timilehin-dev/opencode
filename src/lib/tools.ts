@@ -5022,6 +5022,55 @@ export const skillRollbackTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Phase 7A: Hybrid Skill Retrieval Tools
+// ---------------------------------------------------------------------------
+
+export const skillSearchHybridTool = tool({
+  description: "Search skills using hybrid vector + keyword retrieval. Combines semantic similarity (pgvector) with TF-IDF keyword matching, reranked using Reciprocal Rank Fusion. Returns the best matching skills with match method indicators.",
+  inputSchema: zodSchema(z.object({
+    query: z.string().describe("Search query describing the desired skill"),
+    top_k: z.number().optional().describe("Number of results to return (default: 10)"),
+  })),
+  execute: safeJson(async ({ query, top_k }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, top_k: top_k || 10 }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillRefreshEmbeddingsTool = tool({
+  description: "Regenerate embeddings for all skills (or a specific skill). Use this after adding new skills or updating skill content. Embeddings enable vector similarity search for better skill matching.",
+  inputSchema: zodSchema(z.object({
+    skill_id: z.string().optional().describe("Optional: regenerate embedding for just one skill (UUID)"),
+  })),
+  execute: safeJson(async ({ skill_id }) => {
+    const body: Record<string, unknown> = {};
+    if (skill_id) body.skill_id = skill_id;
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillEmbeddingSetupTool = tool({
+  description: "Initialize pgvector extension and add embedding columns to the skills table. Run this once before generating embeddings. Idempotent — safe to run multiple times.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/embeddings/setup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -5172,6 +5221,10 @@ export const allTools: Record<string, ToolType> = {
   // Phase 6C: Skill Evolution & Rollback
   skill_evolve: skillEvolveTool,
   skill_rollback: skillRollbackTool,
+  // Phase 7A: Hybrid Skill Retrieval
+  skill_search_hybrid: skillSearchHybridTool,
+  skill_refresh_embeddings: skillRefreshEmbeddingsTool,
+  skill_embedding_setup: skillEmbeddingSetupTool,
 };
 
 // ---------------------------------------------------------------------------

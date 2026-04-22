@@ -4,6 +4,11 @@
 // Matches user queries to the best-fit skill using TF-IDF-like scoring,
 // category boosting, semantic relevance, agent affinity, and performance
 // weighting. Self-contained — uses pg directly (same pattern as API routes).
+//
+// Phase 7A: Hybrid Vector Search
+// Extended to optionally include pgvector cosine similarity search when
+// sufficient skills have embeddings (>=50%). Results are merged using
+// Reciprocal Rank Fusion (RRF).
 // ---------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -141,6 +146,95 @@ function getCategoryBoost(queryLower: string, skillCategory: string): number {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 7A: Vector search helpers
+// ---------------------------------------------------------------------------
+
+// In-memory cache for query embeddings within a single request
+const queryEmbeddingCache = new Map<string, number[]>();
+
+async function checkEmbeddingCoverage(pool: ReturnType<typeof getPool>): Promise<number> {
+  try {
+    const result = await pool.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE is_active = true) AS total,
+        COUNT(*) FILTER (WHERE is_active = true AND has_embedding = true) AS with_embedding
+       FROM skills`
+    );
+    const row = result.rows[0];
+    const total = Number(row.total) || 0;
+    const withEmbedding = Number(row.with_embedding) || 0;
+    return total > 0 ? withEmbedding / total : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function runVectorSearch(
+  pool: ReturnType<typeof getPool>,
+  query: string,
+  limit: number
+): Promise<Array<{ id: string; score: number }>> {
+  try {
+    const { generateEmbedding, embeddingToPgVector } = await import("@/lib/embeddings");
+
+    // Check cache first
+    let embedding = queryEmbeddingCache.get(query);
+    if (!embedding) {
+      embedding = await generateEmbedding(query);
+      queryEmbeddingCache.set(query, embedding);
+    }
+
+    const vectorStr = embeddingToPgVector(embedding);
+
+    const result = await pool.query(
+      `SELECT id, embedding <=> $1::vector AS distance
+       FROM skills
+       WHERE is_active = true AND has_embedding = true
+       ORDER BY embedding <=> $1::vector
+       LIMIT $2`,
+      [vectorStr, limit]
+    );
+
+    // Convert cosine distance to similarity score
+    return result.rows.map((r: { id: string; distance: string }) => ({
+      id: r.id,
+      score: 1 - Number(r.distance),
+    }));
+  } catch (error) {
+    console.warn("[SkillRouter] Vector search failed:", error);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reciprocal Rank Fusion
+// ---------------------------------------------------------------------------
+
+function reciprocalRankFusion(
+  vectorResults: Array<{ id: string; score: number }>,
+  keywordResults: Array<{ id: string; rawScore: number }>,
+  k: number = 60
+): Map<string, number> {
+  const rrfScores = new Map<string, number>();
+
+  // Keyword results (already sorted by rawScore)
+  for (let rank = 0; rank < keywordResults.length; rank++) {
+    const id = keywordResults[rank].id;
+    const existing = rrfScores.get(id) || 0;
+    rrfScores.set(id, existing + 1 / (k + rank + 1));
+  }
+
+  // Vector results (sorted by cosine similarity — higher = better)
+  for (let rank = 0; rank < vectorResults.length; rank++) {
+    const id = vectorResults[rank].id;
+    const existing = rrfScores.get(id) || 0;
+    rrfScores.set(id, existing + 1 / (k + rank + 1));
+  }
+
+  return rrfScores;
+}
+
+// ---------------------------------------------------------------------------
 // Main routing function
 // ---------------------------------------------------------------------------
 
@@ -165,7 +259,7 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
     const queryLower = query.toLowerCase();
     const queryTokens = tokenize(query);
 
-    // 2. Score each skill
+    // 2. Score each skill with TF-IDF
     const scored: Array<SkillMatch & { rawScore: number }> = [];
 
     for (const skill of skills) {
@@ -237,6 +331,46 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
     // 6. Rerank: sort by final composite score
     scored.sort((a, b) => b.rawScore - a.rawScore);
 
+    // ---------------------------------------------------------------------------
+    // Phase 7A: Hybrid Vector Search
+    // ---------------------------------------------------------------------------
+
+    // Check if enough skills have embeddings for vector search to be useful
+    const coverage = await checkEmbeddingCoverage(pool);
+    let vectorUsed = false;
+
+    if (coverage >= 0.5 && queryTokens.length > 0) {
+      try {
+        const vectorResults = await runVectorSearch(pool, query, 20);
+
+        if (vectorResults.length > 0) {
+          vectorUsed = true;
+          const rrfScores = reciprocalRankFusion(vectorResults, scored);
+
+          // Merge RRF scores into the existing scored array
+          for (const item of scored) {
+            const rrfScore = rrfScores.get(item.id);
+            if (rrfScore !== undefined) {
+              // Blend: 60% RRF score + 40% original TF-IDF score
+              item.rawScore = (rrfScore * 3) + (item.rawScore * 0.4);
+              // Update match_reason if vector was a contributor
+              if (item.match_reason.startsWith("Matched keywords") || item.match_reason.startsWith("Semantic")) {
+                item.match_reason += ` + vector similarity`;
+              }
+            }
+          }
+
+          // Re-sort after merging
+          scored.sort((a, b) => b.rawScore - a.rawScore);
+        }
+      } catch (error) {
+        console.warn("[SkillRouter] Vector search skipped due to error:", error);
+      }
+    }
+
+    // Clear the query embedding cache (request-scoped, not persistent)
+    queryEmbeddingCache.delete(query);
+
     // 7. Determine routing method
     const top = scored[0];
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -248,12 +382,17 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
 
     // Determine confidence and method
     let method = "keyword";
+    if (vectorUsed) {
+      method = "hybrid_vector";
+    }
     const confidence = Math.min(top.rawScore / 1.5, 1.0); // Normalize: score of 1.5 = 100% confidence
 
-    if (confidence > 0.7) {
-      method = "semantic";
-    } else if (confidence > 0.4) {
-      method = "hybrid";
+    if (!vectorUsed) {
+      if (confidence > 0.7) {
+        method = "semantic";
+      } else if (confidence > 0.4) {
+        method = "hybrid";
+      }
     }
 
     // 8. Confidence threshold: only return match if confidence > 0.3
