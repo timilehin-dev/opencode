@@ -80,7 +80,7 @@ export async function evolveSkill(skillId: string, triggerAgentId?: string): Pro
         change_type: "none",
         new_version: Number(skill.version) || 1,
         improvements: [],
-        previous_prompt,
+        previous_prompt: previousPrompt,
         new_prompt: previousPrompt,
         error: `Evolution not needed: ${evalCount} evaluations, avg score ${avgScore.toFixed(1)} (need >= 3 evals with avg < 50)`,
       };
@@ -178,7 +178,7 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
         change_type: "none",
         new_version: Number(skill.version) || 1,
         improvements: [],
-        previous_prompt,
+        previous_prompt: previousPrompt,
         new_prompt: previousPrompt,
         error: `LLM call failed: ${llmError instanceof Error ? llmError.message : "Unknown error"}`,
       };
@@ -192,7 +192,7 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
         change_type: "none",
         new_version: Number(skill.version) || 1,
         improvements: [],
-        previous_prompt,
+        previous_prompt: previousPrompt,
         new_prompt: previousPrompt,
         error: "Generated prompt is too short (< 50 characters). Evolution aborted.",
       };
@@ -213,7 +213,7 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
         change_type: "none",
         new_version: Number(skill.version) || 1,
         improvements: [],
-        previous_prompt,
+        previous_prompt: previousPrompt,
         new_prompt: previousPrompt,
         error: "Generated prompt doesn't contain relevant domain keywords. Evolution aborted.",
       };
@@ -268,8 +268,8 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
         change_type: "auto_improvement",
         new_version: newVersion,
         improvements: topWeaknesses,
-        previous_prompt,
-        new_prompt,
+        previous_prompt: previousPrompt,
+        new_prompt: newPrompt,
         error: `Failed to update skill: ${updateErr}`,
       };
     }
@@ -285,8 +285,8 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
       change_type: "auto_improvement",
       new_version: newVersion,
       improvements,
-      previous_prompt,
-      new_prompt,
+      previous_prompt: previousPrompt,
+      new_prompt: newPrompt,
     };
   } catch (error) {
     console.error("[SkillEvolution] evolveSkill error:", error);
