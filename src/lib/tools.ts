@@ -2508,48 +2508,35 @@ Provide a structured analysis with:
 5. **Answer** — Your synthesized answer to the research question
 6. **Gaps** — What additional research would help`;
 
-    // Try Z.ai SDK first, then fallback to Ollama Cloud
+    // Use Ollama Cloud (Gemma 4 31B) for synthesis
     try {
-      const zai = await ZAI.create();
-      const result = await zai.chat.completions.create({
-        model: "coding-glm-5-turbo-free",
-        messages: [{ role: "user", content: prompt }],
+      const apiKey = nextOllamaKey();
+      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gemma4:31b-cloud",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 4096,
+        }),
+        signal: AbortSignal.timeout(60000),
       });
+      if (!res.ok) throw new Error(`Ollama API error: ${res.status}`);
+      const data = await safeParseRes<{ choices?: Array<{ message?: { content?: string } }> }>(res);
+      const synthesis = data.choices?.[0]?.message?.content || "No synthesis generated.";
+      return { question, sourcesCount: findings.length, synthesis };
+    } catch (err) {
+      // Ollama failed — provide a manual synthesis
+      const agreements = findings.length > 1
+        ? findings.map(f => f.claim).join("\n- ")
+        : findings[0]?.claim || "No findings to synthesize";
       return {
         question,
         sourcesCount: findings.length,
-        synthesis: typeof result === "string" ? result : JSON.stringify(result),
+        synthesis: `**Manual Synthesis** (AI synthesis unavailable)\n\n**Findings Summary:**\n- ${agreements}\n\n**Sources:** ${findings.map(f => f.source).join(", ")}\n\n*Note: Full AI-powered cross-reference synthesis requires a working LLM connection.*`,
+        fallback: true,
+        error: err instanceof Error ? err.message : "Ollama unavailable",
       };
-    } catch {
-      // Z.ai SDK not available — use Ollama Cloud fallback
-      try {
-        const apiKey = nextOllamaKey();
-        const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: "gemma4:31b-cloud",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 4096,
-          }),
-        });
-        if (!res.ok) throw new Error(`Ollama API error: ${res.status}`);
-        const data = await safeParseRes<{ choices?: Array<{ message?: { content?: string } }> }>(res);
-        const synthesis = data.choices?.[0]?.message?.content || "No synthesis generated.";
-        return { question, sourcesCount: findings.length, synthesis };
-      } catch (fallbackErr) {
-        // Both failed — provide a manual synthesis
-        const agreements = findings.length > 1
-          ? findings.map(f => f.claim).join("\n- ")
-          : findings[0]?.claim || "No findings to synthesize";
-        return {
-          question,
-          sourcesCount: findings.length,
-          synthesis: `**Manual Synthesis** (AI synthesis unavailable)\n\n**Findings Summary:**\n- ${agreements}\n\n**Sources:** ${findings.map(f => f.source).join(", ")}\n\n*Note: Full AI-powered cross-reference synthesis requires a working LLM connection.*`,
-          fallback: true,
-          error: fallbackErr instanceof Error ? fallbackErr.message : "Both Z.ai and Ollama unavailable",
-        };
-      }
     }
   }),
 });
@@ -4312,18 +4299,7 @@ export const projectDecomposeTool = tool({
     complexity: z.enum(["simple", "moderate", "complex"]).optional().describe("Project complexity level"),
   })),
   execute: safeJson(async ({ goal, context, max_tasks, complexity }) => {
-    const { generateText } = await import("ai");
-    const { createOpenAI } = await import("@ai-sdk/openai");
-
-    const apiKey = process.env.AIHUBMIX_API_KEY_1 || process.env.AIHUBMIX_API_KEY_2;
-    if (!apiKey) return JSON.stringify({ success: false, error: "No AI API key available for decomposition" });
-
-    const provider = createOpenAI({
-      apiKey,
-      baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
-    });
-    const model = provider.chat("coding-glm-5.1-free");
-
+    const apiKey = nextOllamaKey();
     const systemPrompt = `You are a project planning assistant. Given a project goal, decompose it into a structured task plan.
 
 Rules:
@@ -4362,16 +4338,25 @@ Output format (EXACT JSON):
     const userPrompt = `Decompose this project goal into tasks:\n\nGoal: ${goal}\n${context ? `Context: ${context}` : ""}\nComplexity: ${complexity || "moderate"}\nMax tasks: ${Math.min(max_tasks || 8, 15)}`;
 
     try {
-      const result = await generateText({
-        model,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-        maxOutputTokens: 4096,
-        abortSignal: AbortSignal.timeout(120000),
+      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "gemma4:31b-cloud",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 4096,
+        }),
+        signal: AbortSignal.timeout(120000),
       });
+      if (!res.ok) throw new Error(`Ollama API error: ${res.status}`);
+      const data = await safeParseRes<{ choices?: Array<{ message?: { content?: string } }> }>(res);
+      const text = data.choices?.[0]?.message?.content || "";
 
       // Parse the JSON from the response
-      let jsonStr = result.text.trim();
+      let jsonStr = text.trim();
       // Remove code fences if present
       const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (fenceMatch) jsonStr = fenceMatch[1];
@@ -4537,18 +4522,8 @@ export const projectDecomposeAndAddTool = tool({
       const proj = await query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
       if (proj.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
 
-      // Get AI decomposition
-      const { createOpenAI } = await import("@ai-sdk/openai");
-      const { generateText } = await import("ai");
-
-      const aihubmixKey = nextAIHubMixKey();
-      if (!aihubmixKey) return { success: false, error: "No AI API key configured for decomposition" };
-
-      const provider = createOpenAI({
-        apiKey: aihubmixKey,
-        baseURL: process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1",
-      });
-      const model = provider.chat("coding-glm-5.1-free");
+      // Get AI decomposition via Ollama Cloud (Gemma 4 31B)
+      const ollamaKey = nextOllamaKey();
 
       const systemPrompt = `You are a project planning expert. Decompose the given goal into a structured task plan.
 Each task should be specific, actionable, and assigned to the right agent.
@@ -4558,15 +4533,24 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
 
       const userPrompt = `Decompose this project goal into tasks:\n\nGoal: ${goal}\n${context ? `Context: ${context}` : ""}\nComplexity: ${complexity || "moderate"}\nMax tasks: ${Math.min(max_tasks || 8, 15)}`;
 
-      const result = await generateText({
-        model,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-        maxOutputTokens: 4096,
-        abortSignal: AbortSignal.timeout(120000),
+      const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ollamaKey}` },
+        body: JSON.stringify({
+          model: "gemma4:31b-cloud",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 4096,
+        }),
+        signal: AbortSignal.timeout(120000),
       });
+      if (!res.ok) throw new Error(`Ollama API error: ${res.status}`);
+      const data = await safeParseRes<{ choices?: Array<{ message?: { content?: string } }> }>(res);
+      const text = data.choices?.[0]?.message?.content || "";
 
-      let jsonStr = result.text.trim();
+      let jsonStr = text.trim();
       const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (fenceMatch) jsonStr = fenceMatch[1];
 
@@ -5171,6 +5155,138 @@ export const workflowCancelTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Task Board Tools — Kanban board for inter-agent coordination
+// Agents can create, update, list, and delete tasks on the shared board.
+// ---------------------------------------------------------------------------
+
+export const taskboardCreateTool = tool({
+  description: "Create a new task on the shared task board (Kanban). Use this to track work items, assign tasks to yourself or other agents, and coordinate work across the team. Tasks start in 'backlog' column.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Task title — clear and actionable"),
+    description: z.string().optional().describe("Detailed task description"),
+    priority: z.enum(["high", "medium", "low"]).optional().describe("Task priority (default: medium)"),
+    assigned_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Agent to assign this task to"),
+    context: z.string().optional().describe("Additional context for the assigned agent"),
+    deadline: z.string().optional().describe("Deadline (ISO 8601 datetime)"),
+    tags: z.array(z.string()).optional().describe("Tags for categorization"),
+  })),
+  execute: safeJson(async ({ title, description, priority, assigned_agent, context, deadline, tags }) => {
+    try {
+      const { createTask } = await import("@/lib/taskboard");
+      const task = await createTask({
+        title,
+        description,
+        priority,
+        assignedAgent: assigned_agent || null,
+        createdBy: "general",
+        context,
+        deadline,
+        tags,
+      });
+      if (!task) return { success: false, error: "Failed to create task — database error" };
+      return { success: true, task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent } };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to create task" };
+    }
+  }),
+});
+
+export const taskboardUpdateTool = tool({
+  description: "Update a task on the shared task board. Can change title, description, status (backlog/in_progress/waiting/done), priority, assignment, context, deadline, or tags. Use this to move tasks between columns or reassign them.",
+  inputSchema: zodSchema(z.object({
+    task_id: z.number().describe("Task ID to update"),
+    title: z.string().optional().describe("New title"),
+    description: z.string().optional().describe("New description"),
+    status: z.enum(["backlog", "in_progress", "waiting", "done"]).optional().describe("New status (moves task between Kanban columns)"),
+    priority: z.enum(["high", "medium", "low"]).optional().describe("New priority"),
+    assigned_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Reassign to a different agent"),
+    context: z.string().optional().describe("Update context"),
+    deadline: z.string().optional().describe("Update deadline (ISO 8601)"),
+    tags: z.array(z.string()).optional().describe("Update tags"),
+  })),
+  execute: safeJson(async ({ task_id, title, description, status, priority, assigned_agent, context, deadline, tags }) => {
+    try {
+      const { updateTask } = await import("@/lib/taskboard");
+      const updates: Record<string, unknown> = {};
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (status !== undefined) updates.status = status;
+      if (priority !== undefined) updates.priority = priority;
+      if (assigned_agent !== undefined) updates.assignedAgent = assigned_agent;
+      if (context !== undefined) updates.context = context;
+      if (deadline !== undefined) updates.deadline = deadline;
+      if (tags !== undefined) updates.tags = tags;
+
+      const task = await updateTask(task_id, updates);
+      if (!task) return { success: false, error: `Task ${task_id} not found or update failed` };
+      return { success: true, task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent } };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to update task" };
+    }
+  }),
+});
+
+export const taskboardListTool = tool({
+  description: "List tasks from the shared task board. Filter by status (backlog/in_progress/waiting/done), assigned agent, or priority. Returns tasks sorted by priority then creation date. Use this to check what work is pending or in progress.",
+  inputSchema: zodSchema(z.object({
+    status: z.enum(["backlog", "in_progress", "waiting", "done"]).optional().describe("Filter by status column"),
+    assigned_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Filter by assigned agent"),
+    priority: z.enum(["high", "medium", "low"]).optional().describe("Filter by priority"),
+    limit: z.number().optional().describe("Max tasks to return (default: 50)"),
+  })),
+  execute: safeJson(async ({ status, assigned_agent, priority, limit }) => {
+    try {
+      const { getTasks } = await import("@/lib/taskboard");
+      const tasks = await getTasks({ status, assignedAgent: assigned_agent, priority, limit: limit || 50 });
+      return {
+        success: true,
+        count: tasks.length,
+        tasks: tasks.map(t => ({
+          id: t.id, title: t.title, status: t.status, priority: t.priority,
+          assignedAgent: t.assignedAgent, createdBy: t.createdBy,
+          description: t.description, context: t.context,
+          deadline: t.deadline, tags: t.tags,
+          createdAt: t.createdAt,
+        })),
+      };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to list tasks" };
+    }
+  }),
+});
+
+export const taskboardDeleteTool = tool({
+  description: "Delete a task from the shared task board. Use with caution — this permanently removes the task. Prefer updating status to 'done' instead of deleting completed tasks.",
+  inputSchema: zodSchema(z.object({
+    task_id: z.number().describe("Task ID to delete"),
+  })),
+  execute: safeJson(async ({ task_id }) => {
+    try {
+      const { deleteTask } = await import("@/lib/taskboard");
+      const ok = await deleteTask(task_id);
+      if (!ok) return { success: false, error: `Task ${task_id} not found or delete failed` };
+      return { success: true, message: `Task ${task_id} deleted` };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to delete task" };
+    }
+  }),
+});
+
+export const taskboardSummaryTool = tool({
+  description: "Get a summary of the shared task board — counts per status column (backlog, in_progress, waiting, done), total tasks, and high-priority count. Use for a quick health check of the board.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    try {
+      const { getTaskBoardSummary } = await import("@/lib/taskboard");
+      const summary = await getTaskBoardSummary();
+      return { success: true, ...summary };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to get summary" };
+    }
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -5332,6 +5448,12 @@ export const allTools: Record<string, ToolType> = {
   workflow_list: workflowListTool,
   workflow_step_execute: workflowStepExecuteTool,
   workflow_cancel: workflowCancelTool,
+  // Task Board (Kanban)
+  taskboard_create: taskboardCreateTool,
+  taskboard_update: taskboardUpdateTool,
+  taskboard_list: taskboardListTool,
+  taskboard_delete: taskboardDeleteTool,
+  taskboard_summary: taskboardSummaryTool,
 };
 
 // ---------------------------------------------------------------------------

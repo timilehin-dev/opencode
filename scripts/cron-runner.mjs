@@ -97,7 +97,7 @@ function nextOllamaKey() {
 }
 
 const AGENT_MODELS = {
-  general: { provider: "aihubmix", model: "coding-glm-5.1-free", name: "Claw General", role: "the main coordinator agent" },
+  general: { provider: "ollama", model: "gemma4:31b-cloud", name: "Claw General", role: "the main coordinator agent" },
   mail:    { provider: "ollama", model: "gemma4:31b-cloud", name: "Mail Agent", role: "the email specialist agent" },
   code:    { provider: "ollama", model: "gemma4:31b-cloud", name: "Code Agent", role: "the development agent" },
   data:    { provider: "ollama", model: "gemma4:31b-cloud", name: "Data Agent", role: "the data analysis agent" },

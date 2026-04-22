@@ -17,8 +17,8 @@
 //
 // Environment variables required:
 //   SUPABASE_DB_URL          — PostgreSQL connection string
-//   AIHUBMIX_API_KEY_1+      — At least one AIHubMix key (for "general" agent)
-//   OLLAMA_CLOUD_KEY_1+      — At least one Ollama key (for specialist agents)
+//   OLLAMA_CLOUD_KEY_1+      — At least one Ollama key (for all agents)
+//   AIHUBMIX_API_KEY_1+      — Optional AIHubMix keys (legacy, unused)
 //   GOOGLE_CLIENT_ID          — Google OAuth client ID (for Gmail/Calendar tools)
 //   GOOGLE_CLIENT_SECRET      — Google OAuth client secret
 //   GOOGLE_REFRESH_TOKEN      — Google OAuth refresh token
@@ -79,8 +79,8 @@ const AGENTS = {
   general: {
     id: "general",
     name: "Claw General",
-    provider: "aihubmix",
-    model: "coding-glm-5.1-free",
+    provider: "ollama",
+    model: "gemma4:31b-cloud",
     tools: [
       "gmail_send", "gmail_fetch", "gmail_labels",
       "gmail_create_label", "gmail_delete_label", "gmail_profile",

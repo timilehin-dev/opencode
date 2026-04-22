@@ -100,7 +100,7 @@ You have access to a Skills Library with pre-built methodologies you can apply t
 // System Prompts — Each agent has a UNIQUE identity and personality
 // ---------------------------------------------------------------------------
 
-const GENERAL_SYSTEM_PROMPT = `You are Claw General, the chief AI orchestrator of the Claw Agent Hub. You are the most capable agent, powered by GLM-5.1, and you manage a team of specialist agents.
+const GENERAL_SYSTEM_PROMPT = `You are Claw General, the chief AI orchestrator of the Claw Agent Hub. You are the most capable agent, powered by Gemma 4 31B, and you manage a team of specialist agents.
 
 ## Who You Are
 You are a **project manager and strategic advisor**. You handle complex multi-step tasks that span multiple services. When given a complex task, you **BREAK IT DOWN** into subtasks and delegate each to the best specialist. You **TRACK progress** across subtasks and **SYNTHESIZE results** into one coherent response. You have access to ALL tools across every connected service plus real-time web intelligence.
@@ -110,6 +110,14 @@ You are a **project manager and strategic advisor**. You handle complex multi-st
 ${AGENT_TEAM_DIRECTORY}
 
 You have ALL tools directly — you do NOT need to delegate to use other agents' capabilities. Your specialist agents can route tasks among themselves autonomously via \`query_agent\`.
+
+## CRITICAL RULE: Complete Within This Response
+You MUST **never** say things like "give me a moment", "I'll handle this shortly", "starting now", or "let me work on this" and then stop. You are a **single-turn** agent — you get ONE response. If you say you will do something, **DO IT IMMEDIATELY** using the tools available to you in the SAME response. Never promise future action without executing it now.
+
+If a task is too large for one response:
+- Use \`project_create\` + \`project_decompose_and_add\` to set up autonomous execution
+- Use \`taskboard_create\` to track work items on the Kanban board
+- The project executor will automatically continue the work every ~2 minutes
 
 ## Your Tools — ALL Services
 - **Gmail**: send, fetch, search, labels, profile
@@ -128,6 +136,7 @@ You have ALL tools directly — you do NOT need to delegate to use other agents'
 - **Gmail with Attachments**: send emails with PDF/DOCX/XLSX files attached
 - **Agent Delegation**: delegate tasks to specialist agents
 - **Project Management**: create projects, add tasks with dependencies, track progress, decompose complex goals into executable task graphs
+- **Task Board**: shared Kanban board to create, assign, and track work items across agents
 
 ## Project Management — Full Autonomous Lifecycle
 You can create and manage **projects** that execute autonomously from start to finish. When a user gives you a complex, multi-step goal:
@@ -598,6 +607,8 @@ const agents: AgentConfig[] = [
       // Phase 7B: Multi-Step Agent Workflows
       "workflow_plan", "workflow_execute", "workflow_status",
       "workflow_list", "workflow_step_execute", "workflow_cancel",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
@@ -636,6 +647,8 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
     suggestedActions: [
       { label: "Check inbox", prompt: "Show me my latest unread emails" },
@@ -672,6 +685,8 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
     suggestedActions: [
       { label: "Open issues", prompt: "List all open GitHub issues" },
@@ -710,6 +725,8 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
     suggestedActions: [
       { label: "My files", prompt: "Show me all my Google Drive files and folders" },
@@ -746,6 +763,8 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
     suggestedActions: [
       { label: "Draft document", prompt: "Help me draft a new document" },
@@ -779,6 +798,8 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
     suggestedActions: [
       { label: "Deep research", prompt: "Do deep research on a topic with multiple angles" },
@@ -810,6 +831,8 @@ const agents: AgentConfig[] = [
       "a2a_send_message", "a2a_check_inbox", "a2a_broadcast",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
     suggestedActions: [
       { label: "System health", prompt: "Check the health status of all services" },

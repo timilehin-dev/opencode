@@ -48,7 +48,7 @@ function getEnvDefinitions(): Array<{ name: string; required: boolean; descripti
     // LLM providers
     { name: "OLLAMA_CLOUD_KEY_1", required: true, description: "Ollama Cloud API key (Gemma 4)" },
     { name: "OLLAMA_BASE_URL", required: true, description: "Ollama API base URL" },
-    { name: "AIHUBMIX_API_KEY_1", required: true, description: "AIHubMix API key (Coding GLM 5.1)" },
+    { name: "AIHUBMIX_API_KEY_1", required: false, description: "AIHubMix API key (legacy — not used, all agents on Ollama Gemma 4)" },
 
     // App
     { name: "NEXT_PUBLIC_BASE_URL", required: false, description: "Public base URL of the app" },
