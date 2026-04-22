@@ -278,6 +278,44 @@ function nextOllamaKey() {
   return keys[_ollamaKeyIdx++ % keys.length];
 }
 
+// ===========================================================================
+// Push Notification System — Direct DB inserts (no Vercel dependency)
+// ===========================================================================
+
+/**
+ * Send a proactive notification to the user (stored in proactive_notifications table).
+ * The frontend polls this table and shows browser/desktop notifications.
+ */
+async function sendNotification({ agentId, agentName, type, title, body, priority = "normal", actionUrl, actionLabel, metadata = {} }) {
+  try {
+    await pool.query(
+      `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [agentId, agentName, type, title, body, priority, actionUrl || null, actionLabel || null, JSON.stringify(metadata)],
+    );
+    console.log(`[Notification] ${type}: ${title} (priority: ${priority})`);
+  } catch (err) {
+    console.warn("[Notification] Failed to send:", err.message);
+  }
+}
+
+/**
+ * Send an A2A message to an agent's inbox (stored in a2a_messages table).
+ * Used to notify the creating agent when tasks/projects complete.
+ */
+async function sendA2ANotification({ toAgent, fromAgent = "system", type = "handoff", topic, content, priority = "normal" }) {
+  try {
+    await pool.query(
+      `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, priority, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'delivered')`,
+      [fromAgent, toAgent, type, topic, JSON.stringify({ content }), priority],
+    );
+    console.log(`[A2A] Message to ${toAgent}: ${topic}`);
+  } catch (err) {
+    console.warn("[A2A] Failed to send:", err.message);
+  }
+}
+
 function getProvider(agent) {
   if (agent.provider === "aihubmix") {
     const provider = createOpenAI({
@@ -3105,6 +3143,20 @@ async function main() {
 
         await logActivity(task.agent_id, AGENTS[task.agent_id]?.name, "task_completed", `Background task completed: ${task.task.slice(0, 60)}`, { taskId: task.id, resultLength: result.text.length });
         await persistAgentStatus(task.agent_id, { status: "idle", currentTask: null, lastActivity: new Date().toISOString(), tasksCompleted: 1 });
+
+        // Push notification: task completed
+        const agentName = AGENTS[task.agent_id]?.name || task.agent_id;
+        await sendNotification({
+          agentId: task.agent_id,
+          agentName,
+          type: "task_update",
+          title: `Task completed by ${agentName}`,
+          body: result.text.slice(0, 500) + (result.text.length > 500 ? "..." : ""),
+          priority: task.priority === "critical" || task.priority === "high" ? "high" : "normal",
+          actionUrl: "/dashboard",
+          actionLabel: "View Details",
+          metadata: { taskId: task.id, triggerType: task.trigger_type, durationMs: result.durationMs },
+        });
       } else {
         await failTask(task.id, result.error);
         summary.failed++;
@@ -3120,6 +3172,20 @@ async function main() {
 
         await logActivity(task.agent_id, AGENTS[task.agent_id]?.name, "task_failed", `Background task failed: ${result.error?.slice(0, 80)}`, { taskId: task.id });
         await persistAgentStatus(task.agent_id, { status: "error", currentTask: null, lastActivity: new Date().toISOString() });
+
+        // Push notification: task failed
+        const failAgentName = AGENTS[task.agent_id]?.name || task.agent_id;
+        await sendNotification({
+          agentId: task.agent_id,
+          agentName: failAgentName,
+          type: "alert",
+          title: `Task failed: ${failAgentName}`,
+          body: `Error: ${result.error?.slice(0, 300)}${result.error?.length > 300 ? "..." : ""}`,
+          priority: "high",
+          actionUrl: "/dashboard",
+          actionLabel: "View Error",
+          metadata: { taskId: task.id, error: result.error?.slice(0, 1000) },
+        });
       }
 
       // Rate limit: wait between tasks to avoid API throttling
@@ -3226,6 +3292,76 @@ async function main() {
           );
           summary.succeeded++;
           console.log(`[Phase 3] Task #${pt.id} completed in ${durationMs}ms`);
+
+          // Push notification: project task completed
+          await sendNotification({
+            agentId: agentId,
+            agentName: agentDef.name,
+            type: "task_update",
+            title: `Project task completed: ${pt.title}`,
+            body: result.text.slice(0, 300) + (result.text.length > 300 ? "..." : ""),
+            priority: "normal",
+            actionUrl: `/projects`,
+            actionLabel: "View Project",
+            metadata: { projectId: pt.project_id, projectName: pt.project_name, taskId: pt.id, durationMs },
+          });
+
+          // Notify project creator via A2A
+          try {
+            const projInfo = await pool.query(`SELECT agent_id, name FROM projects WHERE id = $1`, [pt.project_id]);
+            if (projInfo.rows.length > 0) {
+              const creatorAgent = projInfo.rows[0].agent_id;
+              if (creatorAgent && creatorAgent !== agentId) {
+                await sendA2ANotification({
+                  toAgent: creatorAgent,
+                  fromAgent: agentId,
+                  type: "handoff",
+                  topic: `Task completed in project "${pt.project_name}"`,
+                  content: `Task "${pt.title}" has been completed by ${agentDef.name}.\n\nResult: ${result.text.slice(0, 500)}`,
+                  priority: "normal",
+                });
+              }
+            }
+          } catch { /* non-critical */ }
+
+          // Check if project is now fully complete
+          try {
+            const projectStatus = await pool.query(
+              `SELECT status, completed_tasks, total_tasks, failed_tasks FROM projects WHERE id = $1`,
+              [pt.project_id],
+            );
+            if (projectStatus.rows.length > 0) {
+              const proj = projectStatus.rows[0];
+              // Project auto-transitions to 'completed' or 'failed' via DB trigger
+              if (proj.status === "completed" && proj.total_tasks > 0) {
+                console.log(`[Phase 3] 🎉 Project "${pt.project_name}" is now COMPLETE!`);
+                await sendNotification({
+                  agentId: proj.agent_id || "general",
+                  agentName: "Claw System",
+                  type: "project_complete",
+                  title: `Project complete: ${pt.project_name}`,
+                  body: `All ${proj.completed_tasks} tasks completed successfully in project "${pt.project_name}". The project has been marked as complete.`,
+                  priority: "high",
+                  actionUrl: `/projects`,
+                  actionLabel: "View Project",
+                  metadata: { projectId: pt.project_id, projectName: pt.project_name, completedTasks: proj.completed_tasks, totalTasks: proj.total_tasks },
+                });
+              } else if (proj.status === "failed") {
+                console.log(`[Phase 3] ⚠️ Project "${pt.project_name}" has FAILED.`);
+                await sendNotification({
+                  agentId: proj.agent_id || "general",
+                  agentName: "Claw System",
+                  type: "alert",
+                  title: `Project failed: ${pt.project_name}`,
+                  body: `Project "${pt.project_name}" has failed. ${proj.completed_tasks} of ${proj.total_tasks} tasks completed, ${proj.failed_tasks} failed. Check project_health for details.`,
+                  priority: "high",
+                  actionUrl: `/projects`,
+                  actionLabel: "View Project",
+                  metadata: { projectId: pt.project_id, projectName: pt.project_name, completedTasks: proj.completed_tasks, failedTasks: proj.failed_tasks, totalTasks: proj.total_tasks },
+                });
+              }
+            }
+          } catch { /* non-critical */ }
         } else {
           const newRetries = (pt.retries || 0) + 1;
           if (newRetries < (pt.max_retries || 2)) {

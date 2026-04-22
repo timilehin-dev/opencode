@@ -4694,19 +4694,19 @@ export const a2aBroadcastTool = tool({
 export const a2aCheckInboxTool = tool({
   description: "Check your A2A inbox for unread messages from other agents. Returns messages sorted by priority (urgent first). Always check your inbox at the start of your execution cycle to see if any agent has sent you tasks or information.",
   inputSchema: zodSchema(z.object({
+    agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).describe("Your agent ID — specify which inbox to check"),
     limit: z.number().optional().describe("Max messages to return (default: 20)"),
     mark_as_read: z.boolean().optional().describe("Automatically mark returned messages as read (default: true)"),
   })),
-  execute: safeJson(async ({ limit, mark_as_read }) => {
+  execute: safeJson(async ({ agent_id, limit, mark_as_read }) => {
     const { getAgentInbox, markMessagesRead } = await import("@/lib/a2a");
-    const agentId = "current"; // Will be set by route context
-    const messages = await getAgentInbox(agentId, limit || 20);
+    const messages = await getAgentInbox(agent_id, limit || 20);
     
     // Auto mark as read
     let markedCount = 0;
     if (mark_as_read !== false && messages.length > 0) {
       const ids = messages.map(m => m.id);
-      markedCount = await markMessagesRead(agentId, ids);
+      markedCount = await markMessagesRead(agent_id, ids);
     }
 
     return {

@@ -106,6 +106,36 @@ const AGENT_MODELS = {
   ops:     { provider: "ollama", model: "gemma4:31b-cloud", name: "Ops Agent", role: "the operations agent" },
 };
 
+// ===========================================================================
+// Push Notification System — Direct DB inserts (no Vercel dependency)
+// ===========================================================================
+
+async function sendNotification({ agentId, agentName, type, title, body, priority = "normal", actionUrl, actionLabel, metadata = {} }) {
+  try {
+    await pool.query(
+      `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [agentId, agentName, type, title, body, priority, actionUrl || null, actionLabel || null, JSON.stringify(metadata)],
+    );
+    console.log(`[Notification] ${type}: ${title}`);
+  } catch (err) {
+    console.warn("[Notification] Failed:", err.message);
+  }
+}
+
+async function sendA2ANotification({ toAgent, fromAgent = "system", type = "handoff", topic, content, priority = "normal" }) {
+  try {
+    await pool.query(
+      `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, priority, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'delivered')`,
+      [fromAgent, toAgent, type, topic, JSON.stringify({ content }), priority],
+    );
+    console.log(`[A2A] Message to ${toAgent}: ${topic}`);
+  } catch (err) {
+    console.warn("[A2A] Failed:", err.message);
+  }
+}
+
 function getModel(agentId) {
   const def = AGENT_MODELS[agentId] || AGENT_MODELS.general;
   if (def.provider === "aihubmix") {
@@ -311,6 +341,17 @@ async function runAgentRoutines() {
         result.executed++;
         result.details.push({ agent_id, name, status: "success", duration_ms: Date.now() - startTime });
         console.log(`[AgentRoutines] "${name}" for ${agent_id} completed in ${Date.now() - startTime}ms`);
+
+        // Push notification: routine completed
+        await sendNotification({
+          agentId,
+          agentName: agentDef.name,
+          type: "routine_result",
+          title: `Routine completed: ${name}`,
+          body: text.slice(0, 500) + (text.length > 500 ? "..." : ""),
+          priority: "low",
+          metadata: { routineId: id, durationMs: Date.now() - startTime },
+        });
       } catch (err) {
         result.failed++;
         const errMsg = err instanceof Error ? err.message : "Unknown error";
@@ -323,6 +364,17 @@ async function runAgentRoutines() {
           [nextRun.toISOString(), `ERROR: ${errMsg.slice(0, 500)}`, id]
         );
         console.error(`[AgentRoutines] "${name}" failed: ${errMsg}`);
+
+        // Push notification: routine failed
+        await sendNotification({
+          agentId,
+          agentName: agentDef.name,
+          type: "alert",
+          title: `Routine failed: ${name}`,
+          body: `Error: ${errMsg.slice(0, 300)}`,
+          priority: "high",
+          metadata: { routineId: id, error: errMsg.slice(0, 1000) },
+        });
       }
     }
   } catch (err) {
@@ -389,6 +441,17 @@ async function runProcessReminders() {
         } catch { /* non-critical */ }
 
         console.log(`[ProcessReminders] Fired: "${reminder.title}" (priority: ${reminder.priority}, agent: ${reminder.assigned_agent || "none"})`);
+
+        // Push notification: reminder fired
+        await sendNotification({
+          agentId: reminder.assigned_agent || "general",
+          agentName: AGENT_MODELS[reminder.assigned_agent]?.name || "System",
+          type: "reminder",
+          title: `Reminder: ${reminder.title}`,
+          body: reminder.description || reminder.title,
+          priority: reminder.priority === "high" || reminder.priority === "urgent" ? "high" : "normal",
+          metadata: { reminderId: reminder.id, assignedAgent: reminder.assigned_agent },
+        });
       } catch (err) {
         console.error(`[ProcessReminders] Error firing reminder ${reminder.id}: ${err.message}`);
       }

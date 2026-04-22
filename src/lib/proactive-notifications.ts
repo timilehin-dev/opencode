@@ -18,7 +18,7 @@ export interface ProactiveNotification {
   id: string;
   agentId: string;
   agentName: string;
-  type: "info" | "alert" | "task_update" | "routine_result" | "handoff" | "reminder" | "insight";
+  type: "info" | "alert" | "task_update" | "routine_result" | "handoff" | "reminder" | "insight" | "project_complete";
   title: string;
   body: string;
   priority: "low" | "normal" | "high" | "urgent";
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS proactive_notifications (
   id BIGSERIAL PRIMARY KEY,
   agent_id TEXT NOT NULL,
   agent_name TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'alert', 'task_update', 'routine_result', 'handoff', 'reminder', 'insight')),
+  type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'alert', 'task_update', 'routine_result', 'handoff', 'reminder', 'insight', 'project_complete')),
   title TEXT NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
