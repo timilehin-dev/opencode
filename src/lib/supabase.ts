@@ -139,18 +139,9 @@ CREATE INDEX IF NOT EXISTS idx_auto_logs_time ON automation_logs(created_at DESC
 CREATE INDEX IF NOT EXISTS idx_agent_memory_agent ON agent_memory(agent_id, category);
 
 -- ============================================================
--- Row Level Security (optional — tighten if needed)
--- For a personal app with anon key, you may want to keep RLS off.
+-- Row Level Security — RLS_FIX_SQL at bottom of file handles all tables.
+-- Run that SQL once in Supabase SQL Editor.
 -- ============================================================
-
--- For now, disable RLS on all tables (personal single-user app).
--- Uncomment and customize if you add auth later:
--- ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE automations ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE automation_logs ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE agent_memory ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- 7. Reminders (scheduled notifications for autonomous agents)
@@ -406,4 +397,30 @@ CREATE INDEX IF NOT EXISTS idx_contacts_vip ON contacts(is_vip) WHERE is_vip = T
 CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(first_name, last_name);
 CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_todos_tags ON todos USING GIN(tags);
+`;
+
+// ---------------------------------------------------------------------------
+// RLS Fix SQL — Run this ONCE in Supabase SQL Editor to fix RLS on all tables
+// Supabase enables RLS by default; this adds permissive policies for anon access.
+// ---------------------------------------------------------------------------
+export const RLS_FIX_SQL = `
+-- Enable RLS and add permissive policies for all Claw tables
+DO $$ DECLARE
+  tbl TEXT;
+BEGIN
+  FOR tbl IN SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public'
+    AND table_name IN (
+      'analytics_events','conversations','automations','automation_logs',
+      'user_preferences','agent_memory','reminders','agent_tasks',
+      'delegations','key_usage','agent_activity','agent_status',
+      'todos','contacts','learning_insights','skill_executions',
+      'skill_evaluations','skill_evolution_records','skills',
+      'agent_skills','workflows','workflow_steps','workflow_step_validations'
+    )
+  LOOP
+    EXECUTE format('ALTER TABLE IF EXISTS %I ENABLE ROW LEVEL SECURITY', tbl);
+    EXECUTE format('CREATE POLICY IF NOT EXISTS "Allow all on ' || tbl || '" ON ' || tbl || ' FOR ALL USING (true) WITH CHECK (true)', tbl);
+  END LOOP;
+END $$;
 `;

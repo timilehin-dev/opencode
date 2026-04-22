@@ -118,18 +118,17 @@ export async function saveMessage(msg: {
     : all;
   saveJSON(CONV_KEY, trimmed);
 
-  // Save to Supabase (fire-and-forget)
+  // Save to Supabase (await to catch errors properly)
   const supabase = getSupabase();
   if (supabase) {
-    supabase.from("conversations").insert({
+    const { error } = await supabase.from("conversations").insert({
       session_id: message.sessionId,
       agent_id: message.agentId,
       role: message.role,
       content: message.content,
       tool_calls: message.toolCalls || null,
-    }).then(({ error }) => {
-      if (error) console.warn("[Memory] Supabase save failed:", error.message);
     });
+    if (error) console.error("[Memory] Supabase save failed:", error.message);
   }
 
   return message;
@@ -439,6 +438,7 @@ export async function purgeAllConversations(scope: 'conversations' | 'all' = 'co
 }
 
 /** Delete a specific session's messages (both localStorage + Supabase).
+ *  Always deletes from Supabase regardless of localStorage state.
  *  Returns true if any messages were found and deleted. */
 export async function deleteSession(sessionId: string, agentId: string): Promise<boolean> {
   // localStorage: remove all messages with this sessionId + agentId
@@ -447,14 +447,17 @@ export async function deleteSession(sessionId: string, agentId: string): Promise
   const found = all.length !== filtered.length;
   saveJSON(CONV_KEY, filtered);
 
-  // Supabase: delete by session_id AND agent_id
+  // Supabase: ALWAYS attempt delete (don't skip based on localStorage state)
   const supabase = getSupabase();
-  if (supabase && found) {
-    await supabase
+  if (supabase) {
+    const { error } = await supabase
       .from("conversations")
       .delete()
       .eq("session_id", sessionId)
       .eq("agent_id", agentId);
+    if (error) {
+      console.warn("[Memory] Supabase delete session failed:", error.message);
+    }
   }
 
   return found;

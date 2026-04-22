@@ -35,6 +35,7 @@ import { loadAgentOverrides } from "@/lib/agent-overrides";
 // ---------------------------------------------------------------------------
 const CHAT_HISTORY_VERSION = 2;
 const CHAT_VERSION_KEY = "claw-chat-history-version";
+const CONV_KEY = "claw-conversations";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -1404,35 +1405,50 @@ export function ChatView() {
   const [sessionMap, setSessionMap] = useState<Record<string, string>>({});
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Load session map from localStorage on mount + auto-purge stale history
+  // Load session map from localStorage on mount + rebuild from Supabase if empty
   useEffect(() => {
-    // Auto-purge: if chat history version doesn't match, purge everything and start fresh
+    // Version mismatch: only clear localStorage cache, NOT Supabase cloud data
     try {
       const storedVersion = localStorage.getItem(CHAT_VERSION_KEY);
       if (storedVersion !== String(CHAT_HISTORY_VERSION)) {
-        console.log("[Chat] Chat history version mismatch — purging all old history");
-        purgeAllConversations().then((result) => {
-          console.log("[Chat] Purge result:", result);
-          localStorage.setItem(CHAT_VERSION_KEY, String(CHAT_HISTORY_VERSION));
-        }).catch(() => {
-          localStorage.setItem(CHAT_VERSION_KEY, String(CHAT_HISTORY_VERSION));
-        });
-        // Reset session state to force fresh start
-        setSessionMap({});
-        setCurrentSessionId(generateSessionId());
-        return;
+        console.log("[Chat] Chat history version mismatch — clearing localStorage cache only (Supabase data preserved)");
+        localStorage.removeItem(CONV_KEY);
+        localStorage.removeItem(SESSION_MAP_KEY);
+        localStorage.setItem(CHAT_VERSION_KEY, String(CHAT_HISTORY_VERSION));
       }
     } catch {
       // ignore
     }
 
     const map = loadSessionMap();
-    setSessionMap(map);
-
     const lastAgent = getLastActiveAgent();
+
     if (map[lastAgent]) {
+      // localStorage has a valid session for the last agent — use it
+      setSessionMap(map);
       setSelectedAgent(lastAgent);
       setCurrentSessionId(map[lastAgent]);
+    } else {
+      // localStorage is empty or missing — rebuild session map from Supabase cloud data
+      getAllRecentSessions(1)
+        .then((recentSessions) => {
+          // Find the most recent session for the last active agent
+          const agentSession = recentSessions.find(s => s.agentId === lastAgent);
+          if (agentSession) {
+            const newMap = { ...map, [lastAgent]: agentSession.sessionId };
+            setSessionMap(newMap);
+            saveSessionMap(newMap);
+            setSelectedAgent(lastAgent);
+            setCurrentSessionId(agentSession.sessionId);
+          } else {
+            // No sessions at all for this agent — keep the map as-is
+            setSessionMap(map);
+          }
+        })
+        .catch(() => {
+          // Supabase unavailable — fall back to localStorage state
+          setSessionMap(map);
+        });
     }
   }, []);
 
