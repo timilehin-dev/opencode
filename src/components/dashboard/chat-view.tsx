@@ -938,7 +938,7 @@ function AgentChatSession({
   const visibleMessages = messages.filter((m) => m.role !== "system");
 
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-4 lg:px-6 py-4">
         {visibleMessages.length === 0 ? (
@@ -1363,7 +1363,7 @@ function AgentChatSession({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

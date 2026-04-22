@@ -171,29 +171,17 @@ function formatNumber(num: number): string {
 
 function SkillCardSkeleton() {
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-5 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-5 w-36" />
-            <Skeleton className="h-4 w-20" />
-          </div>
-          <Skeleton className="h-6 w-16 rounded-full" />
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+      <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-14 rounded-full" />
         </div>
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-3/4" />
-        <div className="flex gap-2">
-          <Skeleton className="h-5 w-14 rounded-full" />
-          <Skeleton className="h-5 w-14 rounded-full" />
-        </div>
-        <Skeleton className="h-2 w-full rounded-full" />
-        <div className="flex justify-between">
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="h-4 w-16" />
-        </div>
-        <Skeleton className="h-8 w-full rounded-lg" />
-      </CardContent>
-    </Card>
+        <Skeleton className="h-3 w-full" />
+      </div>
+      <Skeleton className="w-5 h-5 shrink-0" />
+    </div>
   );
 }
 
@@ -1034,7 +1022,7 @@ export default function SkillsPage() {
 
       {/* Skills Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <SkillCardSkeleton key={i} />
           ))}
@@ -1043,7 +1031,7 @@ export default function SkillsPage() {
         <EmptyState searchQuery={searchQuery} />
       ) : (
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 md:grid-cols-2 gap-3"
           variants={containerVariants}
           initial="hidden"
           animate="show"
@@ -1052,116 +1040,52 @@ export default function SkillsPage() {
           {filteredSkills.map((skill) => {
             const catColor = CATEGORY_COLORS[skill.category] || CATEGORY_COLORS.general;
             const diffColor = DIFFICULTY_COLORS[skill.difficulty] || DIFFICULTY_COLORS.intermediate;
+            const perfColor = skill.performance_score >= 80 ? 'text-emerald-500' : skill.performance_score >= 50 ? 'text-amber-500' : 'text-red-500';
 
             return (
               <motion.div key={skill.id} variants={itemVariants} layout>
-                <Card className="group hover:border-primary/20 transition-all duration-300 hover:shadow-md cursor-pointer overflow-hidden h-full flex flex-col">
-                  <CardContent className="p-5 flex-1 flex flex-col">
-                    {/* Top Row: Name + Badges */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                          {skill.display_name}
-                        </h3>
-                        <p className="text-[11px] text-muted-foreground font-mono truncate">
-                          {skill.slug}
-                        </p>
-                      </div>
-                      {skill.is_builtin && (
-                        <Badge variant="outline" className="text-[9px] gap-0.5 shrink-0">
-                          <Zap className="w-2.5 h-2.5" />
-                          Built-in
-                        </Badge>
+                <div
+                  onClick={() => setSelectedSkill(skill)}
+                  className="group flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary/20 hover:shadow-sm transition-all duration-200 cursor-pointer"
+                >
+                    {/* Icon */}
+                    <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", catColor.bg)}>
+                      {skill.is_builtin ? (
+                        <Zap className={cn("w-4 h-4", catColor.text)} />
+                      ) : (
+                        <Sparkles className={cn("w-4 h-4", catColor.text)} />
                       )}
                     </div>
 
-                    {/* Category & Difficulty Badges + Embedding Indicator */}
-                    <div className="flex items-center gap-1.5 mb-3">
-                      {/* Embedding indicator dot */}
-                      <span
-                        className={cn(
-                          "w-2 h-2 rounded-full shrink-0",
-                          skill.has_embedding ? "bg-emerald-500" : "bg-muted-foreground/30"
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <h3 className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
+                          {skill.display_name}
+                        </h3>
+                        {skill.is_builtin && (
+                          <span className="text-[9px] text-muted-foreground shrink-0">built-in</span>
                         )}
-                        title={skill.has_embedding ? "Has vector embedding" : "No embedding yet"}
-                      />
-                      <Badge className={cn("text-[10px] gap-1", catColor.bg, catColor.text, catColor.border)}>
-                        {skill.category}
-                      </Badge>
-                      <Badge className={cn("text-[10px] gap-1", diffColor.bg, diffColor.text)}>
-                        <span className={cn("w-1.5 h-1.5 rounded-full", diffColor.dot)} />
-                        {skill.difficulty}
-                      </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {skill.description}
+                      </p>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
-                      {skill.description}
-                    </p>
-
-                    {/* Performance Bar */}
-                    <div className="mb-3">
-                      <PerformanceBar score={skill.performance_score} />
-                    </div>
-
-                    {/* Tags */}
-                    {skill.tags && skill.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {skill.tags.slice(0, 3).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {skill.tags.length > 3 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                            +{skill.tags.length - 3}
+                    {/* Right: chevron + mini stats */}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={cn("text-[9px] px-1 py-0", catColor.bg, catColor.text)}>
+                          {skill.category}
+                        </Badge>
+                        {skill.performance_score > 0 && (
+                          <span className={cn("text-[9px] font-medium", perfColor)}>
+                            {skill.performance_score}%
                           </span>
                         )}
                       </div>
-                    )}
-
-                    {/* Required Tools */}
-                    {skill.required_tools && skill.required_tools.length > 0 && (
-                      <div className="flex items-center gap-1 mb-3 text-[11px] text-muted-foreground">
-                        <Wrench className="w-3 h-3 shrink-0" />
-                        <span className="truncate">
-                          {skill.required_tools.slice(0, 3).join(", ")}
-                          {skill.required_tools.length > 3 && ` +${skill.required_tools.length - 3}`}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Spacer */}
-                    <div className="flex-1" />
-
-                    {/* Stats Row */}
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-3 pt-2 border-t border-border/50">
-                      <div className="flex items-center gap-1">
-                        <Activity className="w-3 h-3" />
-                        <span>{formatNumber(skill.total_uses)} uses</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3 h-3" />
-                        <span>{skill.avg_rating.toFixed(1)}</span>
-                      </div>
                     </div>
-
-                    {/* View Details Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs gap-1.5 group-hover:bg-primary/5 group-hover:border-primary/30 transition-colors"
-                      onClick={() => setSelectedSkill(skill)}
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View Details
-                      <ChevronRight className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Button>
-                  </CardContent>
-                </Card>
               </motion.div>
             );
           })}
