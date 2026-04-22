@@ -3,19 +3,14 @@
 // ---------------------------------------------------------------------------
 // Core intelligence that auto-improves skills based on evaluation feedback.
 // Analyzes weaknesses, rewrites prompt templates, and manages evolution state.
+//
+// Phase 7C: Refactored to use shared connection pool + structured logger.
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { getPool } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -171,7 +166,10 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
         newPrompt = newPrompt.replace(/^```(?:prompt|text|markdown)?\s*\n?/, "").replace(/\n?```\s*$/, "");
       }
     } catch (llmError) {
-      console.error("[SkillEvolution] LLM call failed:", llmError);
+      logger.error("skill-evolution", "LLM call failed", {
+        skillId,
+        error: llmError instanceof Error ? llmError.message : String(llmError),
+      });
       return {
         success: false,
         skill_id: skillId,
@@ -289,7 +287,10 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
       new_prompt: newPrompt,
     };
   } catch (error) {
-    console.error("[SkillEvolution] evolveSkill error:", error);
+    logger.error("skill-evolution", "evolveSkill error", {
+      skillId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       success: false,
       skill_id: skillId,
@@ -300,7 +301,6 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
       new_prompt: "",
       error: error instanceof Error ? error.message : "Evolution failed",
     };
-  } finally {
-    await pool.end();
   }
+  // NOTE: No pool.end() — shared pool persists
 }

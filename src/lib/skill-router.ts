@@ -3,22 +3,18 @@
 // ---------------------------------------------------------------------------
 // Matches user queries to the best-fit skill using TF-IDF-like scoring,
 // category boosting, semantic relevance, agent affinity, and performance
-// weighting. Self-contained — uses pg directly (same pattern as API routes).
+// weighting.
 //
 // Phase 7A: Hybrid Vector Search
 // Extended to optionally include pgvector cosine similarity search when
 // sufficient skills have embeddings (>=50%). Results are merged using
 // Reciprocal Rank Fusion (RRF).
+//
+// Phase 7C: Refactored to use shared connection pool + structured logger.
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { getPool } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -164,7 +160,10 @@ async function checkEmbeddingCoverage(pool: ReturnType<typeof getPool>): Promise
     const total = Number(row.total) || 0;
     const withEmbedding = Number(row.with_embedding) || 0;
     return total > 0 ? withEmbedding / total : 0;
-  } catch {
+  } catch (err) {
+    logger.warn("skill-router", "Failed to check embedding coverage", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return 0;
   }
 }
@@ -200,8 +199,10 @@ async function runVectorSearch(
       id: r.id,
       score: 1 - Number(r.distance),
     }));
-  } catch (error) {
-    console.warn("[SkillRouter] Vector search failed:", error);
+  } catch (err) {
+    logger.warn("skill-router", "Vector search failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return [];
   }
 }
@@ -363,8 +364,10 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
           // Re-sort after merging
           scored.sort((a, b) => b.rawScore - a.rawScore);
         }
-      } catch (error) {
-        console.warn("[SkillRouter] Vector search skipped due to error:", error);
+      } catch (err) {
+        logger.warn("skill-router", "Vector search skipped due to error", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
@@ -409,10 +412,11 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
       confidence,
       alternatives,
     };
-  } catch (error) {
-    console.error("[SkillRouter] Error routing skill:", error);
+  } catch (err) {
+    logger.error("skill-router", "Error routing skill", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { skill: null, method: "error", confidence: 0, alternatives: [] };
-  } finally {
-    await pool.end();
   }
+  // NOTE: No pool.end() — shared pool persists
 }

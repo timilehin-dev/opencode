@@ -4,16 +4,13 @@
 // Planner → Executor → Validator pattern for multi-step agent workflows.
 // Uses Gemma 4 (Ollama Cloud) for planning, execution, and validation.
 // All state is persisted in PostgreSQL.
+//
+// Phase 7C: Refactored to use shared connection pool, structured logger,
+// and fixed recalcWorkflowState bug (dead code when failed > 0).
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { getPool } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -137,8 +134,12 @@ async function logExecution(
         params.error || null,
       ],
     );
-  } catch {
+  } catch (err) {
     // Execution logging is non-critical
+    logger.warn("workflow-engine", "Failed to log execution event", {
+      workflowId: params.workflowId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -148,6 +149,7 @@ async function logExecution(
 
 export async function planWorkflow(query: string, agentId: string): Promise<{ workflowId: string; plan: WorkflowPlan }> {
   const pool = getPool();
+  const timer = logger.timer("workflow-engine");
 
   try {
     // Fetch available skills from DB
@@ -208,6 +210,7 @@ Respond ONLY in this JSON format (no markdown, no code blocks):
       plan = JSON.parse(cleaned);
     } catch {
       // If parsing fails, create a simple 2-step plan
+      logger.warn("workflow-engine", "LLM plan parsing failed, using fallback plan");
       plan = {
         strategy_summary: "Direct execution plan",
         steps: [
@@ -269,10 +272,22 @@ Respond ONLY in this JSON format (no markdown, no code blocks):
       outputData: JSON.stringify(plan),
     });
 
+    logger.info("workflow-engine", `Workflow planned: "${workflowName}" with ${plan.steps.length} steps`, {
+      workflowId,
+      agentId,
+    });
+
+    timer.end("Workflow planning completed");
+
     return { workflowId, plan };
-  } finally {
-    await pool.end();
+  } catch (err) {
+    logger.error("workflow-engine", "Workflow planning failed", {
+      agentId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
+  // NOTE: No pool.end() — shared pool persists
 }
 
 // ---------------------------------------------------------------------------
@@ -399,7 +414,6 @@ Complete this step thoroughly. Produce a comprehensive output that can be used b
         );
 
         // Update previous context for next step
-        // (rebuild from DB to be safe)
         const newCompletedResult = await pool.query(
           `SELECT step_number, output_result, output_summary
            FROM workflow_steps
@@ -415,6 +429,12 @@ Complete this step thoroughly. Produce a comprehensive output that can be used b
           agentId,
           action: `Executed step ${step.step_number}: ${step.title}`,
           outputData: outputSummary,
+          durationMs,
+        });
+
+        logger.info("workflow-engine", `Step ${step.step_number} completed: ${step.title}`, {
+          workflowId,
+          stepId: step.id,
           durationMs,
         });
 
@@ -436,6 +456,12 @@ Complete this step thoroughly. Produce a comprehensive output that can be used b
                 action: `Validation failed for step ${step.step_number} (score: ${validation.overall})`,
                 error: validation.feedback,
               });
+              logger.warn("workflow-engine", `Step ${step.step_number} validation failed`, {
+                workflowId,
+                stepId: step.id,
+                score: validation.overall,
+                feedback: validation.feedback,
+              });
             } else {
               // Validation passed
               await pool.query(
@@ -445,7 +471,10 @@ Complete this step thoroughly. Produce a comprehensive output that can be used b
             }
           } catch (validationError) {
             // Validation failure is non-fatal
-            console.warn(`[WorkflowEngine] Validation failed for step ${step.step_number}:`, validationError);
+            logger.warn("workflow-engine", `Validation error for step ${step.step_number}`, {
+              workflowId,
+              error: validationError instanceof Error ? validationError.message : String(validationError),
+            });
           }
         }
 
@@ -476,6 +505,13 @@ Complete this step thoroughly. Produce a comprehensive output that can be used b
           durationMs,
         });
 
+        logger.error("workflow-engine", `Step ${step.step_number} failed: ${step.title}`, {
+          workflowId,
+          stepId: step.id,
+          error: errorMsg,
+          durationMs,
+        });
+
         // Check if we should retry
         const retryCheck = await pool.query(`SELECT attempts, max_attempts FROM workflow_steps WHERE id = $1`, [step.id]);
         const retryRow = retryCheck.rows[0];
@@ -500,9 +536,14 @@ Complete this step thoroughly. Produce a comprehensive output that can be used b
     const finalStatus = finalResult.rows[0].status;
 
     return { status: finalStatus, results: allResults };
-  } finally {
-    await pool.end();
+  } catch (err) {
+    logger.error("workflow-engine", "Workflow execution failed", {
+      workflowId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
+  // NOTE: No pool.end() — shared pool persists
 }
 
 // ---------------------------------------------------------------------------
@@ -596,7 +637,7 @@ export async function validateStep(
 
     return { score: validation.overall, feedback: validation.feedback };
   } finally {
-    await pool.end();
+    // NOTE: No pool.end() — shared pool persists
   }
 }
 
@@ -710,6 +751,11 @@ Complete this step thoroughly. Produce a comprehensive output.`;
         durationMs,
       });
 
+      logger.info("workflow-engine", `Single step ${stepNumber} completed: ${step.title}`, {
+        workflowId,
+        durationMs,
+      });
+
       // Recalculate workflow state
       await recalcWorkflowState(pool, workflowId);
 
@@ -728,12 +774,24 @@ Complete this step thoroughly. Produce a comprehensive output.`;
 
       await recalcWorkflowState(pool, workflowId);
 
+      logger.error("workflow-engine", `Single step ${stepNumber} failed`, {
+        workflowId,
+        error: errorMsg,
+        durationMs,
+      });
+
       const failedResult = await pool.query(`SELECT * FROM workflow_steps WHERE id = $1`, [step.id]);
       return failedResult.rows[0] as WorkflowStepRow;
     }
-  } finally {
-    await pool.end();
+  } catch (err) {
+    logger.error("workflow-engine", "Single step execution error", {
+      workflowId,
+      stepNumber,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
+  // NOTE: No pool.end() — shared pool persists
 }
 
 // ---------------------------------------------------------------------------
@@ -768,7 +826,7 @@ export async function getWorkflowStatus(workflowId: string): Promise<WorkflowWit
       steps,
     };
   } finally {
-    await pool.end();
+    // NOTE: No pool.end() — shared pool persists
   }
 }
 
@@ -812,12 +870,15 @@ export async function listWorkflows(
       quality_score: r.quality_score ? Number(r.quality_score) : null,
     }));
   } finally {
-    await pool.end();
+    // NOTE: No pool.end() — shared pool persists
   }
 }
 
 // ---------------------------------------------------------------------------
 // Internal: Recalculate workflow state from step statuses
+// ---------------------------------------------------------------------------
+// Phase 7C Fix: When all steps are complete but some failed, the workflow
+// should be marked "completed_with_errors" rather than always "completed".
 // ---------------------------------------------------------------------------
 
 async function recalcWorkflowState(pool: ReturnType<typeof getPool>, workflowId: string) {
@@ -848,11 +909,14 @@ async function recalcWorkflowState(pool: ReturnType<typeof getPool>, workflowId:
   const avgScore = scoreResult.rows[0]?.avg_score ? Number(scoreResult.rows[0].avg_score) : null;
 
   // Determine workflow status
-  let newStatus = "running";
-  if (completed === total) {
-    newStatus = failed > 0 ? "completed" : "completed";
+  let newStatus: string;
+  if (completed === total && total > 0) {
+    // Phase 7C Fix: Distinguish between clean completion and completion with failures
+    newStatus = failed > 0 ? "completed_with_errors" : "completed";
   } else if (failed > total * 0.3) {
     newStatus = "failed";
+  } else {
+    newStatus = "running";
   }
 
   // Calculate quality score if all steps completed

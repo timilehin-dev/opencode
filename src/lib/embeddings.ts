@@ -3,7 +3,11 @@
 // ---------------------------------------------------------------------------
 // Generates vector embeddings for skill text using Ollama's nomic-embed-text
 // model (768-dim) with a hash-based fallback if the API is unavailable.
+//
+// Phase 7C: Refactored to use structured logger.
 // ---------------------------------------------------------------------------
+
+import { logger } from "@/lib/logger";
 
 const EMBEDDING_DIM = 768;
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "https://ollama.com/v1";
@@ -56,8 +60,8 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     });
 
     if (!response.ok) {
-      console.warn(
-        `[Embeddings] Ollama API returned ${response.status}, falling back to hash embedding`
+      logger.warn(
+        "embeddings", `Ollama API returned ${response.status}, falling back to hash embedding`
       );
       return generateHashEmbedding(text, EMBEDDING_DIM);
     }
@@ -66,13 +70,15 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     // OpenAI-compatible format: { data: [{ embedding: number[] }] }
     const embedding = data.data?.[0]?.embedding;
     if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
-      console.warn(`[Embeddings] Invalid embedding response, falling back to hash`);
+      logger.warn("embeddings", "Invalid embedding response, falling back to hash");
       return generateHashEmbedding(text, EMBEDDING_DIM);
     }
 
     return embedding;
   } catch (error) {
-    console.warn(`[Embeddings] Ollama API error, falling back to hash:`, error);
+    logger.warn("embeddings", "Ollama API error, falling back to hash", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return generateHashEmbedding(text, EMBEDDING_DIM);
   }
 }
