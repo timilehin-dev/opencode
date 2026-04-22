@@ -1989,6 +1989,68 @@ export async function GET() {
 // ---------------------------------------------------------------------------
 export async function POST() {
   try {
+    // -----------------------------------------------------------------------
+    // 1. Ensure schema columns & tables exist
+    // -----------------------------------------------------------------------
+    const alterStatements = [
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS performance_score NUMERIC DEFAULT 0`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS total_uses INTEGER DEFAULT 0`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS avg_rating NUMERIC DEFAULT 0`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS agent_bindings TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_builtin BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1`,
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await query(stmt);
+      } catch (e) {
+        console.warn(`[ensureSchema] ALTER failed (may already exist): ${e}`);
+      }
+    }
+
+    const createStatements = [
+      `CREATE TABLE IF NOT EXISTS agent_skills (
+        agent_id TEXT NOT NULL,
+        skill_id TEXT NOT NULL,
+        is_equipped BOOLEAN DEFAULT true,
+        equipped_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (agent_id, skill_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS skill_executions (
+        id SERIAL PRIMARY KEY,
+        skill_id TEXT NOT NULL,
+        agent_id TEXT,
+        task_description TEXT,
+        duration_ms INTEGER,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`,
+      `CREATE TABLE IF NOT EXISTS skill_evolution (
+        id SERIAL PRIMARY KEY,
+        skill_id TEXT NOT NULL,
+        previous_version INTEGER,
+        new_version INTEGER,
+        trigger_reason TEXT,
+        evaluation_score NUMERIC,
+        prompt_before TEXT,
+        prompt_after TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`,
+    ];
+    for (const stmt of createStatements) {
+      try {
+        await query(stmt);
+      } catch (e) {
+        console.warn(`[ensureSchema] CREATE TABLE failed: ${e}`);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. Seed / upsert builtin skills
+    // -----------------------------------------------------------------------
     const results: { name: string; status: string; id: string }[] = [];
 
     for (const skill of BUILTIN_SKILLS) {
@@ -2044,9 +2106,47 @@ export async function POST() {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // 3. Auto-equip skills to agents
+    // -----------------------------------------------------------------------
+    const skillNameToId: Record<string, string> = {};
+    for (const skill of BUILTIN_SKILLS) {
+      skillNameToId[skill.name] = skill.id;
+    }
+
+    const AGENT_SKILL_MAP: Record<string, string[]> = {
+      general: ["docx", "xlsx", "pdf", "pptx", "fullstack_dev", "frontend_dev", "react_native_dev", "humanizer", "shader_dev", "vision_analysis"],
+      mail: ["docx", "pdf", "pptx", "xlsx", "humanizer"],
+      code: ["fullstack_dev", "frontend_dev", "react_native_dev", "humanizer"],
+      data: ["xlsx", "pdf", "humanizer"],
+      creative: ["docx", "pptx", "pdf", "humanizer"],
+      research: ["pdf", "docx", "humanizer"],
+      ops: ["pdf", "humanizer"],
+    };
+
+    let equipCount = 0;
+    for (const [agentId, skillNames] of Object.entries(AGENT_SKILL_MAP)) {
+      for (const skillName of skillNames) {
+        const skillId = skillNameToId[skillName];
+        if (!skillId) continue; // skip if skill not in BUILTIN_SKILLS
+        try {
+          await query(
+            `INSERT INTO agent_skills (agent_id, skill_id, is_equipped, equipped_at)
+             VALUES ($1, $2, true, NOW())
+             ON CONFLICT (agent_id, skill_id)
+             DO UPDATE SET is_equipped = true, equipped_at = NOW()`,
+            [agentId, skillId]
+          );
+          equipCount++;
+        } catch (e) {
+          console.warn(`[auto-equip] Failed to equip ${skillName} to ${agentId}: ${e}`);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Seeded ${results.length} builtin skills`,
+      message: `Seeded ${results.length} builtin skills, equipped ${equipCount} agent-skill bindings`,
       data: results,
     });
   } catch (error) {

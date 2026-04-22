@@ -26,15 +26,15 @@ export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is
 // Maximum steps per agent — tuned to prevent "stops halfway" while staying within timeout.
 // General: complex orchestration needs more steps. Specialists: fewer, more focused.
 // IMPORTANT: Each step = one LLM turn (tool call + response). A 10-tool task needs ~20 steps.
-const MAX_STEPS_GENERAL = 40;
-const MAX_STEPS_SPECIALIST = 25;
+const MAX_STEPS_GENERAL = 60;
+const MAX_STEPS_SPECIALIST = 40;
 
 // ---------------------------------------------------------------------------
 // Load user settings (temperature, maxTokens) from Supabase
 // ---------------------------------------------------------------------------
 
 async function loadUserSettings(): Promise<{ temperature: number; maxTokens: number }> {
-  const defaults = { temperature: 0.7, maxTokens: 32768 };
+  const defaults = { temperature: 0.7, maxTokens: 65536 };
   const supabase = getSupabase();
   if (!supabase) return defaults;
 
@@ -132,38 +132,31 @@ export async function POST(req: Request) {
     logActivity({ agentId: id, agentName: agent.name, action: "status_change", detail: `started processing: ${lastContent?.slice(0, 80) || "task"}` }).catch(() => {});
     persistAgentStatus(id, { status: "busy", currentTask: lastContent?.slice(0, 100) || null, lastActivity: new Date().toISOString() }).catch(() => {});
 
-    // Get the model (with smart key rotation + token tracking)
-    const providerResult = await getProvider(agent);
-    const model = providerResult.model;
-    const selectedKey = providerResult.keySelection;
-
     // Run these in parallel to reduce time-to-first-token
-    const [modelMessages, memoryContext, dueReminders, userSettings, learningContext] = await Promise.all([
+    const [providerResult, modelMessages, memoryContext, dueReminders, userSettings, learningContext, skillRouteResult] = await Promise.all([
+      getProvider(agent),
       convertToModelMessages(processedMessages),
       getMemorySummary(id).catch(() => ""),
       checkDueReminders().catch(() => []),
       loadUserSettings(),
       getInsightsForPrompt(id, 8).catch(() => ""),
+      (lastContent && lastContent.length > 10
+        ? import("@/lib/skill-router").then(m => m.routeSkill(lastContent, id)).catch(() => null)
+        : Promise.resolve(null)),
     ]);
 
-    // Phase 6B: Auto skill routing
-    // If the last user message contains a clear task, try to route to a matching skill
+    const model = providerResult.model;
+    const selectedKey = providerResult.keySelection;
+
+    // Phase 6B: Auto skill routing — result already available from parallel fetch
     let skillRoutingBlock = "";
-    if (lastContent && lastContent.length > 10) {
-      try {
-        const { routeSkill } = await import("@/lib/skill-router");
-        const routeResult = await routeSkill(lastContent, id);
-        if (routeResult.skill) {
-          const altStr = routeResult.alternatives.length > 0
-            ? `\nAlternative skills: ${routeResult.alternatives.map(a => a.display_name).join(", ")}`
-            : "";
-          skillRoutingBlock = `\n\n## AUTO-ROUTED SKILL SUGGESTION
-The system detected that your task may benefit from the "${routeResult.skill.display_name}" skill (confidence: ${Math.round(routeResult.confidence * 100)}%, method: ${routeResult.method}).
-You MAY use \`skill_use\` with name "${routeResult.skill.name}" to apply this skill's methodology, OR proceed without it if you deem it unnecessary.${altStr}`;
-        }
-      } catch {
-        // Skill routing is non-critical
-      }
+    if (skillRouteResult?.skill) {
+      const altStr = skillRouteResult.alternatives.length > 0
+        ? `\nAlternative skills: ${skillRouteResult.alternatives.map(a => a.display_name).join(", ")}`
+        : "";
+      skillRoutingBlock = `\n\n## AUTO-ROUTED SKILL SUGGESTION
+The system detected that your task may benefit from the "${skillRouteResult.skill.display_name}" skill (confidence: ${Math.round(skillRouteResult.confidence * 100)}%, method: ${skillRouteResult.method}).
+You MAY use \`skill_use\` with name "${skillRouteResult.skill.name}" to apply this skill's methodology, OR proceed without it if you deem it unnecessary.${altStr}`;
     }
 
     // Save the user's message to conversation history (fire-and-forget)
@@ -293,10 +286,28 @@ For complex multi-step tasks (research + analysis + creation, multi-domain tasks
 Use workflows when a task involves 3+ distinct steps across different skills.`;
     }
 
+    // Phase 8: Humanizer — ALL agents write like humans, not AI
+    const humanizerBlock = `
+## HUMANIZER RULES — Write Like a Human, Not an AI
+You MUST follow these rules in ALL your communications. This is non-negotiable.
+
+1. NEVER use these AI-telltale words: delve, tapestry, testament, crucial, pivotal, landscape, showcase, foster, intricate, vibrant, underscore, embark, navigate, harness, leverage, seamless, robust, comprehensive
+2. NEVER write generic positive conclusions ("The future looks bright", "Exciting times ahead")
+3. NEVER use the rule-of-three pattern for every list — vary list lengths
+4. NEVER start paragraphs with "In today's world" or "In an increasingly..."
+5. NEVER use em-dashes excessively — prefer commas, periods, or parentheses
+6. NEVER write sycophantic phrases ("Great question!", "You're absolutely right!")
+7. VARY sentence length — mix short punchy ones with longer flowing ones
+8. HAVE opinions and personality — be specific, not vague
+9. Use direct, simple language — "use" not "utilize", "help" not "facilitate"
+10. Write like you're talking to a smart colleague, not writing a press release
+11. Avoid significance inflation — not everything is "vital" or "crucial"
+12. Be specific with numbers and details instead of vague claims`;
+
     const systemPrompt =
       id !== "general"
-        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
-        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}${skillRoutingBlock}${workflowBlock}`;
+        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}${humanizerBlock}`
+        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}${skillRoutingBlock}${workflowBlock}${humanizerBlock}`;
 
     // Determine step limit: specialist agents get fewer steps to be efficient,
        // Claw General gets more for complex multi-step orchestration.
@@ -311,7 +322,7 @@ Use workflows when a task involves 3+ distinct steps across different skills.`;
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: Math.max(userSettings.maxTokens, 32768),
+      maxOutputTokens: Math.max(userSettings.maxTokens, 65536),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {

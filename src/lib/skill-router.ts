@@ -17,6 +17,24 @@ import { getPool } from "@/lib/db";
 import { logger } from "@/lib/logger";
 
 // ---------------------------------------------------------------------------
+// In-memory TTL cache for skills list (avoids DB query on every chat message)
+// ---------------------------------------------------------------------------
+interface SkillsCache {
+  data: SkillRow[];
+  expiresAt: number;
+}
+let skillsCache: SkillsCache | null = null;
+const SKILLS_CACHE_TTL = 60_000; // 1 minute
+
+// In-memory TTL cache for embedding coverage
+interface EmbeddingCoverageCache {
+  value: number;
+  expiresAt: number;
+}
+let embeddingCoverageCache: EmbeddingCoverageCache | null = null;
+const EMBEDDING_COVERAGE_TTL = 120_000; // 2 minutes
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -243,20 +261,26 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
   const pool = getPool();
 
   try {
-    // 1. Fetch all active skills
-    const result = await pool.query(
-      `SELECT id, name, display_name, description, category, difficulty,
-              tags, agent_bindings, performance_score, prompt_template, total_uses
-       FROM skills
-       WHERE is_active = true
-       ORDER BY performance_score DESC`
-    );
-
-    if (result.rows.length === 0) {
-      return { skill: null, method: "none", confidence: 0, alternatives: [] };
+    // 1. Fetch all active skills (with TTL cache)
+    let skills: SkillRow[];
+    const now = Date.now();
+    if (skillsCache && skillsCache.expiresAt > now) {
+      skills = skillsCache.data;
+    } else {
+      const result = await pool.query(
+        `SELECT id, name, display_name, description, category, difficulty,
+                tags, agent_bindings, performance_score, prompt_template, total_uses
+         FROM skills
+         WHERE is_active = true
+         ORDER BY performance_score DESC`
+      );
+      skills = result.rows;
+      skillsCache = { data: skills, expiresAt: now + SKILLS_CACHE_TTL };
     }
 
-    const skills = result.rows;
+    if (skills.length === 0) {
+      return { skill: null, method: "none", confidence: 0, alternatives: [] };
+    }
     const queryLower = query.toLowerCase();
     const queryTokens = tokenize(query);
 
@@ -337,7 +361,14 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
     // ---------------------------------------------------------------------------
 
     // Check if enough skills have embeddings for vector search to be useful
-    const coverage = await checkEmbeddingCoverage(pool);
+    // Use cached coverage or fetch from DB
+    let coverage: number;
+    if (embeddingCoverageCache && embeddingCoverageCache.expiresAt > now) {
+      coverage = embeddingCoverageCache.value;
+    } else {
+      coverage = await checkEmbeddingCoverage(pool);
+      embeddingCoverageCache = { value: coverage, expiresAt: now + EMBEDDING_COVERAGE_TTL };
+    }
     let vectorUsed = false;
 
     if (coverage >= 0.5 && queryTokens.length > 0) {
