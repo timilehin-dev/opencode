@@ -116,7 +116,8 @@ export async function GET(req: Request) {
        FROM skill_executions se
        LEFT JOIN skill_evaluations sve ON sve.skill_id = se.skill_id
          AND sve.created_at >= NOW() - INTERVAL '1 day' * $1
-       LEFT JOIN skill_evolution ev ON ev.created_at >= NOW() - INTERVAL '1 day' * $1
+       LEFT JOIN skill_evolution ev ON ev.skill_id = se.skill_id
+         AND ev.created_at >= NOW() - INTERVAL '1 day' * $1
        WHERE se.created_at >= NOW() - INTERVAL '1 day' * $1
        ${skillId ? "AND se.skill_id = $2" : ""}`,
       skillId ? [days, skillId] : [days]

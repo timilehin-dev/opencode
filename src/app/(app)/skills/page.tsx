@@ -868,7 +868,7 @@ export default function SkillsPage() {
       const genRes = await fetch("/api/skills/embeddings", { method: "POST" });
       const genJson = await genRes.json();
       if (genJson.success) {
-        addToast("success", `Embeddings generated for ${genJson.processed} skill(s)`);
+        addToast("success", `Embeddings generated for ${genJson.data?.processed ?? "?"} skill(s)`);
         // Refresh embedding status
         const statusRes = await fetch("/api/skills/embeddings");
         const statusJson = await statusRes.json();

@@ -921,17 +921,30 @@ async function recalcWorkflowState(pool: ReturnType<typeof getPool>, workflowId:
 
   // Calculate quality score if all steps completed
   const qualityScore = completed === total ? avgScore : null;
-  const completedAt = completed === total ? "NOW()" : null;
 
-  await pool.query(
-    `UPDATE agent_workflows
-     SET status = $1,
-         completed_steps = $2,
-         failed_steps = $3,
-         quality_score = $4,
-         completed_at = ${completedAt || "NULL"},
-         updated_at = NOW()
-     WHERE id = $5`,
-    [newStatus, completed, failed, qualityScore, workflowId],
-  );
+  if (completed === total) {
+    await pool.query(
+      `UPDATE agent_workflows
+       SET status = $1,
+           completed_steps = $2,
+           failed_steps = $3,
+           quality_score = $4,
+           completed_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $5`,
+      [newStatus, completed, failed, qualityScore, workflowId],
+    );
+  } else {
+    await pool.query(
+      `UPDATE agent_workflows
+       SET status = $1,
+           completed_steps = $2,
+           failed_steps = $3,
+           quality_score = $4,
+           completed_at = NULL,
+           updated_at = NOW()
+       WHERE id = $5`,
+      [newStatus, completed, failed, qualityScore, workflowId],
+    );
+  }
 }

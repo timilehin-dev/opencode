@@ -209,6 +209,12 @@ import {
 // Local safe response parser — wraps res.json() with better error messages
 // ---------------------------------------------------------------------------
 async function safeParseRes<T = unknown>(res: Response): Promise<T> {
+  if (!res.ok) {
+    // Try to extract error message from response body
+    const text = await res.text().catch(() => "");
+    const errMsg = text ? JSON.parse(text)?.error || text.slice(0, 200) : res.statusText;
+    throw new Error(`API error (${res.status}): ${errMsg}`);
+  }
   const text = await res.text().catch(() => "");
   if (!text || text.trim().length === 0) {
     throw new Error(`Empty response body (status ${res.status})`);
@@ -4085,6 +4091,7 @@ export const createXlsxSpreadsheetTool = tool({
       fileBase64: base64,
       fileSize: buffer.byteLength,
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      downloadUrl: `/api/files/${fileBaseName}`,
       message: `Excel spreadsheet "${title}" created successfully with ${sheets.length} sheet(s). Download available.`,
     };
   }),
@@ -4401,12 +4408,12 @@ export const projectUpdateTool = tool({
     const values = [];
     let idx = 1;
 
-    if (name) { setClauses.push(`name = $${idx++}`); values.push(name); }
+    if (name !== undefined) { setClauses.push(`name = $${idx++}`); values.push(name); }
     if (description !== undefined) { setClauses.push(`description = $${idx++}`); values.push(description); }
-    if (priority) { setClauses.push(`priority = $${idx++}`); values.push(priority); }
-    if (status) { setClauses.push(`status = $${idx++}`); values.push(status); }
-    if (deadline) { setClauses.push(`deadline = $${idx++}`); values.push(deadline); }
-    if (tags) { setClauses.push(`tags = $${idx++}`); values.push(tags); }
+    if (priority !== undefined) { setClauses.push(`priority = $${idx++}`); values.push(priority); }
+    if (status !== undefined) { setClauses.push(`status = $${idx++}`); values.push(status); }
+    if (deadline !== undefined) { setClauses.push(`deadline = $${idx++}`); values.push(deadline); }
+    if (tags !== undefined) { setClauses.push(`tags = $${idx++}`); values.push(tags); }
 
     if (setClauses.length === 0) return { success: false, error: "No fields to update" };
 

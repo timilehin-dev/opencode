@@ -273,7 +273,7 @@ export default function SkillEvolutionPage() {
       const res = await fetch(`${baseUrl}/api/skills/evolve/pending`);
       const json = await res.json();
       if (json.success) {
-        setPendingSkills(json.data.pending_skills || []);
+        setPendingSkills(json.data?.pending_skills || []);
       }
     } catch {
       // Non-critical

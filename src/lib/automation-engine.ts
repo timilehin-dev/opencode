@@ -125,9 +125,10 @@ export async function evaluateAutomations(): Promise<{
 
     for (const automation of automations) {
       try {
-        const wasTriggered = await processAutomation(automation, pool);
-        if (wasTriggered) {
+        const { triggered, tasksCreated } = await processAutomation(automation, pool);
+        if (triggered) {
           result.triggered++;
+          result.tasksCreated += tasksCreated;
         }
       } catch (error) {
         const msg = `Automation ${automation.id} (${automation.name}): ${error instanceof Error ? error.message : "Unknown error"}`;
@@ -149,7 +150,7 @@ export async function evaluateAutomations(): Promise<{
 // processAutomation — Evaluate a single automation's trigger
 // ---------------------------------------------------------------------------
 
-async function processAutomation(automation: Automation, pool: ReturnType<typeof getPool>): Promise<boolean> {
+async function processAutomation(automation: Automation, pool: ReturnType<typeof getPool>): Promise<{ triggered: boolean; tasksCreated: number }> {
   let shouldTrigger = false;
 
   if (automation.trigger_type === "schedule") {
@@ -158,7 +159,7 @@ async function processAutomation(automation: Automation, pool: ReturnType<typeof
     shouldTrigger = await evaluateEventTrigger(automation, pool);
   }
 
-  if (!shouldTrigger) return false;
+  if (!shouldTrigger) return { triggered: false, tasksCreated: 0 };
 
   // Automation was triggered — execute action
   const actionConfig = automation.action_config || {};
@@ -214,10 +215,10 @@ async function processAutomation(automation: Automation, pool: ReturnType<typeof
     );
 
     console.log(`[AutomationEngine] Triggered "${automation.name}" (#${automation.id}) -> task #${taskId} for agent ${agentId}`);
-    return true;
+    return { triggered: true, tasksCreated: 1 };
   }
 
-  return false;
+  return { triggered: true, tasksCreated: 0 };
 }
 
 // ---------------------------------------------------------------------------

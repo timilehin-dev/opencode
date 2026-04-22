@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { NotificationProvider } from "@/context/notification-context";
 import { NotificationPanel } from "@/components/dashboard/notification-panel";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
@@ -11,6 +12,8 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+
   // Notification provider needs an onNavigate that converts paths to PageKeys
   const handleNotificationNavigate = (key: PageKey) => {
     // Map PageKeys to actual routes for client-side navigation
@@ -36,7 +39,7 @@ export default function AppLayout({
       vercel: "/services/vercel",
     };
     const path = routeMap[key as string] || "/";
-    window.location.href = path;
+    router.push(path);
   };
 
   return (

@@ -33,11 +33,11 @@ export async function GET() {
     },
     github: {
       connected: !!process.env.GITHUB_PAT,
-      accountId: process.env.GITHUB_PAT ? `${process.env.GITHUB_PAT.slice(0, 8)}...` : null,
+      accountId: process.env.GITHUB_PAT ? "ghp_****" : null,
     },
     vercel: {
       connected: !!vercelToken,
-      accountId: vercelToken ? `${vercelToken.slice(0, 8)}...` : null,
+      accountId: vercelToken ? "vercel_****" : null,
     },
   };
 

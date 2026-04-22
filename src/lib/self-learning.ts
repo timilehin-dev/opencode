@@ -335,8 +335,8 @@ export async function decayInsights(): Promise<number> {
       `UPDATE learning_insights
        SET confidence = GREATEST(0.1, confidence - 0.10),
            updated_at = NOW()
-       WHERE (last_applied_at IS NULL AND created_at < NOW() - INTERVAL '30 days')
-          OR (last_applied_at IS NOT NULL AND last_applied_at < NOW() - INTERVAL '30 days')
+       WHERE ((last_applied_at IS NULL AND created_at < NOW() - INTERVAL '30 days')
+          OR (last_applied_at IS NOT NULL AND last_applied_at < NOW() - INTERVAL '30 days'))
          AND confidence > 0.1`,
     );
     await pool.end();
