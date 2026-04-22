@@ -277,10 +277,25 @@ You MAY use \`skill_use\` with name "${routeResult.skill.name}" to apply this sk
 
 CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you reference dates, times, "today", "yesterday", "tomorrow", or any time-relative terms, you MUST derive them from the Lagos time above. NEVER guess or hallucinate dates.`;
 
+    // Phase 7B: Workflow awareness
+    // Only inject for the "general" agent — don't auto-trigger, just make available
+    let workflowBlock = "";
+    if (id === "general" && lastContent && lastContent.length > 20) {
+      workflowBlock = `\n\n## Multi-Step Workflows Available
+For complex multi-step tasks (research + analysis + creation, multi-domain tasks), you can use the workflow system:
+- \`workflow_plan\` — Decompose a complex task into sequential steps
+- \`workflow_execute\` — Execute all steps automatically
+- \`workflow_status\` — Check workflow progress
+- \`workflow_list\` — List all workflows
+- \`workflow_step_execute\` — Execute a single step manually
+- \`workflow_cancel\` — Cancel a workflow
+Use workflows when a task involves 3+ distinct steps across different skills.`;
+    }
+
     const systemPrompt =
       id !== "general"
         ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}`
-        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}${skillRoutingBlock}`;
+        : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}${skillRoutingBlock}${workflowBlock}`;
 
     // Determine step limit: specialist agents get fewer steps to be efficient,
        // Claw General gets more for complex multi-step orchestration.

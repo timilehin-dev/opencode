@@ -595,6 +595,9 @@ const agents: AgentConfig[] = [
       "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect", "skill_evaluate",
       // Phase 6C: Skill Evolution & Rollback
       "skill_evolve", "skill_rollback",
+      // Phase 7B: Multi-Step Agent Workflows
+      "workflow_plan", "workflow_execute", "workflow_status",
+      "workflow_list", "workflow_step_execute", "workflow_cancel",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.

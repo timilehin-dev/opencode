@@ -5071,6 +5071,106 @@ export const skillEmbeddingSetupTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Phase 7B: Multi-Step Workflow Tools
+// ---------------------------------------------------------------------------
+
+export const workflowPlanTool = tool({
+  description: "Plan and create a new multi-step workflow. Decomposes a complex task into 2-8 sequential steps, each using the best available skill. Use this for complex multi-step tasks that involve research + analysis + creation, or tasks spanning multiple domains.",
+  inputSchema: zodSchema(z.object({
+    query: z.string().describe("The complex task to decompose into a multi-step workflow"),
+    agent_id: z.string().optional().describe("Agent ID (default: 'general')"),
+  })),
+  execute: safeJson(async ({ query, agent_id }) => {
+    const params = new URLSearchParams();
+    if (agent_id) params.set("agent_id", agent_id);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/workflows?${params.toString()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, agent_id: agent_id || "general" }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const workflowExecuteTool = tool({
+  description: "Execute a planned workflow — runs all pending steps sequentially. Each step uses its assigned skill to produce output. Optionally validates each step's quality automatically.",
+  inputSchema: zodSchema(z.object({
+    workflow_id: z.string().describe("The UUID of the workflow to execute"),
+    agent_id: z.string().optional().describe("Agent ID executing the workflow (default: 'general')"),
+    auto_validate: z.boolean().optional().describe("Whether to auto-validate each step (default: true)"),
+  })),
+  execute: safeJson(async ({ workflow_id, agent_id, auto_validate }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/workflows/${workflow_id}/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent_id: agent_id || "general", auto_validate: auto_validate !== false }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const workflowStatusTool = tool({
+  description: "Get workflow status and details including all steps, their statuses, outputs, and validation scores.",
+  inputSchema: zodSchema(z.object({
+    workflow_id: z.string().describe("The UUID of the workflow"),
+  })),
+  execute: safeJson(async ({ workflow_id }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/workflows/${workflow_id}`);
+    return await safeParseRes(res);
+  }),
+});
+
+export const workflowListTool = tool({
+  description: "List all workflows with optional filters. Shows workflow names, statuses, progress, and quality scores.",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.string().optional().describe("Filter by agent ID"),
+    status: z.string().optional().describe("Filter by status (planning, running, completed, failed, paused, cancelled)"),
+    limit: z.number().optional().describe("Max workflows to return (default: 20)"),
+  })),
+  execute: safeJson(async ({ agent_id, status, limit }) => {
+    const params = new URLSearchParams();
+    if (agent_id) params.set("agent_id", agent_id);
+    if (status) params.set("status", status);
+    if (limit) params.set("limit", String(limit));
+    const url = `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/workflows${params.toString() ? `?${params.toString()}` : ""}`;
+    const res = await fetch(url);
+    return await safeParseRes(res);
+  }),
+});
+
+export const workflowStepExecuteTool = tool({
+  description: "Execute a single workflow step manually. Useful for step-by-step control or re-running a failed step.",
+  inputSchema: zodSchema(z.object({
+    workflow_id: z.string().describe("The UUID of the workflow"),
+    step_number: z.number().describe("The step number to execute (1-based)"),
+    agent_id: z.string().optional().describe("Agent ID (default: 'general')"),
+  })),
+  execute: safeJson(async ({ workflow_id, step_number, agent_id }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/workflows/${workflow_id}/steps/${step_number}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent_id: agent_id || "general" }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const workflowCancelTool = tool({
+  description: "Cancel a running or paused workflow. This will skip all remaining pending steps.",
+  inputSchema: zodSchema(z.object({
+    workflow_id: z.string().describe("The UUID of the workflow to cancel"),
+  })),
+  execute: safeJson(async ({ workflow_id }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/workflows/${workflow_id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "cancelled" }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -5225,6 +5325,13 @@ export const allTools: Record<string, ToolType> = {
   skill_search_hybrid: skillSearchHybridTool,
   skill_refresh_embeddings: skillRefreshEmbeddingsTool,
   skill_embedding_setup: skillEmbeddingSetupTool,
+  // Phase 7B: Multi-Step Agent Workflows
+  workflow_plan: workflowPlanTool,
+  workflow_execute: workflowExecuteTool,
+  workflow_status: workflowStatusTool,
+  workflow_list: workflowListTool,
+  workflow_step_execute: workflowStepExecuteTool,
+  workflow_cancel: workflowCancelTool,
 };
 
 // ---------------------------------------------------------------------------
