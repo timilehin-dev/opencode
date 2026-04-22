@@ -1,0 +1,2057 @@
+// ---------------------------------------------------------------------------
+// Skills Seed Builtin — GET (list) / POST (seed) built-in skills
+// ---------------------------------------------------------------------------
+
+import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
+
+// ---------------------------------------------------------------------------
+// Type for the builtin skill definition
+// ---------------------------------------------------------------------------
+interface BuiltinSkill {
+  id: string;
+  name: string;
+  display_name: string;
+  slug: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  prompt_template: string;
+  workflow_steps: unknown[];
+  required_tools: string[];
+  tags: string[];
+  agent_bindings: string[];
+  is_builtin: boolean;
+  is_active: boolean;
+  version: number;
+  metadata: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// All 10 built-in skills
+// ---------------------------------------------------------------------------
+const BUILTIN_SKILLS: BuiltinSkill[] = [
+  // =========================================================================
+  // 1. DOCX — Document Processing
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0001-4000-8000-000000000001",
+    name: "docx",
+    display_name: "DOCX Document Creation",
+    slug: "docx-document-creation",
+    description:
+      "Create, edit, and format Word documents (.docx). Use when user wants to produce reports, proposals, contracts, letters, memos, or any formal document.",
+    category: "document",
+    difficulty: "intermediate",
+    tags: ["docx", "word", "document", "report", "proposal", "contract"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Analyze document requirements (type, audience, structure)" },
+      { step: 2, action: "Plan document architecture (sections, headings, styles)" },
+      { step: 3, action: "Generate the .docx using python-docx or appropriate library" },
+      { step: 4, action: "Apply professional formatting and validation" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-minimax-docx", adapter: "system" },
+    prompt_template: `# DOCX Document Creation
+
+You are an expert document engineer. Create, edit, and format Word documents (.docx) with professional quality using python-docx or similar libraries.
+
+## Task Routing
+
+| User Task | Pipeline | Approach |
+|-----------|----------|----------|
+| Create new document from scratch | CREATE | python-docx scripting |
+| Edit/modify existing .docx | EDIT | Load → modify → save |
+| Apply formatting/template | FORMAT | Style application pipeline |
+
+## CREATE Pipeline — New Documents
+
+### Step 1: Analyze Requirements
+Determine: document type (report/proposal/contract/letter/memo/academic/resume), audience, tone, page size (Letter/A4), margins.
+
+### Step 2: Plan Structure
+Every professional document follows this anatomy:
+1. **Cover page** (optional) — title, author, date, organization
+2. **Table of Contents** (auto-generated for 5+ pages)
+3. **Executive Summary / Abstract** (1 paragraph)
+4. **Body sections** with heading hierarchy (H1 → H2 → H3)
+5. **Appendices** (supporting data, charts)
+6. **References / Bibliography**
+
+### Step 3: Professional Formatting Standards
+
+**Typography Rules:**
+- Body text: 11pt (reports) or 12pt (letters), Calibri or Times New Roman
+- Headings: Use a consistent hierarchy — H1: 16pt bold, H2: 14pt bold, H3: 12pt bold italic
+- Line spacing: 1.15 for body, 1.5 for academic
+- Paragraph spacing: 6pt after paragraphs, 12pt before headings
+
+**Style Guidelines by Document Type:**
+
+| Type | Font | Body Size | Spacing | Special |
+|------|------|-----------|---------|---------|
+| Report | Calibri | 11pt | 1.15 | Section dividers, page numbers |
+| Proposal | Calibri | 11pt | 1.15 | Cover page, executive summary |
+| Contract | Times New Roman | 12pt | 1.5 | Numbered clauses, signature blocks |
+| Academic | Times New Roman | 12pt | 2.0 (double) | APA/MLA citation format |
+| Resume | Calibri | 10-11pt | 1.0 | Single page, clear sections |
+| Letter | Calibri | 11pt | 1.15 | Formal letterhead format |
+| Memo | Calibri | 11pt | 1.15 | TO/FROM/DATE/SUBJECT header |
+
+**Color Standards:**
+- Body text: black (#000000)
+- Headings: dark navy (#1B2A4A) or black
+- Accent color: one consistent color for rules/dividers
+- Hyperlinks: blue (#0563C1) with underline
+
+**Table Formatting:**
+- Header row: bold, background color (light gray or accent tint)
+- Borders: thin (0.5pt), gray (#CCCCCC)
+- Cell padding: 72pt (0.1 inch) minimum
+- Alignment: left for text, right for numbers, center for headers
+
+**Page Setup:**
+- Margins: 1 inch (2.54cm) standard, 0.75 inch narrow
+- Header/footer: 0.5 inch from edge
+- Page numbers: bottom center or bottom right
+
+### Step 4: Generate with python-docx
+
+Key patterns for python-docx:
+
+\`\`\`python
+from docx import Document
+from docx.shared import Inches, Pt, Cm, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.section import WD_ORIENT
+
+doc = Document()
+
+# -- Page setup --
+section = doc.sections[0]
+section.page_width = Inches(8.5)
+section.page_height = Inches(11)
+section.top_margin = Inches(1)
+section.bottom_margin = Inches(1)
+section.left_margin = Inches(1)
+section.right_margin = Inches(1)
+
+# -- Styles --
+style = doc.styles['Normal']
+font = style.font
+font.name = 'Calibri'
+font.size = Pt(11)
+
+# -- Headings --
+doc.add_heading('Section Title', level=1)  # H1
+doc.add_heading('Subsection', level=2)     # H2
+
+# -- Body text --
+p = doc.add_paragraph('Body text with proper formatting.')
+
+# -- Tables --
+table = doc.add_table(rows=4, cols=3)
+table.style = 'Table Grid'
+hdr_cells = table.rows[0].cells
+hdr_cells[0].text = 'Column 1'
+# ... fill data ...
+
+# -- Page break --
+doc.add_page_break()
+\`\`\`
+
+## EDIT Pipeline — Modify Existing Documents
+
+1. Load the existing file with python-docx
+2. Navigate to target sections by heading text or bookmark
+3. Modify content preserving existing formatting
+4. Save to a new file (never overwrite originals)
+
+## Critical Rules
+
+1. **Every heading must use the heading style** — never fake headings with bold paragraphs
+2. **Consistent formatting** — same font, size, spacing throughout
+3. **White space** — adequate spacing between sections, never cram
+4. **Hierarchy** — never skip heading levels (H1 → H3 is wrong)
+5. **Tables must have headers** — first row always bold with background
+6. **No empty paragraphs** — use spacing, not blank lines
+7. **Page numbers** — always include on documents over 2 pages
+8. **Spell check** — review for typos before delivering
+
+## Quality Checklist
+
+- [ ] Document type matches formatting style (report/proposal/contract/etc.)
+- [ ] Heading hierarchy is correct (H1 → H2 → H3, never skipping)
+- [ ] Font consistency (one body font, one heading font)
+- [ ] Tables have headers and proper borders
+- [ ] Page numbers included (multi-page documents)
+- [ ] Margins are consistent
+- [ ] No orphan headings (heading at bottom of page without content)
+- [ ] File saves correctly and opens in Microsoft Word`,
+  },
+
+  // =========================================================================
+  // 2. XLSX — Spreadsheet Processing
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0002-4000-8000-000000000002",
+    name: "xlsx",
+    display_name: "XLSX Spreadsheet Creation",
+    slug: "xlsx-spreadsheet-creation",
+    description:
+      "Create, read, analyze, edit, or validate Excel spreadsheets (.xlsx, .csv, .tsv). Use for financial models, data tables, pivot tables, charts, or any tabular data.",
+    category: "data",
+    difficulty: "intermediate",
+    tags: ["xlsx", "excel", "spreadsheet", "financial", "data", "csv", "pivot"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Determine task type (CREATE/READ/EDIT/VALIDATE)" },
+      { step: 2, action: "Plan data structure and formulas" },
+      { step: 3, action: "Execute with openpyxl/pandas" },
+      { step: 4, action: "Apply financial formatting and validation" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-minimax-xlsx", adapter: "system" },
+    prompt_template: `# XLSX Spreadsheet Creation & Analysis
+
+You are an expert spreadsheet engineer. Create, read, analyze, edit, and validate Excel files (.xlsx, .csv, .tsv) using openpyxl and pandas.
+
+## Task Routing
+
+| Task | Method | Library |
+|------|--------|---------|
+| READ — analyze existing data | pandas + openpyxl | pandas |
+| CREATE — new xlsx from scratch | openpyxl workbook | openpyxl |
+| EDIT — modify existing xlsx | openpyxl load + modify | openpyxl |
+| VALIDATE — check formulas | openpyxl + manual check | openpyxl |
+
+## CRITICAL RULE — Formula-First
+
+Every calculated cell MUST use an Excel formula, NEVER a hardcoded computed number.
+
+\`\`\`python
+# WRONG — hardcoded result
+ws['C5'] = 150
+
+# CORRECT — formula
+ws['C5'] = '=SUM(C2:C4)'
+ws['C6'] = '=C5*1.08'
+\`\`\`
+
+## Financial Color Standard (MANDATORY)
+
+| Cell Role | Font Color | Hex Code |
+|-----------|-----------|----------|
+| Hard-coded input / assumption | Blue | 0000FF |
+| Formula / computed result | Black | 000000 |
+| Cross-sheet reference formula | Green | 00B050 |
+
+Apply these colors to ALL numeric cells. This is the industry standard for financial models.
+
+## CREATE Pipeline
+
+### Step 1: Plan the Spreadsheet
+- Determine sheets needed
+- Plan data layout (rows, columns, headers)
+- Identify all formulas needed
+- Plan charts if required
+
+### Step 2: Build with openpyxl
+
+\`\`\`python
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+from openpyxl.utils import get_column_letter
+from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+
+wb = Workbook()
+ws = wb.active
+ws.title = "Sheet1"
+
+# -- Styling constants --
+HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+BODY_FONT = Font(name="Calibri", size=11, color="000000")
+INPUT_FONT = Font(name="Calibri", size=11, color="0000FF")  # Blue for inputs
+FORMULA_FONT = Font(name="Calibri", size=11, color="000000")  # Black for formulas
+THIN_BORDER = Border(
+    left=Side(style='thin', color='D9D9D9'),
+    right=Side(style='thin', color='D9D9D9'),
+    top=Side(style='thin', color='D9D9D9'),
+    bottom=Side(style='thin', color='D9D9D9')
+)
+CURRENCY_FORMAT = '#,##0.00'
+PERCENT_FORMAT = '0.0%'
+NUMBER_FORMAT = '#,##0'
+
+# -- Headers --
+headers = ["Item", "Q1", "Q2", "Q3", "Q4", "Total"]
+for col, header in enumerate(headers, 1):
+    cell = ws.cell(row=1, column=col, value=header)
+    cell.fill = HEADER_FILL
+    cell.font = HEADER_FONT
+    cell.alignment = Alignment(horizontal="center")
+    cell.border = THIN_BORDER
+
+# -- Data rows with formulas --
+data = [
+    ("Revenue", 120000, 145000, 132000, 178000),
+    ("Expenses", 85000, 92000, 88000, 95000),
+]
+for row_idx, (label, q1, q2, q3, q4) in enumerate(data, 2):
+    ws.cell(row=row_idx, column=1, value=label).font = BODY_FONT
+    ws.cell(row=row_idx, column=1).border = THIN_BORDER
+    # Blue input values
+    for col_idx, val in enumerate([q1, q2, q3, q4], 2):
+        cell = ws.cell(row=row_idx, column=col_idx, value=val)
+        cell.font = INPUT_FONT
+        cell.number_format = CURRENCY_FORMAT
+        cell.border = THIN_BORDER
+    # Black formula for total
+    total_cell = ws.cell(row=row_idx, column=6)
+    total_cell.value = f"=SUM(B{row_idx}:E{row_idx})"
+    total_cell.font = FORMULA_FONT
+    total_cell.number_format = CURRENCY_FORMAT
+    total_cell.border = THIN_BORDER
+
+# -- Column widths --
+for col in range(1, 7):
+    ws.column_dimensions[get_column_letter(col)].width = 15
+
+# -- Freeze panes --
+ws.freeze_panes = "B2"
+
+wb.save("output.xlsx")
+\`\`\`
+
+### Step 3: Charts (if needed)
+
+\`\`\`python
+# Bar chart
+chart = BarChart()
+chart.title = "Quarterly Revenue"
+chart.style = 10
+data_ref = Reference(ws, min_col=2, max_col=5, min_row=1, max_row=2)
+cats = Reference(ws, min_col=2, max_col=5, min_row=1)
+chart.add_data(data_ref, titles_from_data=True, from_rows=False)
+chart.set_categories(cats)
+ws.add_chart(chart, "H2")
+\`\`\`
+
+## READ Pipeline — Analyze Existing Data
+
+\`\`\`python
+import pandas as pd
+
+# Read Excel
+df = pd.read_excel("input.xlsx", sheet_name="Sheet1")
+
+# Quick analysis
+print(df.info())
+print(df.describe())
+print(df.head(20))
+print(f"Shape: {df.shape}")
+print(f"Columns: {list(df.columns)}")
+\`\`\`
+
+## EDIT Pipeline — Modify Existing
+
+\`\`\`python
+from openpyxl import load_workbook
+
+wb = load_workbook("input.xlsx")
+ws = wb["Sheet1"]
+
+# Modify cell
+ws["B5"] = 25000  # Update value
+
+# Add formula column
+ws["F1"] = "Total"
+for row in range(2, 20):
+    ws[f"F{row}"] = f"=SUM(B{row}:E{row})"
+
+wb.save("output.xlsx")
+\`\`\`
+
+## Professional Formatting Checklist
+
+- [ ] All calculated cells use formulas (not hardcoded values)
+- [ ] Financial color standard applied (blue/black/green)
+- [ ] Headers are styled (bold, colored background, white text)
+- [ ] Borders on all data cells
+- [ ] Number formatting applied (currency, percent, comma-separated)
+- [ ] Column widths auto-fitted to content
+- [ ] Freeze panes set for large datasets
+- [ ] Sheet names are descriptive (not "Sheet1")
+- [ ] No #REF! or #VALUE! errors
+- [ ] Charts have titles and axis labels`,
+  },
+
+  // =========================================================================
+  // 3. PDF — PDF Generation
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0003-4000-8000-000000000003",
+    name: "pdf",
+    display_name: "PDF Document Generation",
+    slug: "pdf-document-generation",
+    description:
+      "Generate professional PDF documents with design system. Use when visual quality matters: reports, proposals, resumes, portfolios, academic papers, posters.",
+    category: "document",
+    difficulty: "advanced",
+    tags: ["pdf", "report", "proposal", "resume", "portfolio", "poster", "design"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Determine document type and design style" },
+      { step: 2, action: "Select accent color and typography from design system" },
+      { step: 3, action: "Build content blocks and layout" },
+      { step: 4, action: "Generate PDF with ReportLab" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-minimax-pdf", adapter: "system" },
+    prompt_template: `# PDF Document Generation
+
+Generate professional PDF documents using ReportLab. This skill uses a token-based design system where color, typography, and spacing flow from the document type.
+
+## Task Routing
+
+| User intent | Route |
+|-------------|-------|
+| Generate new PDF | CREATE |
+| Fill form fields in existing PDF | FILL |
+| Reformat existing document | REFORMAT |
+
+## Document Types
+
+| Type | Cover Style | Visual Identity | Best For |
+|------|-------------|-----------------|----------|
+| \`report\` | Dark bg, dot grid | Playfair Display, slate tones | Business reports, quarterly reviews |
+| \`proposal\` | Split panel, geometric | Syne, professional | Client proposals, project bids |
+| \`resume\` | Typographic, oversized word | DM Serif Display | Professional resumes, CVs |
+| \`portfolio\` | Near-black, radial glow | Fraunces, warm tones | Creative portfolios |
+| \`academic\` | Light, classical serif | EB Garamond, clean | Research papers, theses |
+| \`general\` | Dark slate, clean | Outfit, modern | General documents |
+| \`minimal\` | White + accent bar | Cormorant Garamond | Elegant, minimal documents |
+| \`stripe\` | 3 bold color bands | Barlow Condensed | Bold statements |
+| \`diagonal\` | SVG angled cut | Montserrat, dark/light | Modern corporate |
+| \`frame\` | Inset border, ornaments | Cormorant | Classic, formal |
+| \`editorial\` | Ghost letter, all-caps | Bebas Neue | Magazine-style |
+| \`magazine\` | Warm cream, hero image | Playfair Display | Feature articles |
+| \`darkroom\` | Navy bg, grayscale | Playfair Display | Dramatic presentations |
+| \`terminal\` | Near-black, grid lines | Monospace, neon green | Tech/developer docs |
+| \`poster\` | White, thick sidebar | Barlow Condensed | Event posters, infographics |
+
+## Accent Color Selection
+
+Choose accent color based on document context (muted, desaturated tones preferred):
+
+| Context | Suggested Accent |
+|---------|-----------------|
+| Legal / compliance / finance | Deep navy \`#1C3A5E\`, charcoal \`#2E3440\` |
+| Healthcare / medical | Teal-green \`#2A6B5A\`, cool green \`#3A7D6A\` |
+| Technology / engineering | Steel blue \`#2D5F8A\`, indigo \`#3D4F8A\` |
+| Environmental / sustainability | Forest \`#2E5E3A\`, olive \`#4A5E2A\` |
+| Creative / arts / culture | Burgundy \`#6B2A35\`, plum \`#5A2A6B\` |
+| Academic / research | Deep teal \`#2A5A6B\`, library blue \`#2A4A6B\` |
+| Corporate / neutral | Slate \`#3D4A5A\`, graphite \`#444C56\` |
+| Luxury / premium | Warm black \`#1A1208\`, deep bronze \`#4A3820\` |
+
+## Content Block Types
+
+| Block | Usage | Key Fields |
+|-------|-------|------------|
+| \`h1\` | Section heading + accent rule | \`text\` |
+| \`h2\` | Subsection heading | \`text\` |
+| \`h3\` | Sub-subsection (bold) | \`text\` |
+| \`body\` | Justified paragraph, supports \`<b>\` \`<i>\` markup | \`text\` |
+| \`bullet\` | Unordered list item | \`text\` |
+| \`numbered\` | Ordered list item (auto-counter resets) | \`text\` |
+| \`callout\` | Highlighted insight box with accent left bar | \`text\` |
+| \`table\` | Data table (accent header, alternating rows) | \`headers\`, \`rows\`, \`caption\` |
+| \`image\` | Embedded image scaled to column width | \`path\`, \`caption\` |
+| \`figure\` | Image with auto-numbered caption | \`path\`, \`caption\` |
+| \`code\` | Monospace code block with accent border | \`text\`, \`language\` |
+| \`math\` | Display math (LaTeX syntax) | \`text\`, \`label\` |
+| \`chart\` | Bar/line/pie chart (matplotlib) | \`chart_type\`, \`labels\`, \`datasets\` |
+| \`flowchart\` | Process diagram (matplotlib) | \`nodes\`, \`edges\` |
+| \`bibliography\` | Numbered reference list | \`items\` [{id, text}] |
+| \`divider\` | Accent-colored full-width rule | — |
+| \`pagebreak\` | Force new page | — |
+| \`spacer\` | Vertical whitespace | \`pt\` (default 12) |
+
+## ReportLab Core Patterns
+
+\`\`\`python
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.units import inch, cm
+from reportlab.lib.colors import HexColor
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Image, KeepTogether
+)
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+
+# Design tokens
+ACCENT = HexColor("#2D5F8A")
+ACCENT_LIGHT = HexColor("#E8F0F8")
+BG_DARK = HexColor("#1A1A2E")
+TEXT_DARK = HexColor("#2E3440")
+TEXT_LIGHT = HexColor("#F8F9FA")
+
+# Custom styles
+styles = getSampleStyleSheet()
+styles.add(ParagraphStyle(
+    name='SectionTitle',
+    fontName='Helvetica-Bold',
+    fontSize=22,
+    leading=26,
+    textColor=ACCENT,
+    spaceAfter=12,
+    spaceBefore=24,
+))
+styles.add(ParagraphStyle(
+    name='BodyText2',
+    fontName='Helvetica',
+    fontSize=10.5,
+    leading=16,
+    textColor=TEXT_DARK,
+    alignment=TA_JUSTIFY,
+    spaceAfter=8,
+))
+
+# Build document
+doc = SimpleDocTemplate(
+    "output.pdf",
+    pagesize=letter,
+    topMargin=0.75*inch,
+    bottomMargin=0.75*inch,
+    leftMargin=0.85*inch,
+    rightMargin=0.85*inch,
+)
+
+story = []
+story.append(Paragraph("Section Title", styles['SectionTitle']))
+story.append(Spacer(1, 6))
+# Accent rule
+story.append(Table([['']], colWidths=[3*inch], rowHeights=[2]))
+story[-1].setStyle(TableStyle([
+    ('BACKGROUND', (0,0), (-1,-1), ACCENT),
+    ('LINEBELOW', (0,0), (-1,-1), 0, ACCENT),
+]))
+story.append(Spacer(1, 12))
+story.append(Paragraph("Body text goes here...", styles['BodyText2']))
+
+doc.build(story)
+\`\`\`
+
+## Cover Page Pattern
+
+For documents that need a cover page, create a dedicated first page with:
+- Document title (large, accent or white on dark)
+- Subtitle or description
+- Author name
+- Date
+- Decorative accent element (colored bar, geometric shape)
+
+## Quality Checklist
+
+- [ ] Document type selected and design tokens derived
+- [ ] Accent color chosen based on content context
+- [ ] Consistent typography throughout
+- [ ] Proper margins and spacing
+- [ ] No orphaned headings (heading at bottom without content)
+- [ ] Tables have headers and alternating row colors
+- [ ] Images properly scaled to fit column width
+- [ ] Page numbers on multi-page documents`,
+  },
+
+  // =========================================================================
+  // 4. PPTX — Presentation Creation
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0004-4000-8000-000000000004",
+    name: "pptx",
+    display_name: "PPTX Presentation Creation",
+    slug: "pptx-presentation-creation",
+    description:
+      "Generate, edit, and read PowerPoint presentations. Create professional decks with PptxGenJS, design system, and multiple slide types.",
+    category: "document",
+    difficulty: "intermediate",
+    tags: ["pptx", "powerpoint", "presentation", "slides", "deck"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Research requirements and plan slide outline" },
+      { step: 2, action: "Select color palette, fonts, and design style" },
+      { step: 3, action: "Classify each slide by type (Cover/TOC/Section/Content/Summary)" },
+      { step: 4, action: "Generate slides with PptxGenJS" },
+      { step: 5, action: "QA review — layout, alignment, consistency" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-pptx-generator", adapter: "system" },
+    prompt_template: `# PPTX Presentation Creation
+
+Create professional PowerPoint presentations using PptxGenJS. Follow the design system for consistent, polished results.
+
+## Quick Reference
+
+| Item | Value |
+|------|-------|
+| **Dimensions** | 10" x 5.625" (LAYOUT_16x9) |
+| **Colors** | 6-char hex without # (e.g., "FF0000") |
+| **Default Font** | Arial |
+| **Chinese Font** | Microsoft YaHei |
+| **Page badge position** | x: 9.3", y: 5.1" |
+| **Shapes** | RECTANGLE, OVAL, LINE, ROUNDED_RECTANGLE |
+| **Charts** | BAR, LINE, PIE, DOUGHNUT, SCATTER, BUBBLE, RADAR |
+
+## Workflow
+
+### Step 1: Plan Slide Outline
+Classify EVERY slide as one of 5 types:
+1. **Cover** — Title slide with presentation name, subtitle, author
+2. **TOC** — Table of contents / agenda
+3. **Section Divider** — New section separator with section name
+4. **Content** — Main content slides (text, charts, images, lists)
+5. **Summary** — Closing slide with key takeaways
+
+### Step 2: Select Design
+
+**Color Palette** — Choose based on topic and audience:
+- Corporate: navy + white + gray accent
+- Creative: warm tones, bold accent
+- Tech: dark bg + neon accent
+- Academic: clean, muted tones
+- Finance: slate + green/blue
+
+**Theme Object Contract (MANDATORY):**
+\`\`\`javascript
+const theme = {
+  primary: "22223b",    // Darkest, titles
+  secondary: "4a4e69",  // Dark accent, body text
+  accent: "9a8c98",     // Mid-tone highlight
+  light: "c9ada7",      // Light accent
+  bg: "f2e9e4"          // Background
+};
+\`\`\`
+
+NEVER use other key names like \`background\`, \`text\`, \`muted\`.
+
+### Step 3: Generate Slides
+
+Each slide exports a synchronous \`createSlide(pres, theme)\` function.
+
+\`\`\`javascript
+const pptxgen = require("pptxgenjs");
+
+// Cover Slide
+function createCoverSlide(pres, theme) {
+  const slide = pres.addSlide();
+  slide.background = { color: theme.primary };
+
+  // Title
+  slide.addText("Presentation Title", {
+    x: 0.8, y: 1.8, w: 8.4, h: 1.5,
+    fontSize: 40, fontFace: "Arial",
+    color: theme.bg, bold: true,
+  });
+
+  // Subtitle
+  slide.addText("Subtitle goes here", {
+    x: 0.8, y: 3.3, w: 8.4, h: 0.6,
+    fontSize: 18, fontFace: "Arial",
+    color: theme.light,
+  });
+
+  // Author + Date
+  slide.addText("Author Name  |  2025", {
+    x: 0.8, y: 4.5, w: 8.4, h: 0.4,
+    fontSize: 14, fontFace: "Arial",
+    color: theme.light,
+  });
+}
+
+// Content Slide with Page Badge
+function createContentSlide(pres, theme, title, bodyContent) {
+  const slide = pres.addSlide();
+  slide.background = { color: theme.bg };
+
+  // Title bar
+  slide.addShape(pres.shapes.RECTANGLE, {
+    x: 0, y: 0, w: 10, h: 0.08,
+    fill: { color: theme.accent },
+  });
+
+  // Title
+  slide.addText(title, {
+    x: 0.8, y: 0.4, w: 8.4, h: 0.8,
+    fontSize: 28, fontFace: "Arial",
+    color: theme.primary, bold: true,
+  });
+
+  // Body content
+  slide.addText(bodyContent, {
+    x: 0.8, y: 1.5, w: 8.4, h: 3.2,
+    fontSize: 16, fontFace: "Arial",
+    color: theme.secondary,
+    lineSpacingMultiple: 1.3,
+    valign: "top",
+  });
+
+  // Page number badge (circle)
+  slide.addShape(pres.shapes.OVAL, {
+    x: 9.3, y: 5.1, w: 0.4, h: 0.4,
+    fill: { color: theme.accent },
+  });
+  slide.addText("2", {
+    x: 9.3, y: 5.1, w: 0.4, h: 0.4,
+    fontSize: 12, fontFace: "Arial",
+    color: "FFFFFF", bold: true,
+    align: "center", valign: "middle",
+  });
+}
+\`\`\`
+
+### Step 4: Compile
+
+\`\`\`javascript
+const pptxgen = require("pptxgenjs");
+const pres = new pptxgen();
+pres.layout = "LAYOUT_16x9";
+
+const theme = {
+  primary: "22223b",
+  secondary: "4a4e69",
+  accent: "9a8c98",
+  light: "c9ada7",
+  bg: "f2e9e4",
+};
+
+// Generate all slides
+createCoverSlide(pres, theme);
+// ... create more slides ...
+
+pres.writeFile({ fileName: "presentation.pptx" });
+\`\`\`
+
+## Design Rules
+
+1. **Visual variety** — Never repeat the same layout across consecutive slides
+2. **One idea per slide** — Don't cram multiple concepts
+3. **6x6 rule** — Max 6 words per line, 6 lines per slide (for text-heavy)
+4. **Consistent theme** — Use theme object colors, never arbitrary hex values
+5. **Page badges** — All slides except Cover get a page number badge
+6. **Charts** — Always include titles and axis labels
+7. **Bullet points** — Use sparingly; prefer visuals, icons, or diagrams
+
+## Chart Types
+
+\`\`\`javascript
+// Bar Chart
+slide.addChart(pres.charts.BAR, [
+  { name: "Series 1", labels: ["Q1", "Q2", "Q3", "Q4"], values: [12, 19, 15, 22] }
+], {
+  x: 0.8, y: 1.5, w: 8.4, h: 3.5,
+  showTitle: true, title: "Quarterly Revenue",
+  titleColor: theme.primary, titleFontSize: 14,
+  showValue: true,
+  chartColors: [theme.accent],
+});
+
+// Pie Chart
+slide.addChart(pres.charts.PIE, [
+  { name: "Distribution", labels: ["A", "B", "C"], values: [40, 35, 25] }
+], { x: 1, y: 1.5, w: 8, h: 3.5 });
+\`\`\``,
+  },
+
+  // =========================================================================
+  // 5. FULLSTACK_DEV — Full-Stack Development
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0005-4000-8000-000000000005",
+    name: "fullstack_dev",
+    display_name: "Full-Stack Development",
+    slug: "fullstack-development",
+    description:
+      "Full-stack backend architecture and frontend integration guide. Use when building APIs, CRUD apps, real-time features, auth systems, or scaffolding backend services.",
+    category: "code",
+    difficulty: "advanced",
+    tags: ["fullstack", "api", "backend", "frontend", "database", "auth", "real-time"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Gather requirements (stack, service type, database, auth)" },
+      { step: 2, action: "Make architectural decisions and explain choices" },
+      { step: 3, action: "Scaffold with checklist" },
+      { step: 4, action: "Implement following patterns" },
+      { step: 5, action: "Test, verify, and provide handoff summary" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-fullstack-dev", adapter: "system" },
+    prompt_template: `# Full-Stack Development
+
+Comprehensive guide for building full-stack applications. Use when building APIs, CRUD apps, real-time features, auth systems, or scaffolding backend services.
+
+## 7 Iron Rules
+
+\`\`\`
+1. Organize by FEATURE, not by technical layer
+2. Controllers never contain business logic
+3. Services never import HTTP request/response types
+4. All config from env vars, validated at startup, fail fast
+5. Every error is typed, logged, and returns consistent format
+6. All input validated at the boundary — trust nothing from client
+7. Structured JSON logging with request ID — not console.log
+\`\`\`
+
+## Project Structure (Feature-First)
+
+\`\`\`
+src/
+  orders/
+    order.controller.ts
+    order.service.ts
+    order.repository.ts
+    order.dto.ts
+  users/
+    user.controller.ts
+    user.service.ts
+  shared/
+    database/
+    middleware/
+    errors/
+\`\`\`
+
+Three-Layer Architecture: Controller (HTTP) → Service (Business Logic) → Repository (Data Access)
+
+## Configuration
+
+\`\`\`typescript
+const config = {
+  port: parseInt(process.env.PORT || "3000", 10),
+  database: {
+    url: requiredEnv("DATABASE_URL"),
+    poolSize: intEnv("DB_POOL_SIZE", 10),
+  },
+  auth: {
+    jwtSecret: requiredEnv("JWT_SECRET"),
+    expiresIn: process.env.JWT_EXPIRES_IN || "1h",
+  },
+} as const;
+
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(\`Missing required env var: \${name}\`);
+  return value;
+}
+\`\`\`
+
+## Error Handling — Typed Hierarchy
+
+\`\`\`typescript
+class AppError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly statusCode: number,
+    public readonly isOperational: boolean = true,
+  ) { super(message); }
+}
+
+class NotFoundError extends AppError {
+  constructor(resource: string, id: string) {
+    super(\`\${resource} not found: \${id}\`, "NOT_FOUND", 404);
+  }
+}
+
+class ValidationError extends AppError {
+  constructor(public readonly errors: FieldError[]) {
+    super("Validation failed", "VALIDATION_ERROR", 422);
+  }
+}
+\`\`\`
+
+## Database Access Patterns
+
+- **Always use migrations** — never manual schema changes
+- **Prevent N+1**: Use includes/joins, never loop queries
+- **Transactions** for multi-step writes
+- **Connection pooling**: Pool size = (CPU cores × 2) + spindle_count
+
+\`\`\`typescript
+// N+1 Prevention
+const orders = await db.order.findMany({ include: { items: true } });
+
+// Transactions
+await db.$transaction(async (tx) => {
+  const order = await tx.order.create({ data: orderData });
+  await tx.inventory.decrement({ productId, quantity });
+});
+\`\`\`
+
+## API Client Patterns
+
+| Approach | When | Type Safety |
+|----------|------|-------------|
+| Typed fetch wrapper | Simple apps | Manual |
+| React Query + fetch | React apps | Manual |
+| tRPC | Same team, TS both sides | Automatic |
+| OpenAPI codegen | Public API | Automatic |
+
+\`\`\`typescript
+// Typed fetch wrapper
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(\`\${BASE_URL}\${path}\`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: \`Bearer \${token}\` } : {}),
+      ...options.headers,
+    },
+  });
+  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null));
+  return res.status === 204 ? undefined as T : res.json();
+}
+\`\`\`
+
+## Authentication
+
+\`\`\`
+✅ Short expiry access token (15min) + refresh token (server-stored)
+✅ Minimal claims: userId, roles
+✅ Store refresh token in httpOnly cookie
+
+❌ Never store tokens in localStorage
+❌ Never pass tokens in URL query params
+\`\`\`
+
+RBAC pattern:
+\`\`\`typescript
+function authorize(...roles: Role[]) {
+  return (req, res, next) => {
+    if (!req.user) throw new UnauthorizedError();
+    if (!roles.some(r => req.user.roles.includes(r))) throw new ForbiddenError();
+    next();
+  };
+}
+\`\`\`
+
+## Real-Time Patterns
+
+| Method | Direction | When |
+|--------|-----------|------|
+| Polling | Client → Server | Simple status checks |
+| SSE | Server → Client | Notifications, feeds, AI streaming |
+| WebSocket | Bidirectional | Chat, collaboration |
+
+## Background Jobs
+
+\`\`\`
+✅ All jobs must be IDEMPOTENT
+✅ Failed jobs → retry (max 3) → dead letter queue
+✅ Workers run as SEPARATE processes
+
+❌ Never put long-running tasks in request handlers
+\`\`\`
+
+## Caching
+
+\`\`\`
+✅ ALWAYS set TTL — never cache without expiry
+✅ Invalidate on write
+✅ Use cache for reads, never for authoritative state
+
+Data Type          | Suggested TTL
+User profile       | 5-15 min
+Product catalog    | 1-5 min
+Config/flags       | 30-60 sec
+Session            | Match session duration
+\`\`\`
+
+## File Upload
+
+**Presigned URL (recommended for large files):**
+\`\`\`
+Client → GET /api/uploads/presign
+Server → { uploadUrl: "https://s3...", fileKey: "uploads/abc.jpg" }
+Client → PUT uploadUrl (direct to S3)
+Client → POST /api/photos { fileKey: "uploads/abc.jpg" }
+\`\`\`
+
+## Production Hardening
+
+- Health checks: \`/health\` (liveness) + \`/ready\` (readiness with DB/Redis checks)
+- Graceful shutdown on SIGTERM
+- CORS with explicit origins (never '*' in production)
+- Security headers (helmet or equivalent)
+- Rate limiting on public endpoints
+- Input validation on ALL endpoints (Zod / Pydantic)`,
+  },
+
+  // =========================================================================
+  // 6. FRONTEND_DEV — Frontend Development Studio
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0006-4000-8000-000000000006",
+    name: "frontend_dev",
+    display_name: "Frontend Development Studio",
+    slug: "frontend-development-studio",
+    description:
+      "Premium UI design, cinematic animations, and visual art for web pages. Use when building landing pages, marketing sites, dashboards, or implementing scroll animations.",
+    category: "code",
+    difficulty: "advanced",
+    tags: ["frontend", "ui", "ux", "animation", "design", "landing-page", "motion"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Analyze request and set design dials" },
+      { step: 2, action: "Plan layout sections and motion architecture" },
+      { step: 3, action: "Generate media assets using z-ai-web-dev-sdk image generation" },
+      { step: 4, action: "Craft copy using AIDA/PAS/FAB frameworks" },
+      { step: 5, action: "Build UI with animations" },
+      { step: 6, action: "Quality gates review" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-frontend-dev", adapter: "system" },
+    prompt_template: `# Frontend Development Studio
+
+Build complete, production-ready frontend pages with premium UI design, cinematic animations, AI-generated assets, persuasive copy, and visual art.
+
+## Design Dials
+
+| Dial | Default | Range |
+|------|---------|-------|
+| DESIGN_VARIANCE | 8 | 1=Symmetry, 10=Asymmetric |
+| MOTION_INTENSITY | 6 | 1=Static, 10=Cinematic |
+| VISUAL_DENSITY | 4 | 1=Airy, 10=Packed |
+
+Adapt dynamically based on user requests.
+
+## Design Engineering Rules
+
+### Typography
+- Headlines: \`text-4xl md:text-6xl tracking-tighter\`
+- Body: \`text-base leading-relaxed max-w-[65ch]\`
+- **NEVER** use Inter — use Geist/Outfit/Satoshi
+- **NEVER** use Serif on dashboards
+
+### Color
+- Max 1 accent, saturation < 80%
+- **NEVER** use AI purple/blue
+- Stick to one palette throughout
+
+### Layout
+- **NEVER** use centered heroes when VARIANCE > 4. Force split-screen or asymmetric layouts
+- **NEVER** use generic cards when DENSITY > 7. Use \`border-t\`, \`divide-y\`, or spacing
+- Use \`max-w-[1400px] mx-auto\` or \`max-w-7xl\`
+- Use \`min-h-[100dvh]\` not \`h-screen\`
+
+### States
+- **ALWAYS** implement: Loading (skeleton), Empty, Error, Tactile feedback (\`scale-[0.98]\`)
+- Forms: Label above input. Error below. \`gap-2\` for input blocks.
+
+### Anti-Emoji Policy
+NEVER use emojis anywhere. Use Phosphor or Lucide icons only.
+
+## Anti-Slop Techniques
+
+- **Liquid Glass:** \`backdrop-blur\` + \`border-white/10\` + \`shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]\`
+- **Magnetic Buttons:** Use \`useMotionValue\`/\`useTransform\` — never \`useState\` for continuous animations
+- **Perpetual Motion:** When INTENSITY > 5, add infinite micro-animations (Pulse, Float, Shimmer)
+- **Layout Transitions:** Use Framer \`layout\` and \`layoutId\` props
+- **Stagger:** Use \`staggerChildren\` or CSS \`animation-delay: calc(var(--index) * 100ms)\`
+
+## Forbidden Patterns
+
+| Category | Banned |
+|----------|--------|
+| Visual | Neon glows, pure black (#000), oversaturated accents, gradient text on headers, custom cursors |
+| Typography | Inter font, oversized H1s, Serif on dashboards |
+| Layout | 3-column equal card rows, floating elements with awkward gaps |
+| Components | Default shadcn/ui without customization |
+
+## Motion Engine
+
+### Tool Selection Matrix
+
+| Need | Tool |
+|------|------|
+| UI enter/exit/layout | **Framer Motion** — \`AnimatePresence\`, \`layoutId\`, springs |
+| Scroll storytelling (pin, scrub) | **GSAP + ScrollTrigger** — frame-accurate control |
+| Looping icons | **Lottie** — lazy-load (~50KB) |
+| 3D/WebGL | **Three.js / R3F** — isolated \`<Canvas>\` |
+| Hover/focus states | **CSS only** — zero JS cost |
+
+**Conflict Rules:**
+- NEVER mix GSAP + Framer Motion in same component
+- R3F MUST live in isolated Canvas wrapper
+- ALWAYS lazy-load Lottie, GSAP, Three.js
+
+### Intensity Scale
+
+| Level | Techniques |
+|-------|------------|
+| 1-2 Subtle | CSS transitions only, 150-300ms |
+| 3-4 Smooth | CSS keyframes + Framer animate, stagger ≤3 items |
+| 5-6 Fluid | \`whileInView\`, magnetic hover, parallax tilt |
+| 7-8 Cinematic | GSAP ScrollTrigger, pinned sections, horizontal hijack |
+| 9-10 Immersive | Full scroll sequences, Three.js particles, WebGL shaders |
+
+### Performance Rules
+
+**GPU-only properties (ONLY animate these):** \`transform\`, \`opacity\`, \`filter\`, \`clip-path\`
+
+**NEVER animate:** \`width\`, \`height\`, \`top\`, \`left\`, \`margin\`, \`padding\`, \`font-size\`
+
+### Springs & Easings
+
+| Feel | Framer Config |
+|------|---------------|
+| Snappy | stiffness: 300, damping: 30 |
+| Smooth | stiffness: 150, damping: 20 |
+| Bouncy | stiffness: 100, damping: 10 |
+| Heavy | stiffness: 60, damping: 20 |
+
+### Accessibility
+- ALWAYS wrap motion in \`prefers-reduced-motion\` check
+- NEVER flash content > 3 times/second
+- ALWAYS provide visible focus rings
+- ALWAYS add \`aria-live="polite"\` for dynamically revealed content
+
+## Copywriting
+
+### Frameworks
+
+**AIDA** (landing pages):
+ATTENTION → INTEREST → DESIRE → ACTION
+
+**PAS** (pain-driven):
+PROBLEM → AGITATE → SOLUTION
+
+**FAB** (product differentiation):
+FEATURE → ADVANTAGE → BENEFIT
+
+### CTA Formula
+[Action Verb] + [What They Get] + [Urgency/Ease]
+Example: "Start my free trial", "Get the template now"
+
+### Headlines
+Be specific. Lead with outcome, not method.
+Examples: "Double open rates in 30 days", "7 mistakes killing conversions"
+
+## Asset Generation
+
+Generate images using the z-ai-web-dev-sdk image generation tool.
+
+**Preset Shortcuts:**
+| Shortcut | Spec |
+|----------|------|
+| hero | 16:9, cinematic, text-safe |
+| thumb | 1:1, centered subject |
+| icon | 1:1, flat, clean background |
+| banner | 21:9, OG/social |
+
+**Rules:**
+- NEVER use placeholder URLs (unsplash, picsum, placeholder.com)
+- ALWAYS generate assets locally using z-ai-web-dev-sdk
+- Asset naming: \`{type}-{descriptor}-{timestamp}.{ext}\`
+- Images → WebP format preferred
+
+## Creative Arsenal
+
+| Category | Patterns |
+|----------|----------|
+| Navigation | Dock magnification, Magnetic button, Dynamic island |
+| Layout | Bento grid, Masonry, Split-screen scroll, Curtain reveal |
+| Cards | Parallax tilt, Spotlight border, Glassmorphism |
+| Scroll | Sticky stack, Horizontal hijack, Zoom parallax |
+| Text | Kinetic marquee, Text mask reveal, Scramble effect |
+| Micro | Particle effects, Skeleton shimmer, Ripple click, Mesh gradient |
+
+## Visual Art (p5.js)
+
+For generative art:
+1. Create a philosophy statement (space, form, color, rhythm)
+2. Identify a niche conceptual reference
+3. Use seeded randomness: \`randomSeed(seed); noiseSeed(seed);\`
+4. Output: single self-contained HTML with p5.js
+
+## Quality Gates
+
+- [ ] Mobile layout collapse for high-variance designs
+- [ ] Empty, loading, error states provided
+- [ ] Correct motion tool per selection matrix
+- [ ] No GSAP + Framer mixed in same component
+- [ ] prefers-reduced-motion respected
+- [ ] No placeholder URLs — all assets generated
+- [ ] Only GPU properties animated`,
+  },
+
+  // =========================================================================
+  // 7. REACT_NATIVE_DEV — React Native Development
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0007-4000-8000-000000000007",
+    name: "react_native_dev",
+    display_name: "React Native Development",
+    slug: "react-native-development",
+    description:
+      "React Native and Expo development guide. Use when building mobile apps, implementing animations, managing state, fetching data, or deploying to app stores.",
+    category: "code",
+    difficulty: "advanced",
+    tags: ["react-native", "expo", "mobile", "ios", "android", "animation"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Set up project with Expo" },
+      { step: 2, action: "Implement core screens and navigation" },
+      { step: 3, action: "Add state management and data fetching" },
+      { step: 4, action: "Implement animations and native features" },
+      { step: 5, action: "Profile performance and test" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-react-native-dev", adapter: "system" },
+    prompt_template: `# React Native & Expo Development Guide
+
+Build production-ready React Native and Expo applications. Covers UI, animations, state, testing, performance, and deployment.
+
+## Component Preferences
+
+| Purpose | Use | Instead of |
+|---------|-----|------------|
+| Lists | \`FlashList\` (\`@shopify/flash-list\`) + \`memo\` items | \`FlatList\` |
+| Images | \`expo-image\` | RN \`<Image>\` |
+| Press | \`Pressable\` | \`TouchableOpacity\` |
+| Audio | \`expo-audio\` | \`expo-av\` (deprecated) |
+| Video | \`expo-video\` | \`expo-av\` (deprecated) |
+| Animations | Reanimated 3 | RN Animated API |
+| Gestures | Gesture Handler | PanResponder |
+| Platform check | \`process.env.EXPO_OS\` | \`Platform.OS\` |
+| Safe area scroll | \`contentInsetAdjustmentBehavior="automatic"\` | \`<SafeAreaView>\` |
+| SF Symbols | \`expo-image\` with \`source="sf:name"\` | \`expo-symbols\` |
+
+## State Management
+
+| State Type | Solution |
+|------------|----------|
+| Local UI state | \`useState\` / \`useReducer\` |
+| Shared app state | Zustand or Jotai |
+| Server / async data | React Query |
+| Form state | React Hook Form + Zod |
+
+## New Project Init
+
+\`\`\`bash
+# 1. Create project
+npx create-expo-app@latest my-app --template blank-typescript
+cd my-app
+
+# 2. Install Expo Router + core deps
+npx expo install expo-router react-native-safe-area-context react-native-screens
+
+# 3. Common extras
+npx expo install expo-image react-native-reanimated react-native-gesture-handler
+\`\`\`
+
+Configure:
+1. Set entry point: \`"main": "expo-router/entry"\` in package.json
+2. Add scheme: \`"scheme": "my-app"\` in app.json
+3. Delete \`App.tsx\` and \`index.ts\`
+4. Create \`app/_layout.tsx\` as root Stack layout
+5. Create \`app/(tabs)/_layout.tsx\` for tab navigation
+
+## Core Principles
+
+- **Try Expo Go first** (\`npx expo start\`). Custom builds only when needed.
+- **Conditional rendering**: use \`{count > 0 && <Text />}\` not \`{count && <Text />}\`
+- **Animation rule**: only animate \`transform\` and \`opacity\` — GPU-composited
+- **Direct imports**: always import from source, not barrel files — avoids bundle bloat
+- **Route files**: always use kebab-case, never co-locate components in \`app/\`
+
+## Performance Priorities
+
+| Priority | Issue | Fix |
+|----------|-------|-----|
+| CRITICAL | Long list jank | \`FlashList\` + memoized items |
+| CRITICAL | Large bundle | Avoid barrel imports, enable R8 |
+| HIGH | Too many re-renders | Zustand selectors, React Compiler |
+| HIGH | Slow startup | Disable bundle compression, native nav |
+| MEDIUM | Animation drops | Only animate \`transform\`/\`opacity\` |
+
+## Animations (Reanimated 3)
+
+\`\`\`typescript
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  FadeIn,
+  SlideInRight,
+} from "react-native-reanimated";
+
+function AnimatedCard() {
+  const offset = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: offset.value }],
+  }));
+
+  return (
+    <Animated.View entering={FadeIn} style={animatedStyle}>
+      <Pressable onPressIn={() => (offset.value = withSpring(-4))} />
+    </Animated.View>
+  );
+}
+\`\`\`
+
+## Navigation (Expo Router)
+
+\`\`\`typescript
+// app/_layout.tsx
+import { Stack } from "expo-router";
+
+export default function RootLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: "#f8f9fa" },
+        headerTintColor: "#333",
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
+
+// app/(tabs)/_layout.tsx
+import { Tabs } from "expo-router";
+
+export default function TabLayout() {
+  return (
+    <Tabs screenOptions={{ tabBarActiveTintColor: "#007AFF" }}>
+      <Tabs.Screen name="index" options={{ title: "Home" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+    </Tabs>
+  );
+}
+\`\`\`
+
+## Forms (React Hook Form + Zod)
+
+\`\`\`typescript
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const schema = z.object({
+  email: z.string().email("Invalid email"),
+  name: z.string().min(2, "Name too short"),
+});
+
+function LoginForm() {
+  const { control, handleSubmit } = useForm({
+    resolver: zodResolver(schema),
+  });
+
+  return (
+    <Controller
+      control={control}
+      name="email"
+      render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+        <TextInput
+          onChangeText={onChange}
+          onBlur={onBlur}
+          value={value}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+      )}
+    />
+  );
+}
+\`\`\`
+
+## Checklist
+
+### New Project
+- [ ] Path aliases configured in tsconfig.json
+- [ ] EXPO_PUBLIC_API_URL env var set per environment
+- [ ] GestureHandlerRootView in root layout
+- [ ] contentInsetAdjustmentBehavior="automatic" on scroll views
+- [ ] FlashList for lists > 20 items
+
+### Before Shipping
+- [ ] Profile in --profile mode, fix frames > 16ms
+- [ ] Bundle analyzed, no barrel imports
+- [ ] R8 enabled for Android
+- [ ] Unit + component tests for critical paths
+- [ ] E2E flows for login and core features`,
+  },
+
+  // =========================================================================
+  // 8. HUMANIZER — AI Writing Humanization
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0008-4000-8000-000000000008",
+    name: "humanizer",
+    display_name: "AI Writing Humanizer",
+    slug: "ai-writing-humanizer",
+    description:
+      "Remove signs of AI-generated writing from text. Detects and fixes 29 AI patterns including inflated symbolism, promotional language, AI vocabulary, passive voice, and filler phrases.",
+    category: "communication",
+    difficulty: "intermediate",
+    tags: ["humanizer", "writing", "ai-detection", "editing", "natural-language"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Identify AI patterns in the text" },
+      { step: 2, action: "Rewrite problematic sections" },
+      { step: 3, action: "Preserve meaning and maintain voice" },
+      { step: 4, action: "Add personality and soul" },
+      { step: 5, action: "Run anti-AI audit pass" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-blader-humanizer-v2.5.1", adapter: "system" },
+    prompt_template: `# AI Writing Humanizer
+
+Remove signs of AI-generated writing from text. Based on Wikipedia's "Signs of AI writing" guide.
+
+## Your Task
+
+When given text to humanize:
+1. **Identify AI patterns** — Scan for the 29 patterns listed below
+2. **Rewrite problematic sections** — Replace AI-isms with natural alternatives
+3. **Preserve meaning** — Keep the core message intact
+4. **Maintain voice** — Match the intended tone (formal, casual, technical)
+5. **Add soul** — Don't just remove bad patterns; inject personality
+6. **Anti-AI pass** — Ask "What makes this obviously AI?" then fix remaining tells
+
+## Voice Calibration
+
+If the user provides a writing sample, analyze it first:
+- Sentence length patterns (short/punchy vs. long/flowing vs. mixed)
+- Word choice level (casual, academic, in-between)
+- How they start paragraphs
+- Punctuation habits (dashes, parentheticals, semicolons)
+- Any recurring phrases or verbal tics
+- Transition style (explicit connectors vs. just start next point)
+
+Match their voice. If they use "stuff" and "things," don't upgrade to "elements" and "components."
+
+When no sample provided, use the default: natural, varied, opinionated voice.
+
+## Personality and Soul
+
+Sterile, voiceless writing is just as obvious as AI slop. Good writing has a human behind it.
+
+**Signs of soulless writing:**
+- Every sentence is the same length and structure
+- No opinions, just neutral reporting
+- No acknowledgment of uncertainty or mixed feelings
+- No first-person perspective when appropriate
+- No humor, no edge, no personality
+
+**How to add voice:**
+- **Have opinions.** "I genuinely don't know how to feel about this" is more human than listing pros/cons
+- **Vary rhythm.** Short punchy sentences. Then longer ones that take their time getting where they're going.
+- **Acknowledge complexity.** "This is impressive but also kind of unsettling" beats "This is impressive."
+- **Use 'I' when it fits.** First person isn't unprofessional — it's honest.
+- **Let some mess in.** Tangents, asides, and half-formed thoughts are human.
+- **Be specific about feelings.** Not "this is concerning" but "there's something unsettling about..."
+
+## The 29 AI Patterns
+
+### Content Patterns
+
+**1. Undue Emphasis on Significance/Legacy**
+Words: stands/serves as, testament, vital/significant/crucial/pivotal/key role, underscores/highlights importance, reflects broader, symbolizing, contributing to, setting the stage for, shaping, represents a shift, evolving landscape, focal point, indelible mark, deeply rooted
+
+**2. Undue Emphasis on Notability**
+Words: independent coverage, media outlets, leading expert, active social media presence
+
+**3. Superficial Analyses with -ing Endings**
+Words: highlighting/underscoring/emphasizing, ensuring, reflecting/symbolizing, contributing to, cultivating/fostering, encompassing, showcasing
+
+**4. Promotional/Advertisement Language**
+Words: boasts a, vibrant, rich, profound, enhancing its, showcasing, exemplifies, commitment to, nestled, in the heart of, groundbreaking, renowned, breathtaking, must-visit, stunning
+
+**5. Vague Attributions and Weasel Words**
+Words: Industry reports, Observers have cited, Experts argue, Some critics argue, several sources (when few cited)
+
+**6. Outline-like "Challenges and Future Prospects" Sections**
+Phrases: Despite its... faces several challenges, Despite these challenges, Future Outlook
+
+### Language & Grammar Patterns
+
+**7. Overused AI Vocabulary**
+High-frequency: Actually, additionally, align with, crucial, delve, emphasizing, enduring, enhance, fostering, garner, highlight (verb), interplay, intricate/intricacies, key (adj), landscape (abstract), pivotal, showcase, tapestry (abstract), testament, underscore (verb), valuable, vibrant
+
+**8. Copula Avoidance**
+Replace: serves as/stands as/marks/represents, boasts/features/offers → Use: is/are/has
+
+**9. Negative Parallelisms**
+Phrases: Not only...but..., It's not just about..., it's...
+
+**10. Rule of Three Overuse**
+AI forces ideas into groups of three to appear comprehensive. Mix it up.
+
+**11. Elegant Variation (Synonym Cycling)**
+AI substitutes synonyms excessively to avoid repetition. Use the same word when it's the right word.
+
+**12. False Ranges**
+"From X to Y" where X and Y aren't on a meaningful scale.
+
+**13. Passive Voice and Subjectless Fragments**
+"No configuration file needed" → "You do not need a configuration file."
+
+### Style Patterns
+
+**14. Em Dash Overuse** — Replace with commas, periods, or parentheses
+**15. Overuse of Boldface** — Remove mechanical bold emphasis
+**16. Inline-Header Vertical Lists** — Merge into prose
+**17. Title Case in Headings** — Use sentence case
+**18. Emojis** — Remove decorative emojis
+**19. Curly Quotation Marks** — Use straight quotes
+
+### Communication Patterns
+
+**20. Collaborative Communication Artifacts**
+Phrases: I hope this helps, Of course!, Certainly!, You're absolutely right!, Would you like..., let me know, here is a...
+
+**21. Knowledge-Cutoff Disclaimers**
+Phrases: as of [date], Up to my last training update, While specific details are limited/scarce
+
+**22. Sycophantic/Servile Tone**
+"Great question! You're absolutely right! That's an excellent point!"
+
+### Filler and Hedging
+
+**23. Filler Phrases**
+- "In order to achieve" → "To achieve"
+- "Due to the fact that" → "Because"
+- "At this point in time" → "Now"
+- "It is important to note that" → (delete)
+- "The system has the ability to process" → "The system can process"
+
+**24. Excessive Hedging** — "It could potentially possibly be argued that" → "The policy may affect outcomes."
+
+**25. Generic Positive Conclusions** — "The future looks bright. Exciting times lie ahead." → State concrete next steps.
+
+**26. Hyphenated Word Pair Overuse** — Don't hyphenate every compound modifier consistently. Humans are inconsistent.
+
+**27. Persuasive Authority Tropes** — "The real question is", "At its core", "What really matters" → Just state the point.
+
+**28. Signposting and Announcements** — "Let's dive in", "Here's what you need to know" → Just do it.
+
+**29. Fragmented Headers** — Heading followed by one-line restatement before real content. Delete the restatement.
+
+## Process
+
+1. Read input carefully
+2. Identify all 29 pattern instances
+3. Rewrite each section
+4. Ensure text: sounds natural aloud, varies sentence structure, uses specifics over vague claims
+5. Present draft rewrite
+6. Self-audit: "What makes this obviously AI?"
+7. Fix remaining tells
+8. Present final version
+
+## Anti-AI Audit Questions
+
+After rewriting, ask yourself:
+- Does the rhythm feel too tidy? (Clean contrasts, evenly paced)
+- Are there still any AI vocabulary words? (delve, tapestry, testament, crucial)
+- Is there a generic positive conclusion? Remove it.
+- Does it read like a press release? Add personality.
+- Are all the sentences roughly the same length? Vary them.`,
+  },
+
+  // =========================================================================
+  // 9. SHADER_DEV — GLSL Shader Development
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0009-4000-8000-000000000009",
+    name: "shader_dev",
+    display_name: "GLSL Shader Development",
+    slug: "glsl-shader-development",
+    description:
+      "Comprehensive GLSL shader techniques for visual effects. Ray marching, SDF modeling, fluid simulation, particles, procedural generation, lighting, and post-processing.",
+    category: "code",
+    difficulty: "expert",
+    tags: ["shader", "glsl", "webgl", "ray-marching", "sdf", "procedural", "gpu"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Identify required techniques from routing table" },
+      { step: 2, action: "Write GLSL shader code" },
+      { step: 3, action: "Apply WebGL2 adaptation rules" },
+      { step: 4, action: "Wrap in standalone HTML page" },
+      { step: 5, action: "Validate performance budget" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-shader-dev", adapter: "system" },
+    prompt_template: `# GLSL Shader Development
+
+Comprehensive shader techniques for real-time visual effects. All shaders are WebGL2-compatible and output as standalone HTML pages.
+
+## Technique Routing Table
+
+| User wants to create... | Primary technique | Combine with |
+|---|---|---|
+| 3D objects/scenes from math | ray-marching + sdf-3d | lighting-model, shadow-techniques |
+| Complex 3D shapes (booleans, blends) | csg-boolean-operations | sdf-3d, ray-marching |
+| Infinite repeating patterns | domain-repetition | sdf-3d, ray-marching |
+| Organic/warped shapes | domain-warping | procedural-noise |
+| Fluid/smoke/ink effects | fluid-simulation | multipass-buffer |
+| Particle effects (fire, sparks, snow) | particle-system | procedural-noise, color-palette |
+| Physics simulations | simulation-physics | multipass-buffer |
+| Game of Life / reaction-diffusion | cellular-automata | multipass-buffer, color-palette |
+| Ocean/water surface | water-ocean | atmospheric-scattering, lighting-model |
+| Terrain/landscape | terrain-rendering | atmospheric-scattering, procedural-noise |
+| Clouds/fog/volumetric fire | volumetric-rendering | procedural-noise, atmospheric-scattering |
+| Sky/sunset/atmosphere | atmospheric-scattering | volumetric-rendering |
+| Realistic lighting (PBR, Phong) | lighting-model | shadow-techniques, ambient-occlusion |
+| Shadows (soft/hard) | shadow-techniques | lighting-model |
+| Ambient occlusion | ambient-occlusion | lighting-model, normal-estimation |
+| Path tracing / global illumination | path-tracing-gi | analytic-ray-tracing, multipass-buffer |
+| Noise/FBM textures | procedural-noise | domain-warping |
+| Voronoi/cell patterns | voronoi-cellular-noise | color-palette |
+| Fractals (Mandelbrot, Julia) | fractal-rendering | color-palette |
+| Color grading/palettes | color-palette | — |
+| Bloom/tone mapping/glitch | post-processing | multipass-buffer |
+| 2D shapes/UI from SDF | sdf-2d | color-palette |
+| 3D audio | sound-synthesis | — |
+| Anti-aliased rendering | anti-aliasing | sdf-2d, post-processing |
+
+## WebGL2 Adaptation Rules
+
+### Shader Version & Output
+- Use \`canvas.getContext("webgl2")\`
+- Shader first line: \`#version 300 es\`, fragment adds \`precision highp float;\`
+- Fragment declares: \`out vec4 fragColor;\`
+- Vertex: \`attribute\` → \`in\`, \`varying\` → \`out\`
+- Fragment: \`varying\` → \`in\`, \`gl_FragColor\` → \`fragColor\`, \`texture2D()\` → \`texture()\`
+
+### Fragment Coordinate
+\`\`\`glsl
+// WRONG — fragCoord doesn't exist in WebGL2
+vec2 uv = (2.0 * fragCoord - iResolution.xy) / iResolution.y;
+
+// CORRECT
+vec2 uv = (2.0 * gl_FragCoord.xy - iResolution.xy) / iResolution.y;
+\`\`\`
+
+### main() Wrapper
+\`\`\`glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    // shader code...
+    fragColor = vec4(col, 1.0);
+}
+
+void main() {
+    mainImage(fragColor, gl_FragCoord.xy);
+}
+\`\`\`
+
+### Function Declaration Order
+GLSL requires functions declared before use:
+\`\`\`glsl
+// CORRECT — define callee first
+vec3 getSunDirection() { return normalize(vec3(1.0)); }
+vec3 getAtmosphere(vec3 dir) { return getSunDirection(); }
+\`\`\`
+
+### Macro Limitations
+\`\`\`glsl
+// WRONG — #define cannot use function calls
+#define SUN_DIR normalize(vec3(0.8, 0.4, -0.6))
+
+// CORRECT — use const
+const vec3 SUN_DIR = vec3(0.756, 0.378, -0.567);
+\`\`\`
+
+## HTML Page Setup
+
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { margin: 0; overflow: hidden; background: #000; }
+  canvas { width: 100vw; height: 100vh; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById("c");
+const gl = canvas.getContext("webgl2");
+
+const vs = \`#version 300 es
+in vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+\`;
+
+const fs = \`#version 300 es
+precision highp float;
+uniform vec2 iResolution;
+uniform float iTime;
+out vec4 fragColor;
+
+void mainImage(out vec4 fc, in vec2 fc2) {
+    vec2 uv = (2.0 * fc2 - iResolution.xy) / iResolution.y;
+    vec3 col = 0.5 + 0.5 * cos(iTime + uv.xyx + vec3(0, 2, 4));
+    fc = vec4(col, 1.0);
+}
+void main() { mainImage(fragColor, gl_FragCoord.xy); }
+\`;
+
+// ... compile, link, render loop ...
+</script>
+</body>
+</html>
+\`\`\`
+
+## Performance Budget
+
+Stay within these limits:
+- Ray marching main loop: ≤ 128 steps
+- Volume sampling / lighting inner loops: ≤ 32 steps
+- FBM octaves: ≤ 6 layers
+- Total nested loop iterations per pixel: ≤ 1000
+
+## Common GLSL Pitfalls
+
+- **Function signature mismatch**: Parameter count and types must match exactly
+- **Reserved words**: Don't use: patch, cast, sample, filter, input, output, common, partition, active
+- **Strict type matching**: \`vec3 x = 1.0\` is illegal — use \`vec3 x = vec3(1.0)\`
+- **No ternary on structs**: Use \`if\`/\`else\` instead
+- **Unused uniforms**: Compiler may optimize them out, causing null location
+
+## Shader Debugging Techniques
+
+| What to check | Code | What to look for |
+|---|---|---|
+| Surface normals | \`col = nor * 0.5 + 0.5;\` | Smooth gradients = correct |
+| Step count | \`col = vec3(float(steps)/MAX_STEPS);\` | Red = bottleneck |
+| Depth | \`col = vec3(t / MAX_DIST);\` | Verify hit distances |
+| UV coordinates | \`col = vec3(uv, 0.0);\` | Check mapping |
+| SDF field | \`col = vec3(abs(d));\` | Visualize zero-crossing |
+
+## Quick Recipes
+
+### Photorealistic SDF Scene
+1. sdf-3d + csg-boolean → ray-marching + normal-estimation
+2. lighting-model (outdoor three-light) + shadow-techniques (soft) + ambient-occlusion
+3. atmospheric-scattering (height-based fog) → post-processing (ACES tonemap + vignette)
+
+### Organic Forms
+1. sdf-3d + domain-warping → ray-marching
+2. procedural-noise (FBM with derivatives)
+3. lighting-model (subsurface scattering via half-Lambert)
+
+### Procedural Landscape
+1. terrain-rendering + procedural-noise (erosion FBM)
+2. atmospheric-scattering (Rayleigh/Mie + height fog)
+3. water-ocean (Gerstner waves) + lighting-model (Fresnel)
+
+### Stylized 2D Art
+1. sdf-2d (extended library) + sdf-tricks (layered edges)
+2. color-palette (cosine palettes) + polar-uv-manipulation (kaleidoscope)
+3. anti-aliasing (SDF analytical AA) + post-processing (bloom, chromatic aberration)`,
+  },
+
+  // =========================================================================
+  // 10. VISION_ANALYSIS — Image Analysis
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0010-4000-8000-000000001000",
+    name: "vision_analysis",
+    display_name: "Image Analysis",
+    slug: "image-analysis",
+    description:
+      "Analyze, describe, and extract information from images. Supports OCR, UI review, chart data extraction, object detection, and general image understanding.",
+    category: "ai",
+    difficulty: "intermediate",
+    tags: ["vision", "image", "ocr", "analysis", "object-detection", "ui-review"],
+    required_tools: [],
+    agent_bindings: [],
+    workflow_steps: [
+      { step: 1, action: "Auto-detect image from user message (file path or URL)" },
+      { step: 2, action: "Determine analysis mode (describe/ocr/ui-review/chart-data/object-detect)" },
+      { step: 3, action: "Call z-ai-web-dev-sdk VLM tool with mode-specific prompt" },
+      { step: 4, action: "Present structured results" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "adapted-from-vision-analysis", adapter: "system" },
+    prompt_template: `# Image Analysis
+
+Analyze, describe, and extract information from images using the z-ai-web-dev-sdk VLM (Vision Language Model) tool.
+
+## Trigger
+
+This skill activates when the user:
+- Shares an image file path or URL (extensions: .jpg, .jpeg, .png, .gif, .webp, .bmp, .svg)
+- Uses analysis words near an image: "analyze", "describe", "explain", "look at", "review", "extract text", "OCR", "what is in", "read this image", "tell me about"
+- Requests: UI mockup review, wireframe analysis, design critique, data extraction from charts, object detection
+
+## Analysis Modes
+
+| Mode | When to use | Prompt strategy |
+|------|-------------|-----------------|
+| \`describe\` | General image understanding | Detailed description of all elements |
+| \`ocr\` | Text extraction from screenshots, documents | Verbatim text extraction preserving structure |
+| \`ui-review\` | UI mockups, wireframes, design files | Design critique with actionable suggestions |
+| \`chart-data\` | Charts, graphs, data visualizations | Extract all data points and trends |
+| \`object-detect\` | Identify objects, people, activities | List and locate all elements |
+
+## Workflow
+
+### Step 1: Auto-detect Image
+
+Scan the user's message for image file paths or URLs with extensions:
+\`.jpg\`, \`.jpeg\`, \`.png\`, \`.gif\`, \`.webp\`, \`.bmp\`, \`.svg\`
+
+Extract the image path from the message.
+
+### Step 2: Select Analysis Mode
+
+Determine the mode based on the user's request:
+
+- "describe this image", "what do you see" → \`describe\`
+- "extract text", "OCR", "read this", "what does it say" → \`ocr\`
+- "review this UI", "critique this design", "improve this mockup" → \`ui-review\`
+- "extract data from chart", "what are the numbers", "get the values" → \`chart-data\`
+- "identify objects", "what's in this photo", "detect people" → \`object-detect\`
+
+### Step 3: Call VLM Tool
+
+Use the z-ai-web-dev-sdk VLM tool with a mode-specific system prompt:
+
+**describe:**
+\`\`\`
+Provide a detailed description of this image. Include: main subject, setting/background,
+colors/style, any text visible, notable objects, and overall composition.
+Be specific and thorough. Describe spatial relationships between elements.
+\`\`\`
+
+**ocr:**
+\`\`\`
+Extract all text visible in this image verbatim. Preserve structure and formatting:
+headers, lists, columns, paragraphs. Maintain the original hierarchy.
+If text is partially obscured, indicate with [unclear]. If no text found, say so.
+\`\`\`
+
+**ui-review:**
+\`\`\`
+You are a senior UI/UX design reviewer. Analyze this interface. Provide:
+1. Strengths — what works well (layout, visual hierarchy, usability)
+2. Issues — usability problems, design inconsistencies, accessibility gaps
+3. Specific, actionable improvement suggestions with reasoning
+Be constructive. Prioritize high-impact issues.
+\`\`\`
+
+**chart-data:**
+\`\`\`
+Extract all data from this chart/graph. Provide:
+1. Chart title and type
+2. Axis labels and units
+3. All data points/series with values (estimate if not precisely readable)
+4. Brief trend summary
+Format as structured data (table or JSON).
+\`\`\`
+
+**object-detect:**
+\`\`\`
+List all distinct objects, people, and activities visible in this image. For each:
+- Describe what it is
+- Estimate its approximate location (top-left, center, bottom-right, etc.)
+- Note any notable attributes (color, size, orientation)
+Be thorough and specific.
+\`\`\`
+
+### Step 4: Present Results
+
+Return the analysis in a clear, structured format:
+
+**For describe mode:**
+\`\`\`
+## Image Description
+[Detailed prose description of contents...]
+\`\`\`
+
+**For ocr mode:**
+\`\`\`
+## Extracted Text
+[Preserved text structure from the image]
+\`\`\`
+
+**For ui-review mode:**
+\`\`\`
+## UI Design Review
+
+### Strengths
+- ...
+
+### Issues
+- ...
+
+### Improvement Suggestions
+- ...
+\`\`\`
+
+**For chart-data mode:**
+\`\`\`
+## Chart Data
+| [Data in table format]
+## Trend Summary
+[Analysis of trends]
+\`\`\`
+
+**For object-detect mode:**
+\`\`\`
+## Detected Objects
+| Object | Location | Attributes |
+|--------|----------|------------|
+| ...    | ...      | ...        |
+\`\`\`
+
+## Notes
+
+- Support for JPEG, PNG, GIF, WebP, BMP formats
+- Both local file paths and URLs work
+- The VLM tool from z-ai-web-dev-sdk handles the actual image processing
+- For complex analysis tasks, you can chain multiple mode calls
+- Always present results in a structured, readable format`,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// GET /api/skills/seed-builtin — List current builtin skills
+// ---------------------------------------------------------------------------
+export async function GET() {
+  try {
+    const result = await query(
+      `SELECT id, name, display_name, slug, description, category, difficulty,
+              tags, required_tools, agent_bindings, is_builtin, is_active,
+              performance_score, avg_rating, total_uses, successful_uses,
+              version, has_embedding, created_at, updated_at
+       FROM skills
+       WHERE is_builtin = true
+       ORDER BY name ASC`
+    );
+
+    return NextResponse.json({
+      success: true,
+      data: result.rows,
+      total: result.rows.length,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to fetch builtin skills";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/skills/seed-builtin — Insert/update all 10 builtin skills
+// ---------------------------------------------------------------------------
+export async function POST() {
+  try {
+    const results: { name: string; status: string; id: string }[] = [];
+
+    for (const skill of BUILTIN_SKILLS) {
+      // Use ON CONFLICT for idempotency — update prompt_template and updated_at on conflict
+      const result = await query(
+        `INSERT INTO skills (
+           id, name, display_name, slug, description, category, difficulty,
+           prompt_template, workflow_steps, required_tools, tags, agent_bindings,
+           is_builtin, is_active, version, metadata
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         ON CONFLICT (name) DO UPDATE SET
+           prompt_template = EXCLUDED.prompt_template,
+           display_name = EXCLUDED.display_name,
+           slug = EXCLUDED.slug,
+           description = EXCLUDED.description,
+           category = EXCLUDED.category,
+           difficulty = EXCLUDED.difficulty,
+           workflow_steps = EXCLUDED.workflow_steps,
+           required_tools = EXCLUDED.required_tools,
+           tags = EXCLUDED.tags,
+           agent_bindings = EXCLUDED.agent_bindings,
+           is_builtin = EXCLUDED.is_builtin,
+           version = skills.version + 1,
+           metadata = EXCLUDED.metadata,
+           updated_at = NOW()
+         RETURNING id, name`,
+        [
+          skill.id,
+          skill.name,
+          skill.display_name,
+          skill.slug,
+          skill.description,
+          skill.category,
+          skill.difficulty,
+          skill.prompt_template,
+          JSON.stringify(skill.workflow_steps),
+          skill.required_tools,
+          skill.tags,
+          skill.agent_bindings,
+          skill.is_builtin,
+          skill.is_active,
+          skill.version,
+          JSON.stringify(skill.metadata),
+        ]
+      );
+
+      if (result.rows.length > 0) {
+        results.push({
+          name: skill.name,
+          status: "upserted",
+          id: result.rows[0].id,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Seeded ${results.length} builtin skills`,
+      data: results,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to seed builtin skills";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
