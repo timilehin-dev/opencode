@@ -553,11 +553,24 @@ export async function getAgentMemories(agentId: string): Promise<AgentMemory[]> 
     .sort((a, b) => b.importance - a.importance);
 }
 
+// Cache memory summaries to avoid Supabase REST query on every request
+const _memorySummaryCache = new Map<string, { data: string; ts: number }>();
+const MEMORY_SUMMARY_TTL = 30_000; // 30s
+
 /** Get a summary of all agent memories (for context injection). */
 export async function getMemorySummary(agentId: string): Promise<string> {
+  // Check cache
+  const cached = _memorySummaryCache.get(agentId);
+  if (cached && Date.now() - cached.ts < MEMORY_SUMMARY_TTL) {
+    return cached.data;
+  }
+
   const MAX_MEMORY_CHARS = 4000;
   const memories = await getAgentMemories(agentId);
-  if (memories.length === 0) return "";
+  if (memories.length === 0) {
+    _memorySummaryCache.set(agentId, { data: "", ts: Date.now() });
+    return "";
+  }
 
   const byCategory = new Map<string, AgentMemory[]>();
   for (const mem of memories) {
@@ -574,16 +587,19 @@ export async function getMemorySummary(agentId: string): Promise<string> {
   }
 
   const result = parts.join("\n");
-  if (result.length > MAX_MEMORY_CHARS) {
-    // Keep as many complete items as possible
-    let truncated = "";
-    for (const part of parts) {
-      if (truncated.length + part.length + 1 > MAX_MEMORY_CHARS) break;
-      truncated += (truncated ? "\n" : "") + part;
-    }
-    return truncated + "\n[Memory truncated — older items omitted to save context]";
-  }
-  return result;
+  const finalResult = result.length > MAX_MEMORY_CHARS
+    ? (() => {
+        let truncated = "";
+        for (const part of parts) {
+          if (truncated.length + part.length + 1 > MAX_MEMORY_CHARS) break;
+          truncated += (truncated ? "\n" : "") + part;
+        }
+        return truncated + "\n[Memory truncated — older items omitted to save context]";
+      })()
+    : result;
+
+  _memorySummaryCache.set(agentId, { data: finalResult, ts: Date.now() });
+  return finalResult;
 }
 
 /** Delete a memory by ID. */

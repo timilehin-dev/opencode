@@ -544,9 +544,9 @@ const agents: AgentConfig[] = [
     name: "Claw General",
     role: "Chief Orchestrator",
     emoji: "🤵",
-    description: "The most capable agent — powered by GLM-5.1. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests.",
-    provider: "aihubmix",
-    model: "coding-glm-5.1-free",
+    description: "The most capable agent — powered by Gemma 4 31B. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests.",
+    provider: "ollama",
+    model: "gemma4:31b-cloud",
     color: "emerald",
     systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools: [
@@ -888,10 +888,13 @@ export function getAllAgentStatuses(): AgentStatus[] {
 // API Key Rotation — Smart rotation with token tracking & auto-skip
 // ---------------------------------------------------------------------------
 
-// Lazy import — only used server-side via getProvider() which is always called in API routes
-// pg is listed in serverExternalPackages so it won't leak to client bundles
+// Cached key-manager module — avoid re-importing on every getProvider() call
+let _keyManagerModule: typeof import("@/lib/key-manager") | null = null;
 async function loadKeyManager() {
-  return import("@/lib/key-manager");
+  if (!_keyManagerModule) {
+    _keyManagerModule = await import("@/lib/key-manager");
+  }
+  return _keyManagerModule;
 }
 
 // Shared key pools (used by agents without dedicated keyEnvVars)
@@ -918,6 +921,7 @@ const ollamaKeys: string[] = [
   process.env.OLLAMA_CLOUD_KEY_4 || "",
   process.env.OLLAMA_CLOUD_KEY_5 || "",
   process.env.OLLAMA_CLOUD_KEY_6 || "",
+  process.env.OLLAMA_CLOUD_KEY_7 || "",
 ].filter(Boolean);
 
 const ollamaLabels: string[] = [
@@ -927,6 +931,7 @@ const ollamaLabels: string[] = [
   process.env.OLLAMA_CLOUD_KEY_4 ? "OLLAMA_CLOUD_KEY_4" : "",
   process.env.OLLAMA_CLOUD_KEY_5 ? "OLLAMA_CLOUD_KEY_5" : "",
   process.env.OLLAMA_CLOUD_KEY_6 ? "OLLAMA_CLOUD_KEY_6" : "",
+  process.env.OLLAMA_CLOUD_KEY_7 ? "OLLAMA_CLOUD_KEY_7" : "",
 ].filter(Boolean);
 
 // Per-agent dedicated key arrays (cached)

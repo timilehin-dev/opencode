@@ -141,30 +141,30 @@ export async function POST(req: Request) {
     persistAgentStatus(id, { status: "busy", currentTask: lastContent?.slice(0, 100) || null, lastActivity: new Date().toISOString() }).catch(() => {});
 
     // Run these in parallel to reduce time-to-first-token
-    const [providerResult, modelMessages, memoryContext, dueReminders, userSettings, learningContext, skillRouteResult] = await Promise.all([
+    // NOTE: routeSkill() was removed from this critical path — it can take 500-1500ms
+    // due to embedding API calls and was blocking the stream start. Skill routing is now
+    // handled lazily via the skill_list/skill_use tools the model can call itself.
+    const [providerResult, modelMessages, memoryContext, dueReminders, userSettings, learningContext] = await Promise.all([
       getProvider(agent),
       convertToModelMessages(processedMessages),
       getMemorySummary(id).catch(() => ""),
       checkDueReminders().catch(() => []),
       loadUserSettings(),
       getInsightsForPrompt(id, 8).catch(() => ""),
-      (lastContent && lastContent.length > 10
-        ? import("@/lib/skill-router").then(m => m.routeSkill(lastContent, id)).catch(() => null)
-        : Promise.resolve(null)),
     ]);
 
     const model = providerResult.model;
     const selectedKey = providerResult.keySelection;
 
-    // Phase 6B: Auto skill routing — result already available from parallel fetch
+    // Phase 6B: Skill routing — run in background (non-blocking).
+    // If it completes before the first LLM turn, the result is injected via prepareStep.
+    // Otherwise, the model has the skill_list tool and can discover skills on its own.
     let skillRoutingBlock = "";
-    if (skillRouteResult?.skill) {
-      const altStr = skillRouteResult.alternatives.length > 0
-        ? `\nAlternative skills: ${skillRouteResult.alternatives.map(a => a.display_name).join(", ")}`
-        : "";
-      skillRoutingBlock = `\n\n## AUTO-ROUTED SKILL SUGGESTION
-The system detected that your task may benefit from the "${skillRouteResult.skill.display_name}" skill (confidence: ${Math.round(skillRouteResult.confidence * 100)}%, method: ${skillRouteResult.method}).
-You MAY use \`skill_use\` with name "${skillRouteResult.skill.name}" to apply this skill's methodology, OR proceed without it if you deem it unnecessary.${altStr}`;
+    let skillRouteResult: Awaited<ReturnType<typeof import("@/lib/skill-router")["routeSkill"]>> | null = null;
+    if (lastContent && lastContent.length > 10 && id === "general") {
+      import("@/lib/skill-router").then(m => m.routeSkill(lastContent, id)).then(result => {
+        skillRouteResult = result;
+      }).catch(() => {});
     }
 
     // Save the user's message to conversation history (fire-and-forget)

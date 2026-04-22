@@ -56,8 +56,8 @@ const DEFAULT_AGENT: AgentInfo = {
   role: "Chief AI Orchestrator & General Manager",
   emoji: "\uD83E\uDDD4",
   color: "emerald",
-  provider: "aihubmix",
-  model: "coding-glm-5-turbo-free",
+  provider: "ollama",
+  model: "gemma4:31b-cloud",
 };
 
 const SUGGESTED_ACTIONS: Record<string, { label: string; prompt: string }[]> = {

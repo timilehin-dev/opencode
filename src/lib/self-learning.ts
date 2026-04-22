@@ -124,9 +124,23 @@ export async function getAgentInsights(
 // getInsightsForPrompt — Format top insights for injection into system prompt
 // ---------------------------------------------------------------------------
 
+// Cache insights to avoid DB query on every request
+const _insightsCache = new Map<string, { data: string; ts: number }>();
+const INSIGHTS_TTL = 30_000; // 30s
+
 export async function getInsightsForPrompt(agentId: string, maxInsights = 10): Promise<string> {
+  // Check cache
+  const cacheKey = `${agentId}:${maxInsights}`;
+  const cached = _insightsCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < INSIGHTS_TTL) {
+    return cached.data;
+  }
+
   const insights = await getAgentInsights(agentId, undefined, maxInsights);
-  if (insights.length === 0) return "";
+  if (insights.length === 0) {
+    _insightsCache.set(cacheKey, { data: "", ts: Date.now() });
+    return "";
+  }
 
   const parts: string[] = ["[LEARNED BEHAVIORS — Apply these patterns from past interactions]"];
 
@@ -142,7 +156,9 @@ export async function getInsightsForPrompt(agentId: string, maxInsights = 10): P
   // Mark all applied insights to update their application_count and last_applied_at
   markInsightsApplied(insights.map(i => String(i.id))).catch(() => {});
 
-  return parts.join("\n");
+  const result = parts.join("\n");
+  _insightsCache.set(cacheKey, { data: result, ts: Date.now() });
+  return result;
 }
 
 /**
