@@ -1,0 +1,114 @@
+# Claw Health Check — Monitors system health
+# Runs every hour. Also triggerable via repository_dispatch from pg_cron.
+#
+# Checks agent_status, stale tasks, and system metrics.
+# Writes results to the health check log.
+
+name: Health Check
+on:
+  schedule:
+    - cron: '0 * * * *'  # every hour
+  workflow_dispatch:          # manual trigger from GitHub UI
+  repository_dispatch:        # trigger from Supabase pg_cron via pg_net
+    types: [health-check]
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    name: System Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run health check
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          node -e "
+          import pg from 'pg';
+          const pool = new pg.Pool({ connectionString: process.env.SUPABASE_DB_URL });
+          const now = new Date().toISOString();
+
+          async function check() {
+            // 1. Check for stale running tasks (>15 min)
+            const stale = await pool.query(
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'\"
+            );
+            console.log('Stale running tasks:', stale.rows[0].count);
+
+            // 2. Check for stale project tasks
+            const stalePT = await pool.query(
+              \"SELECT COUNT(*) as count FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '15 minutes'\"
+            );
+            console.log('Stale project tasks:', stalePT.rows[0].count);
+
+            // 3. Agent status overview
+            const agents = await pool.query(
+              'SELECT agent_id, status, current_task, last_activity FROM agent_status ORDER BY agent_id'
+            );
+            console.log('Agent status:', JSON.stringify(agents.rows));
+
+            // 4. Pending tasks count
+            const pending = await pool.query(
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'pending'\"
+            );
+            console.log('Pending tasks:', pending.rows[0].count);
+
+            // 5. Unread notifications count
+            const notifs = await pool.query(
+              'SELECT COUNT(*) as count FROM proactive_notifications WHERE is_read = FALSE'
+            );
+            console.log('Unread notifications:', notifs.rows[0].count);
+
+            // 6. Recent errors
+            const errors = await pool.query(
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '1 hour'\"
+            );
+            console.log('Recent task failures (1h):', errors.rows[0].count);
+
+            // Write health log
+            await pool.query(
+              \"INSERT INTO automation_logs (automation_id, status, result, created_at) VALUES (0, 'success', \$1, NOW())\",
+              [JSON.stringify({ type: 'health_check', timestamp: now, stale_tasks: stale.rows[0].count, stale_project_tasks: stalePT.rows[0].count, pending_tasks: pending.rows[0].count, unread_notifications: notifs.rows[0].count, recent_failures: errors.rows[0].count })]
+            );
+
+            // Recover stale tasks
+            if (Number(stale.rows[0].count) > 0) {
+              const recovered = await pool.query(
+                \"UPDATE agent_tasks SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'\"
+              );
+              console.log('Recovered stale tasks:', recovered.rowCount);
+            }
+            if (Number(stalePT.rows[0].count) > 0) {
+              const recoveredPT = await pool.query(
+                \"UPDATE project_tasks SET status = 'pending', retries = COALESCE(retries, 0) WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '15 minutes'\"
+              );
+              console.log('Recovered stale project tasks:', recoveredPT.rowCount);
+            }
+
+            await pool.end();
+            console.log('Health check completed at', now);
+          }
+          check().catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: Log completion
+        if: always()
+        run: echo "Health check finished at $(date -u)"

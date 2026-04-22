@@ -1,56 +1,46 @@
-name: Claw Task Executor
+# Claw Task Executor — Picks up pending tasks & project tasks from Supabase
+# Runs every 2 minutes. Also triggerable via repository_dispatch from pg_cron.
+#
+# This is the PRIMARY execution engine — it runs outside Vercel (no timeout limits).
+# It evaluates automations, executes pending agent_tasks, and processes project task graphs.
 
+name: Task Executor
 on:
   schedule:
-    # Run every 2 minutes — picks up pending tasks from Supabase
-    - cron: "*/2 * * * *"
-  workflow_dispatch:
-    inputs:
-      max_tasks:
-        description: "Max tasks to process this run"
-        required: false
-        default: "5"
-      timeout:
-        description: "Per-task timeout in seconds"
-        required: false
-        default: "300"
-      dry_run:
-        description: "Dry run (don't execute, just show what would run)"
-        required: false
-        type: boolean
-        default: false
+    - cron: '*/2 * * * *'  # every 2 minutes
+  workflow_dispatch:          # manual trigger from GitHub UI
+  repository_dispatch:        # trigger from Supabase pg_cron via pg_net
+    types: [task-executor]
 
 # Prevent concurrent executions — if one run is still going, skip the next
 concurrency:
   group: task-executor
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
-  execute-tasks:
+  execute:
+    name: Run Task Executor
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # Hard limit per workflow run (safety)
+    timeout-minutes: 10       # hard cap per job (most runs finish in 2-3 min)
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
-      - name: Execute pending tasks
+      - name: Run executor
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          AIHUBMIX_API_KEY_1: ${{ secrets.AIHUBMIX_API_KEY_1 }}
-          AIHUBMIX_API_KEY_2: ${{ secrets.AIHUBMIX_API_KEY_2 }}
-          AIHUBMIX_API_KEY_3: ${{ secrets.AIHUBMIX_API_KEY_3 }}
-          AIHUBMIX_API_KEY_4: ${{ secrets.AIHUBMIX_API_KEY_4 }}
-          AIHUBMIX_API_KEY_5: ${{ secrets.AIHUBMIX_API_KEY_5 }}
-          AIHUBMIX_BASE_URL: ${{ secrets.AIHUBMIX_BASE_URL }}
           OLLAMA_CLOUD_KEY_1: ${{ secrets.OLLAMA_CLOUD_KEY_1 }}
           OLLAMA_CLOUD_KEY_2: ${{ secrets.OLLAMA_CLOUD_KEY_2 }}
           OLLAMA_CLOUD_KEY_3: ${{ secrets.OLLAMA_CLOUD_KEY_3 }}
@@ -58,21 +48,17 @@ jobs:
           OLLAMA_CLOUD_KEY_5: ${{ secrets.OLLAMA_CLOUD_KEY_5 }}
           OLLAMA_CLOUD_KEY_6: ${{ secrets.OLLAMA_CLOUD_KEY_6 }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           TAVILY_API_KEY_1: ${{ secrets.TAVILY_API_KEY_1 }}
           TAVILY_API_KEY_2: ${{ secrets.TAVILY_API_KEY_2 }}
           TAVILY_API_KEY_3: ${{ secrets.TAVILY_API_KEY_3 }}
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          GITHUB_REPO: ${{ secrets.GITHUB_REPO }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          NODE_TLS_REJECT_UNAUTHORIZED: "0"
-        run: |
-          ARGS="--tasks ${{ github.event.inputs.max_tasks || '3' }} --timeout ${{ github.event.inputs.timeout || '300' }}"
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          echo "Running: node scripts/execute-tasks.mjs $ARGS"
-          node scripts/execute-tasks.mjs $ARGS
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: node scripts/execute-tasks.mjs --tasks 5 --timeout 300 --max-steps 40
+
+      - name: Log completion
+        if: always()
+        run: echo "Task executor finished at $(date -u)"
