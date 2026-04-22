@@ -7,15 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 function parsePeriod(period: string): { days: number; label: string } {
   const map: Record<string, { days: number; label: string }> = {
@@ -28,8 +20,6 @@ function parsePeriod(period: string): { days: number; label: string } {
 
 // --- GET /api/skills/evolution ---
 export async function GET(req: Request) {
-  const pool = getPool();
-
   try {
     const { searchParams } = new URL(req.url);
     const skillId = searchParams.get("skill_id") || "";
@@ -37,7 +27,7 @@ export async function GET(req: Request) {
     const { days, label } = parsePeriod(period);
 
     // --- Execution History (use actual DB column names) ---
-    const executionsResult = await pool.query(
+    const executionsResult = await query(
       `SELECT se.id, se.skill_id, se.agent_id, se.task_description,
               se.duration_ms, se.status, se.created_at,
               s.display_name as skill_name, s.category as skill_category
@@ -56,7 +46,7 @@ export async function GET(req: Request) {
     }));
 
     // --- Evaluation Trends (use actual DB column names with _score suffix) ---
-    const trendsResult = await pool.query(
+    const trendsResult = await query(
       `SELECT
           DATE(se.created_at) as date,
           COUNT(*) as eval_count,
@@ -86,7 +76,7 @@ export async function GET(req: Request) {
     }));
 
     // --- Evolution Timeline (use actual DB column names) ---
-    const evolutionResult = await pool.query(
+    const evolutionResult = await query(
       `SELECT ev.id, ev.skill_id, ev.change_type, ev.previous_state, ev.new_state,
               ev.change_reason, ev.trigger_agent_id, ev.created_at,
               s.display_name as skill_name
@@ -106,7 +96,7 @@ export async function GET(req: Request) {
     }));
 
     // --- Performance Summary ---
-    const summaryResult = await pool.query(
+    const summaryResult = await query(
       `SELECT
           COUNT(DISTINCT se.id) as total_executions,
           COUNT(DISTINCT sve.id) as total_evaluations,
@@ -137,7 +127,7 @@ export async function GET(req: Request) {
     };
 
     // --- Top Skills by Performance ---
-    const topSkillsResult = await pool.query(
+    const topSkillsResult = await query(
       `SELECT
           s.id, s.display_name, s.name, s.category, s.difficulty,
           s.performance_score, s.total_uses, s.avg_rating,
@@ -165,7 +155,7 @@ export async function GET(req: Request) {
     }));
 
     // --- Recent Evaluations (for the list) ---
-    const recentEvalsResult = await pool.query(
+    const recentEvalsResult = await query(
       `SELECT eve.id, eve.skill_id, eve.agent_id, eve.overall_score,
               eve.strengths, eve.weaknesses, eve.created_at,
               s.display_name as skill_name
@@ -199,7 +189,5 @@ export async function GET(req: Request) {
     const message = error instanceof Error ? error.message : "Failed to fetch evolution data";
     console.error("[SkillEvolution] Error:", error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

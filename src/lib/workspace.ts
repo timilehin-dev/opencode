@@ -4,15 +4,7 @@
 // Pattern matches existing A2A task handling in tools.ts
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
+import { query } from "@/lib/db";
 
 // ===========================================================================
 // REMINDERS
@@ -40,26 +32,21 @@ interface ReminderUpdate {
 }
 
 export async function createReminder(data: ReminderData) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(
-      `INSERT INTO reminders (title, description, reminder_time, priority, repeat_config, assigned_agent, context)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [
-        data.title,
-        data.description || "",
-        data.reminder_time,
-        data.priority || "normal",
-        JSON.stringify(data.repeat_config || {}),
-        data.assigned_agent || null,
-        JSON.stringify(data.context || {}),
-      ],
-    );
-    return result.rows[0];
-  } finally {
-    await pool.end();
-  }
+  const result = await query(
+    `INSERT INTO reminders (title, description, reminder_time, priority, repeat_config, assigned_agent, context)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [
+      data.title,
+      data.description || "",
+      data.reminder_time,
+      data.priority || "normal",
+      JSON.stringify(data.repeat_config || {}),
+      data.assigned_agent || null,
+      JSON.stringify(data.context || {}),
+    ],
+  );
+  return result.rows[0];
 }
 
 export async function listReminders(filters?: {
@@ -67,9 +54,7 @@ export async function listReminders(filters?: {
   priority?: string;
   limit?: number;
 }) {
-  const pool = getPool();
-  try {
-    const conditions: string[] = [];
+  const conditions: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [];
     let paramIdx = 1;
@@ -86,30 +71,20 @@ export async function listReminders(filters?: {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const limit = filters?.limit || 50;
 
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM reminders ${where} ORDER BY reminder_time ASC LIMIT $${paramIdx}`,
       [...params, limit],
     );
     return result.rows;
-  } finally {
-    await pool.end();
-  }
 }
 
 export async function getReminder(id: number) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(`SELECT * FROM reminders WHERE id = $1`, [id]);
-    return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
+  const result = await query(`SELECT * FROM reminders WHERE id = $1`, [id]);
+  return result.rows[0] || null;
 }
 
 export async function updateReminder(id: number, updates: ReminderUpdate) {
-  const pool = getPool();
-  try {
-    const fields: string[] = [];
+  const fields: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [];
     let paramIdx = 1;
@@ -133,53 +108,35 @@ export async function updateReminder(id: number, updates: ReminderUpdate) {
 
     fields.push(`updated_at = NOW()`);
 
-    const result = await pool.query(
+    const result = await query(
       `UPDATE reminders SET ${fields.join(", ")} WHERE id = $${paramIdx} RETURNING *`,
       [...params, id],
     );
     return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
 }
 
 export async function deleteReminder(id: number) {
-  const pool = getPool();
-  try {
-    await pool.query(`DELETE FROM reminders WHERE id = $1`, [id]);
-    return { deleted: true, id };
-  } finally {
-    await pool.end();
-  }
+  await query(`DELETE FROM reminders WHERE id = $1`, [id]);
+  return { deleted: true, id };
 }
 
 export async function getDueReminders() {
-  const pool = getPool();
-  try {
-    const result = await pool.query(
-      `SELECT * FROM reminders
-       WHERE reminder_time <= NOW() AND status = 'pending'
-       ORDER BY priority ASC, reminder_time ASC
-       LIMIT 20`,
-    );
-    return result.rows;
-  } finally {
-    await pool.end();
-  }
+  const result = await query(
+    `SELECT * FROM reminders
+     WHERE reminder_time <= NOW() AND status = 'pending'
+     ORDER BY priority ASC, reminder_time ASC
+     LIMIT 20`,
+  );
+  return result.rows;
 }
 
 export async function markReminderFired(id: number) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(
-      `UPDATE reminders SET status = 'fired', fired_at = NOW(), updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
-      [id],
-    );
-    return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
+  const result = await query(
+    `UPDATE reminders SET status = 'fired', fired_at = NOW(), updated_at = NOW()
+     WHERE id = $1 RETURNING *`,
+    [id],
+  );
+  return result.rows[0] || null;
 }
 
 // ===========================================================================
@@ -212,28 +169,23 @@ interface TodoUpdate {
 }
 
 export async function createTodo(data: TodoData) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(
-      `INSERT INTO todos (title, description, priority, due_date, due_time, category, tags, assigned_agent, context)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        data.title,
-        data.description || "",
-        data.priority || "medium",
-        data.due_date || null,
-        data.due_time || null,
-        data.category || "general",
-        data.tags || [],
-        data.assigned_agent || null,
-        JSON.stringify(data.context || {}),
-      ],
-    );
-    return result.rows[0];
-  } finally {
-    await pool.end();
-  }
+  const result = await query(
+    `INSERT INTO todos (title, description, priority, due_date, due_time, category, tags, assigned_agent, context)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [
+      data.title,
+      data.description || "",
+      data.priority || "medium",
+      data.due_date || null,
+      data.due_time || null,
+      data.category || "general",
+      data.tags || [],
+      data.assigned_agent || null,
+      JSON.stringify(data.context || {}),
+    ],
+  );
+  return result.rows[0];
 }
 
 export async function listTodos(filters?: {
@@ -244,9 +196,7 @@ export async function listTodos(filters?: {
   assigned_agent?: string;
   limit?: number;
 }) {
-  const pool = getPool();
-  try {
-    const conditions: string[] = [];
+  const conditions: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [];
     let paramIdx = 1;
@@ -276,30 +226,20 @@ export async function listTodos(filters?: {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const limit = filters?.limit || 50;
 
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM todos ${where} ORDER BY created_at DESC LIMIT $${paramIdx}`,
       [...params, limit],
     );
     return result.rows;
-  } finally {
-    await pool.end();
-  }
 }
 
 export async function getTodo(id: number) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(`SELECT * FROM todos WHERE id = $1`, [id]);
-    return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
+  const result = await query(`SELECT * FROM todos WHERE id = $1`, [id]);
+  return result.rows[0] || null;
 }
 
 export async function updateTodo(id: number, updates: TodoUpdate) {
-  const pool = getPool();
-  try {
-    const fields: string[] = [];
+  const fields: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [];
     let paramIdx = 1;
@@ -339,44 +279,34 @@ export async function updateTodo(id: number, updates: TodoUpdate) {
 
     fields.push(`updated_at = NOW()`);
 
-    const result = await pool.query(
+    const result = await query(
       `UPDATE todos SET ${fields.join(", ")} WHERE id = $${paramIdx} RETURNING *`,
       [...params, id],
     );
     return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
 }
 
 export async function deleteTodo(id: number) {
-  const pool = getPool();
-  try {
-    await pool.query(`DELETE FROM todos WHERE id = $1`, [id]);
-    return { deleted: true, id };
-  } finally {
-    await pool.end();
-  }
+  await query(`DELETE FROM todos WHERE id = $1`, [id]);
+  return { deleted: true, id };
 }
 
 export async function getTodoStats() {
-  const pool = getPool();
-  try {
-    const statusResult = await pool.query(
-      `SELECT status, COUNT(*) as count FROM todos GROUP BY status ORDER BY status`,
-    );
-    const priorityResult = await pool.query(
-      `SELECT priority, COUNT(*) as count FROM todos GROUP BY priority ORDER BY priority`,
-    );
-    const overdueResult = await pool.query(
-      `SELECT COUNT(*) as count FROM todos
-       WHERE status NOT IN ('done', 'archived')
-         AND due_date IS NOT NULL
-         AND due_date < CURRENT_DATE`,
-    );
-    const totalResult = await pool.query(
-      `SELECT COUNT(*) as count FROM todos`,
-    );
+  const statusResult = await query(
+    `SELECT status, COUNT(*) as count FROM todos GROUP BY status ORDER BY status`,
+  );
+  const priorityResult = await query(
+    `SELECT priority, COUNT(*) as count FROM todos GROUP BY priority ORDER BY priority`,
+  );
+  const overdueResult = await query(
+    `SELECT COUNT(*) as count FROM todos
+     WHERE status NOT IN ('done', 'archived')
+       AND due_date IS NOT NULL
+       AND due_date < CURRENT_DATE`,
+  );
+  const totalResult = await query(
+    `SELECT COUNT(*) as count FROM todos`,
+  );
 
     const statusMap: Record<string, number> = {};
     for (const row of statusResult.rows) {
@@ -394,9 +324,6 @@ export async function getTodoStats() {
       by_priority: priorityMap,
       overdue: parseInt(overdueResult.rows[0].count, 10),
     };
-  } finally {
-    await pool.end();
-  }
 }
 
 // ===========================================================================
@@ -432,30 +359,25 @@ interface ContactUpdate {
 }
 
 export async function createContact(data: ContactData) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(
-      `INSERT INTO contacts (first_name, last_name, email, phone, company, role, notes, tags, context, is_vip, frequency)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING *`,
-      [
-        data.first_name || null,
-        data.last_name || null,
-        data.email || null,
-        data.phone || null,
-        data.company || null,
-        data.role || null,
-        data.notes || "",
-        data.tags || [],
-        JSON.stringify(data.context || {}),
-        data.is_vip || false,
-        data.frequency || "occasional",
-      ],
-    );
-    return result.rows[0];
-  } finally {
-    await pool.end();
-  }
+  const result = await query(
+    `INSERT INTO contacts (first_name, last_name, email, phone, company, role, notes, tags, context, is_vip, frequency)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING *`,
+    [
+      data.first_name || null,
+      data.last_name || null,
+      data.email || null,
+      data.phone || null,
+      data.company || null,
+      data.role || null,
+      data.notes || "",
+      data.tags || [],
+      JSON.stringify(data.context || {}),
+      data.is_vip || false,
+      data.frequency || "occasional",
+    ],
+  );
+  return result.rows[0];
 }
 
 export async function listContacts(filters?: {
@@ -465,9 +387,7 @@ export async function listContacts(filters?: {
   search?: string;
   limit?: number;
 }) {
-  const pool = getPool();
-  try {
-    const conditions: string[] = [];
+  const conditions: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [];
     let paramIdx = 1;
@@ -498,30 +418,20 @@ export async function listContacts(filters?: {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const limit = filters?.limit || 50;
 
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM contacts ${where} ORDER BY last_interaction DESC NULLS LAST, created_at DESC LIMIT $${paramIdx}`,
       [...params, limit],
     );
     return result.rows;
-  } finally {
-    await pool.end();
-  }
 }
 
 export async function getContact(id: number) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(`SELECT * FROM contacts WHERE id = $1`, [id]);
-    return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
+  const result = await query(`SELECT * FROM contacts WHERE id = $1`, [id]);
+  return result.rows[0] || null;
 }
 
 export async function updateContact(id: number, updates: ContactUpdate) {
-  const pool = getPool();
-  try {
-    const fields: string[] = [];
+  const fields: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [];
     let paramIdx = 1;
@@ -553,68 +463,50 @@ export async function updateContact(id: number, updates: ContactUpdate) {
 
     fields.push(`updated_at = NOW()`);
 
-    const result = await pool.query(
+    const result = await query(
       `UPDATE contacts SET ${fields.join(", ")} WHERE id = $${paramIdx} RETURNING *`,
       [...params, id],
     );
     return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
 }
 
 export async function deleteContact(id: number) {
-  const pool = getPool();
-  try {
-    await pool.query(`DELETE FROM contacts WHERE id = $1`, [id]);
-    return { deleted: true, id };
-  } finally {
-    await pool.end();
-  }
+  await query(`DELETE FROM contacts WHERE id = $1`, [id]);
+  return { deleted: true, id };
 }
 
-export async function searchContacts(query: string) {
-  const pool = getPool();
-  try {
-    const searchPattern = `%${query}%`;
-    const result = await pool.query(
-      `SELECT * FROM contacts
-       WHERE first_name ILIKE $1
-          OR last_name ILIKE $1
-          OR email ILIKE $1
-          OR company ILIKE $1
-          OR notes ILIKE $1
-       ORDER BY
-         CASE
-           WHEN email ILIKE $1 THEN 1
-           WHEN first_name ILIKE $1 OR last_name ILIKE $1 THEN 2
-           WHEN company ILIKE $1 THEN 3
-           ELSE 4
-         END,
-         last_interaction DESC NULLS LAST
-       LIMIT 20`,
-      [searchPattern],
-    );
-    return result.rows;
-  } finally {
-    await pool.end();
-  }
+export async function searchContacts(searchStr: string) {
+  const searchPattern = `%${searchStr}%`;
+  const result = await query(
+    `SELECT * FROM contacts
+     WHERE first_name ILIKE $1
+        OR last_name ILIKE $1
+        OR email ILIKE $1
+        OR company ILIKE $1
+        OR notes ILIKE $1
+     ORDER BY
+       CASE
+         WHEN email ILIKE $1 THEN 1
+         WHEN first_name ILIKE $1 OR last_name ILIKE $1 THEN 2
+         WHEN company ILIKE $1 THEN 3
+         ELSE 4
+       END,
+       last_interaction DESC NULLS LAST
+     LIMIT 20`,
+    [searchPattern],
+  );
+  return result.rows;
 }
 
 export async function recordInteraction(id: number) {
-  const pool = getPool();
-  try {
-    const result = await pool.query(
-      `UPDATE contacts
-       SET interaction_count = interaction_count + 1,
-           last_interaction = NOW(),
-           updated_at = NOW()
-       WHERE id = $1
-       RETURNING *`,
-      [id],
-    );
-    return result.rows[0] || null;
-  } finally {
-    await pool.end();
-  }
+  const result = await query(
+    `UPDATE contacts
+     SET interaction_count = interaction_count + 1,
+         last_interaction = NOW(),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id],
+  );
+  return result.rows[0] || null;
 }

@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
 
 export const maxDuration = 30; // 30s max for cron handler
 
@@ -25,12 +26,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
     // 1. Get all due reminders
-    const dueResult = await pool.query(
+    const dueResult = await query(
       `SELECT * FROM reminders
        WHERE reminder_time <= NOW() AND status = 'pending'
        ORDER BY priority ASC, reminder_time ASC
@@ -39,14 +36,13 @@ export async function GET(request: Request) {
     const dueReminders = dueResult.rows;
 
     if (dueReminders.length === 0) {
-      await pool.end();
       return NextResponse.json({ processed: 0, message: "No due reminders" });
     }
 
     // 2. Mark each as fired
     const fired: Record<string, unknown>[] = [];
     for (const reminder of dueReminders) {
-      const updateResult = await pool.query(
+      const updateResult = await query(
         `UPDATE reminders
          SET status = 'fired', fired_at = NOW(), updated_at = NOW()
          WHERE id = $1
@@ -57,7 +53,7 @@ export async function GET(request: Request) {
 
       // 3. Log to automation_logs (fire-and-forget — existing table)
       try {
-        await pool.query(
+        await query(
           `INSERT INTO automation_logs (automation_id, status, result, created_at)
            VALUES (0, 'success', $1, NOW())`,
           [JSON.stringify({
@@ -73,8 +69,6 @@ export async function GET(request: Request) {
         // automation_logs insert is non-critical
       }
     }
-
-    await pool.end();
 
     return NextResponse.json({
       processed: fired.length,

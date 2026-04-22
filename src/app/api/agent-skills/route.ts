@@ -3,20 +3,11 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query, getPool } from "@/lib/db";
 
 // --- GET /api/agent-skills?agent_id=... ---
 // Returns all skills equipped by an agent
 export async function GET(req: Request) {
-  const pool = getPool();
   try {
     const { searchParams } = new URL(req.url);
     const agentId = searchParams.get("agent_id");
@@ -25,7 +16,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: "agent_id is required" }, { status: 400 });
     }
 
-    const result = await pool.query(
+    const result = await query(
       `SELECT as2.*, s.name, s.display_name, s.description, s.category, s.difficulty,
               s.performance_score, s.total_uses, s.avg_rating
        FROM agent_skills as2
@@ -39,14 +30,11 @@ export async function GET(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch agent skills";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }
 
 // --- POST /api/agent-skills — Equip/unequip skills for an agent ---
 export async function POST(req: Request) {
-  const pool = getPool();
   try {
     const body = await req.json();
     const { agent_id, skill_ids, unequip_skill_ids } = body;
@@ -55,7 +43,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "agent_id is required" }, { status: 400 });
     }
 
-    const client = await pool.connect();
+    const client = await getPool().connect();
     try {
       await client.query("BEGIN");
 
@@ -85,7 +73,7 @@ export async function POST(req: Request) {
       await client.query("COMMIT");
 
       // Return updated list
-      const result = await pool.query(
+      const result = await query(
         `SELECT as2.*, s.name, s.display_name, s.description, s.category
          FROM agent_skills as2 JOIN skills s ON as2.skill_id = s.id
          WHERE as2.agent_id = $1 AND as2.is_equipped = true
@@ -103,7 +91,5 @@ export async function POST(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update agent skills";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

@@ -8,15 +8,7 @@
 // workflows) and apply them in future conversations.
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
+import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,17 +63,15 @@ export async function recordLearning(params: {
 }): Promise<LearningInsight | null> {
   if (!process.env.SUPABASE_DB_URL) return null;
 
-  const pool = getPool();
   try {
     const conf = Math.min(1, Math.max(0, params.confidence ?? 0.5));
 
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO learning_insights (agent_id, insight_type, content, source, confidence)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at`,
       [params.agentId, params.insightType, params.content, params.source, conf],
     );
-    await pool.end();
 
     if (result.rows.length > 0) return mapRow(result.rows[0]);
     return null;
@@ -102,20 +92,19 @@ export async function getAgentInsights(
 ): Promise<LearningInsight[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    let query: string;
+    let sql: string;
     let params: (string | number)[];
 
     if (type) {
-      query = `SELECT id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at
+      sql = `SELECT id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at
                FROM learning_insights
                WHERE agent_id = $1 AND insight_type = $2
                ORDER BY confidence DESC, updated_at DESC
                LIMIT $3`;
       params = [agentId, type, limit];
     } else {
-      query = `SELECT id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at
+      sql = `SELECT id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at
                FROM learning_insights
                WHERE agent_id = $1
                ORDER BY confidence DESC, updated_at DESC
@@ -123,8 +112,7 @@ export async function getAgentInsights(
       params = [agentId, limit];
     }
 
-    const result = await pool.query(query, params);
-    await pool.end();
+    const result = await query(sql, params);
     return result.rows.map(mapRow);
   } catch (err) {
     console.warn("[SelfLearning] Failed to get agent insights:", err);
@@ -164,8 +152,7 @@ export async function getInsightsForPrompt(agentId: string, maxInsights = 10): P
 async function markInsightsApplied(insightIds: string[]): Promise<void> {
   if (insightIds.length === 0) return;
   try {
-    const pool = getPool();
-    await pool.query(
+    await query(
       `UPDATE learning_insights
        SET application_count = application_count + 1,
            last_applied_at = NOW(),
@@ -174,7 +161,6 @@ async function markInsightsApplied(insightIds: string[]): Promise<void> {
        WHERE id = ANY($1::text[])`,
       [insightIds],
     );
-    await pool.end();
   } catch { /* non-critical */ }
 }
 
@@ -185,12 +171,11 @@ async function markInsightsApplied(insightIds: string[]): Promise<void> {
 export async function applyInsight(id: string): Promise<boolean> {
   if (!process.env.SUPABASE_DB_URL) return false;
 
-  const pool = getPool();
   try {
     const numId = parseInt(id, 10);
     if (isNaN(numId)) return false;
 
-    await pool.query(
+    await query(
       `UPDATE learning_insights
        SET application_count = application_count + 1,
            last_applied_at = NOW(),
@@ -199,7 +184,6 @@ export async function applyInsight(id: string): Promise<boolean> {
        WHERE id = $1`,
       [numId],
     );
-    await pool.end();
     return true;
   } catch (err) {
     console.warn("[SelfLearning] Failed to apply insight:", err);
@@ -329,9 +313,8 @@ export async function detectPatterns(
 export async function decayInsights(): Promise<number> {
   if (!process.env.SUPABASE_DB_URL) return 0;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `UPDATE learning_insights
        SET confidence = GREATEST(0.1, confidence - 0.10),
            updated_at = NOW()
@@ -339,7 +322,6 @@ export async function decayInsights(): Promise<number> {
           OR (last_applied_at IS NOT NULL AND last_applied_at < NOW() - INTERVAL '30 days'))
          AND confidence > 0.1`,
     );
-    await pool.end();
     return result.rowCount || 0;
   } catch (err) {
     console.warn("[SelfLearning] Failed to decay insights:", err);
@@ -362,17 +344,14 @@ export async function getLearningStats(): Promise<{
     return { totalInsights: 0, byAgent: {}, byType: {}, avgConfidence: 0, topApplied: 0 };
   }
 
-  const pool = getPool();
   try {
-    const totalResult = await pool.query(`SELECT COUNT(*) as count FROM learning_insights`);
-    const agentResult = await pool.query(`SELECT agent_id, COUNT(*) as count FROM learning_insights GROUP BY agent_id ORDER BY count DESC`);
-    const typeResult = await pool.query(`SELECT insight_type, COUNT(*) as count FROM learning_insights GROUP BY insight_type ORDER BY count DESC`);
-    const confResult = await pool.query(`SELECT AVG(confidence)::numeric as avg_conf FROM learning_insights`);
-    const appliedResult = await pool.query(
+    const totalResult = await query(`SELECT COUNT(*) as count FROM learning_insights`);
+    const agentResult = await query(`SELECT agent_id, COUNT(*) as count FROM learning_insights GROUP BY agent_id ORDER BY count DESC`);
+    const typeResult = await query(`SELECT insight_type, COUNT(*) as count FROM learning_insights GROUP BY insight_type ORDER BY count DESC`);
+    const confResult = await query(`SELECT AVG(confidence)::numeric as avg_conf FROM learning_insights`);
+    const appliedResult = await query(
       `SELECT COALESCE(SUM(application_count), 0) as total FROM learning_insights`,
     );
-
-    await pool.end();
 
     const byAgent: Record<string, number> = {};
     for (const row of agentResult.rows) {

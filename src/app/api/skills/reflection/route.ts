@@ -5,15 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 interface Reflection {
   skill_id: string;
@@ -26,14 +18,12 @@ interface Reflection {
 
 // --- POST /api/skills/reflection ---
 export async function POST(req: Request) {
-  const pool = getPool();
-
   try {
     const body = await req.json();
     const { skill_id } = body as { skill_id?: string };
 
     // 1. Get all skills (or a specific one) that have evaluations
-    const skillsResult = await pool.query(
+    const skillsResult = await query(
       `SELECT s.id, s.name, s.display_name, s.category, s.performance_score
        FROM skills s
        WHERE s.is_active = true
@@ -57,7 +47,7 @@ export async function POST(req: Request) {
       const sid = skill.id as string;
 
       // 2. Get evaluations for this skill, ordered by time
-      const evalsResult = await pool.query(
+      const evalsResult = await query(
         `SELECT overall_score, relevance_score, accuracy_score, completeness_score,
                 clarity_score, efficiency_score, weaknesses, created_at
          FROM skill_evaluations
@@ -150,7 +140,7 @@ export async function POST(req: Request) {
     try {
       for (const ref of reflections) {
         if (ref.needs_evolution) {
-          await pool.query(
+          await query(
             `INSERT INTO skill_evolution (skill_id, change_type, previous_state, new_state, change_reason, trigger_agent_id, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
             [
@@ -192,7 +182,5 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "Reflection failed";
     console.error("[SkillReflection] Error:", error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

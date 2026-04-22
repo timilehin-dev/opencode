@@ -8,20 +8,10 @@
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 // --- POST /api/skills/evaluate ---
 export async function POST(req: Request) {
-  const pool = getPool();
-
   try {
     const body = await req.json();
     const {
@@ -52,7 +42,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch the skill details
-    const skillResult = await pool.query(
+    const skillResult = await query(
       `SELECT id, name, display_name, description, category, difficulty, prompt_template, performance_score
        FROM skills WHERE id = $1`,
       [skill_id]
@@ -65,7 +55,7 @@ export async function POST(req: Request) {
     const skill = skillResult.rows[0];
 
     // 2. Create a skill_execution record for logging/analytics
-    await pool.query(
+    await query(
       `INSERT INTO skill_executions (skill_id, agent_id, task_description, duration_ms, status, created_at)
        VALUES ($1, $2, $3, $4, $5, NOW())`,
       [
@@ -178,7 +168,7 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
     );
 
     // 6. Save to skill_evaluations table (column names must match actual DB schema)
-    const evalResult = await pool.query(
+    const evalResult = await query(
       `INSERT INTO skill_evaluations
         (skill_id, agent_id, task_id, relevance_score, accuracy_score, completeness_score, clarity_score, efficiency_score,
          overall_score, strengths, weaknesses, improvement_suggestions, created_at)
@@ -211,7 +201,7 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
       );
 
       if (hasCriticalWeakness && overall_score < 60) {
-        await pool.query(
+        await query(
           `INSERT INTO skill_evolution
             (skill_id, change_type, previous_state, new_state, change_reason, trigger_agent_id, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
@@ -231,7 +221,7 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
 
     // 8. Update skill performance_score (rolling average)
     try {
-      const avgResult = await pool.query(
+      const avgResult = await query(
         `SELECT AVG(overall_score) as avg_score, COUNT(*) as eval_count
          FROM skill_evaluations WHERE skill_id = $1`,
         [skill_id]
@@ -239,7 +229,7 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
 
       if (avgResult.rows.length > 0) {
         const newPerfScore = Number(avgResult.rows[0].avg_score) || 0;
-        await pool.query(
+        await query(
           `UPDATE skills SET performance_score = $1, updated_at = NOW() WHERE id = $2`,
           [newPerfScore, skill_id]
         );
@@ -271,7 +261,5 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
     const message = error instanceof Error ? error.message : "Evaluation failed";
     console.error("[SkillEvaluate] Error:", error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

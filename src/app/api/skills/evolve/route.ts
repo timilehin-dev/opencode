@@ -6,15 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 // --- POST /api/skills/evolve ---
 export async function POST(req: Request) {
@@ -42,14 +34,12 @@ export async function POST(req: Request) {
 
 // --- GET /api/skills/evolve/pending ---
 export async function GET() {
-  const pool = getPool();
-
   try {
     // Find skills that need evolution:
     // - avg overall_score < 50
     // - eval_count >= 3
     // - no evolution in last 24h
-    const pendingResult = await pool.query(
+    const pendingResult = await query(
       `SELECT
           s.id,
           s.name,
@@ -99,7 +89,5 @@ export async function GET() {
     const message = error instanceof Error ? error.message : "Failed to fetch pending evolutions";
     console.error("[SkillEvolve] Pending query error:", error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

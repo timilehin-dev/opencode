@@ -17,6 +17,7 @@ import { allTools } from "@/lib/tools";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { AGENT_ROUTINES_SCHEMA } from "@/lib/agent-routines";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
+import { query } from "@/lib/db";
 
 export const maxDuration = 300; // 5 min for routine execution
 
@@ -48,12 +49,8 @@ export async function GET(request: Request) {
   };
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
     // Get due routines (active, next_run <= now)
-    const { rows } = await pool.query(`
+    const { rows } = await query(`
       SELECT * FROM agent_routines
       WHERE is_active = true
         AND next_run <= NOW()
@@ -98,7 +95,7 @@ export async function GET(request: Request) {
 
         // Update next_run
         const nextRun = new Date(Date.now() + intervalMinutes * 60 * 1000);
-        await pool.query(
+        await query(
           "UPDATE agent_routines SET last_run = NOW(), next_run = $1, last_result = $2 WHERE id = $3",
           [nextRun.toISOString(), routineResult.success ? routineResult.text.slice(0, 2000) : routineResult.error, routineId],
         );
@@ -153,8 +150,6 @@ export async function GET(request: Request) {
         });
       }
     }
-
-    await pool.end();
   } catch (error) {
     console.error("[CRON:agent-routines] Error:", error);
   }
@@ -175,15 +170,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No database configured" }, { status: 500 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
     switch (action) {
       case "setup": {
         // Create the agent_routines table
-        await pool.query(AGENT_ROUTINES_SCHEMA);
-        await pool.end();
+        await query(AGENT_ROUTINES_SCHEMA);
         return NextResponse.json({ success: true, message: "agent_routines table created" });
       }
 
@@ -199,42 +189,38 @@ export async function POST(req: Request) {
         };
 
         if (!agentId || !name || !task) {
-          await pool.end();
           return NextResponse.json({ error: "Missing agentId, name, or task" }, { status: 400 });
         }
 
         const validAgents = getAllAgents().map((a) => a.id);
         if (!validAgents.includes(agentId)) {
-          await pool.end();
           return NextResponse.json({ error: `Invalid agent: ${agentId}` }, { status: 400 });
         }
 
         const interval = intervalMinutes || 60;
         const nextRun = new Date(Date.now() + interval * 60 * 1000);
 
-        const result = await pool.query(
+        const result = await query(
           `INSERT INTO agent_routines (agent_id, name, task, context, interval_minutes, priority, is_active, next_run)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING *`,
           [agentId, name, task, context || "", interval, priority || "medium", isActive !== false, nextRun.toISOString()],
         );
 
-        await pool.end();
         return NextResponse.json({ success: true, data: result.rows[0] });
       }
 
       case "list": {
         const { agentId } = body as { agentId?: string };
-        let query = "SELECT * FROM agent_routines ORDER BY priority DESC, next_run ASC";
+        let queryString = "SELECT * FROM agent_routines ORDER BY priority DESC, next_run ASC";
         const params: unknown[] = [];
 
         if (agentId) {
-          query = "SELECT * FROM agent_routines WHERE agent_id = $1 ORDER BY priority DESC, next_run ASC";
+          queryString = "SELECT * FROM agent_routines WHERE agent_id = $1 ORDER BY priority DESC, next_run ASC";
           params.push(agentId);
         }
 
-        const result = await pool.query(query, params);
-        await pool.end();
+        const result = await query(queryString, params);
         return NextResponse.json({ success: true, data: result.rows });
       }
 
@@ -250,7 +236,6 @@ export async function POST(req: Request) {
         };
 
         if (!routineId) {
-          await pool.end();
           return NextResponse.json({ error: "Missing routineId" }, { status: 400 });
         }
 
@@ -269,31 +254,26 @@ export async function POST(req: Request) {
         if (updates.isActive !== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(updates.isActive); }
 
         if (setClauses.length === 0) {
-          await pool.end();
           return NextResponse.json({ error: "No fields to update" }, { status: 400 });
         }
 
         values.push(routineId);
-        const query = `UPDATE agent_routines SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING *`;
-        const result = await pool.query(query, values);
-        await pool.end();
+        const queryString = `UPDATE agent_routines SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING *`;
+        const result = await query(queryString, values);
         return NextResponse.json({ success: true, data: result.rows[0] });
       }
 
       case "delete": {
         const { routineId } = body as { routineId?: number };
         if (!routineId) {
-          await pool.end();
           return NextResponse.json({ error: "Missing routineId" }, { status: 400 });
         }
 
-        await pool.query("DELETE FROM agent_routines WHERE id = $1", [routineId]);
-        await pool.end();
+        await query("DELETE FROM agent_routines WHERE id = $1", [routineId]);
         return NextResponse.json({ success: true, deleted: true });
       }
 
       default:
-        await pool.end();
         return NextResponse.json({ error: `Unknown action. Use setup, create, list, update, or delete.` }, { status: 400 });
     }
   } catch (error) {

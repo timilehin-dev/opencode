@@ -26,21 +26,7 @@ export interface TaskBoardItem {
   completedAt: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Database helpers
-// ---------------------------------------------------------------------------
-
-function getPgPool() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const connectionString = process.env.SUPABASE_DB_URL;
-    if (!connectionString) return null;
-    return new Pool({ connectionString });
-  } catch {
-    return null;
-  }
-}
+import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Task Board Schema (CREATE TABLE IF NOT EXISTS)
@@ -88,11 +74,8 @@ export async function createTask(task: {
   tags?: string[];
   delegationChain?: string[];
 }): Promise<TaskBoardItem | null> {
-  const pool = getPgPool();
-  if (!pool) return null;
-
   try {
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO task_board (title, description, status, priority, assigned_agent, created_by, delegation_chain, context, parent_task_id, deadline, tags)
        VALUES ($1, $2, 'backlog', $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
@@ -109,7 +92,6 @@ export async function createTask(task: {
         JSON.stringify(task.tags || []),
       ],
     );
-    await pool.end();
 
     if (result.rows.length > 0) return mapRow(result.rows[0]);
     return null;
@@ -124,9 +106,6 @@ export async function updateTask(
   taskId: number,
   updates: Partial<Pick<TaskBoardItem, "title" | "description" | "status" | "priority" | "assignedAgent" | "context" | "deadline" | "tags">>,
 ): Promise<TaskBoardItem | null> {
-  const pool = getPgPool();
-  if (!pool) return null;
-
   try {
     const setClauses: string[] = ["updated_at = NOW()"];
     const values: unknown[] = [];
@@ -149,9 +128,8 @@ export async function updateTask(
     if (updates.tags !== undefined) { setClauses.push(`tags = $${paramIdx++}`); values.push(JSON.stringify(updates.tags)); }
 
     values.push(taskId);
-    const query = `UPDATE task_board SET ${setClauses.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
-    const result = await pool.query(query, values);
-    await pool.end();
+    const querySql = `UPDATE task_board SET ${setClauses.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
+    const result = await query(querySql, values);
 
     if (result.rows.length > 0) return mapRow(result.rows[0]);
     return null;
@@ -170,9 +148,6 @@ export async function getTasks(filters?: {
   parentTaskId?: number | null;
   limit?: number;
 }): Promise<TaskBoardItem[]> {
-  const pool = getPgPool();
-  if (!pool) return [];
-
   try {
     const conditions: string[] = [];
     const values: unknown[] = [];
@@ -188,14 +163,13 @@ export async function getTasks(filters?: {
     const limit = filters?.limit || 100;
     values.push(limit);
 
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM task_board ${where} ORDER BY
         CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
         created_at DESC
        LIMIT $${paramIdx}`,
       values,
     );
-    await pool.end();
 
     return result.rows.map(mapRow);
   } catch (error) {
@@ -213,11 +187,8 @@ export async function getTaskBoardSummary(): Promise<{
   total: number;
   highPriority: number;
 }> {
-  const pool = getPgPool();
-  if (!pool) return { backlog: 0, in_progress: 0, waiting: 0, done: 0, total: 0, highPriority: 0 };
-
   try {
-    const result = await pool.query(`
+    const result = await query(`
       SELECT
         COUNT(*) FILTER (WHERE status = 'backlog') AS backlog,
         COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress,
@@ -227,7 +198,6 @@ export async function getTaskBoardSummary(): Promise<{
         COUNT(*) FILTER (WHERE priority = 'high' AND status != 'done') AS high_priority
       FROM task_board
     `);
-    await pool.end();
 
     const row = result.rows[0];
     return {
@@ -246,12 +216,8 @@ export async function getTaskBoardSummary(): Promise<{
 
 /** Delete a task. */
 export async function deleteTask(taskId: number): Promise<boolean> {
-  const pool = getPgPool();
-  if (!pool) return false;
-
   try {
-    await pool.query("DELETE FROM task_board WHERE id = $1", [taskId]);
-    await pool.end();
+    await query("DELETE FROM task_board WHERE id = $1", [taskId]);
     return true;
   } catch (error) {
     console.error("[TaskBoard] Failed to delete task:", error);

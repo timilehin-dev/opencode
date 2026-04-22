@@ -8,15 +8,7 @@
 // notification-delivery.ts (webhook config).
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
+import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,9 +72,8 @@ export async function sendProactiveNotification(params: {
 }): Promise<ProactiveNotification | null> {
   if (!process.env.SUPABASE_DB_URL) return null;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata, is_read, created_at`,
@@ -98,7 +89,6 @@ export async function sendProactiveNotification(params: {
         JSON.stringify(params.metadata || {}),
       ],
     );
-    await pool.end();
 
     if (result.rows.length > 0) return mapRow(result.rows[0]);
     return null;
@@ -115,9 +105,8 @@ export async function sendProactiveNotification(params: {
 export async function getUnreadNotifications(limit = 20): Promise<ProactiveNotification[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT id, agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata, is_read, created_at
        FROM proactive_notifications
        WHERE is_read = FALSE
@@ -127,7 +116,6 @@ export async function getUnreadNotifications(limit = 20): Promise<ProactiveNotif
        LIMIT $1`,
       [limit],
     );
-    await pool.end();
     return result.rows.map(mapRow);
   } catch (err) {
     console.warn("[ProactiveNotifications] Failed to fetch unread:", err);
@@ -142,16 +130,14 @@ export async function getUnreadNotifications(limit = 20): Promise<ProactiveNotif
 export async function getRecentNotifications(limit = 50): Promise<ProactiveNotification[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT id, agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata, is_read, created_at
        FROM proactive_notifications
        ORDER BY created_at DESC
        LIMIT $1`,
       [limit],
     );
-    await pool.end();
     return result.rows.map(mapRow);
   } catch (err) {
     console.warn("[ProactiveNotifications] Failed to fetch recent:", err);
@@ -166,16 +152,14 @@ export async function getRecentNotifications(limit = 50): Promise<ProactiveNotif
 export async function markNotificationRead(id: string): Promise<boolean> {
   if (!process.env.SUPABASE_DB_URL) return false;
 
-  const pool = getPool();
   try {
     const numId = parseInt(id, 10);
     if (isNaN(numId)) return false;
 
-    await pool.query(
+    await query(
       `UPDATE proactive_notifications SET is_read = TRUE WHERE id = $1`,
       [numId],
     );
-    await pool.end();
     return true;
   } catch (err) {
     console.warn("[ProactiveNotifications] Failed to mark read:", err);
@@ -190,12 +174,10 @@ export async function markNotificationRead(id: string): Promise<boolean> {
 export async function markAllRead(): Promise<number> {
   if (!process.env.SUPABASE_DB_URL) return 0;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `UPDATE proactive_notifications SET is_read = TRUE WHERE is_read = FALSE`,
     );
-    await pool.end();
     return result.rowCount || 0;
   } catch (err) {
     console.warn("[ProactiveNotifications] Failed to mark all read:", err);
@@ -210,12 +192,10 @@ export async function markAllRead(): Promise<number> {
 export async function getNotificationCount(): Promise<number> {
   if (!process.env.SUPABASE_DB_URL) return 0;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT COUNT(*) as count FROM proactive_notifications WHERE is_read = FALSE`,
     );
-    await pool.end();
     return parseInt(result.rows[0]?.count || "0", 10);
   } catch (err) {
     console.warn("[ProactiveNotifications] Failed to get count:", err);
@@ -230,9 +210,8 @@ export async function getNotificationCount(): Promise<number> {
 export async function getNotificationsSince(since: string, limit = 50): Promise<ProactiveNotification[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT id, agent_id, agent_name, type, title, body, priority, action_url, action_label, metadata, is_read, created_at
        FROM proactive_notifications
        WHERE created_at > $1
@@ -240,7 +219,6 @@ export async function getNotificationsSince(since: string, limit = 50): Promise<
        LIMIT $2`,
       [since, limit],
     );
-    await pool.end();
     return result.rows.map(mapRow);
   } catch (err) {
     console.warn("[ProactiveNotifications] Failed to fetch since:", err);

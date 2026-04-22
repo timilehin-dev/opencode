@@ -3,15 +3,7 @@
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
+import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,9 +40,8 @@ export async function createTask(params: {
 }): Promise<number> {
   if (!process.env.SUPABASE_DB_URL) return -1;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id`,
@@ -67,8 +58,6 @@ export async function createTask(params: {
   } catch (err) {
     console.warn("[TaskQueue] Failed to create task:", err);
     return -1;
-  } finally {
-    await pool.end();
   }
 }
 
@@ -79,10 +68,9 @@ export async function createTask(params: {
 export async function getNextTask(agentId: string): Promise<AgentTask | null> {
   if (!process.env.SUPABASE_DB_URL) return null;
 
-  const pool = getPool();
   try {
     // Priority order: critical > high > medium > low, then by created_at ASC
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM agent_tasks
        WHERE agent_id = $1 AND status = 'pending'
        ORDER BY
@@ -103,8 +91,6 @@ export async function getNextTask(agentId: string): Promise<AgentTask | null> {
   } catch (err) {
     console.warn("[TaskQueue] Failed to get next task:", err);
     return null;
-  } finally {
-    await pool.end();
   }
 }
 
@@ -115,9 +101,8 @@ export async function getNextTask(agentId: string): Promise<AgentTask | null> {
 export async function getAnyPendingTask(): Promise<AgentTask | null> {
   if (!process.env.SUPABASE_DB_URL) return null;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM agent_tasks
        WHERE status = 'pending'
        ORDER BY
@@ -137,8 +122,6 @@ export async function getAnyPendingTask(): Promise<AgentTask | null> {
   } catch (err) {
     console.warn("[TaskQueue] Failed to get any pending task:", err);
     return null;
-  } finally {
-    await pool.end();
   }
 }
 
@@ -149,16 +132,13 @@ export async function getAnyPendingTask(): Promise<AgentTask | null> {
 export async function startTask(taskId: number): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
-    await pool.query(
+    await query(
       `UPDATE agent_tasks SET status = 'running', started_at = NOW() WHERE id = $1`,
       [taskId],
     );
   } catch (err) {
     console.warn("[TaskQueue] Failed to start task:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -173,9 +153,8 @@ export async function completeTask(
 ): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
-    await pool.query(
+    await query(
       `UPDATE agent_tasks
        SET status = 'completed', result = $1, tool_calls = $2, completed_at = NOW()
        WHERE id = $3`,
@@ -187,8 +166,6 @@ export async function completeTask(
     );
   } catch (err) {
     console.warn("[TaskQueue] Failed to complete task:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -199,9 +176,8 @@ export async function completeTask(
 export async function failTask(taskId: number, error: string): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
-    await pool.query(
+    await query(
       `UPDATE agent_tasks
        SET status = 'failed', error = $1, completed_at = NOW()
        WHERE id = $2`,
@@ -209,8 +185,6 @@ export async function failTask(taskId: number, error: string): Promise<void> {
     );
   } catch (err) {
     console.warn("[TaskQueue] Failed to mark task as failed:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -221,9 +195,8 @@ export async function failTask(taskId: number, error: string): Promise<void> {
 export async function cancelTask(taskId: number): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
-    await pool.query(
+    await query(
       `UPDATE agent_tasks
        SET status = 'cancelled', completed_at = NOW()
        WHERE id = $1 AND status = 'pending'`,
@@ -231,8 +204,6 @@ export async function cancelTask(taskId: number): Promise<void> {
     );
   } catch (err) {
     console.warn("[TaskQueue] Failed to cancel task:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -243,9 +214,8 @@ export async function cancelTask(taskId: number): Promise<void> {
 export async function getRecentTasks(limit = 20): Promise<AgentTask[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM agent_tasks
        ORDER BY created_at DESC
        LIMIT $1`,
@@ -255,8 +225,6 @@ export async function getRecentTasks(limit = 20): Promise<AgentTask[]> {
   } catch (err) {
     console.warn("[TaskQueue] Failed to fetch recent tasks:", err);
     return [];
-  } finally {
-    await pool.end();
   }
 }
 
@@ -267,16 +235,13 @@ export async function getRecentTasks(limit = 20): Promise<AgentTask[]> {
 export async function getPendingTaskCount(): Promise<number> {
   if (!process.env.SUPABASE_DB_URL) return 0;
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'pending'`,
     );
     return Number(result.rows[0]?.count || 0);
   } catch (err) {
     console.warn("[TaskQueue] Failed to count pending tasks:", err);
     return 0;
-  } finally {
-    await pool.end();
   }
 }

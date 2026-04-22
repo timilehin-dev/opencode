@@ -103,39 +103,19 @@ export interface A2ATask {
 }
 
 // ---------------------------------------------------------------------------
-// Database helpers — module-level singleton pool with proper config
+// Database helpers — use shared pool from @/lib/db
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { Pool } = require("pg");
-
-let _a2aPool: ReturnType<typeof Pool> | null = null;
-
-function getA2APool(): ReturnType<typeof Pool> | null {
-  if (_a2aPool) return _a2aPool;
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) {
-    console.warn("[A2A] SUPABASE_DB_URL not configured — A2A features disabled");
-    return null;
-  }
-  _a2aPool = new Pool({
-    connectionString,
-    max: 5,
-    idleTimeoutMillis: 10000,
-  });
-
-  _a2aPool.on("error", (err: Error) => {
-    console.error("[A2A] Unexpected pool error:", err.message);
-  });
-
-  return _a2aPool;
-}
+import { query as dbQuery } from "@/lib/db";
 
 async function queryDb<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-  const pool = getA2APool();
-  if (!pool) return [];
-  const result = await pool.query(sql, params);
-  return result.rows as T[];
+  try {
+    const result = await dbQuery(sql, params);
+    return result.rows as T[];
+  } catch (error) {
+    console.error("[A2A] Query failed:", error);
+    return [];
+  }
 }
 
 function parseJsonSafely(val: unknown): Record<string, unknown> {

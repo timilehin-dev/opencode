@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { PHASE2_SCHEMA_SQL } from "@/lib/supabase";
+import { query } from "@/lib/db";
 
 export async function POST(request: Request) {
   const setupSecret = process.env.SETUP_SECRET;
@@ -26,12 +27,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
-    await pool.query(PHASE2_SCHEMA_SQL);
-    await pool.end();
+    await query(PHASE2_SCHEMA_SQL);
 
     return NextResponse.json({
       success: true,

@@ -6,17 +6,9 @@
 // DELETE — Delete a workflow
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
 import { NextRequest } from "next/server";
 import { getWorkflowStatus } from "@/lib/workflow-engine";
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 export async function GET(
   _req: NextRequest,
@@ -53,42 +45,36 @@ export async function PATCH(
       );
     }
 
-    const pool = getPool();
+    const result = await query(
+      `UPDATE agent_workflows SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, status`,
+      [status, id],
+    );
 
-    try {
-      const result = await pool.query(
-        `UPDATE agent_workflows SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, status`,
-        [status, id],
-      );
-
-      if (result.rows.length === 0) {
-        return Response.json({ success: false, error: "Workflow not found" }, { status: 404 });
-      }
-
-      // If cancelling, also cancel pending steps
-      if (status === "cancelled") {
-        await pool.query(
-          `UPDATE workflow_steps SET status = 'skipped' WHERE workflow_id = $1 AND status IN ('pending', 'running')`,
-          [id],
-        );
-      }
-
-      // If resuming, reset failed steps to pending (for retry)
-      if (status === "running") {
-        await pool.query(
-          `UPDATE workflow_steps SET status = 'pending', started_at = NULL, error_message = NULL
-           WHERE workflow_id = $1 AND status = 'failed' AND attempts < max_attempts`,
-          [id],
-        );
-      }
-
-      return Response.json({
-        success: true,
-        data: { id: result.rows[0].id, status: result.rows[0].status },
-      });
-    } finally {
-      await pool.end();
+    if (result.rows.length === 0) {
+      return Response.json({ success: false, error: "Workflow not found" }, { status: 404 });
     }
+
+    // If cancelling, also cancel pending steps
+    if (status === "cancelled") {
+      await query(
+        `UPDATE workflow_steps SET status = 'skipped' WHERE workflow_id = $1 AND status IN ('pending', 'running')`,
+        [id],
+      );
+    }
+
+    // If resuming, reset failed steps to pending (for retry)
+    if (status === "running") {
+      await query(
+        `UPDATE workflow_steps SET status = 'pending', started_at = NULL, error_message = NULL
+         WHERE workflow_id = $1 AND status = 'failed' AND attempts < max_attempts`,
+        [id],
+      );
+    }
+
+    return Response.json({
+      success: true,
+      data: { id: result.rows[0].id, status: result.rows[0].status },
+    });
   } catch (error) {
     console.error("[WorkflowDetailAPI] PATCH error:", error);
     return Response.json(
@@ -104,22 +90,17 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const pool = getPool();
 
-    try {
-      // Soft delete — cancel first
-      await pool.query(
-        `UPDATE agent_workflows SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
-        [id],
-      );
+    // Soft delete — cancel first
+    await query(
+      `UPDATE agent_workflows SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+      [id],
+    );
 
-      // Hard delete
-      await pool.query(`DELETE FROM agent_workflows WHERE id = $1`, [id]);
+    // Hard delete
+    await query(`DELETE FROM agent_workflows WHERE id = $1`, [id]);
 
-      return Response.json({ success: true, message: "Workflow deleted" });
-    } finally {
-      await pool.end();
-    }
+    return Response.json({ success: true, message: "Workflow deleted" });
   } catch (error) {
     console.error("[WorkflowDetailAPI] DELETE error:", error);
     return Response.json(

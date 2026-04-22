@@ -3,19 +3,10 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { getPool } from "@/lib/db";
 
 // --- GET /api/skills?search=...&category=...&agent=...&active=true ---
 export async function GET(req: Request) {
-  const pool = getPool();
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || "";
@@ -49,13 +40,13 @@ export async function GET(req: Request) {
     }
 
     // Get total count
-    const countResult = await pool.query(query.replace("SELECT *", "SELECT COUNT(*)"), params);
+    const countResult = await getPool().query(query.replace("SELECT *", "SELECT COUNT(*)"), params);
     const total = parseInt(countResult.rows[0].count, 10);
 
     query += ` ORDER BY is_builtin DESC, performance_score DESC, total_uses DESC LIMIT $${idx} OFFSET $${idx + 1}`;
     params.push(limit, offset);
 
-    const result = await pool.query(query, params);
+    const result = await getPool().query(query, params);
     const data = result.rows.map((row: Record<string, unknown>) => ({
       ...row,
       performance_score: Number(row.performance_score) || 0,
@@ -66,14 +57,11 @@ export async function GET(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch skills";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }
 
 // --- POST /api/skills — Create a new skill ---
 export async function POST(req: Request) {
-  const pool = getPool();
   try {
     const body = await req.json();
     const {
@@ -90,7 +78,7 @@ export async function POST(req: Request) {
 
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-    const result = await pool.query(
+    const result = await getPool().query(
       `INSERT INTO skills (name, display_name, slug, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags, agent_bindings)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
@@ -113,7 +101,5 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "A skill with this name already exists" }, { status: 409 });
     }
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

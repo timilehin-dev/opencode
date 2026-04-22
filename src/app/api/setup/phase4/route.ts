@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { PHASE4_SCHEMA_SQL, PHASE4_TABLE_LIST } from "@/lib/supabase-setup";
+import { query } from "@/lib/db";
 
 export async function POST(request: Request) {
   const setupSecret = process.env.SETUP_SECRET;
@@ -33,18 +34,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
     // Execute the full schema — CREATE TABLE IF NOT EXISTS is safe to re-run
-    await pool.query(PHASE4_SCHEMA_SQL);
+    await query(PHASE4_SCHEMA_SQL);
 
     // Verify tables were created by checking each one
     const tableResults: Record<string, boolean> = {};
     for (const table of PHASE4_TABLE_LIST) {
       try {
-        const result = await pool.query(
+        const result = await query(
           `SELECT EXISTS (
             SELECT FROM information_schema.tables
             WHERE table_name = $1
@@ -56,8 +53,6 @@ export async function POST(request: Request) {
         tableResults[table] = false;
       }
     }
-
-    await pool.end();
 
     const allSuccess = Object.values(tableResults).every(Boolean);
 

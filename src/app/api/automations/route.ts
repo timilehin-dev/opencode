@@ -3,18 +3,9 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
+import { query } from "@/lib/db";
 
 export const maxDuration = 60; // Vercel Hobby plan max
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString, max: 5, idleTimeoutMillis: 10000 });
-}
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -28,8 +19,8 @@ function err(message: string, status = 500) {
 // Ensure table exists
 // ---------------------------------------------------------------------------
 
-async function ensureTable(pool: ReturnType<typeof getPool>) {
-  await pool.query(`
+async function ensureTable() {
+  await query(`
     CREATE TABLE IF NOT EXISTS automations (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -63,10 +54,8 @@ async function ensureTable(pool: ReturnType<typeof getPool>) {
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  let pool: ReturnType<typeof getPool> | undefined;
   try {
-    pool = getPool();
-    await ensureTable(pool);
+    await ensureTable();
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "list";
@@ -75,28 +64,28 @@ export async function GET(req: NextRequest) {
       const automationId = searchParams.get("automation_id");
       const limit = parseInt(searchParams.get("limit") || "50", 10);
 
-      let query = `SELECT al.*, a.name as automation_name
+      let queryString = `SELECT al.*, a.name as automation_name
                    FROM automation_logs al JOIN automations a ON al.automation_id = a.id`;
       const params: unknown[] = [];
 
       if (automationId) {
-        query += ` WHERE al.automation_id = $1`;
+        queryString += ` WHERE al.automation_id = $1`;
         params.push(parseInt(automationId, 10));
       }
-      query += ` ORDER BY al.created_at DESC LIMIT $${params.length + 1}`;
+      queryString += ` ORDER BY al.created_at DESC LIMIT $${params.length + 1}`;
       params.push(limit);
 
-      const result = await pool.query(query, params);
+      const result = await query(queryString, params);
       return ok(result.rows);
     }
 
     // Default: list all automations
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM automations ORDER BY created_at DESC`,
     );
 
     // Get recent logs for each automation
-    const logsResult = await pool.query(
+    const logsResult = await query(
       `SELECT DISTINCT ON (automation_id) id, automation_id, status, duration_ms, created_at
        FROM automation_logs ORDER BY automation_id, created_at DESC LIMIT 100`,
     );
@@ -115,8 +104,6 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Internal server error";
     return err(message);
-  } finally {
-    if (pool) await pool.end().catch(() => {});
   }
 }
 
@@ -125,10 +112,8 @@ export async function GET(req: NextRequest) {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
-  let pool: ReturnType<typeof getPool> | undefined;
   try {
-    pool = getPool();
-    await ensureTable(pool);
+    await ensureTable();
 
     const body = await req.json();
     const { action } = body as { action?: string };
@@ -150,7 +135,7 @@ export async function POST(req: NextRequest) {
           return err("Missing required fields: name, trigger_type, action_type", 400);
         }
 
-        const result = await pool.query(
+        const result = await query(
           `INSERT INTO automations (name, description, trigger_type, trigger_config, action_type, action_config, agent_id, enabled)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING *`,
@@ -197,7 +182,7 @@ export async function POST(req: NextRequest) {
         sets.push(`updated_at = NOW()`);
         values.push(id);
 
-        const result = await pool.query(
+        const result = await query(
           `UPDATE automations SET ${sets.join(", ")} WHERE id = $${paramIdx} RETURNING *`,
           values,
         );
@@ -209,8 +194,8 @@ export async function POST(req: NextRequest) {
         const { id } = body as { id: number };
         if (!id) return err("Missing id", 400);
 
-        await pool.query(`DELETE FROM automation_logs WHERE automation_id = $1`, [id]);
-        await pool.query(`DELETE FROM automations WHERE id = $1`, [id]);
+        await query(`DELETE FROM automation_logs WHERE automation_id = $1`, [id]);
+        await query(`DELETE FROM automations WHERE id = $1`, [id]);
         return ok({ deleted: true });
       }
 
@@ -218,7 +203,7 @@ export async function POST(req: NextRequest) {
         const { id, enabled } = body as { id: number; enabled: boolean };
         if (!id) return err("Missing id", 400);
 
-        const result = await pool.query(
+        const result = await query(
           `UPDATE automations SET enabled = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
           [enabled, id],
         );
@@ -233,7 +218,7 @@ export async function POST(req: NextRequest) {
         const { id } = body as { id: number };
         if (!id) return err("Missing id", 400);
 
-        const autoResult = await pool.query(`SELECT * FROM automations WHERE id = $1`, [id]);
+        const autoResult = await query(`SELECT * FROM automations WHERE id = $1`, [id]);
         if (autoResult.rows.length === 0) return err("Automation not found", 404);
 
         const auto = autoResult.rows[0];
@@ -254,7 +239,7 @@ export async function POST(req: NextRequest) {
 
         // Log the queued run with helpful details
         const success = taskId > 0;
-        await pool.query(
+        await query(
           `INSERT INTO automation_logs (automation_id, status, result, duration_ms, error_message) VALUES ($1, $2, $3, 0, $4)`,
           [
             id,
@@ -273,7 +258,7 @@ export async function POST(req: NextRequest) {
         );
 
         if (success) {
-          await pool.query(
+          await query(
             `UPDATE automations SET last_run_at = NOW(), run_count = run_count + 1 WHERE id = $1`,
             [id],
           );
@@ -296,7 +281,5 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Internal server error";
     return err(message);
-  } finally {
-    if (pool) await pool.end().catch(() => {});
   }
 }

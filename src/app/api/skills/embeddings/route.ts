@@ -10,36 +10,26 @@ import {
   generateEmbedding,
   embeddingToPgVector,
 } from "@/lib/embeddings";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { getPool } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
-  const pool = getPool();
-
   try {
     const body = await request.json().catch(() => ({}));
     const { skill_id } = body as { skill_id?: string };
 
-    // Build query to fetch skills needing embeddings
-    let query: string;
+    // Build sql to fetch skills needing embeddings
+    let sql: string;
     let params: unknown[];
 
     if (skill_id) {
-      query = `
+      sql = `
         SELECT id, display_name, description, category, tags, prompt_template
         FROM skills
         WHERE id = $1 AND is_active = true
       `;
       params = [skill_id];
     } else {
-      query = `
+      sql = `
         SELECT id, display_name, description, category, tags, prompt_template
         FROM skills
         WHERE is_active = true
@@ -48,7 +38,7 @@ export async function POST(request: NextRequest) {
       params = [];
     }
 
-    const result = await pool.query(query, params);
+    const result = await getPool().query(sql, params);
     const skills = result.rows;
 
     if (skills.length === 0) {
@@ -89,7 +79,7 @@ export async function POST(request: NextRequest) {
         const embedding = await generateEmbedding(combinedText);
         const vectorStr = embeddingToPgVector(embedding);
 
-        await pool.query(
+        await getPool().query(
           `UPDATE skills
            SET embedding = $1::vector, has_embedding = true, updated_at = NOW()
            WHERE id = $2`,
@@ -123,17 +113,13 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await pool.end();
   }
 }
 
 export async function GET() {
-  const pool = getPool();
-
   try {
     // Get total count and count with embeddings
-    const statsResult = await pool.query(`
+    const statsResult = await getPool().query(`
       SELECT
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE has_embedding = true) AS with_embeddings,
@@ -145,7 +131,7 @@ export async function GET() {
     const stats = statsResult.rows[0];
 
     // Get list of skills without embeddings
-    const missingResult = await pool.query(`
+    const missingResult = await getPool().query(`
       SELECT id, display_name, category
       FROM skills
       WHERE is_active = true AND has_embedding = false
@@ -186,7 +172,5 @@ export async function GET() {
       },
       { status: 500 }
     );
-  } finally {
-    await pool.end();
   }
 }

@@ -3,25 +3,16 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 // --- GET /api/skills/[id] ---
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const pool = getPool();
   try {
     const { id } = await params;
-    const result = await pool.query("SELECT * FROM skills WHERE id = $1", [id]);
+    const result = await query("SELECT * FROM skills WHERE id = $1", [id]);
     if (result.rows.length === 0) {
       return NextResponse.json({ success: false, error: "Skill not found" }, { status: 404 });
     }
@@ -36,8 +27,6 @@ export async function GET(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch skill";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }
 
@@ -46,13 +35,12 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const pool = getPool();
   try {
     const { id } = await params;
     const body = await req.json();
 
     // Check skill exists
-    const existing = await pool.query("SELECT id FROM skills WHERE id = $1", [id]);
+    const existing = await query("SELECT id FROM skills WHERE id = $1", [id]);
     if (existing.rows.length === 0) {
       return NextResponse.json({ success: false, error: "Skill not found" }, { status: 404 });
     }
@@ -104,7 +92,7 @@ export async function PUT(
     fields.push(`updated_at = NOW()`);
 
     values.push(id);
-    const result = await pool.query(
+    const result = await query(
       `UPDATE skills SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
       values
     );
@@ -113,8 +101,6 @@ export async function PUT(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update skill";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }
 
@@ -123,12 +109,11 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const pool = getPool();
   try {
     const { id } = await params;
 
     // Prevent deleting built-in skills
-    const existing = await pool.query("SELECT id, is_builtin FROM skills WHERE id = $1", [id]);
+    const existing = await query("SELECT id, is_builtin FROM skills WHERE id = $1", [id]);
     if (existing.rows.length === 0) {
       return NextResponse.json({ success: false, error: "Skill not found" }, { status: 404 });
     }
@@ -136,12 +121,10 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Cannot delete built-in skills" }, { status: 403 });
     }
 
-    await pool.query("DELETE FROM skills WHERE id = $1", [id]);
+    await query("DELETE FROM skills WHERE id = $1", [id]);
     return NextResponse.json({ success: true, deleted: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to delete skill";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

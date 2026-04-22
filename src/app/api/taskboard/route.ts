@@ -13,6 +13,7 @@ import {
   TASK_BOARD_SCHEMA,
 } from "@/lib/taskboard";
 import { getAllAgents } from "@/lib/agents";
+import { query } from "@/lib/db";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -141,10 +142,7 @@ export async function POST(req: NextRequest) {
 
       // Setup: create the task_board table
       case "setup": {
-        const { Pool } = require("pg");
-        const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-        await pool.query(TASK_BOARD_SCHEMA);
-        await pool.end();
+        await query(TASK_BOARD_SCHEMA);
         return ok({ created: true, message: "task_board table created" });
       }
 

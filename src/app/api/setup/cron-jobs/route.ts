@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import { query } from "@/lib/db";
 
 export async function POST(request: Request) {
   const setupSecret = process.env.SETUP_SECRET;
@@ -52,13 +53,9 @@ export async function POST(request: Request) {
 
   if (action === "setup") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Pool } = require("pg");
-      const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
       // 1. Ensure pg_cron and net extensions are enabled
-      await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_cron`);
-      await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_net`);
+      await query(`CREATE EXTENSION IF NOT EXISTS pg_cron`);
+      await query(`CREATE EXTENSION IF NOT EXISTS pg_net`);
 
       const results: Record<string, string> = {};
 
@@ -66,8 +63,8 @@ export async function POST(request: Request) {
       const scheduleJob = async (jobName: string, schedule: string, url: string) => {
         try {
           // Remove existing job if it exists
-          await pool.query(`SELECT cron.unschedule('${jobName}')`).catch(() => {});
-          await pool.query(
+          await query(`SELECT cron.unschedule('${jobName}')`).catch(() => {});
+          await query(
             `SELECT cron.schedule(
               '${jobName}',
               '${schedule}',
@@ -93,8 +90,6 @@ export async function POST(request: Request) {
       const processRemindersUrl = `${appUrl}/api/cron/process-reminders?secret=${cronSecret}`;
       results["process-reminders"] = await scheduleJob("claw-process-reminders", "0 9 * * *", processRemindersUrl);
 
-      await pool.end();
-
       return NextResponse.json({
         success: true,
         message: "Supabase pg_cron jobs registered",
@@ -113,19 +108,13 @@ export async function POST(request: Request) {
 
   if (action === "list") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Pool } = require("pg");
-      const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
-      const result = await pool.query(`
+      const result = await query(`
         SELECT jobid, schedule, command, nodename, nodeport, database, username,
                active, jobname
         FROM cron.job
         WHERE jobname LIKE 'claw-%'
         ORDER BY jobid
       `);
-
-      await pool.end();
 
       return NextResponse.json({
         success: true,
@@ -141,10 +130,6 @@ export async function POST(request: Request) {
 
   if (action === "remove") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Pool } = require("pg");
-      const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-
       const jobNames = [
         "claw-task-processor",
         "claw-agent-routines",
@@ -154,14 +139,12 @@ export async function POST(request: Request) {
       const results: Record<string, string> = {};
       for (const name of jobNames) {
         try {
-          await pool.query(`SELECT cron.unschedule('${name}')`);
+          await query(`SELECT cron.unschedule('${name}')`);
           results[name] = "unscheduled";
         } catch {
           results[name] = "not found or already removed";
         }
       }
-
-      await pool.end();
 
       return NextResponse.json({
         success: true,

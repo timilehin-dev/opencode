@@ -8,10 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-disable @typescript-eslint/no-require-imports */
+import { query } from "@/lib/db";
 
 export async function POST(request: Request) {
   // H3: Setup auth
@@ -24,12 +21,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) {
+  if (!process.env.SUPABASE_DB_URL) {
     return NextResponse.json({ error: "SUPABASE_DB_URL not configured" }, { status: 500 });
   }
 
-  const pool = new Pool({ connectionString });
   try {
     const sql = `
 -- projects table
@@ -165,7 +160,7 @@ DROP TRIGGER IF EXISTS trg_project_task_status_change ON project_tasks;
 CREATE TRIGGER trg_project_task_status_change AFTER INSERT OR UPDATE OF status ON project_tasks FOR EACH ROW EXECUTE FUNCTION on_project_task_status_change();
 `;
 
-    await pool.query(sql);
+    await query(sql);
     return NextResponse.json({
       success: true,
       message: "Phase 5 complete: projects, project_tasks, and project_task_logs tables created.",
@@ -175,7 +170,5 @@ CREATE TRIGGER trg_project_task_status_change AFTER INSERT OR UPDATE OF status O
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

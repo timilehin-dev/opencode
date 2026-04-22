@@ -3,15 +3,7 @@
 // Uses raw pg Pool (same pattern as workspace.ts)
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
+import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,9 +51,8 @@ export async function logActivity(opts: {
 }): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
-    await pool.query(
+    await query(
       `INSERT INTO agent_activity (agent_id, agent_name, action, detail, tool_name, metadata)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
@@ -75,8 +66,6 @@ export async function logActivity(opts: {
     );
   } catch (err) {
     console.warn("[Activity] Failed to log activity:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -87,9 +76,8 @@ export async function logActivity(opts: {
 export async function getRecentActivity(limit = 50): Promise<ActivityEvent[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT id, agent_id, agent_name, action, detail, tool_name, metadata, created_at
        FROM agent_activity
        ORDER BY created_at DESC
@@ -100,8 +88,6 @@ export async function getRecentActivity(limit = 50): Promise<ActivityEvent[]> {
   } catch (err) {
     console.warn("[Activity] Failed to fetch recent activity:", err);
     return [];
-  } finally {
-    await pool.end();
   }
 }
 
@@ -122,9 +108,8 @@ export async function persistAgentStatus(
 ): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
-    await pool.query(
+    await query(
       `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())
        ON CONFLICT (agent_id) DO UPDATE SET
@@ -145,8 +130,6 @@ export async function persistAgentStatus(
     );
   } catch (err) {
     console.warn("[Activity] Failed to persist agent status:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -157,9 +140,8 @@ export async function persistAgentStatus(
 export async function getAllPersistedStatuses(): Promise<Record<string, AgentStatusDB>> {
   if (!process.env.SUPABASE_DB_URL) return {};
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT agent_id, status, current_task, last_activity, tasks_completed, messages_processed, updated_at
        FROM agent_status
        ORDER BY agent_id`,
@@ -172,8 +154,6 @@ export async function getAllPersistedStatuses(): Promise<Record<string, AgentSta
   } catch (err) {
     console.warn("[Activity] Failed to fetch agent statuses:", err);
     return {};
-  } finally {
-    await pool.end();
   }
 }
 
@@ -186,13 +166,12 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     return { messagesToday: 0, toolCallsToday: 0, tasksDone: 0, activeDelegations: 0 };
   }
 
-  const pool = getPool();
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Messages today (chat_message action from today)
-    const messagesResult = await pool.query(
+    const messagesResult = await query(
       `SELECT COUNT(*) as count FROM agent_activity
        WHERE action IN ('chat_message', 'status_change')
          AND created_at >= $1`,
@@ -200,7 +179,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     );
 
     // Tool calls today
-    const toolCallsResult = await pool.query(
+    const toolCallsResult = await query(
       `SELECT COUNT(*) as count FROM agent_activity
        WHERE action = 'tool_call'
          AND created_at >= $1`,
@@ -208,12 +187,12 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     );
 
     // Tasks done (from agent_status, sum tasks_completed)
-    const tasksResult = await pool.query(
+    const tasksResult = await query(
       `SELECT COALESCE(SUM(tasks_completed), 0) as count FROM agent_status`,
     );
 
     // Active delegations (agents currently busy)
-    const delegationsResult = await pool.query(
+    const delegationsResult = await query(
       `SELECT COUNT(*) as count FROM agent_status WHERE status = 'busy'`,
     );
 
@@ -226,8 +205,6 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   } catch (err) {
     console.warn("[Activity] Failed to fetch dashboard metrics:", err);
     return { messagesToday: 0, toolCallsToday: 0, tasksDone: 0, activeDelegations: 0 };
-  } finally {
-    await pool.end();
   }
 }
 

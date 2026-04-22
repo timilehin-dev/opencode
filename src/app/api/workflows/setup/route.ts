@@ -5,20 +5,11 @@
 // POST to create tables, GET to check status.
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 export async function POST() {
   try {
-    const pool = getPool();
-
-    await pool.query(`
+    await query(`
       CREATE TABLE IF NOT EXISTS agent_workflows (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name VARCHAR(255) NOT NULL,
@@ -82,8 +73,6 @@ export async function POST() {
       CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow ON workflow_executions(workflow_id);
     `);
 
-    await pool.end();
-
     return Response.json({
       success: true,
       message: "Workflow tables created/verified successfully",
@@ -101,9 +90,7 @@ export async function POST() {
 
 export async function GET() {
   try {
-    const pool = getPool();
-
-    const tablesResult = await pool.query(`
+    const tablesResult = await query(`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public'
@@ -115,11 +102,9 @@ export async function GET() {
 
     let rowCount = 0;
     if (existingTables.includes("agent_workflows")) {
-      const countResult = await pool.query(`SELECT COUNT(*)::int as count FROM agent_workflows`);
+      const countResult = await query(`SELECT COUNT(*)::int as count FROM agent_workflows`);
       rowCount = Number(countResult.rows[0]?.count || 0);
     }
-
-    await pool.end();
 
     return Response.json({
       success: true,

@@ -19,6 +19,7 @@ import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { getSupabase } from "@/lib/supabase";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
 import { getInsightsForPrompt, recordLearning } from "@/lib/self-learning";
+import { query } from "@/lib/db";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
 
@@ -238,7 +239,7 @@ You MAY use \`skill_use\` with name "${routeResult.skill.name}" to apply this sk
     // - Claw General: sees all tools, can delegate
     // - Specialist agents: ONLY their specialized tools + query_agent for routing
     const toolBlock = id !== "general"
-      ? `\n\n## YOUR EXCLUSIVE TOOL INVENTORY (${toolCount} tools)\nCRITICAL: These are the ONLY tools available to you — ${agent.name}. You do NOT have access to any other agent's tools. If a user asks you to do something outside your domain, you MUST route it via \\_query\_agent\\_ to the correct specialist. Do NOT attempt to use tools you don't have.\n\nYour ${toolCount} tools:\n${toolInventory}\n`
+      ? `\n\n## YOUR EXCLUSIVE TOOL INVENTORY (${toolCount} tools)\nCRITICAL: These are the ONLY tools available to you — ${agent.name}. You do NOT have access to any other agent's tools. If a user asks you to do something outside your domain, you MUST route it via \_query\_agent\_ to the correct specialist. Do NOT attempt to use tools you don't have.\n\nYour ${toolCount} tools:\n${toolInventory}\n`
       : `\n\n## Your Complete Tool Inventory (${toolCount} tools)\nYou have access to ALL tools across every service. When asked to list your tools, list ALL ${toolCount} of them:\n${toolInventory}\n`;
 
     // Universal task completion block — injected into every agent.
@@ -581,17 +582,13 @@ interface DueReminder {
 async function checkDueReminders(): Promise<DueReminder[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-    const { rows } = await pool.query(
+    const { rows } = await query(
       `SELECT id, title, description, reminder_time, priority
        FROM reminders
        WHERE status = 'pending' AND reminder_time <= NOW()
        ORDER BY priority DESC, reminder_time ASC
        LIMIT 10`,
     );
-    await pool.end();
     return rows;
   } catch {
     return [];

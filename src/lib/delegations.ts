@@ -3,15 +3,7 @@
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
+import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,10 +36,9 @@ export async function logDelegation(params: {
 }): Promise<number> {
   if (!process.env.SUPABASE_DB_URL) return -1;
 
-  const pool = getPool();
   try {
     const chain = params.delegation_chain || [params.initiator_agent, params.assigned_agent];
-    const result = await pool.query(
+    const result = await query(
       `INSERT INTO delegations (initiator_agent, assigned_agent, task, context, status, delegation_chain)
        VALUES ($1, $2, $3, $4, 'pending', $5)
        RETURNING id`,
@@ -63,8 +54,6 @@ export async function logDelegation(params: {
   } catch (err) {
     console.warn("[Delegations] Failed to log delegation:", err);
     return -1;
-  } finally {
-    await pool.end();
   }
 }
 
@@ -82,10 +71,9 @@ export async function updateDelegation(
 ): Promise<void> {
   if (!process.env.SUPABASE_DB_URL) return;
 
-  const pool = getPool();
   try {
     if (params.status === "completed" || params.status === "failed") {
-      await pool.query(
+      await query(
         `UPDATE delegations
          SET status = $1, result = $2, duration_ms = $3, completed_at = NOW()
          WHERE id = $4`,
@@ -97,7 +85,7 @@ export async function updateDelegation(
         ],
       );
     } else {
-      await pool.query(
+      await query(
         `UPDATE delegations
          SET status = $1, result = $2, duration_ms = $3
          WHERE id = $4`,
@@ -111,8 +99,6 @@ export async function updateDelegation(
     }
   } catch (err) {
     console.warn("[Delegations] Failed to update delegation:", err);
-  } finally {
-    await pool.end();
   }
 }
 
@@ -123,9 +109,8 @@ export async function updateDelegation(
 export async function getRecentDelegations(limit = 20): Promise<Delegation[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
 
-  const pool = getPool();
   try {
-    const result = await pool.query(
+    const result = await query(
       `SELECT * FROM delegations
        ORDER BY created_at DESC
        LIMIT $1`,
@@ -135,8 +120,6 @@ export async function getRecentDelegations(limit = 20): Promise<Delegation[]> {
   } catch (err) {
     console.warn("[Delegations] Failed to fetch recent delegations:", err);
     return [];
-  } finally {
-    await pool.end();
   }
 }
 

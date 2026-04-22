@@ -6,15 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { generateEmbedding, embeddingToPgVector } from "@/lib/embeddings";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { getPool } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // TF-IDF-like scoring (from skill-router, replicated for the search API)
@@ -134,8 +126,6 @@ function reciprocalRankFusion(
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-  const pool = getPool();
-
   try {
     const body = await request.json();
     const { query, agent_id, top_k = 10 } = body as {
@@ -155,8 +145,8 @@ export async function POST(request: NextRequest) {
 
     // Run vector search and keyword search in parallel
     const [vectorResults, keywordResults] = await Promise.all([
-      runVectorSearch(pool, query, kLimit * 2),
-      runKeywordSearch(pool, query, agent_id, kLimit * 2),
+      runVectorSearch(query, kLimit * 2),
+      runKeywordSearch(query, agent_id, kLimit * 2),
     ]);
 
     // Merge using Reciprocal Rank Fusion
@@ -168,7 +158,7 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let skills: any[] = [];
     if (topIds.length > 0) {
-      const skillsResult = await pool.query(
+      const skillsResult = await getPool().query(
         `SELECT id, name, display_name, description, category, difficulty,
                 tags, performance_score, total_uses, has_embedding
          FROM skills
@@ -211,8 +201,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await pool.end();
   }
 }
 
@@ -221,8 +209,6 @@ export async function POST(request: NextRequest) {
 // ---------------------------------------------------------------------------
 
 async function runVectorSearch(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pool: any,
   query: string,
   limit: number
 ): Promise<Array<{ id: string; score: number }>> {
@@ -230,7 +216,7 @@ async function runVectorSearch(
     const embedding = await generateEmbedding(query);
     const vectorStr = embeddingToPgVector(embedding);
 
-    const result = await pool.query(
+    const result = await getPool().query(
       `SELECT id, embedding <=> $1::vector AS distance
        FROM skills
        WHERE is_active = true AND has_embedding = true
@@ -254,10 +240,7 @@ async function runVectorSearch(
 // Keyword search (TF-IDF scoring)
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runKeywordSearch(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pool: any,
   query: string,
   _agentId?: string,
   limit?: number
@@ -266,7 +249,7 @@ async function runKeywordSearch(
     const queryTokens = tokenize(query);
     if (queryTokens.length === 0) return [];
 
-    const result = await pool.query(
+    const result = await getPool().query(
       `SELECT id, display_name, description, category, tags,
               prompt_template, agent_bindings, performance_score
        FROM skills

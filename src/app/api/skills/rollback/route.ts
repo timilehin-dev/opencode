@@ -5,20 +5,10 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL not configured");
-  return new Pool({ connectionString, max: 3, idleTimeoutMillis: 10000 });
-}
+import { query } from "@/lib/db";
 
 // --- POST /api/skills/rollback ---
 export async function POST(req: Request) {
-  const pool = getPool();
-
   try {
     const body = await req.json();
     const { skill_id, evolution_id } = body as { skill_id?: string; evolution_id?: string };
@@ -31,7 +21,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch the evolution record
-    const evoResult = await pool.query(
+    const evoResult = await query(
       `SELECT id, skill_id, change_type, previous_state, new_state, change_reason, trigger_agent_id, created_at
        FROM skill_evolution WHERE id = $1 AND skill_id = $2`,
       [evolution_id, skill_id]
@@ -68,7 +58,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Fetch current skill state (for the new evolution record)
-    const skillResult = await pool.query(
+    const skillResult = await query(
       `SELECT prompt_template, version, performance_score FROM skills WHERE id = $1`,
       [skill_id]
     );
@@ -81,7 +71,7 @@ export async function POST(req: Request) {
     const currentVersion = Number(currentSkill.version) || 1;
 
     // 4. Create a new evolution record documenting the rollback
-    await pool.query(
+    await query(
       `INSERT INTO skill_evolution (skill_id, change_type, previous_state, new_state, change_reason, trigger_agent_id, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())
        RETURNING id`,
@@ -133,7 +123,5 @@ export async function POST(req: Request) {
     const message = error instanceof Error ? error.message : "Rollback failed";
     console.error("[SkillRollback] Error:", error);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

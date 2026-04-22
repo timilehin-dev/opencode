@@ -5,17 +5,9 @@
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
-/* eslint-enable @typescript-eslint/no-require-imports */
+import { query } from "@/lib/db";
 
 import { createTask } from "@/lib/task-queue";
-
-function getPool() {
-  const connectionString = process.env.SUPABASE_DB_URL;
-  if (!connectionString) throw new Error("SUPABASE_DB_URL is not configured.");
-  return new Pool({ connectionString });
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,9 +106,8 @@ export async function evaluateAutomations(): Promise<{
 
   if (!process.env.SUPABASE_DB_URL) return result;
 
-  const pool = getPool();
   try {
-    const automationsResult = await pool.query(
+    const automationsResult = await query(
       `SELECT id, name, description, trigger_type, trigger_config, action_type, action_config, agent_id, enabled, last_run_at, last_status, run_count
        FROM automations
        WHERE enabled = true`,
@@ -125,7 +116,7 @@ export async function evaluateAutomations(): Promise<{
 
     for (const automation of automations) {
       try {
-        const { triggered, tasksCreated } = await processAutomation(automation, pool);
+        const { triggered, tasksCreated } = await processAutomation(automation);
         if (triggered) {
           result.triggered++;
           result.tasksCreated += tasksCreated;
@@ -139,8 +130,6 @@ export async function evaluateAutomations(): Promise<{
   } catch (err) {
     result.errors.push(`Failed to fetch automations: ${err instanceof Error ? err.message : "Unknown"}`);
     console.warn("[AutomationEngine] Failed to evaluate automations:", err);
-  } finally {
-    await pool.end();
   }
 
   return result;
@@ -150,13 +139,13 @@ export async function evaluateAutomations(): Promise<{
 // processAutomation — Evaluate a single automation's trigger
 // ---------------------------------------------------------------------------
 
-async function processAutomation(automation: Automation, pool: ReturnType<typeof getPool>): Promise<{ triggered: boolean; tasksCreated: number }> {
+async function processAutomation(automation: Automation): Promise<{ triggered: boolean; tasksCreated: number }> {
   let shouldTrigger = false;
 
   if (automation.trigger_type === "schedule") {
     shouldTrigger = evaluateScheduleTrigger(automation);
   } else if (automation.trigger_type === "event") {
-    shouldTrigger = await evaluateEventTrigger(automation, pool);
+    shouldTrigger = await evaluateEventTrigger(automation);
   }
 
   if (!shouldTrigger) return { triggered: false, tasksCreated: 0 };
@@ -193,7 +182,7 @@ async function processAutomation(automation: Automation, pool: ReturnType<typeof
   if (taskId > 0) {
     // Log the run as "queued" — the task hasn't executed yet
     // The executor will update this log when the task completes (or fails)
-    await pool.query(
+    await query(
       `INSERT INTO automation_logs (automation_id, status, result, duration_ms)
        VALUES ($1, 'queued', $2, 0)`,
       [
@@ -209,7 +198,7 @@ async function processAutomation(automation: Automation, pool: ReturnType<typeof
 
     // Update last_run_at and run_count — but use 'queued' as last_status
     // The actual status will be updated by the executor when the task finishes
-    await pool.query(
+    await query(
       `UPDATE automations SET last_run_at = NOW(), last_status = 'queued', run_count = run_count + 1 WHERE id = $1`,
       [automation.id],
     );
@@ -263,7 +252,6 @@ function evaluateScheduleTrigger(automation: Automation): boolean {
 
 async function evaluateEventTrigger(
   automation: Automation,
-  pool: ReturnType<typeof getPool>,
 ): Promise<boolean> {
   const config = automation.trigger_config || {};
   const eventType = (config.event as string) || (config.event_type as string) || "";
@@ -274,7 +262,7 @@ async function evaluateEventTrigger(
     ? automation.last_run_at
     : new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-  const result = await pool.query(
+  const result = await query(
     `SELECT COUNT(*) as count FROM agent_activity
      WHERE action = $1 AND created_at > $2
      LIMIT 1`,

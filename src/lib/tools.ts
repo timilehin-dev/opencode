@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import { tool, zodSchema } from "ai";
+import { query } from "@/lib/db";
 
 // z-ai-web-dev-sdk for web tools (local Z.ai environment only)
 import ZAI from 'z-ai-web-dev-sdk';
@@ -935,14 +936,11 @@ export const delegateToAgentTool = tool({
 
     // Also log to legacy a2a_tasks table (fire-and-forget, backwards compat)
     try {
-      const { Pool } = require('pg');
-      const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-      await pool.query(
+      await query(
         `INSERT INTO a2a_tasks (initiator_agent, assigned_agent, task, context, status, delegation_chain)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         ['general', agent_id, task, 'Delegated by Claw General via delegate_to_agent tool', 'in_progress', ['general', agent_id]]
       );
-      await pool.end();
     } catch {
       // A2A logging is non-critical
     }
@@ -965,13 +963,10 @@ export const delegateToAgentTool = tool({
 
       // Update legacy a2a_tasks status (fire-and-forget)
       try {
-        const { Pool } = require('pg');
-        const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
-        await pool.query(
+        await query(
           `UPDATE a2a_tasks SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2`,
           [text.trim().slice(0, 2000), taskId]
         );
-        await pool.end();
       } catch { /* non-critical */ }
 
       return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", taskId, steps, durationMs };
@@ -4196,18 +4191,15 @@ export const projectCreateTool = tool({
     tags: z.array(z.string()).optional().describe("Project tags"),
   })),
   execute: safeJson(async ({ name, description, priority, deadline, tags }) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      const result = await pool.query(
+      const result = await query(
         `INSERT INTO projects (name, description, priority, agent_id, tags, deadline)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, status, created_at`,
         [name, description || null, priority || "medium", "general", tags || [], deadline || null],
       );
       return { success: true, project: result.rows[0] };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to create project" };
     }
   }),
 });
@@ -4226,19 +4218,16 @@ export const projectAddTaskTool = tool({
     sort_order: z.number().optional(),
   })),
   execute: safeJson(async ({ project_id, title, description, task_prompt, assigned_agent, depends_on, priority, task_type, sort_order }) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
       const agentId = assigned_agent || "general";
-      const result = await pool.query(
+      const result = await query(
         `INSERT INTO project_tasks (project_id, title, description, task_prompt, assigned_agent, depends_on, priority, task_type, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, title, status`,
         [project_id, title, description || null, task_prompt || null, agentId, depends_on || [], priority || "medium", task_type || "general", sort_order || 0],
       );
       return { success: true, task: result.rows[0] };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to add task" };
     }
   }),
 });
@@ -4249,19 +4238,16 @@ export const projectStatusTool = tool({
     project_id: z.number().describe("Project ID"),
   })),
   execute: safeJson(async ({ project_id }) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      const projectResult = await pool.query("SELECT * FROM projects WHERE id = $1", [project_id]);
+      const projectResult = await query("SELECT * FROM projects WHERE id = $1", [project_id]);
       if (!projectResult.rows.length) return { success: false, error: "Project not found" };
 
-      const tasksResult = await pool.query(
+      const tasksResult = await query(
         "SELECT id, title, status, priority, assigned_agent, depends_on, sort_order, error FROM project_tasks WHERE project_id = $1 ORDER BY sort_order, id",
         [project_id],
       );
 
-      const nextTasks = await pool.query("SELECT * FROM get_next_executable_tasks($1, 5)", [project_id]);
+      const nextTasks = await query("SELECT * FROM get_next_executable_tasks($1, 5)", [project_id]);
 
       return {
         success: true,
@@ -4270,8 +4256,8 @@ export const projectStatusTool = tool({
         tasks: tasksResult.rows,
         next_executable_tasks: nextTasks.rows,
       };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to get project status" };
     }
   }),
 });
@@ -4283,25 +4269,22 @@ export const projectListTool = tool({
     limit: z.number().optional().describe("Max projects to return (default 10)"),
   })),
   execute: safeJson(async ({ status, limit }) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      let query = "SELECT id, name, description, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks, created_at, updated_at FROM projects WHERE 1=1";
+      let queryStr = "SELECT id, name, description, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks, created_at, updated_at FROM projects WHERE 1=1";
       const params: unknown[] = [];
 
       if (status) {
-        query += " AND status = $1";
+        queryStr += " AND status = $1";
         params.push(status);
       }
 
-      query += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
+      queryStr += " ORDER BY updated_at DESC LIMIT $" + (params.length + 1);
       params.push(limit || 10);
 
-      const result = await pool.query(query, params);
+      const result = await query(queryStr, params);
       return { success: true, projects: result.rows, count: result.rows.length };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to list projects" };
     }
   }),
 });
@@ -4418,17 +4401,15 @@ export const projectUpdateTool = tool({
     if (setClauses.length === 0) return { success: false, error: "No fields to update" };
 
     values.push(project_id);
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      const result = await pool.query(
+      const result = await query(
         `UPDATE projects SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING id, name, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks, deadline`,
         values,
       );
       if (result.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
       return { success: true, project: result.rows[0] };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to update project" };
     }
   }),
 });
@@ -4440,22 +4421,20 @@ export const projectDeleteTool = tool({
     reason: z.string().optional().describe("Reason for cancellation (stored in metadata)"),
   })),
   execute: safeJson(async ({ project_id, reason }) => {
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      const result = await pool.query(
+      const result = await query(
         `UPDATE projects SET status = 'cancelled', metadata = jsonb_set(COALESCE(metadata, '{}'), '{cancelled_reason}', $1) WHERE id = $2 RETURNING id, name, status`,
         [JSON.stringify(reason || "User cancelled"), project_id],
       );
       if (result.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
       // Also cancel pending/queued tasks
-      await pool.query(
+      await query(
         `UPDATE project_tasks SET status = 'cancelled' WHERE project_id = $1 AND status IN ('pending', 'queued', 'in_progress')`,
         [project_id],
       );
       return { success: true, project: result.rows[0], message: "Project cancelled and all pending tasks stopped" };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to delete project" };
     }
   }),
 });
@@ -4466,11 +4445,9 @@ export const projectRetryTaskTool = tool({
     task_id: z.number().describe("Project task ID to retry"),
   })),
   execute: safeJson(async ({ task_id }) => {
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
       // Get current task info
-      const current = await pool.query(
+      const current = await query(
         `SELECT pt.*, p.name as project_name FROM project_tasks pt JOIN projects p ON p.id = pt.project_id WHERE pt.id = $1`,
         [task_id],
       );
@@ -4478,20 +4455,20 @@ export const projectRetryTaskTool = tool({
       if (current.rows[0].status !== "failed") return { success: false, error: `Task ${task_id} is not failed (current: ${current.rows[0].status})` };
 
       // Reset task
-      const result = await pool.query(
+      const result = await query(
         `UPDATE project_tasks SET status = 'pending', error = NULL, result = NULL, retries = retries + 1, started_at = NULL, completed_at = NULL WHERE id = $1 RETURNING id, title, status, retries`,
         [task_id],
       );
 
       // Log retry
-      await pool.query(
+      await query(
         `INSERT INTO project_task_logs (project_id, task_id, action, status, message, attempt_number) VALUES ($1, $2, 'retry', 'started', 'Manual retry requested', $3)`,
         [current.rows[0].project_id, task_id, current.rows[0].retries + 1],
       );
 
       return { success: true, task: result.rows[0], message: "Task reset to pending — executor will pick it up within 2 min" };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to retry task" };
     }
   }),
 });
@@ -4503,10 +4480,8 @@ export const projectSkipTaskTool = tool({
     reason: z.string().optional().describe("Reason for skipping"),
   })),
   execute: safeJson(async ({ task_id, reason }) => {
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      const current = await pool.query(
+      const current = await query(
         `SELECT pt.*, p.name as project_name FROM project_tasks pt JOIN projects p ON p.id = pt.project_id WHERE pt.id = $1`,
         [task_id],
       );
@@ -4515,20 +4490,20 @@ export const projectSkipTaskTool = tool({
         return { success: false, error: `Task ${task_id} cannot be skipped (current: ${current.rows[0].status})` };
       }
 
-      const result = await pool.query(
+      const result = await query(
         `UPDATE project_tasks SET status = 'skipped', metadata = jsonb_set(COALESCE(metadata, '{}'), '{skip_reason}', $1) WHERE id = $2 RETURNING id, title, status`,
         [JSON.stringify(reason || "Skipped by user"), task_id],
       );
 
       // Log skip
-      await pool.query(
+      await query(
         `INSERT INTO project_task_logs (project_id, task_id, action, status, message) VALUES ($1, $2, 'skip', 'completed', $3)`,
         [current.rows[0].project_id, task_id, `Skipped: ${reason || "User request"}`],
       );
 
       return { success: true, task: result.rows[0], message: "Task skipped — dependent tasks can now proceed" };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to skip task" };
     }
   }),
 });
@@ -4543,11 +4518,9 @@ export const projectDecomposeAndAddTool = tool({
     max_tasks: z.number().optional().describe("Max tasks to create (default 8, max 15)"),
   })),
   execute: safeJson(async ({ project_id, goal, context, complexity, max_tasks }) => {
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
       // Verify project exists
-      const proj = await pool.query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
+      const proj = await query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
       if (proj.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
 
       // Get AI decomposition
@@ -4598,7 +4571,7 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
         // Resolve depends_on: titles → IDs
         const dependsOnIds = (task.depends_on || []).map((title: string) => titleToId[title]).filter(Boolean);
 
-        const insertResult = await pool.query(
+        const insertResult = await query(
           `INSERT INTO project_tasks (project_id, title, description, task_type, priority, assigned_agent, depends_on, task_prompt, sort_order)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, title, priority, assigned_agent`,
           [
@@ -4615,7 +4588,7 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
       }
 
       // Force recalculate project task counts
-      await pool.query("SELECT update_project_task_counts($1)", [project_id]);
+      await query("SELECT update_project_task_counts($1)", [project_id]);
 
       return {
         success: true,
@@ -4625,8 +4598,8 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
         tasks: insertedTasks,
         message: `${insertedTasks.length} tasks added to project "${proj.rows[0].name}". The executor will start picking up tasks with no dependencies within 2 minutes.`,
       };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to decompose and add tasks" };
     }
   }),
 });
@@ -4637,16 +4610,14 @@ export const projectHealthTool = tool({
     include_completed: z.boolean().optional().describe("Also show completed projects (default: false)"),
   })),
   execute: safeJson(async ({ include_completed }) => {
-    const { Pool } = require("pg");
-    const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
     try {
-      const result = await pool.query("SELECT * FROM get_project_health_report()");
+      const result = await query("SELECT * FROM get_project_health_report()");
       const projects = result.rows;
 
       // If requested, also get completed projects
       let completed = [];
       if (include_completed) {
-        const compResult = await pool.query(
+        const compResult = await query(
           `SELECT id as project_id, name as project_name, status, priority, total_tasks, completed_tasks, failed_tasks, pending_tasks,
            'healthy' as health_status, 'All tasks completed' as health_reason, completed_at as last_activity, deadline, false as is_overdue
            FROM projects WHERE status IN ('completed', 'failed') ORDER BY completed_at DESC LIMIT 10`,
@@ -4665,8 +4636,8 @@ export const projectHealthTool = tool({
       };
 
       return { success: true, summary, projects, completed_projects: completed };
-    } finally {
-      await pool.end();
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to get project health" };
     }
   }),
 });
