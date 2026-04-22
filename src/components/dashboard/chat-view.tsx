@@ -937,6 +937,19 @@ function AgentChatSession({
 
   const visibleMessages = messages.filter((m) => m.role !== "system");
 
+  // Detect "tools executed but no text response" — show fallback UI
+  const showToolResultFallback = !isLoading && (() => {
+    const lastMsg = visibleMessages[visibleMessages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant") return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parts = (lastMsg as any).parts || [];
+    const hasToolOutput = parts.some((p: any) =>
+      (p.type?.startsWith("tool-") || p.type === "dynamic-tool") && p.state === "output-available"
+    );
+    const hasText = parts.some((p: any) => p.type === "text" && p.text?.trim()?.length > 0);
+    return hasToolOutput && !hasText;
+  })();
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages Area */}
@@ -1138,6 +1151,17 @@ function AgentChatSession({
             {error && (
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                 <span>Error: {error.message}</span>
+              </div>
+            )}
+
+            {/* Fallback: tools executed but agent produced no text response */}
+            {showToolResultFallback && (
+              <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm">
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <div>
+                  <p className="font-medium mb-0.5">Tools completed but no response</p>
+                  <p className="text-amber-300/70 text-xs">The agent processed your request using tools but didn't generate a text explanation. This is a known issue with some models. Try rephrasing your request or asking "What did you find?" to get the results.</p>
+                </div>
               </div>
             )}
 

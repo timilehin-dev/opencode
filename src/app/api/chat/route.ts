@@ -333,27 +333,21 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       maxOutputTokens: Math.max(userSettings.maxTokens, 131072),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
-      // prepareStep: On continuation steps where tool results exist but no text
-      // has been generated across ALL steps, inject a continuation nudge.
-      // This prevents models like coding-glm from returning empty responses after tools.
-      prepareStep: ({ steps, stepNumber, messages }) => {
+      // prepareStep: On continuation steps where tool results exist but no text has been
+      // generated, force the model to produce text by (a) disabling further tool calls
+      // and (b) appending a clear system instruction. Both coding-glm-5.1-free and
+      // gemma4:31b-cloud produce empty responses after receiving tool results.
+      prepareStep: ({ steps, stepNumber }) => {
         if (stepNumber > 0) {
-          // Check if ANY step so far has produced text
           const anyText = steps.some(s => (s.text?.length ?? 0) > 0);
           if (!anyText) {
-            // No text generated yet — the model might produce empty on this step too
             const lastStep = steps[steps.length - 1];
             const hadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
             if (hadToolResults) {
-              console.log(`[Chat] prepareStep step ${stepNumber}: ${steps.length} step(s) with tool results but ZERO text generated — appending continuation nudge.`);
+              console.log(`[Chat] prepareStep step ${stepNumber}: ${steps.length} step(s) with tool results but ZERO text — forcing text generation.`);
               return {
-                messages: [
-                  ...messages,
-                  {
-                    role: "user" as const,
-                    content: "You have tool results but haven't responded to the user yet. Write a clear text response NOW summarizing what the tools returned. Do NOT call another tool.",
-                  },
-                ],
+                toolChoice: "none" as const,
+                system: systemPrompt + "\n\n[CRITICAL: You have tool results from the previous step. You MUST now write a text response to the user explaining what the tools found. Do NOT call any tools. Generate your response NOW.]",
               };
             }
           }
