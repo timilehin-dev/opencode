@@ -17,6 +17,10 @@ import {
   Activity,
   RefreshCw,
   AlertCircle,
+  Sparkles,
+  RotateCcw,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,8 +79,6 @@ interface EvolutionEvent {
   id: string;
   skill_id: string;
   change_type: string;
-  previous_version: string;
-  new_version: string;
   change_summary: string;
   triggered_by: string;
   created_at: string;
@@ -90,6 +92,17 @@ interface EvolutionData {
   top_skills: TopSkill[];
   recent_evaluations: RecentEvaluation[];
   evolution_timeline: EvolutionEvent[];
+}
+
+interface PendingSkill {
+  id: string;
+  name: string;
+  display_name: string;
+  category: string;
+  performance_score: number;
+  version: number;
+  eval_count: number;
+  avg_score: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,12 +233,26 @@ export default function SkillEvolutionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState("30d");
+  const [pendingSkills, setPendingSkills] = useState<PendingSkill[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [evolvingSkillId, setEvolvingSkillId] = useState<string | null>(null);
+  const [rollingBackId, setRollingBackId] = useState<string | null>(null);
+  const [reflecting, setReflecting] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+
+  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => setToastMessage(null), 4000);
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
       const res = await fetch(`${baseUrl}/api/skills/evolution?period=${period}`);
       const json = await res.json();
       if (json.success) {
@@ -238,11 +265,95 @@ export default function SkillEvolutionPage() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, baseUrl]);
+
+  const fetchPending = useCallback(async () => {
+    setLoadingPending(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/skills/evolve/pending`);
+      const json = await res.json();
+      if (json.success) {
+        setPendingSkills(json.data.pending_skills || []);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setLoadingPending(false);
+    }
+  }, [baseUrl]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchPending();
+  }, [fetchData, fetchPending]);
+
+  const handleEvolve = useCallback(async (skillId: string) => {
+    setEvolvingSkillId(skillId);
+    try {
+      const res = await fetch(`${baseUrl}/api/skills/evolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skill_id: skillId, agent_id: "dashboard" }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(`Skill evolved to version ${json.data.new_version}`);
+        fetchData();
+        fetchPending();
+      } else {
+        showToast(json.error || "Evolution failed", "error");
+      }
+    } catch {
+      showToast("Network error during evolution", "error");
+    } finally {
+      setEvolvingSkillId(null);
+    }
+  }, [baseUrl, fetchData, fetchPending, showToast]);
+
+  const handleRollback = useCallback(async (skillId: string, evolutionId: string) => {
+    setRollingBackId(evolutionId);
+    try {
+      const res = await fetch(`${baseUrl}/api/skills/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skill_id: skillId, evolution_id: evolutionId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Skill rolled back successfully");
+        fetchData();
+      } else {
+        showToast(json.error || "Rollback failed", "error");
+      }
+    } catch {
+      showToast("Network error during rollback", "error");
+    } finally {
+      setRollingBackId(null);
+    }
+  }, [baseUrl, fetchData, showToast]);
+
+  const handleReflection = useCallback(async () => {
+    setReflecting(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/skills/reflection`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const { summary, evolution_candidates } = json.data;
+        const candidates = (evolution_candidates || []).length;
+        showToast(`Reflection complete: ${summary?.needs_evolution || 0} skills need evolution, ${candidates} candidates found`);
+      } else {
+        showToast(json.error || "Reflection failed", "error");
+      }
+    } catch {
+      showToast("Network error during reflection", "error");
+    } finally {
+      setReflecting(false);
+    }
+  }, [baseUrl, showToast]);
 
   const summary = data?.performance_summary;
   const trends = data?.evaluation_trends || [];
@@ -296,12 +407,47 @@ export default function SkillEvolutionPage() {
                   {p === "7d" ? "7 Days" : p === "30d" ? "30 Days" : "90 Days"}
                 </Button>
               ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReflection}
+                disabled={reflecting}
+                className="gap-1.5"
+              >
+                {reflecting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+                Run Reflection
+              </Button>
               <Button variant="ghost" size="icon" onClick={fetchData} disabled={loading}>
                 <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
               </Button>
             </div>
           </div>
         </motion.div>
+
+        {/* Toast notification */}
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "mb-6 p-3 rounded-lg border text-sm flex items-center gap-2",
+              toastType === "error"
+                ? "border-red-500/30 bg-red-500/5 text-red-600"
+                : "border-emerald-500/30 bg-emerald-500/5 text-emerald-600"
+            )}
+          >
+            {toastType === "error" ? (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            )}
+            {toastMessage}
+          </motion.div>
+        )}
 
         {error && (
           <motion.div variants={fadeInUp} initial="hidden" animate="visible" className="mb-6">
@@ -341,6 +487,56 @@ export default function SkillEvolutionPage() {
             animate="visible"
             className="space-y-6"
           >
+            {/* Pending Evolution Card */}
+            {pendingSkills.length > 0 && (
+              <motion.div variants={fadeInUp} transition={{ duration: 0.4 }}>
+                <Card className="border-amber-500/30 bg-amber-500/5">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-2 rounded-xl bg-amber-500/10">
+                        <Sparkles className="w-5 h-5 text-amber-500" />
+                      </div>
+                      <div className="flex-1">
+                        <h2 className="text-base font-semibold text-foreground">Pending Evolution</h2>
+                        <p className="text-xs text-muted-foreground">
+                          {pendingSkills.length} skill{pendingSkills.length > 1 ? "s" : ""} below threshold and ready for improvement
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                      {pendingSkills.map((skill) => (
+                        <div key={skill.id} className="flex items-center justify-between p-2.5 rounded-lg bg-background/50 border border-border/50">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{skill.display_name}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{skill.eval_count} evals</span>
+                              <span>&middot;</span>
+                              <span>avg score {skill.avg_score.toFixed(1)}</span>
+                              <span>&middot;</span>
+                              <span>v{skill.version}</span>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleEvolve(skill.id)}
+                            disabled={evolvingSkillId === skill.id}
+                            className="ml-2 gap-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20"
+                          >
+                            {evolvingSkillId === skill.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                            Evolve
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
             {/* Summary Cards */}
             {summary && (
               <motion.div variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -444,6 +640,7 @@ export default function SkillEvolutionPage() {
                               <th className="text-left py-2 px-2 text-muted-foreground font-medium hidden sm:table-cell">Category</th>
                               <th className="text-center py-2 px-2 text-muted-foreground font-medium">Evals</th>
                               <th className="text-center py-2 px-2 text-muted-foreground font-medium">Score</th>
+                              <th className="text-center py-2 px-2 text-muted-foreground font-medium">Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -470,6 +667,21 @@ export default function SkillEvolutionPage() {
                                   </td>
                                   <td className="py-2.5 px-2 text-center">
                                     <ScoreBadge score={Math.round(skill.performance_score)} />
+                                  </td>
+                                  <td className="py-2.5 px-2 text-center">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleEvolve(skill.id)}
+                                      disabled={evolvingSkillId === skill.id}
+                                      className="h-7 gap-1 text-xs"
+                                    >
+                                      {evolvingSkillId === skill.id ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <Sparkles className="w-3 h-3" />
+                                      )}
+                                    </Button>
                                   </td>
                                 </tr>
                               );
@@ -519,7 +731,7 @@ export default function SkillEvolutionPage() {
                               </div>
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-xs text-muted-foreground">{ev.agent_id}</span>
-                                <span className="text-xs text-muted-foreground">•</span>
+                                <span className="text-xs text-muted-foreground">&middot;</span>
                                 <span className="text-xs text-muted-foreground">
                                   {new Date(ev.created_at).toLocaleDateString("en-US", {
                                     month: "short",
@@ -576,12 +788,15 @@ export default function SkillEvolutionPage() {
                   ) : (
                     <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar pr-1">
                       {timeline.map((ev) => {
+                        const isRevertable = ev.change_type === "auto_improvement" && ev.id;
                         const changeTypeColor =
                           ev.change_type === "evaluation_insight"
                             ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
                             : ev.change_type === "auto_improvement"
                               ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                              : "bg-blue-500/10 text-blue-600 border-blue-500/20";
+                              : ev.change_type === "reverted"
+                                ? "bg-red-500/10 text-red-600 border-red-500/20"
+                                : "bg-blue-500/10 text-blue-600 border-blue-500/20";
 
                         return (
                           <div
@@ -599,15 +814,33 @@ export default function SkillEvolutionPage() {
                                 </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground line-clamp-2">{ev.change_summary}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {new Date(ev.created_at).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                                {" "}&middot; triggered by {ev.triggered_by}
-                              </p>
+                              <div className="flex items-center justify-between mt-1.5">
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(ev.created_at).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                  {" "}&middot; triggered by {ev.triggered_by}
+                                </p>
+                                {isRevertable && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleRollback(ev.skill_id, ev.id)}
+                                    disabled={rollingBackId === ev.id}
+                                    className="h-6 gap-1 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                  >
+                                    {rollingBackId === ev.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <RotateCcw className="w-3 h-3" />
+                                    )}
+                                    Rollback
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );

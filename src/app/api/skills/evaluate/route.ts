@@ -66,17 +66,14 @@ export async function POST(req: Request) {
 
     // 2. Create a skill_execution record for logging/analytics
     await pool.query(
-      `INSERT INTO skill_executions (skill_id, agent_id, task_id, input_summary, output_summary, execution_duration_ms, routing_method, success, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      `INSERT INTO skill_executions (skill_id, agent_id, task_description, duration_ms, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
       [
         skill_id,
         agent_id,
-        task_id || null,
-        input_summary,
-        output_summary,
+        input_summary.slice(0, 500) || null,
         execution_duration_ms || null,
-        routing_method || null,
-        success !== undefined ? success : true,
+        success !== false ? "completed" : "failed",
       ]
     ).catch(() => {
       // Non-critical: execution logging may fail if table doesn't exist yet
@@ -180,13 +177,12 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
       evaluationResult.efficiency * 0.1
     );
 
-    // 6. Save to skill_evaluations table
+    // 6. Save to skill_evaluations table (column names must match actual DB schema)
     const evalResult = await pool.query(
       `INSERT INTO skill_evaluations
-        (skill_id, agent_id, task_id, relevance, accuracy, completeness, clarity, efficiency,
-         overall_score, strengths, weaknesses, improvement_suggestions, input_summary, output_summary,
-         routing_method, execution_duration_ms, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+        (skill_id, agent_id, task_id, relevance_score, accuracy_score, completeness_score, clarity_score, efficiency_score,
+         overall_score, strengths, weaknesses, improvement_suggestions, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
        RETURNING id`,
       [
         skill_id,
@@ -201,10 +197,6 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
         JSON.stringify(evaluationResult.strengths || []),
         JSON.stringify(evaluationResult.weaknesses || []),
         JSON.stringify(evaluationResult.improvement_suggestions || []),
-        input_summary,
-        output_summary,
-        routing_method || null,
-        execution_duration_ms || null,
       ]
     ).catch(() => null);
 
@@ -221,13 +213,13 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
       if (hasCriticalWeakness && overall_score < 60) {
         await pool.query(
           `INSERT INTO skill_evolution
-            (skill_id, change_type, previous_version, new_version, change_summary, triggered_by, created_at)
+            (skill_id, change_type, previous_state, new_state, change_reason, trigger_agent_id, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
           [
             skill_id,
             "evaluation_insight",
-            "current",
-            "pending_update",
+            JSON.stringify({ score: overall_score }),
+            JSON.stringify({ status: "pending_update" }),
             `Low evaluation (score: ${overall_score}). Weaknesses: ${weaknesses.join("; ")}`,
             agent_id,
           ]

@@ -4986,6 +4986,42 @@ export const skillEvaluateTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Phase 6C: Skill Evolution & Rollback Tools
+// ---------------------------------------------------------------------------
+
+export const skillEvolveTool = tool({
+  description: "Evolve and improve a skill based on past evaluation feedback. The system will analyze weaknesses and rewrite the skill's prompt template to be more effective. Use this when a skill has been evaluated multiple times and needs improvement.",
+  inputSchema: zodSchema(z.object({
+    skill_id: z.string().describe("The UUID of the skill to evolve"),
+    agent_id: z.string().describe("Your agent ID for tracking"),
+  })),
+  execute: safeJson(async ({ skill_id, agent_id }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/evolve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skill_id, agent_id }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+export const skillRollbackTool = tool({
+  description: "Roll back a skill to a previous version if an evolution made it worse. Requires the evolution_id from the evolution timeline. Use this to undo a bad skill evolution.",
+  inputSchema: zodSchema(z.object({
+    skill_id: z.string().describe("The UUID of the skill to roll back"),
+    evolution_id: z.string().describe("The evolution record ID to roll back to"),
+  })),
+  execute: safeJson(async ({ skill_id, evolution_id }) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/skills/rollback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skill_id, evolution_id }),
+    });
+    return await safeParseRes(res);
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -5133,6 +5169,9 @@ export const allTools: Record<string, ToolType> = {
   skill_inspect: skillInspectTool,
   // Phase 6B: Skill Evaluation
   skill_evaluate: skillEvaluateTool,
+  // Phase 6C: Skill Evolution & Rollback
+  skill_evolve: skillEvolveTool,
+  skill_rollback: skillRollbackTool,
 };
 
 // ---------------------------------------------------------------------------

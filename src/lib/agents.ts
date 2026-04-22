@@ -79,19 +79,22 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 
 const SKILLS_AWARENESS = `
 ## Skills System
-You have access to a Skills Library with pre-built methodologies you can apply to tasks. Use \`skill_list\` to discover available skills, \`skill_use\` to apply a skill's methodology, and \`skill_rate\` to provide feedback on skill quality after use.
-
-**When to use skills:**
-- For recurring task patterns (research, code review, email composition, data analysis, etc.)
-- When the user's request matches a known skill category
-- To ensure consistent, high-quality output for structured tasks
+You have access to a Skills Library with pre-built methodologies you can apply to tasks. Skills can evolve and improve over time based on usage feedback.
 
 **Skill workflow:**
 1. Use \`skill_list\` with a relevant search term or category
 2. Review matching skills and pick the best fit
 3. Use \`skill_use\` to get the full prompt template and workflow
 4. Follow the skill's methodology to complete the task
-5. Use \`skill_rate\` to rate the skill's helpfulness (1-5)`;
+5. Use \`skill_evaluate\` to assess the skill's execution quality
+6. Use \`skill_rate\` for quick feedback (1-5)
+
+**Advanced skill management:**
+- Use \`skill_evolve\` to improve a skill based on past evaluation feedback
+- Use \`skill_rollback\` to revert a skill if an evolution made it worse
+- Use \`skill_create\` to create new skills for recurring patterns
+- Use \`skill_inspect\` for detailed skill analysis
+`;
 
 // ---------------------------------------------------------------------------
 // System Prompts — Each agent has a UNIQUE identity and personality
@@ -590,6 +593,8 @@ const agents: AgentConfig[] = [
       "a2a_share_context", "a2a_query_context", "a2a_collaborate",
       // Skills
       "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect", "skill_evaluate",
+      // Phase 6C: Skill Evolution & Rollback
+      "skill_evolve", "skill_rollback",
       // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
       // General has ALL tools natively — delegation wastes 30-40s per call and causes
       // Vercel 60s timeouts. Only specialist agents use query_agent for routing.

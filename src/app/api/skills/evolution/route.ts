@@ -36,10 +36,10 @@ export async function GET(req: Request) {
     const period = searchParams.get("period") || "30d";
     const { days, label } = parsePeriod(period);
 
-    // --- Execution History ---
+    // --- Execution History (use actual DB column names) ---
     const executionsResult = await pool.query(
-      `SELECT se.id, se.skill_id, se.agent_id, se.input_summary, se.output_summary,
-              se.execution_duration_ms, se.routing_method, se.success, se.created_at,
+      `SELECT se.id, se.skill_id, se.agent_id, se.task_description, se.quality_score,
+              se.duration_ms, se.status, se.steps_taken, se.tokens_used, se.created_at,
               s.display_name as skill_name, s.category as skill_category
        FROM skill_executions se
        JOIN skills s ON s.id = se.skill_id
@@ -52,20 +52,22 @@ export async function GET(req: Request) {
 
     const executions = executionsResult.rows.map((row: Record<string, unknown>) => ({
       ...row,
-      execution_duration_ms: row.execution_duration_ms ? Number(row.execution_duration_ms) : null,
+      quality_score: row.quality_score ? Number(row.quality_score) : null,
+      duration_ms: row.duration_ms ? Number(row.duration_ms) : null,
+      tokens_used: row.tokens_used ? Number(row.tokens_used) : null,
     }));
 
-    // --- Evaluation Trends (daily aggregates) ---
+    // --- Evaluation Trends (use actual DB column names with _score suffix) ---
     const trendsResult = await pool.query(
       `SELECT
           DATE(se.created_at) as date,
           COUNT(*) as eval_count,
           ROUND(AVG(se.overall_score)::numeric, 1) as avg_score,
-          ROUND(AVG(se.relevance)::numeric, 1) as avg_relevance,
-          ROUND(AVG(se.accuracy)::numeric, 1) as avg_accuracy,
-          ROUND(AVG(se.completeness)::numeric, 1) as avg_completeness,
-          ROUND(AVG(se.clarity)::numeric, 1) as avg_clarity,
-          ROUND(AVG(se.efficiency)::numeric, 1) as avg_efficiency
+          ROUND(AVG(se.relevance_score)::numeric, 1) as avg_relevance,
+          ROUND(AVG(se.accuracy_score)::numeric, 1) as avg_accuracy,
+          ROUND(AVG(se.completeness_score)::numeric, 1) as avg_completeness,
+          ROUND(AVG(se.clarity_score)::numeric, 1) as avg_clarity,
+          ROUND(AVG(se.efficiency_score)::numeric, 1) as avg_efficiency
        FROM skill_evaluations se
        WHERE se.created_at >= NOW() - INTERVAL '1 day' * $1
        ${skillId ? "AND se.skill_id = $2" : ""}
@@ -85,10 +87,10 @@ export async function GET(req: Request) {
       avg_efficiency: Number(row.avg_efficiency) || 0,
     }));
 
-    // --- Evolution Timeline ---
+    // --- Evolution Timeline (use actual DB column names) ---
     const evolutionResult = await pool.query(
-      `SELECT ev.id, ev.skill_id, ev.change_type, ev.previous_version, ev.new_version,
-              ev.change_summary, ev.triggered_by, ev.created_at,
+      `SELECT ev.id, ev.skill_id, ev.change_type, ev.previous_state, ev.new_state,
+              ev.change_reason, ev.trigger_agent_id, ev.created_at,
               s.display_name as skill_name
        FROM skill_evolution ev
        JOIN skills s ON s.id = ev.skill_id
@@ -101,6 +103,8 @@ export async function GET(req: Request) {
 
     const evolutionTimeline = evolutionResult.rows.map((row: Record<string, unknown>) => ({
       ...row,
+      change_summary: typeof row.change_reason === "string" ? row.change_reason : String(row.change_reason || ""),
+      triggered_by: row.trigger_agent_id || "",
     }));
 
     // --- Performance Summary ---
@@ -108,7 +112,7 @@ export async function GET(req: Request) {
       `SELECT
           COUNT(DISTINCT se.id) as total_executions,
           COUNT(DISTINCT sve.id) as total_evaluations,
-          ROUND(AVG(DISTINCT sve.overall_score)::numeric, 1) as avg_performance_score,
+          ROUND(AVG(sve.overall_score)::numeric, 1) as avg_performance_score,
           COUNT(DISTINCT CASE WHEN se.success = true THEN se.id END) as successful_executions,
           COUNT(DISTINCT ev.id) as skills_evolved
        FROM skill_executions se
