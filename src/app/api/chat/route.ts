@@ -16,7 +16,6 @@ import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyEr
 import { allTools } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
-import { getSupabase } from "@/lib/supabase";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
 import { getInsightsForPrompt, recordLearning } from "@/lib/self-learning";
 import { query } from "@/lib/db";
@@ -30,32 +29,41 @@ const MAX_STEPS_GENERAL = 60;
 const MAX_STEPS_SPECIALIST = 40;
 
 // ---------------------------------------------------------------------------
-// Load user settings (temperature, maxTokens) from Supabase
+// Load user settings (temperature, maxTokens) from DB via pg Pool
 // ---------------------------------------------------------------------------
+
+// Cache settings for 60s to avoid DB hit on every message
+let _settingsCache: { data: { temperature: number; maxTokens: number }; ts: number } | null = null;
+const SETTINGS_CACHE_TTL = 60_000;
 
 async function loadUserSettings(): Promise<{ temperature: number; maxTokens: number }> {
   const defaults = { temperature: 0.7, maxTokens: 65536 };
-  const supabase = getSupabase();
-  if (!supabase) return defaults;
+
+  // Return cached if fresh
+  if (_settingsCache && Date.now() - _settingsCache.ts < SETTINGS_CACHE_TTL) {
+    return _settingsCache.data;
+  }
 
   try {
-    const { data, error } = await supabase
-      .from("user_preferences")
-      .select("value")
-      .eq("key", "app_settings")
-      .single();
-
-    if (!error && data?.value) {
-      const settings = data.value as Record<string, unknown>;
-      return {
+    const result = await query(
+      `SELECT value FROM user_preferences WHERE key = $1 LIMIT 1`,
+      ["app_settings"]
+    );
+    const row = result.rows[0];
+    if (row?.value) {
+      const settings = (typeof row.value === "string" ? JSON.parse(row.value) : row.value) as Record<string, unknown>;
+      const parsed = {
         temperature: typeof settings.temperature === "number" ? settings.temperature : defaults.temperature,
         maxTokens: typeof settings.maxTokens === "number" ? settings.maxTokens : defaults.maxTokens,
       };
+      _settingsCache = { data: parsed, ts: Date.now() };
+      return parsed;
     }
   } catch {
     // Fall through to defaults
   }
 
+  _settingsCache = { data: defaults, ts: Date.now() };
   return defaults;
 }
 
@@ -322,7 +330,7 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: Math.max(userSettings.maxTokens, 65536),
+      maxOutputTokens: Math.max(userSettings.maxTokens, 131072),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
@@ -580,6 +588,7 @@ function formatAttachmentHeader(attachment: Attachment): string {
 
 // ---------------------------------------------------------------------------
 // Due Reminders Checker (inline — runs on every chat message)
+// Cached for 60s since reminders don't need real-time polling
 // ---------------------------------------------------------------------------
 
 interface DueReminder {
@@ -590,8 +599,17 @@ interface DueReminder {
   priority: string;
 }
 
+let _remindersCache: { data: DueReminder[]; ts: number } | null = null;
+const REMINDERS_CACHE_TTL = 60_000;
+
 async function checkDueReminders(): Promise<DueReminder[]> {
   if (!process.env.SUPABASE_DB_URL) return [];
+
+  // Return cached if fresh
+  if (_remindersCache && Date.now() - _remindersCache.ts < REMINDERS_CACHE_TTL) {
+    return _remindersCache.data;
+  }
+
   try {
     const { rows } = await query(
       `SELECT id, title, description, reminder_time, priority
@@ -600,7 +618,8 @@ async function checkDueReminders(): Promise<DueReminder[]> {
        ORDER BY priority DESC, reminder_time ASC
        LIMIT 10`,
     );
-    return rows;
+    _remindersCache = { data: rows as DueReminder[], ts: Date.now() };
+    return rows as DueReminder[];
   } catch {
     return [];
   }

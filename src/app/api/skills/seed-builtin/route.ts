@@ -1990,28 +1990,32 @@ export async function GET() {
 export async function POST() {
   try {
     // -----------------------------------------------------------------------
-    // 1. Ensure schema columns & tables exist
+    // 1. Ensure schema — create base table first, then add columns
     // -----------------------------------------------------------------------
-    const alterStatements = [
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS performance_score NUMERIC DEFAULT 0`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS total_uses INTEGER DEFAULT 0`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS avg_rating NUMERIC DEFAULT 0`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS agent_bindings TEXT[] DEFAULT '{}'`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_builtin BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`,
-      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1`,
-    ];
-    for (const stmt of alterStatements) {
-      try {
-        await query(stmt);
-      } catch (e) {
-        console.warn(`[ensureSchema] ALTER failed (may already exist): ${e}`);
-      }
-    }
-
-    const createStatements = [
+    const baseCreateStatements = [
+      `CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        display_name TEXT,
+        slug TEXT UNIQUE,
+        description TEXT,
+        category TEXT,
+        difficulty TEXT,
+        prompt_template TEXT,
+        workflow_steps JSONB DEFAULT '[]',
+        required_tools TEXT[] DEFAULT '{}',
+        tags TEXT[] DEFAULT '{}',
+        performance_score NUMERIC DEFAULT 0,
+        total_uses INTEGER DEFAULT 0,
+        avg_rating NUMERIC DEFAULT 0,
+        metadata JSONB DEFAULT '{}',
+        agent_bindings TEXT[] DEFAULT '{}',
+        is_builtin BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        version INTEGER DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )`,
       `CREATE TABLE IF NOT EXISTS agent_skills (
         agent_id TEXT NOT NULL,
         skill_id TEXT NOT NULL,
@@ -2040,11 +2044,53 @@ export async function POST() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`,
     ];
-    for (const stmt of createStatements) {
+    for (const stmt of baseCreateStatements) {
       try {
         await query(stmt);
       } catch (e) {
-        console.warn(`[ensureSchema] CREATE TABLE failed: ${e}`);
+        console.warn(`[ensureSchema] CREATE TABLE failed (may already exist): ${e}`);
+      }
+    }
+
+    // Add any columns that might be missing from an older schema
+    const alterStatements = [
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS performance_score NUMERIC DEFAULT 0`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS total_uses INTEGER DEFAULT 0`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS avg_rating NUMERIC DEFAULT 0`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS agent_bindings TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_builtin BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS workflow_steps JSONB DEFAULT '[]'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS required_tools TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`,
+      `ALTER TABLE skills ADD COLUMN IF NOT EXISTS slug TEXT`,
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await query(stmt);
+      } catch (e) {
+        console.warn(`[ensureSchema] ALTER failed (may already exist): ${e}`);
+      }
+    }
+
+    // Ensure UNIQUE constraints exist for ON CONFLICT
+    const constraintStatements = [
+      `DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'skills_name_key') THEN
+          ALTER TABLE skills ADD CONSTRAINT skills_name_key UNIQUE (name);
+        END IF;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;`,
+    ];
+    for (const stmt of constraintStatements) {
+      try {
+        await query(stmt);
+      } catch (e) {
+        console.warn(`[ensureSchema] CONSTRAINT failed: ${e}`);
       }
     }
 
@@ -2060,7 +2106,7 @@ export async function POST() {
            id, name, display_name, slug, description, category, difficulty,
            prompt_template, workflow_steps, required_tools, tags, agent_bindings,
            is_builtin, is_active, version, metadata
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          ON CONFLICT (name) DO UPDATE SET
            prompt_template = EXCLUDED.prompt_template,
            display_name = EXCLUDED.display_name,

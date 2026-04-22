@@ -83,7 +83,7 @@ describe("settings-store", () => {
       expect(DEFAULT_SETTINGS.compactMode).toBe(false);
       expect(DEFAULT_SETTINGS.sidebarCollapsed).toBe(false);
       expect(DEFAULT_SETTINGS.defaultAgent).toBe("general");
-      expect(DEFAULT_SETTINGS.maxTokens).toBe(4096);
+      expect(DEFAULT_SETTINGS.maxTokens).toBe(65536);
       expect(DEFAULT_SETTINGS.temperature).toBe(0.7);
       expect(DEFAULT_SETTINGS.persistConversations).toBe(true);
       expect(DEFAULT_SETTINGS.analyticsEnabled).toBe(true);

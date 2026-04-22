@@ -888,7 +888,7 @@ async function callAgentDirectly(agentId: string, taskPrompt: string, _delegatio
     system: agent.systemPrompt,
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,
-    maxOutputTokens: 32768,
+    maxOutputTokens: 65536,
     stopWhen: stepCountIs(maxSteps),
     abortSignal: AbortSignal.timeout(timeoutMs),
   });

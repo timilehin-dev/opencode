@@ -855,7 +855,7 @@ export default function SettingsPage() {
                     <input
                       type="range"
                       min="1024"
-                      max="32768"
+                      max="131072"
                       step="1024"
                       value={settings.maxTokens}
                       onChange={(e) => patch({ maxTokens: parseInt(e.target.value) })}

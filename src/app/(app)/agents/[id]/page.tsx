@@ -354,7 +354,7 @@ export default function AgentDetailPage() {
   const colors = colorMap[agent.color] || colorMap.emerald;
   const currentModel = overrides.model || agent.model;
   const currentTemp = overrides.temperature ?? 0.7;
-  const currentMaxTokens = overrides.maxTokens ?? 4096;
+  const currentMaxTokens = overrides.maxTokens ?? 65536;
   const currentPrompt = overrides.customSystemPrompt || agent.systemPrompt;
   const hasCustomPrompt = !!overrides.customSystemPrompt;
   const hasAnyOverrides = Object.keys(overrides).some((k) => {
@@ -1028,7 +1028,7 @@ function ParametersTab({
 
   const isDefaultModel = model === agent.model;
   const isDefaultTemp = temp === 0.7;
-  const isDefaultMaxTokens = maxTokens === 4096;
+  const isDefaultMaxTokens = maxTokens === 65536;
 
   return (
     <div className="space-y-6">
@@ -1229,22 +1229,22 @@ function ParametersTab({
         <CardContent className="space-y-4">
           <input
             type="range"
-            min="256"
-            max="16384"
-            step="256"
+            min="1024"
+            max="131072"
+            step="1024"
             value={maxTokens}
             onChange={(e) => { const v = parseInt(e.target.value); setMaxTokens(v); onUpdate("maxTokens", v === 4096 ? undefined : v); }}
             className="w-full h-2 rounded-full appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 16384) * 100)}%, hsl(var(--muted)) ${((maxTokens / 16384) * 100)}%, hsl(var(--muted)) 100%)`,
+              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 131072) * 100)}%, hsl(var(--muted)) ${((maxTokens / 131072) * 100)}%, hsl(var(--muted)) 100%)`,
             }}
           />
           <div className="flex flex-wrap gap-1.5">
             {[
-              { label: "Short", value: 1024 },
-              { label: "Default", value: 4096 },
-              { label: "Long", value: 8192 },
-              { label: "Maximum", value: 16384 },
+              { label: "Short", value: 4096 },
+              { label: "Default", value: 65536 },
+              { label: "Long", value: 98304 },
+              { label: "Maximum", value: 131072 },
             ].map((p) => (
               <button
                 key={p.label}

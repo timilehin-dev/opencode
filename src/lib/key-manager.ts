@@ -279,10 +279,9 @@ export async function selectBestKey(
   labels: string[],
   dailyLimit: number = DEFAULT_DAILY_TOKEN_LIMIT,
 ): Promise<KeySelectionResult> {
-  // Ensure cache is initialized
+  // Ensure cache is initialized (parallel init to reduce cold-start latency)
   if (!cacheInitialized) {
-    await initTable();
-    await loadUsageFromDB();
+    await Promise.all([initTable(), loadUsageFromDB()]);
   }
 
   // Daily reset check
@@ -418,8 +417,7 @@ export async function getAllKeyHealth(
   dailyLimit: number = DEFAULT_DAILY_TOKEN_LIMIT,
 ): Promise<KeyHealthStatus[]> {
   if (!cacheInitialized) {
-    await initTable();
-    await loadUsageFromDB();
+    await Promise.all([initTable(), loadUsageFromDB()]);
   }
 
   const statuses: KeyHealthStatus[] = [];
