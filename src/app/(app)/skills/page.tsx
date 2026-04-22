@@ -1086,6 +1086,7 @@ export default function SkillsPage() {
                         )}
                       </div>
                     </div>
+                </div>
               </motion.div>
             );
           })}
