@@ -333,12 +333,49 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       maxOutputTokens: Math.max(userSettings.maxTokens, 131072),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
-      onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
-        const stepInfo: string[] = [`[Step] finishReason=${finishReason}`];
+      // prepareStep: On continuation steps where tool results exist but no text
+      // has been generated across ALL steps, inject a continuation nudge.
+      // This prevents models like coding-glm from returning empty responses after tools.
+      prepareStep: ({ steps, stepNumber, messages }) => {
+        if (stepNumber > 0) {
+          // Check if ANY step so far has produced text
+          const anyText = steps.some(s => (s.text?.length ?? 0) > 0);
+          if (!anyText) {
+            // No text generated yet — the model might produce empty on this step too
+            const lastStep = steps[steps.length - 1];
+            const hadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
+            if (hadToolResults) {
+              console.log(`[Chat] prepareStep step ${stepNumber}: ${steps.length} step(s) with tool results but ZERO text generated — appending continuation nudge.`);
+              return {
+                messages: [
+                  ...messages,
+                  {
+                    role: "user" as const,
+                    content: "You have tool results but haven't responded to the user yet. Write a clear text response NOW summarizing what the tools returned. Do NOT call another tool.",
+                  },
+                ],
+              };
+            }
+          }
+        }
+        return undefined;
+      },
+      onStepFinish: ({ text, toolCalls, toolResults, finishReason, rawFinishReason, stepNumber }) => {
+        const stepInfo: string[] = [`[Step ${stepNumber}] finishReason=${finishReason} (raw=${rawFinishReason})`];
         if (text) stepInfo.push(`text=${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`);
+        else stepInfo.push(`text=<EMPTY>`);
         if (toolCalls?.length) stepInfo.push(`toolCalls=[${toolCalls.map((t: { toolName: string }) => t.toolName).join(", ")}]`);
         if (toolResults?.length) stepInfo.push(`toolResults=${toolResults.length} results, totalSize=${toolResults.reduce((s: number, r) => s + JSON.stringify(r).length, 0)} chars`);
         console.log(`[Chat] ${agent.name}: ${stepInfo.join(" | ")}`);
+
+        // CRITICAL: Detect the pattern where model got tool results but stopped without responding.
+        // This happens with some models (especially coding-glm) that don't generate text after tool results.
+        if (!text && toolResults?.length > 0 && toolCalls?.length === 0) {
+          console.error(`[Chat] ⚠️ EMPTY RESPONSE AFTER TOOLS: ${agent.name} received ${toolResults.length} tool result(s) but produced NO text. finishReason=${finishReason}. This step will be invisible to the user.`);
+        }
+        if (finishReason === "stop" && !text && toolResults?.length > 0 && toolCalls?.length === 0) {
+          console.error(`[Chat] 🚨 MID-TASK STOP BUG: ${agent.name} stopped after receiving ${toolResults.length} tool result(s) without generating any text response. The user will see nothing.`);
+        }
         // Phase 2: log tool calls as activity
         if (toolCalls?.length) {
           for (const tc of toolCalls) {
@@ -357,9 +394,14 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
         }
 
         // Detect when approaching step limit with no text generated yet
-        // This is a warning sign that the model may exhaust steps without explaining results
         if (String(finishReason).includes("step") && !text && toolResults?.length > 0) {
           console.error(`[Chat] 🚨 STEP LIMIT REACHED: ${agent.name} hit step limit (${maxSteps}) with tool results but NO final text response. The user received no explanation for the tool results.`);
+        }
+
+        // Detect when finishReason is 'other' — this usually means the provider returned
+        // an unrecognized finish_reason, which can prevent the loop from continuing properly.
+        if (finishReason === "length") {
+          console.warn(`[Chat] ⚠️ LENGTH FINISH: ${agent.name} hit maxOutputTokens before completing. The response was truncated.`);
         }
       },
       onFinish: ({ steps, usage }) => {
