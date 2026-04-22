@@ -97,9 +97,13 @@ export async function POST(req: Request) {
     const baseUrl = process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
       : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const bypassHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (process.env.VERCEL_PROTECTION_BYPASS) {
+      bypassHeaders["x-vercel-protection-bypass"] = process.env.VERCEL_PROTECTION_BYPASS;
+    }
     const updateRes = await fetch(`${baseUrl}/api/skills/${skill_id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: bypassHeaders,
       body: JSON.stringify({ prompt_template: restorePrompt }),
       signal: AbortSignal.timeout(15000),
     });

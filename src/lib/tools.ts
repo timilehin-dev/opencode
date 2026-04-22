@@ -18,6 +18,16 @@ function getSelfBaseUrl(): string {
   return process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 }
 
+/** Headers to include when fetching our own API routes (bypasses Vercel password protection). */
+function getSelfFetchHeaders(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { ...extra };
+  // Vercel password-protection bypass — set VERCEL_PROTECTION_BYPASS in Vercel env
+  if (process.env.VERCEL_PROTECTION_BYPASS) {
+    h["x-vercel-protection-bypass"] = process.env.VERCEL_PROTECTION_BYPASS;
+  }
+  return h;
+}
+
 // --- AIHubMix direct API helper (works on Vercel + local) ---
 const AIHUBMIX_BASE = process.env.AIHUBMIX_BASE_URL || "https://aihubmix.com/v1";
 const AIHUBMIX_KEYS = [
@@ -4845,7 +4855,9 @@ export const skillListTool = tool({
     if (search) params.set("search", search);
     if (category) params.set("category", category);
     if (agent) params.set("agent", agent);
-    const res = await fetch(`${getSelfBaseUrl()}/api/skills?${params.toString()}`);
+    const res = await fetch(`${getSelfBaseUrl()}/api/skills?${params.toString()}`, {
+      headers: getSelfFetchHeaders(),
+    });
     return await safeParseRes(res);
   }),
 });
@@ -4858,7 +4870,9 @@ export const skillUseTool = tool({
   })),
   execute: safeJson(async ({ skill_name, context }) => {
     const params = new URLSearchParams({ search: skill_name, limit: "1" });
-    const res = await fetch(`${getSelfBaseUrl()}/api/skills?${params.toString()}`);
+    const res = await fetch(`${getSelfBaseUrl()}/api/skills?${params.toString()}`, {
+      headers: getSelfFetchHeaders(),
+    });
     const data = await safeParseRes<{ success: boolean; data?: Array<Record<string, unknown>> }>(res);
     if (data.success && data.data && data.data.length > 0) {
       const skill = data.data[0];
@@ -4894,7 +4908,7 @@ export const skillCreateTool = tool({
   execute: safeJson(async ({ name, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ name, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags }),
     });
     return await safeParseRes(res);
@@ -4911,7 +4925,7 @@ export const skillEquipTool = tool({
   execute: safeJson(async ({ agent_id, skill_ids, unequip_skill_ids }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/agent-skills`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ agent_id, skill_ids, unequip_skill_ids }),
     });
     return await safeParseRes(res);
@@ -4929,7 +4943,7 @@ export const skillRateTool = tool({
   execute: safeJson(async ({ skill_id, agent_id, rating, feedback }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/rate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ skill_id, agent_id, rating, feedback }),
     });
     return await safeParseRes(res);
@@ -4942,7 +4956,9 @@ export const skillInspectTool = tool({
     skill_id: z.string().describe("The UUID of the skill to inspect"),
   })),
   execute: safeJson(async ({ skill_id }) => {
-    const res = await fetch(`${getSelfBaseUrl()}/api/skills/${skill_id}`);
+    const res = await fetch(`${getSelfBaseUrl()}/api/skills/${skill_id}`, {
+      headers: getSelfFetchHeaders(),
+    });
     return await safeParseRes(res);
   }),
 });
@@ -4960,7 +4976,7 @@ export const skillEvaluateTool = tool({
   execute: safeJson(async ({ skill_id, agent_id, task_id, input_summary, output_summary, success }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/evaluate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ skill_id, agent_id, task_id, input_summary, output_summary, success }),
     });
     return await safeParseRes(res);
@@ -4980,7 +4996,7 @@ export const skillEvolveTool = tool({
   execute: safeJson(async ({ skill_id, agent_id }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/evolve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ skill_id, agent_id }),
     });
     return await safeParseRes(res);
@@ -4996,7 +5012,7 @@ export const skillRollbackTool = tool({
   execute: safeJson(async ({ skill_id, evolution_id }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/rollback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ skill_id, evolution_id }),
     });
     return await safeParseRes(res);
@@ -5016,7 +5032,7 @@ export const skillSearchHybridTool = tool({
   execute: safeJson(async ({ query, top_k }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/search`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ query, top_k: top_k || 10 }),
     });
     return await safeParseRes(res);
@@ -5033,7 +5049,7 @@ export const skillRefreshEmbeddingsTool = tool({
     if (skill_id) body.skill_id = skill_id;
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/embeddings`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
     return await safeParseRes(res);
@@ -5046,7 +5062,7 @@ export const skillEmbeddingSetupTool = tool({
   execute: safeJson(async () => {
     const res = await fetch(`${getSelfBaseUrl()}/api/skills/embeddings/setup`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
     });
     return await safeParseRes(res);
   }),
@@ -5067,7 +5083,7 @@ export const workflowPlanTool = tool({
     if (agent_id) params.set("agent_id", agent_id);
     const res = await fetch(`${getSelfBaseUrl()}/api/workflows?${params.toString()}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ query, agent_id: agent_id || "general" }),
     });
     return await safeParseRes(res);
@@ -5084,7 +5100,7 @@ export const workflowExecuteTool = tool({
   execute: safeJson(async ({ workflow_id, agent_id, auto_validate }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/workflows/${workflow_id}/execute`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ agent_id: agent_id || "general", auto_validate: auto_validate !== false }),
     });
     return await safeParseRes(res);
@@ -5097,7 +5113,9 @@ export const workflowStatusTool = tool({
     workflow_id: z.string().describe("The UUID of the workflow"),
   })),
   execute: safeJson(async ({ workflow_id }) => {
-    const res = await fetch(`${getSelfBaseUrl()}/api/workflows/${workflow_id}`);
+    const res = await fetch(`${getSelfBaseUrl()}/api/workflows/${workflow_id}`, {
+      headers: getSelfFetchHeaders(),
+    });
     return await safeParseRes(res);
   }),
 });
@@ -5115,7 +5133,7 @@ export const workflowListTool = tool({
     if (status) params.set("status", status);
     if (limit) params.set("limit", String(limit));
     const url = `${getSelfBaseUrl()}/api/workflows${params.toString() ? `?${params.toString()}` : ""}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: getSelfFetchHeaders() });
     return await safeParseRes(res);
   }),
 });
@@ -5130,7 +5148,7 @@ export const workflowStepExecuteTool = tool({
   execute: safeJson(async ({ workflow_id, step_number, agent_id }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/workflows/${workflow_id}/steps/${step_number}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ agent_id: agent_id || "general" }),
     });
     return await safeParseRes(res);
@@ -5145,7 +5163,7 @@ export const workflowCancelTool = tool({
   execute: safeJson(async ({ workflow_id }) => {
     const res = await fetch(`${getSelfBaseUrl()}/api/workflows/${workflow_id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ status: "cancelled" }),
     });
     return await safeParseRes(res);
