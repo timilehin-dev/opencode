@@ -5642,7 +5642,7 @@ export const routineListTool = tool({
       success: true,
       count: result.rows.length,
       routines: result.rows.map((r: Record<string, unknown>) => ({
-        id: r.id, agentId: r.agent_id, name: r.name, task: (r.task || "").slice(0, 100),
+        id: r.id, agentId: r.agent_id, name: r.name, task: String(r.task || "").slice(0, 100),
         intervalMinutes: r.interval_minutes, priority: r.priority, isActive: r.is_active,
         lastRun: r.last_run, nextRun: r.next_run, createdAt: r.created_at,
       })),
