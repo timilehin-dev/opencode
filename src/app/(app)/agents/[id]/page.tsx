@@ -356,7 +356,7 @@ export default function AgentDetailPage() {
   const colors = colorMap[agent.color] || colorMap.emerald;
   const currentModel = overrides.model || agent.model;
   const currentTemp = overrides.temperature ?? 0.7;
-  const currentMaxTokens = overrides.maxTokens ?? 65536;
+  const currentMaxTokens = overrides.maxTokens ?? 262144;
   const currentPrompt = overrides.customSystemPrompt || agent.systemPrompt;
   const hasCustomPrompt = !!overrides.customSystemPrompt;
   const hasAnyOverrides = Object.keys(overrides).some((k) => {
@@ -1030,7 +1030,7 @@ function ParametersTab({
 
   const isDefaultModel = model === agent.model;
   const isDefaultTemp = temp === 0.7;
-  const isDefaultMaxTokens = maxTokens === 65536;
+  const isDefaultMaxTokens = maxTokens === 262144;
 
   return (
     <div className="space-y-6">
@@ -1244,7 +1244,7 @@ function ParametersTab({
           <div className="flex flex-wrap gap-1.5">
             {[
               { label: "Short", value: 4096 },
-              { label: "Default", value: 65536 },
+              { label: "Default", value: 262144 },
               { label: "Long", value: 98304 },
               { label: "Maximum", value: 262144 },
             ].map((p) => (
