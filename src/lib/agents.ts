@@ -861,15 +861,44 @@ agents.forEach((agent) => {
 });
 
 // ---------------------------------------------------------------------------
+// Hydrate agent statuses from database on cold start
+// ---------------------------------------------------------------------------
+
+async function hydrateAgentStatuses() {
+  try {
+    const { query } = await import("@/lib/db");
+    const result = await query("SELECT * FROM agent_status");
+    for (const row of result.rows) {
+      agentStatuses.set(row.agent_id, {
+        id: row.agent_id,
+        status: row.status,
+        currentTask: row.current_task,
+        lastActivity: row.last_activity,
+        tasksCompleted: row.tasks_completed || 0,
+        messagesProcessed: row.messages_processed || 0,
+      });
+    }
+    console.log(`[Agents] Hydrated ${result.rows.length} agent statuses from DB`);
+  } catch {
+    console.log("[Agents] Could not hydrate statuses from DB (will use defaults)");
+  }
+}
+
+// Only hydrate on server side (avoids pulling pg into client bundles)
+if (typeof window === "undefined") {
+  hydrateAgentStatuses();
+}
+
+// ---------------------------------------------------------------------------
 // Exported Functions
 // ---------------------------------------------------------------------------
 
-export function getAgent(id: string): AgentConfig | undefined {
-  return agents.find((a) => a.id === id);
-}
-
 export function getAllAgents(): AgentConfig[] {
   return agents;
+}
+
+export function getAgent(id: string): AgentConfig | undefined {
+  return agents.find((a) => a.id === id);
 }
 
 export function getAgentStatus(id: string): AgentStatus {
@@ -900,6 +929,23 @@ export function updateAgentStatus(
     id,
   };
   agentStatuses.set(id, updated);
+
+  // Also persist to database (fire-and-forget — non-async context)
+  import("@/lib/db").then(({ query }) =>
+    query(
+      `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed)
+       VALUES ($1, $2, $3, NOW(), $4, $5)
+       ON CONFLICT (agent_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         current_task = EXCLUDED.current_task,
+         last_activity = EXCLUDED.last_activity,
+         tasks_completed = EXCLUDED.tasks_completed,
+         messages_processed = EXCLUDED.messages_processed,
+         updated_at = NOW()`,
+      [id, updated.status || "idle", updated.currentTask || null, updated.tasksCompleted || 0, updated.messagesProcessed || 0]
+    ).catch(() => { /* non-critical */ })
+  ).catch(() => { /* non-critical */ });
+
   return updated;
 }
 

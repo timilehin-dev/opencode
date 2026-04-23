@@ -12,6 +12,7 @@ import { getRecentActivity, getAllPersistedStatuses, getDashboardMetrics } from 
 import { listTodos } from "@/lib/workspace";
 import { getRecentTasks } from "@/lib/task-queue";
 import { getRecentDelegations } from "@/lib/delegations";
+import { AGENT_MAP, getAgentMeta } from "@/lib/agent-map";
 import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/activity";
 import type { AgentTask } from "@/lib/task-queue";
 import type { Delegation } from "@/lib/delegations";
@@ -19,17 +20,6 @@ import type { Delegation } from "@/lib/delegations";
 export const maxDuration = 300; // SSE streams need long-lived connections on Vercel Pro
 
 const POLL_INTERVAL_MS = 3000;
-
-// Map agent IDs to their names/emojis/colors for the frontend
-const AGENT_MAP: Record<string, { name: string; emoji: string; color: string }> = {
-  general: { name: "Claw General", emoji: "🤵", color: "emerald" },
-  mail: { name: "Mail Agent", emoji: "✉️", color: "blue" },
-  code: { name: "Code Agent", emoji: "💻", color: "purple" },
-  data: { name: "Data Agent", emoji: "📊", color: "amber" },
-  creative: { name: "Creative Agent", emoji: "🧠", color: "rose" },
-  research: { name: "Research Agent", emoji: "🔍", color: "teal" },
-  ops: { name: "Ops Agent", emoji: "⚡", color: "orange" },
-};
 
 function formatSSE(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;

@@ -40,10 +40,12 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
     }
   };
 
-  const buildHtml = (event: ActivityEventView) => {
-    const agentName = event.agent_name || event.agent_id;
-    const detail = event.detail || ACTION_LABELS[event.action] || event.action;
-    return `<strong>${agentName}</strong> ${detail}`;
+  const sanitizeText = (text: string): string => {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   };
 
   const getDotColor = (event: ActivityEventView) => {
@@ -86,10 +88,10 @@ export function OpsFeed({ events, isConnected }: OpsFeedProps) {
             >
               <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${getDotColor(event)}`} />
               <div className="min-w-0">
-                <div
-                  className="text-[11px] text-muted-foreground leading-relaxed [&_strong]:text-foreground [&_strong]:font-semibold"
-                  dangerouslySetInnerHTML={{ __html: buildHtml(event) }}
-                />
+                <div className="text-[11px] text-muted-foreground leading-relaxed">
+                  <strong className="text-foreground font-semibold">{sanitizeText(event.agent_name || event.agent_id)}</strong>{" "}
+                  {sanitizeText(event.detail || ACTION_LABELS[event.action] || event.action)}
+                </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">
                   {formatTime(event.created_at)}
                 </div>

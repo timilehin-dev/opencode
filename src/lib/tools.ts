@@ -12,11 +12,31 @@ import { query } from "@/lib/db";
 // z-ai-web-dev-sdk for web tools (local Z.ai environment only)
 import ZAI from 'z-ai-web-dev-sdk';
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 // --- Current agent context for A2A tools ---
-// Set by chat route / executor before each request so A2A tools know who's calling.
-let __currentAgentId: string = 'general';
-export function setCurrentAgentId(id: string) { __currentAgentId = id; }
-export function getCurrentAgentId() { return __currentAgentId; }
+// Uses AsyncLocalStorage to provide per-request isolation in concurrent environments.
+// Each chat request / executor task sets its own agent ID without affecting others.
+const agentContextStorage = new AsyncLocalStorage<{ agentId: string }>();
+
+export function setCurrentAgentId(id: string) {
+  const store = agentContextStorage.getStore();
+  if (store) store.agentId = id;
+}
+
+export function getCurrentAgentId(): string {
+  const store = agentContextStorage.getStore();
+  return store?.agentId || 'general';
+}
+
+/**
+ * Run a function within an agent context. All tool calls within the function
+ * will see the specified agent ID via getCurrentAgentId().
+ * Supports both sync and async functions.
+ */
+export function withAgentContext<T>(agentId: string, fn: () => T | Promise<T>): T | Promise<T> {
+  return agentContextStorage.run({ agentId }, fn);
+}
 
 // --- Self-referencing base URL helper (for server-side fetch to own API routes) ---
 function getSelfBaseUrl(): string {
@@ -952,7 +972,7 @@ export const delegateToAgentTool = tool({
 
     // Log the delegation via Phase 3 delegations table (fire-and-forget)
     let delegationId = -1;
-    const fromAgent = __currentAgentId || "general";
+    const fromAgent = getCurrentAgentId() || "general";
     try {
       const { logDelegation } = await import("@/lib/delegations");
       delegationId = await logDelegation({
@@ -979,7 +999,7 @@ export const delegateToAgentTool = tool({
 
     try {
       console.log(`[A2A] Delegating to ${agent_id}: ${task.slice(0, 100)}...`);
-      const { text, steps } = await callAgentDirectly(agent_id, task);
+      const { text, steps } = await withAgentContext(agent_id, () => callAgentDirectly(agent_id, task));
       const durationMs = Date.now() - startTime;
       console.log(`[A2A] ${agent_id} responded: ${steps} steps, ${text.length} chars`);
 
@@ -1280,7 +1300,7 @@ export const queryAgentTool = tool({
     const startTime = Date.now();
 
     // Use the dynamically set agent ID for delegation logging
-    const fromAgent = __currentAgentId || "unknown";
+    const fromAgent = getCurrentAgentId() || "unknown";
 
     // Log the delegation via Phase 3 delegations table (fire-and-forget)
     let delegationId = -1;
@@ -3070,6 +3090,13 @@ export const createPdfReportTool = tool({
     const basename = filePath.split("/").pop() || "report.pdf";
     // Read file back for base64 in-chat download
     const fileBuffer = readFileSync(filePath);
+    // Cache the file for download via /api/files/ endpoint
+    try {
+      const { cacheFile } = await import("@/lib/file-cache");
+      cacheFile(basename, fileBuffer, "application/pdf", basename);
+    } catch {
+      // Caching is best-effort — base64 download still works
+    }
     const fileBase64 = fileBuffer.toString("base64");
     const fileSize = fileBuffer.length;
     return {
@@ -3390,6 +3417,13 @@ export const createDocxDocumentTool = tool({
     const fileBaseName = `${safeName}.docx`;
     // Read back for base64 in-chat download
     const fileBase64 = Buffer.from(buffer).toString("base64");
+    // Cache the file for download via /api/files/ endpoint
+    try {
+      const { cacheFile } = await import("@/lib/file-cache");
+      cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileBaseName);
+    } catch {
+      // Caching is best-effort
+    }
     const fileSize = buffer.byteLength;
     return {
       filename: fileBaseName,
@@ -4107,6 +4141,14 @@ export const createXlsxSpreadsheetTool = tool({
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
     const fileBaseName = `${safeName}.xlsx`;
 
+    // Cache the file for download via /api/files/ endpoint
+    try {
+      const { cacheFile } = await import("@/lib/file-cache");
+      cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBaseName);
+    } catch {
+      // Caching is best-effort
+    }
+
     return {
       filename: fileBaseName,
       title,
@@ -4682,7 +4724,7 @@ export const a2aSendMessageTool = tool({
   execute: safeJson(async ({ to_agent, topic, content, priority, msg_type }) => {
     const { sendA2AMessage } = await import("@/lib/a2a");
     const msg = await sendA2AMessage({
-      fromAgent: __currentAgentId, // Dynamically resolved from chat route / executor
+      fromAgent: getCurrentAgentId(), // Dynamically resolved from chat route / executor
       toAgent: to_agent,
       type: msg_type || "request",
       topic,
@@ -4707,7 +4749,7 @@ export const a2aBroadcastTool = tool({
   execute: safeJson(async ({ topic, content, targets, priority }) => {
     const { broadcastA2AMessage } = await import("@/lib/a2a");
     const result = await broadcastA2AMessage({
-      fromAgent: __currentAgentId, // Dynamically resolved from chat route / executor
+      fromAgent: getCurrentAgentId(), // Dynamically resolved from chat route / executor
       targets,
       topic,
       payload: { content, source: "a2a_broadcast" },
@@ -4726,7 +4768,7 @@ export const a2aCheckInboxTool = tool({
   })),
   execute: safeJson(async ({ agent_id, limit, mark_as_read }) => {
     const { getAgentInbox, markMessagesRead } = await import("@/lib/a2a");
-    const checkAgent = agent_id || __currentAgentId; // Default to current agent if not specified
+    const checkAgent = agent_id || getCurrentAgentId(); // Default to current agent if not specified
     const messages = await getAgentInbox(checkAgent, limit || 20);
     
     // Auto mark as read
@@ -4764,7 +4806,7 @@ export const a2aShareContextTool = tool({
     const { shareContext } = await import("@/lib/a2a");
     const ctxId = await shareContext({
       contextKey: context_key,
-      agentId: __currentAgentId, // Dynamically resolved from chat route / executor
+      agentId: getCurrentAgentId(), // Dynamically resolved from chat route / executor
       content: { text: content, ...structured_data },
       contentText: content,
       tags: tags || [],
@@ -4821,17 +4863,17 @@ export const a2aCollaborateTool = tool({
   })),
   execute: safeJson(async ({ channel_name, message, members, channel_type, project_id }) => {
     const { getOrCreateChannel, postToChannel } = await import("@/lib/a2a");
-    const allMembers = members || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== __currentAgentId);
+    const allMembers = members || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== getCurrentAgentId());
     const channelId = await getOrCreateChannel({
       name: channel_name,
       channelType: channel_type || "project",
       projectId: project_id,
-      members: [...allMembers, __currentAgentId], // Include self in channel members
+      members: [...allMembers, getCurrentAgentId()], // Include self in channel members
     });
     if (!channelId) return { success: false, error: "Failed to create/get channel" };
 
     const msgId = await postToChannel(channelId, {
-      agentId: __currentAgentId,
+      agentId: getCurrentAgentId(),
       content: message,
       messageType: "message",
     });
@@ -4839,7 +4881,7 @@ export const a2aCollaborateTool = tool({
     // Also broadcast to members' inboxes
     const { broadcastA2AMessage } = await import("@/lib/a2a");
     await broadcastA2AMessage({
-      fromAgent: __currentAgentId,
+      fromAgent: getCurrentAgentId(),
       targets: allMembers,
       topic: `New message in #${channel_name}`,
       payload: { content: message.slice(0, 500), channelId, source: "a2a_collaborate" },

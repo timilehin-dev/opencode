@@ -335,8 +335,9 @@ export async function executeWorkflow(
       if (failedSteps.rows.length === 0) {
         throw new Error("No pending steps to execute");
       }
-      // Re-run failed steps
-      return executeWorkflow(workflowId, agentId, autoValidate);
+      // Don't recurse — return current status instead of risking stack overflow
+      console.warn(`[Workflow] No pending steps found, ${failedSteps.rows.length} failed step(s) remain. Status: ${workflow.status}`);
+      return { status: workflow.status, results: [] };
     }
 
     // Get all completed steps for context passing
@@ -374,7 +375,7 @@ export async function executeWorkflow(
         let skillPrompt = "";
         if (step.skill_name && step.skill_name !== "none") {
           const skillResult = await pool.query(
-            `SELECT prompt_template FROM skills WHERE name = $1 OR display_name = $1 AND is_active = true LIMIT 1`,
+            `SELECT prompt_template FROM skills WHERE (name = $1 OR display_name = $1) AND is_active = true LIMIT 1`,
             [step.skill_name],
           );
           if (skillResult.rows.length > 0 && skillResult.rows[0].prompt_template) {
@@ -705,7 +706,7 @@ export async function runSingleStep(
       let skillPrompt = "";
       if (step.skill_name && step.skill_name !== "none") {
         const skillResult = await pool.query(
-          `SELECT prompt_template FROM skills WHERE name = $1 OR display_name = $1 AND is_active = true LIMIT 1`,
+          `SELECT prompt_template FROM skills WHERE (name = $1 OR display_name = $1) AND is_active = true LIMIT 1`,
           [step.skill_name],
         );
         if (skillResult.rows.length > 0 && skillResult.rows[0].prompt_template) {

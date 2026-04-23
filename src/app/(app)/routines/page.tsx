@@ -20,7 +20,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { getAllAgents } from "@/lib/agents";
+
+// Agent list fetched from API to avoid importing server-only modules (pg) in client bundle
+const DEFAULT_AGENTS = [
+  { id: "general", name: "Claw General", role: "General-purpose AI assistant" },
+  { id: "mail", name: "Mail Agent", role: "Email & calendar management" },
+  { id: "code", name: "Code Agent", role: "GitHub & Vercel development" },
+  { id: "data", name: "Data Agent", role: "Drive, Sheets & Docs" },
+  { id: "creative", name: "Creative Agent", role: "Content & design creation" },
+  { id: "research", name: "Research Agent", role: "Deep research & intelligence" },
+  { id: "ops", name: "Ops Agent", role: "Monitoring & health checks" },
+];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -146,7 +156,7 @@ export default function RoutinesPage() {
   }, []);
 
   useEffect(() => {
-    setAgents(getAllAgents().map((a) => ({ id: a.id, name: a.name, role: a.role })));
+    setAgents(DEFAULT_AGENTS);
   }, []);
 
   useEffect(() => {

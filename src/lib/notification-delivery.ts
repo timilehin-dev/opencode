@@ -4,6 +4,8 @@
 // Manages notification delivery channels: desktop, webhook, email.
 // ---------------------------------------------------------------------------
 
+import { createHmac } from "crypto";
+
 export interface WebhookConfig {
   url: string;
   enabled: boolean;
@@ -148,17 +150,18 @@ export async function deliverWebhook(
   }
 ): Promise<boolean> {
   try {
+    const body = JSON.stringify({
+      ...payload,
+      deliveredAt: new Date().toISOString(),
+      source: "claw-ai",
+    });
     const res = await fetch(webhook.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(webhook.secret ? { "X-Claw-Signature": webhook.secret } : {}),
+        ...(webhook.secret ? { "X-Claw-Signature": `sha256=${createHmac("sha256", webhook.secret).update(body).digest("hex")}` } : {}),
       },
-      body: JSON.stringify({
-        ...payload,
-        deliveredAt: new Date().toISOString(),
-        source: "claw-ai",
-      }),
+      body,
       signal: AbortSignal.timeout(5000),
     });
     return res.ok;

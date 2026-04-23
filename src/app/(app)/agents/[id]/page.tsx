@@ -36,7 +36,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { getAllAgents, type AgentConfig } from "@/lib/agents";
+import type { AgentConfig } from "@/lib/agents";
+import { AGENT_LIST } from "@/lib/agent-map";
+
 import {
   loadAgentOverrides,
   saveAgentOverrides,
@@ -222,7 +224,7 @@ export default function AgentDetailPage() {
 
   // Load agent + overrides
   useEffect(() => {
-    const found = getAllAgents().find((a) => a.id === params.id);
+    const found = AGENT_LIST.find((a) => a.id === params.id) as AgentConfig | undefined;
     if (found) {
       setAgent(found);
       const o = loadAgentOverrides(found.id);

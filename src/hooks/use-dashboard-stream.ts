@@ -266,6 +266,12 @@ export function useDashboardStream(): DashboardState {
 
       es.onerror = () => {
         if (mountedRef.current) {
+          // Close the broken EventSource BEFORE starting polling
+          // to prevent stacking multiple polling intervals
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
           setIsConnected(false);
           // Fall back to polling after SSE error
           startPolling();

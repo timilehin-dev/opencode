@@ -66,10 +66,13 @@ function getEnvDefinitions(): Array<{ name: string; required: boolean; descripti
     { name: "GOOGLE_REFRESH_TOKEN", required: false, description: "Google OAuth refresh token" },
 
     // GitHub
-    { name: "GITHUB_TOKEN", required: false, description: "GitHub personal access token" },
+    { name: "GITHUB_PAT", required: false, description: "GitHub personal access token (GITHUB_PAT)" },
+    { name: "GITHUB_REPO_OWNER", required: false, description: "GitHub repository owner" },
+    { name: "GITHUB_REPO_NAME", required: false, description: "GitHub repository name" },
 
     // Vercel
-    { name: "VERCEL_TOKEN", required: false, description: "Vercel API token" },
+    { name: "VERCEL_API_TOKEN", required: false, description: "Vercel API token" },
+    { name: "VERCEL_TEAM_ID", required: false, description: "Vercel team ID" },
   ];
 }
 

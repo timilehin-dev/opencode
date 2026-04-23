@@ -13,7 +13,7 @@
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyError } from "@/lib/agents";
-import { allTools, setCurrentAgentId } from "@/lib/tools";
+import { allTools, setCurrentAgentId, withAgentContext } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
@@ -91,9 +91,6 @@ export async function POST(req: Request) {
 
     const id = agentId || "general";
     const agent = getAgent(id);
-
-    // Set current agent ID so A2A tools know who's calling
-    setCurrentAgentId(id);
 
     if (!agent) {
       return new Response(
@@ -330,7 +327,9 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
     // Tuned up from 25/15 to 40/25 to prevent the "stops halfway" bug.
     const maxSteps = id === "general" ? MAX_STEPS_GENERAL : MAX_STEPS_SPECIALIST;
 
-    const result = streamText({
+    // Wrap the entire streamText call in withAgentContext so that tool execute callbacks
+    // (which run during streaming) inherit the correct agent ID via AsyncLocalStorage.
+    const result = await withAgentContext(id, () => streamText({
       model,
       system: systemPrompt,
       messages: modelMessages,
@@ -538,7 +537,7 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
         logActivity({ agentId: id, agentName: agent.name, action: "error", detail: `stream error: ${error instanceof Error ? error.message.slice(0, 100) : "unknown"}` }).catch(() => {});
         persistAgentStatus(id, { status: "error", currentTask: null, lastActivity: new Date().toISOString() }).catch(() => {});
       },
-    });
+    }));
 
     return result.toUIMessageStreamResponse();
   } catch (error) {

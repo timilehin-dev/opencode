@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Plus, Check, Loader2 } from "lucide-react";
 import type { AgentTaskView } from "@/hooks/use-dashboard-stream";
-import { getAllAgents } from "@/lib/agents";
+import { AGENT_LIST } from "@/lib/agent-map";
 
 interface DashboardTasksProps {
   tasks: AgentTaskView[];
@@ -151,7 +151,7 @@ export function DashboardTasks({ tasks: streamTasks }: DashboardTasksProps) {
     setCompleting(null);
   };
 
-  const agents = getAllAgents();
+  const agents = AGENT_LIST;
 
   return (
     <div className="flex flex-col h-full">

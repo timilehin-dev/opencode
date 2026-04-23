@@ -13,16 +13,7 @@ import {
   getDashboardMetrics,
 } from "@/lib/activity";
 import { listTodos } from "@/lib/workspace";
-
-const AGENT_MAP: Record<string, { name: string; emoji: string; color: string }> = {
-  general: { name: "Claw General", emoji: "🤵", color: "emerald" },
-  mail: { name: "Mail Agent", emoji: "✉️", color: "blue" },
-  code: { name: "Code Agent", emoji: "💻", color: "purple" },
-  data: { name: "Data Agent", emoji: "📊", color: "amber" },
-  creative: { name: "Creative Agent", emoji: "🧠", color: "rose" },
-  research: { name: "Research Agent", emoji: "🔍", color: "teal" },
-  ops: { name: "Ops Agent", emoji: "⚡", color: "orange" },
-};
+import { AGENT_MAP, getAgentMeta } from "@/lib/agent-map";
 
 export async function GET() {
   try {

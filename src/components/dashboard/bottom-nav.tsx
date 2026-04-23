@@ -1,3 +1,5 @@
+// @deprecated — This component is not currently used in the application.
+// Consider removing in a future cleanup.
 "use client";
 
 import { useState, useRef, useEffect } from "react";

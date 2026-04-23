@@ -22,7 +22,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getAllAgents } from "@/lib/agents";
+
+const DEFAULT_AGENTS = [
+  { id: "general", name: "Claw General", role: "General-purpose AI assistant" },
+  { id: "mail", name: "Mail Agent", role: "Email & calendar management" },
+  { id: "code", name: "Code Agent", role: "GitHub & Vercel development" },
+  { id: "data", name: "Data Agent", role: "Drive, Sheets & Docs" },
+  { id: "creative", name: "Creative Agent", role: "Content & design creation" },
+  { id: "research", name: "Research Agent", role: "Deep research & intelligence" },
+  { id: "ops", name: "Ops Agent", role: "Monitoring & health checks" },
+];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -171,7 +180,7 @@ export default function InsightsPage() {
   }, []);
 
   useEffect(() => {
-    setAgents(getAllAgents().map((a) => ({ id: a.id, name: a.name, role: a.role })));
+    setAgents(DEFAULT_AGENTS.map((a) => ({ id: a.id, name: a.name, role: a.role })));
   }, []);
 
   useEffect(() => {

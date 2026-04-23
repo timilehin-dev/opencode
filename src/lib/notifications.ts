@@ -152,6 +152,7 @@ export function sendDesktopNotification(
   title: string,
   body: string,
   onClick?: () => void,
+  agentId?: string,
 ): void {
   if (typeof window === 'undefined') return;
   if (!('Notification' in window)) return;
@@ -159,7 +160,7 @@ export function sendDesktopNotification(
 
   const n = new Notification(title, {
     body,
-    tag: `${title}:${body}`, // prevents duplicates
+    tag: `${agentId || "unknown"}:${title}:${body}`, // prevents duplicates
     silent: true,
   });
 
@@ -232,6 +233,7 @@ export function pushAgentNotification(notif: AgentNotification): void {
       `${notif.agentName || "Agent"}: ${notif.title}`,
       notif.body,
       notif.actionUrl ? () => { window.location.href = notif.actionUrl!; } : undefined,
+      notif.agentId,
     );
   }
 }

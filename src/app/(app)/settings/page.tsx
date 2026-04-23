@@ -41,7 +41,9 @@ import {
   resetSettings,
   TIMEZONES,
 } from "@/lib/settings-store";
-import { getAllAgents } from "@/lib/agents";
+
+import { AGENT_LIST } from "@/lib/agent-map";
+
 import { useNotifications } from "@/context/notification-context";
 
 // ---------------------------------------------------------------------------
@@ -230,7 +232,18 @@ export default function SettingsPage() {
     }
   }, [notifPrefs]);
 
-  const agents = getAllAgents();
+  const [agents, setAgents] = useState<any[]>([]);
+
+  // Fetch full agent config from API (includes model, provider, tools)
+  useEffect(() => {
+    fetch("/api/agents")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success?.data) setAgents(json.data);
+        else setAgents(AGENT_LIST);
+      })
+      .catch(() => setAgents(AGENT_LIST));
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -808,7 +821,7 @@ export default function SettingsPage() {
                     >
                       {agents.map((agent) => (
                         <option key={agent.id} value={agent.id}>
-                          {agent.emoji} {agent.name} — {agent.role}
+                          {agent.emoji} {agent.name}
                         </option>
                       ))}
                     </select>
@@ -897,7 +910,7 @@ export default function SettingsPage() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground truncate">
-                            {agent.role}
+                            {agent.name}
                           </p>
                         </div>
                         <div className="flex-shrink-0 text-right">
