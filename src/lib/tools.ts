@@ -5360,41 +5360,47 @@ export const taskboardSummaryTool = tool({
 // ---------------------------------------------------------------------------
 
 export const scheduleAgentTaskTool = tool({
-  description: "AUTONOMOUSLY schedule a task for yourself or another agent. This is the PRIMARY tool for proactive behavior — use it when you identify work that needs to be done, either by you or another agent. The task will be picked up by the executor within ~2 minutes. Use this to: (1) schedule follow-up work for yourself, (2) delegate work to another specialist, (3) set up recurring monitoring, (4) create a task chain where agent A's output feeds agent B. The user has pre-authorized autonomous task creation — do NOT ask for permission.",
+  description: "AUTONOMOUSLY schedule a task for yourself or another agent. This is the PRIMARY tool for proactive behavior. Supports RECURRING tasks (every X minutes/hours) and TASK CHAINING (on completion, auto-schedule a follow-up for another agent with results passed as context). The user has pre-authorized autonomous task creation — do NOT ask for permission.",
   inputSchema: zodSchema(z.object({
     agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).describe("Which agent should execute this task"),
     task: z.string().describe("Clear, specific task description with ALL context needed for autonomous execution"),
     context: z.string().optional().describe("Additional context or background information"),
     priority: z.enum(["low", "normal", "high", "critical"]).optional().describe("Task priority (default: normal)"),
     reason: z.string().optional().describe("Why this task is being created (for audit trail)"),
+    recurring: z.string().optional().describe("Recurring interval: '30m', '1h', '2h', '24h', etc. Task auto-reschedules after completion."),
+    chain_to: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Agent to chain to after this task completes. The chained agent receives this task's output as context."),
+    chain_task: z.string().optional().describe("Task description for the chained agent. It will receive this task's output as context."),
+    chain_on_fail: z.boolean().optional().describe("If true, chain even when this task fails (default: only chain on success)"),
   })),
-  execute: safeJson(async ({ agent_id, task, context, priority, reason }) => {
+  execute: safeJson(async ({ agent_id, task, context, priority, reason, recurring, chain_to, chain_task, chain_on_fail }) => {
     const fromAgent = getCurrentAgentId() || "system";
 
     const triggerSource = `autonomous:${fromAgent}:${Date.now()}`;
 
     const result = await query(
-      `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-       VALUES ($1, $2, $3, 'autonomous', $4, $5)
+      `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, recurring_enabled, recurring_interval, chain_to_agent, chain_task, chain_on_success)
+       VALUES ($1, $2, $3, 'autonomous', $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, status, created_at`,
-      [agent_id, task, context || "", triggerSource, priority || "normal"]
+      [agent_id, task, context || "", triggerSource, priority || "normal", !!recurring, recurring || null, chain_to || null, chain_task || null, !chain_on_fail]
     );
 
     if (result.rows.length > 0) {
       const taskId = result.rows[0].id;
-      console.log(`[Autonomous Task] ${fromAgent} scheduled task #${taskId} for ${agent_id}: ${task.slice(0, 80)}...`);
+      console.log(`[Autonomous Task] ${fromAgent} scheduled task #${taskId} for ${agent_id}: ${task.slice(0, 80)}...${recurring ? ` (recurring: ${recurring})` : ""}${chain_to ? ` (chain → ${chain_to})` : ""}`);
 
       // Also send A2A notification to target agent if different from creator
       if (agent_id !== fromAgent) {
         try {
           const { sendA2AMessage } = await import("@/lib/a2a");
+          const recurringNote = recurring ? `\n**Recurring**: Every ${recurring}` : "";
+          const chainNote = chain_to ? `\n**Chained to**: ${chain_to}` : "";
           await sendA2AMessage({
             fromAgent,
             toAgent: agent_id,
             type: "request",
             topic: `New task scheduled by ${fromAgent}`,
             payload: {
-              content: `${fromAgent} has scheduled a task for you:\n\n**Task**: ${task}\n${context ? `**Context**: ${context}\n` : ""}**Priority**: ${priority || "normal"}\n${reason ? `**Reason**: ${reason}\n` : ""}\nThis task will be picked up by the executor within ~2 minutes. You can also check your inbox using a2a_check_inbox.`,
+              content: `${fromAgent} has scheduled a task for you:\n\n**Task**: ${task}\n${context ? `**Context**: ${context}\n` : ""}**Priority**: ${priority || "normal"}\n${reason ? `**Reason**: ${reason}\n` : ""}${recurringNote}${chainNote}\nThis task will be picked up by the executor within ~2 minutes.`,
               source: "schedule_agent_task",
               taskId,
               priority,
@@ -5411,9 +5417,11 @@ export const scheduleAgentTaskTool = tool({
         task: task.slice(0, 200),
         priority: priority || "normal",
         estimatedPickup: "~2 minutes",
+        recurring: recurring || null,
+        chain: chain_to ? { to: chain_to, task: chain_task } : null,
         message: agent_id === fromAgent
-          ? `Task #${taskId} scheduled for yourself. The executor will pick it up within ~2 minutes.`
-          : `Task #${taskId} scheduled for ${agent_id}. They've been notified via A2A and the executor will pick it up within ~2 minutes.`,
+          ? `Task #${taskId} scheduled for yourself.${recurring ? ` Recurring every ${recurring}.` : ""}${chain_to ? ` Will chain to ${chain_to} on completion.` : ""} The executor will pick it up within ~2 minutes.`
+          : `Task #${taskId} scheduled for ${agent_id}.${recurring ? ` Recurring every ${recurring}.` : ""}${chain_to ? ` Will chain to ${chain_to} on completion.` : ""} They've been notified via A2A.`,
       };
     }
 

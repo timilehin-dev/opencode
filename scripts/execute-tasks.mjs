@@ -3229,33 +3229,41 @@ function buildToolMap(agentId) {
     }),
     // Autonomous Task Creation & Team Coordination
     schedule_agent_task: tool({
-      description: "Schedule a task for yourself or another agent. The executor will pick it up within ~2 minutes.",
+      description: "Schedule a task for yourself or another agent. The executor will pick it up within ~2 minutes. Supports RECURRING tasks (every X minutes/hours) and TASK CHAINING (on completion, auto-schedule a follow-up for another agent).",
       inputSchema: zodSchema(z.object({
         agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]),
         task: z.string(),
         context: z.string().optional(),
         priority: z.enum(["low", "normal", "high", "critical"]).optional(),
         reason: z.string().optional(),
+        recurring: z.string().optional().describe("Recurring interval: '30m', '1h', '2h', '24h', etc. Task will auto-reschedule after completion."),
+        chain_to: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Agent to chain to after this task completes. Results are passed as context."),
+        chain_task: z.string().optional().describe("Task description for the chained agent. Will receive this task's output as context."),
+        chain_on_fail: z.boolean().optional().describe("If true, chain even when this task fails (default: only chain on success)"),
       })),
-      execute: safeJsonWrap(async ({ agent_id, task, context, priority }) => {
+      execute: safeJsonWrap(async ({ agent_id, task, context, priority, reason, recurring, chain_to, chain_task, chain_on_fail }) => {
         const fromAgent = currentAgentId || "system";
+        const recurringEnabled = !!recurring;
+        const recurringInterval = recurring || null;
         const result = await pool.query(
-          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority) VALUES ($1, $2, $3, 'autonomous', $4, $5) RETURNING id`,
-          [agent_id, task, context || "", `autonomous:${fromAgent}:${Date.now()}`, priority || "normal"]
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, recurring_enabled, recurring_interval, chain_to_agent, chain_task, chain_on_success) VALUES ($1, $2, $3, 'autonomous', $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+          [agent_id, task, context || "", `autonomous:${fromAgent}:${Date.now()}`, priority || "normal", recurringEnabled, recurringInterval, chain_to || null, chain_task || null, !chain_on_fail]
         );
         if (result.rows.length > 0) {
           const taskId = result.rows[0].id;
           // Also send A2A notification if target is different
           if (agent_id !== fromAgent) {
+            const recurringNote = recurring ? ` (RECURRING every ${recurring})` : "";
+            const chainNote = chain_to ? ` → chains to ${chain_to}` : "";
             await sendA2ANotification({
               toAgent: agent_id,
               fromAgent,
               topic: `New task scheduled by ${fromAgent}`,
-              content: `${fromAgent} scheduled task #${taskId} for you: ${task.slice(0, 200)}`,
+              content: `${fromAgent} scheduled task #${taskId} for you${recurringNote}${chainNote}: ${task.slice(0, 200)}`,
               priority: priority === "critical" ? "urgent" : priority || "normal",
             });
           }
-          return { success: true, taskId, agent: agent_id, message: `Task #${taskId} scheduled for ${agent_id}.` };
+          return { success: true, taskId, agent: agent_id, recurring: recurringEnabled ? recurring : null, chain: chain_to ? { to: chain_to, task: chain_task } : null, message: `Task #${taskId} scheduled for ${agent_id}.${recurring ? ` Recurring every ${recurring}.` : ""}${chain_to ? ` Will chain to ${chain_to} on completion.` : ""}` };
         }
         return { success: false, error: "Failed to create task" };
       }),
@@ -3356,6 +3364,24 @@ function buildToolMap(agentId) {
 // ---------------------------------------------------------------------------
 
 const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, max: 3, idleTimeoutMillis: 30000 });
+
+// ── Interval Parser ──
+// Parses human-readable intervals like "30m", "1h", "2h30m", "24h" into milliseconds
+function parseInterval(interval) {
+  if (!interval) return 0;
+  const str = String(interval).toLowerCase().trim();
+  let ms = 0;
+  // Match patterns like "2h30m", "30m", "1h", "24h", "45s"
+  const hours = str.match(/(\d+)\s*h/);
+  const minutes = str.match(/(\d+)\s*m(?!s)/);
+  const seconds = str.match(/(\d+)\s*s/);
+  if (hours) ms += parseInt(hours[1], 10) * 60 * 60 * 1000;
+  if (minutes) ms += parseInt(minutes[1], 10) * 60 * 1000;
+  if (seconds) ms += parseInt(seconds[1], 10) * 1000;
+  // Pure number = minutes (convenience)
+  if (ms === 0 && /^\d+$/.test(str)) ms += parseInt(str, 10) * 60 * 1000;
+  return ms;
+}
 
 async function getAnyPendingTask() {
   const result = await pool.query(
@@ -3859,6 +3885,48 @@ async function main() {
           actionLabel: "View Details",
           metadata: { taskId: task.id, triggerType: task.trigger_type, durationMs: result.durationMs },
         });
+
+        // ── RECURRING TASK RESCHEDULING ──
+        // If this task is recurring, schedule the next occurrence
+        if (task.recurring_enabled && task.recurring_interval) {
+          const intervalMs = parseInterval(task.recurring_interval);
+          if (intervalMs > 0) {
+            const nextRun = new Date(Date.now() + intervalMs);
+            await pool.query(
+              `UPDATE agent_tasks SET status = 'pending', next_run_at = $1, started_at = NULL, completed_at = NULL, result = '', error = '', tool_calls = '[]' WHERE id = $2`,
+              [nextRun.toISOString(), task.id]
+            );
+            console.log(`[Recurring] Rescheduled task #${task.id} for ${nextRun.toISOString()} (interval: ${task.recurring_interval})`);
+            await logActivity(task.agent_id, agentName, "task_rescheduled", `Recurring task rescheduled: ${task.task.slice(0, 60)} → next at ${nextRun.toISOString()}`, { taskId: task.id });
+          }
+        }
+
+        // ── TASK CHAINING ──
+        // If this task has a chain target, schedule the next task in the chain
+        if (task.chain_to_agent && task.chain_task) {
+          const chainContext = `Chained from task #${task.id} (${task.agent_id}):\n\nPrevious task result:\n${result.text.slice(0, 2000)}`;
+          const chainResult = await pool.query(
+            `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, parent_task_id) VALUES ($1, $2, $3, 'autonomous', $4, $5, $6) RETURNING id`,
+            [task.chain_to_agent, task.chain_task, chainContext, `chain:${task.id}:${Date.now()}`, task.priority || "normal", task.id]
+          );
+          if (chainResult.rows.length > 0) {
+            const chainId = chainResult.rows[0].id;
+            console.log(`[Chain] Task #${task.id} completed → chained task #${chainId} scheduled for ${task.chain_to_agent}: ${task.chain_task.slice(0, 80)}`);
+            await logActivity(task.agent_id, agentName, "task_chained", `Chained to ${task.chain_to_agent}: task #${chainId}`, { taskId: task.id, chainTaskId: chainId });
+
+            // Notify the target agent via A2A
+            try {
+              await sendA2ANotification({
+                toAgent: task.chain_to_agent,
+                fromAgent: task.agent_id || "system",
+                type: "handoff",
+                topic: `Chained task from ${task.agent_id || "system"}`,
+                content: `Task #${task.id} completed. You have a chained task #${chainId}: ${task.chain_task}\n\nPrevious result: ${result.text.slice(0, 500)}`,
+                priority: task.priority === "critical" ? "urgent" : "normal",
+              });
+            } catch { /* non-critical */ }
+          }
+        }
       } else {
         await failTask(task.id, result.error);
         summary.failed++;
@@ -3888,6 +3956,19 @@ async function main() {
           actionLabel: "View Error",
           metadata: { taskId: task.id, error: result.error?.slice(0, 1000) },
         });
+
+        // ── TASK CHAINING ON FAILURE ──
+        // If chain_on_success is false, chain even on failure
+        if (task.chain_to_agent && task.chain_task && !task.chain_on_success) {
+          const failContext = `Chained from FAILED task #${task.id} (${task.agent_id}):\n\nError: ${result.error?.slice(0, 2000)}`;
+          const failChainResult = await pool.query(
+            `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, parent_task_id) VALUES ($1, $2, $3, 'autonomous', $4, $5, $6) RETURNING id`,
+            [task.chain_to_agent, task.chain_task, failContext, `chain-fail:${task.id}:${Date.now()}`, task.priority || "normal", task.id]
+          );
+          if (failChainResult.rows.length > 0) {
+            console.log(`[Chain] Failed task #${task.id} → chained task #${failChainResult.rows[0].id} scheduled for ${task.chain_to_agent} (chain_on_success=false)`);
+          }
+        }
       }
 
       // Rate limit: wait between tasks to avoid API throttling

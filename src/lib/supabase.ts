@@ -234,20 +234,30 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
   agent_id TEXT NOT NULL,
   task TEXT NOT NULL,
   context TEXT DEFAULT '',
-  trigger_type TEXT NOT NULL DEFAULT 'manual' CHECK (trigger_type IN ('manual', 'automation', 'cron', 'delegation', 'event')),
+  trigger_type TEXT NOT NULL DEFAULT 'manual' CHECK (trigger_type IN ('manual', 'automation', 'cron', 'delegation', 'event', 'autonomous', 'proactive_assessment', 'a2a_inbox', 'project')),
   trigger_source TEXT DEFAULT '',
-  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'normal', 'medium', 'high', 'critical')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
   result TEXT DEFAULT '',
   error TEXT DEFAULT '',
   tool_calls JSONB DEFAULT '[]',
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Recurring task support
+  recurring_enabled BOOLEAN DEFAULT FALSE,
+  recurring_interval TEXT DEFAULT NULL,
+  next_run_at TIMESTAMPTZ DEFAULT NULL,
+  -- Task chaining support
+  parent_task_id BIGINT DEFAULT NULL REFERENCES agent_tasks(id),
+  chain_to_agent TEXT DEFAULT NULL,
+  chain_task TEXT DEFAULT NULL,
+  chain_on_success BOOLEAN DEFAULT TRUE
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_agent_tasks_agent ON agent_tasks(agent_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_recurring ON agent_tasks(recurring_enabled, next_run_at) WHERE recurring_enabled = TRUE;
 
 -- Delegations (A2A tracking)
 CREATE TABLE IF NOT EXISTS delegations (
