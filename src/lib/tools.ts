@@ -2468,26 +2468,27 @@ export const dataPivotTool = tool({
 // ---------------------------------------------------------------------------
 
 export const researchDeepTool = tool({
-  description: "Perform deep multi-query research on a topic. Generates multiple search queries from the topic and optional aspects, runs them in parallel, deduplicates results, and returns a unified ranked result set.",
+  description: "Perform deep multi-query research on a topic. Generates multiple search queries from the topic and optional aspects, runs them in parallel, deduplicates results, and returns a unified ranked result set. Keep numResults low (5-8) to avoid overwhelming the model context.",
   inputSchema: zodSchema(z.object({
     topic: z.string().describe("The main research topic"),
     aspects: z.array(z.string()).optional().describe("Specific aspects to research (e.g., ['market size', 'competition', 'trends'])"),
-    numResults: z.number().optional().describe("Total number of results to return (default: 15)"),
+    numResults: z.number().optional().describe("Total number of results to return (default: 8, max 15). Keep low to avoid context overflow."),
   })),
   execute: safeJson(async ({ topic, aspects, numResults }) => {
+    // Cap at 15 and default to 8 (was 15 — too many for gemma4 context)
+    const capped = Math.min(numResults || 8, 15);
     // Generate search queries from topic and aspects
     const queries = [
       topic,
       `${topic} overview`,
-      `${topic} 2024`,
       ...(aspects || []).map(a => `${topic} ${a}`),
-    ].slice(0, 5);
+    ].slice(0, 4); // Reduced from 5 to 4 queries to cut search load
 
     // Search helper: try Z.ai SDK first, then Tavily, then DuckDuckGo/Wikipedia/Brave
     async function searchQuery(q: string): Promise<Array<Record<string, unknown>>> {
       try {
         const zai = await ZAI.create();
-        const results = await zai.functions.invoke("web_search", { query: q, num: numResults || 10 });
+        const results = await zai.functions.invoke("web_search", { query: q, num: Math.ceil(capped / 2) });
         if (Array.isArray(results) && results.length > 0) {
           return results as unknown as Array<Record<string, unknown>>;
         }
@@ -2495,14 +2496,14 @@ export const researchDeepTool = tool({
         // Z.ai SDK not available — use fallback
       }
       // Fallback: webSearchFallback (tries Tavily → DuckDuckGo → Wikipedia → Brave)
-      const fallbackResults = await webSearchFallback(q, numResults || 10);
+      const fallbackResults = await webSearchFallback(q, Math.ceil(capped / 2));
       return fallbackResults;
     }
 
     // Run all queries in parallel
     const allResults = await Promise.all(queries.map(searchQuery));
 
-    // Flatten and deduplicate by URL
+    // Flatten and deduplicate by URL — truncate snippets to reduce context size
     const seen = new Set<string>();
     const unique: Array<{ url: string; title?: string; snippet?: string; [key: string]: unknown }> = [];
     for (const results of allResults) {
@@ -2514,8 +2515,8 @@ export const researchDeepTool = tool({
           seen.add(url);
           unique.push({
             url,
-            title: r.title ? String(r.title) : undefined,
-            snippet: r.snippet || r.description ? String(r.snippet || r.description) : undefined,
+            title: r.title ? String(r.title).slice(0, 100) : undefined,
+            snippet: r.snippet || r.description ? String(r.snippet || r.description).slice(0, 200) : undefined,
           });
         }
       }
@@ -2525,7 +2526,7 @@ export const researchDeepTool = tool({
       topic,
       queriesUsed: queries,
       totalFound: unique.length,
-      results: unique.slice(0, numResults || 15),
+      results: unique.slice(0, capped),
     };
   }),
 });
