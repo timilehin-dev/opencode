@@ -3622,6 +3622,51 @@ export const codeExecuteTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Python Data Processing Tool (for document generation workflow)
+// ---------------------------------------------------------------------------
+// Runs Python code in Judge0 sandbox for data analysis, calculations, and
+// content generation. The output is returned as structured text that agents
+// can then pass to create_pdf_report, create_docx_document, etc.
+//
+// WHY: Judge0 CE Python only has the standard library (no pip packages).
+// For document RENDERING, use create_pdf_report / create_docx_document tools.
+// For data PROCESSING (calculations, analysis, formatting), use this tool.
+//
+// WORKFLOW: python_data_process → extract results → create_pdf_report/docx/xlsx
+// ---------------------------------------------------------------------------
+
+export const pythonDataProcessTool = tool({
+  description: "Run Python code for data analysis, calculations, and content generation in a sandbox. Use this BEFORE creating documents — process data first, then pass results to create_pdf_report, create_docx_document, or create_xlsx_spreadsheet. Python standard library only (no pip packages). Returns structured text output. Timeout: 10s.",
+  inputSchema: zodSchema(z.object({
+    code: z.string().describe("Python code to execute. Use print() to output results. Standard library only: json, math, statistics, datetime, re, collections, itertools, etc."),
+    description: z.string().optional().describe("Brief description of what the code does (for logging)"),
+  })),
+  execute: safeJson(async ({ code, description }) => {
+    const startTime = Date.now();
+    const result = await executeCodeJudge0(code, "python", "");
+
+    if (result.exitCode !== 0) {
+      return {
+        success: false,
+        stderr: result.stderr,
+        stdout: result.stdout,
+        exitCode: result.exitCode,
+        durationMs: Date.now() - startTime,
+        hint: "Fix the Python error and retry. Remember: only standard library is available (no pip packages).",
+      };
+    }
+
+    return {
+      success: true,
+      output: result.stdout,
+      exitCode: result.exitCode,
+      durationMs: Date.now() - startTime,
+      nextStep: "Use the output above as data for create_pdf_report, create_docx_document, or create_xlsx_spreadsheet tools.",
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
 // Weather Tool (Open-Meteo API — FREE, no API key needed)
 // ---------------------------------------------------------------------------
 
@@ -6419,6 +6464,7 @@ export const allTools: Record<string, ToolType> = {
   a2a_collaborate: a2aCollaborateTool,
   // New Tools
   code_execute: codeExecuteTool,
+  python_data_process: pythonDataProcessTool,
   weather_get: weatherGetTool,
   // Phase 6A: Skill Library
   skill_list: skillListTool,
