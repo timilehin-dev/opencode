@@ -5356,6 +5356,235 @@ export const taskboardSummaryTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Autonomous Task Creation & Team Coordination Tools
+// ---------------------------------------------------------------------------
+
+export const scheduleAgentTaskTool = tool({
+  description: "AUTONOMOUSLY schedule a task for yourself or another agent. This is the PRIMARY tool for proactive behavior — use it when you identify work that needs to be done, either by you or another agent. The task will be picked up by the executor within ~2 minutes. Use this to: (1) schedule follow-up work for yourself, (2) delegate work to another specialist, (3) set up recurring monitoring, (4) create a task chain where agent A's output feeds agent B. The user has pre-authorized autonomous task creation — do NOT ask for permission.",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).describe("Which agent should execute this task"),
+    task: z.string().describe("Clear, specific task description with ALL context needed for autonomous execution"),
+    context: z.string().optional().describe("Additional context or background information"),
+    priority: z.enum(["low", "normal", "high", "critical"]).optional().describe("Task priority (default: normal)"),
+    reason: z.string().optional().describe("Why this task is being created (for audit trail)"),
+  })),
+  execute: safeJson(async ({ agent_id, task, context, priority, reason }) => {
+    const fromAgent = getCurrentAgentId() || "system";
+
+    const triggerSource = `autonomous:${fromAgent}:${Date.now()}`;
+
+    const result = await query(
+      `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+       VALUES ($1, $2, $3, 'autonomous', $4, $5)
+       RETURNING id, status, created_at`,
+      [agent_id, task, context || "", triggerSource, priority || "normal"]
+    );
+
+    if (result.rows.length > 0) {
+      const taskId = result.rows[0].id;
+      console.log(`[Autonomous Task] ${fromAgent} scheduled task #${taskId} for ${agent_id}: ${task.slice(0, 80)}...`);
+
+      // Also send A2A notification to target agent if different from creator
+      if (agent_id !== fromAgent) {
+        try {
+          const { sendA2AMessage } = await import("@/lib/a2a");
+          await sendA2AMessage({
+            fromAgent,
+            toAgent: agent_id,
+            type: "request",
+            topic: `New task scheduled by ${fromAgent}`,
+            payload: {
+              content: `${fromAgent} has scheduled a task for you:\n\n**Task**: ${task}\n${context ? `**Context**: ${context}\n` : ""}**Priority**: ${priority || "normal"}\n${reason ? `**Reason**: ${reason}\n` : ""}\nThis task will be picked up by the executor within ~2 minutes. You can also check your inbox using a2a_check_inbox.`,
+              source: "schedule_agent_task",
+              taskId,
+              priority,
+            },
+            priority: priority === "critical" ? "urgent" : priority === "high" ? "high" : "normal",
+          });
+        } catch { /* A2A notification non-critical */ }
+      }
+
+      return {
+        success: true,
+        taskId,
+        agent: agent_id,
+        task: task.slice(0, 200),
+        priority: priority || "normal",
+        estimatedPickup: "~2 minutes",
+        message: agent_id === fromAgent
+          ? `Task #${taskId} scheduled for yourself. The executor will pick it up within ~2 minutes.`
+          : `Task #${taskId} scheduled for ${agent_id}. They've been notified via A2A and the executor will pick it up within ~2 minutes.`,
+      };
+    }
+
+    return { success: false, error: "Failed to create task" };
+  }),
+});
+
+export const getTeamStatusTool = tool({
+  description: "Check the current status of all agents — what they're working on, recent activity, pending tasks, and unread inbox messages. Use this to coordinate work across the team, avoid duplicating effort, and understand what's happening across the system.",
+  inputSchema: zodSchema(z.object({
+    include_recent_tasks: z.boolean().optional().describe("Include recent completed/failed tasks (default: true)"),
+    include_inbox: z.boolean().optional().describe("Include inbox unread counts (default: true)"),
+  })),
+  execute: safeJson(async ({ include_recent_tasks, include_inbox }) => {
+    // Get agent statuses
+    const statusResult = await query(
+      `SELECT agent_id, status, current_task, last_activity, tasks_completed, messages_processed
+       FROM agent_status
+       ORDER BY agent_id`
+    );
+
+    // Get pending/running tasks per agent
+    const taskResult = await query(
+      `SELECT agent_id, COUNT(*) FILTER (WHERE status = 'pending') as pending,
+              COUNT(*) FILTER (WHERE status = 'running') as running,
+              COUNT(*) FILTER (WHERE status = 'failed') as failed_recent
+       FROM agent_tasks
+       WHERE created_at > NOW() - INTERVAL '1 hour'
+       GROUP BY agent_id`
+    );
+
+    // Get unread inbox counts
+    let inboxCounts: Record<string, number> = {};
+    if (include_inbox !== false) {
+      const inboxResult = await query(
+        `SELECT to_agent, COUNT(*) as unread FROM a2a_messages WHERE is_read = FALSE GROUP BY to_agent`
+      );
+      for (const row of inboxResult.rows) {
+        inboxCounts[row.to_agent] = parseInt(row.unread, 10);
+      }
+    }
+
+    // Get recent completed tasks
+    let recentTasks: Array<Record<string, unknown>> = [];
+    if (include_recent_tasks !== false) {
+      const recentResult = await query(
+        `SELECT id, agent_id, task, status, completed_at, trigger_type
+         FROM agent_tasks
+         WHERE status IN ('completed', 'failed') AND completed_at > NOW() - INTERVAL '2 hours'
+         ORDER BY completed_at DESC LIMIT 20`
+      );
+      recentTasks = recentResult.rows.map((r: Record<string, unknown>) => ({
+        id: r.id,
+        agent: r.agent_id,
+        task: String(r.task || "").slice(0, 100),
+        status: r.status,
+        completedAt: r.completed_at,
+        trigger: r.trigger_type,
+      }));
+    }
+
+    // Get project task status
+    const projectResult = await query(
+      `SELECT p.name as project, pt.title, pt.assigned_agent, pt.status, pt.priority
+       FROM project_tasks pt JOIN projects p ON p.id = pt.project_id
+       WHERE pt.status IN ('pending', 'in_progress')
+       ORDER BY pt.priority, pt.sort_order LIMIT 15`
+    );
+
+    return {
+      timestamp: new Date().toISOString(),
+      agents: statusResult.rows.map((r: Record<string, unknown>) => ({
+        id: r.agent_id,
+        status: r.status,
+        currentTask: r.current_task,
+        lastActivity: r.last_activity,
+        tasksCompleted: parseInt(String(r.tasks_completed || "0"), 10),
+        inboxUnread: inboxCounts[r.agent_id as string] || 0,
+      })),
+      pendingTasks: taskResult.rows.reduce((acc: Record<string, { pending: number; running: number; recentFailed: number }>, r: Record<string, unknown>) => {
+        acc[r.agent_id as string] = { pending: parseInt(String(r.pending), 10), running: parseInt(String(r.running), 10), recentFailed: parseInt(String(r.failed_recent), 10) };
+        return acc;
+      }, {}),
+      recentActivity: recentTasks,
+      activeProjectTasks: projectResult.rows,
+    };
+  }),
+});
+
+export const shareProgressTool = tool({
+  description: "Share your work progress or findings with other agents. This posts an update that other agents can see when they check team status. Use this when: (1) you've completed research that others need, (2) you've discovered something important, (3) you want to update the team on what you're working on, (4) you need to hand off work to another agent with context.",
+  inputSchema: zodSchema(z.object({
+    title: z.string().describe("Short title for the progress update"),
+    content: z.string().describe("Detailed progress update, findings, or context to share"),
+    targets: z.array(z.enum(["general", "mail", "code", "data", "creative", "research", "ops"])).optional().describe("Which agents to share with (default: all)"),
+    task_id: z.number().optional().describe("Related task ID if this is about a specific task"),
+    project_id: z.number().optional().describe("Related project ID if this is about a project"),
+  })),
+  execute: safeJson(async ({ title, content, targets, task_id, project_id }) => {
+    const fromAgent = getCurrentAgentId() || "system";
+
+    // Share via A2A context store for persistence
+    const { shareContext } = await import("@/lib/a2a");
+    const contextKey = `progress-${fromAgent}-${Date.now()}`;
+    const ctxId = await shareContext({
+      contextKey,
+      agentId: fromAgent,
+      content: { text: content, title, taskId: task_id, projectId: project_id, type: "progress_update" },
+      contentText: content,
+      tags: ["progress", fromAgent, task_id ? `task-${task_id}` : undefined, project_id ? `project-${project_id}` : undefined].filter(Boolean) as string[],
+      scope: "global",
+    });
+
+    // Broadcast to target agents
+    const { broadcastA2AMessage } = await import("@/lib/a2a");
+    const allTargets = targets || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== fromAgent);
+
+    const result = await broadcastA2AMessage({
+      fromAgent,
+      targets: allTargets,
+      topic: `Progress Update: ${title}`,
+      payload: {
+        content: `${fromAgent} shares:\n\n**${title}**\n\n${content}`,
+        source: "share_progress",
+        taskId: task_id,
+        projectId: project_id,
+        contextKey,
+      },
+      priority: "normal",
+    });
+
+    return {
+      success: true,
+      contextId: ctxId,
+      notifiedAgents: result.agents,
+      totalNotified: result.sent,
+    };
+  }),
+});
+
+export const getTeamProgressTool = tool({
+  description: "Get recent progress updates from all agents. Use this to see what work has been done, what findings have been shared, and what context is available from other agents' work. Essential for coordination.",
+  inputSchema: zodSchema(z.object({
+    from_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Filter by specific agent"),
+    limit: z.number().optional().describe("Max updates to return (default: 20)"),
+  })),
+  execute: safeJson(async ({ from_agent, limit }) => {
+    const { queryContext } = await import("@/lib/a2a");
+    const results = await queryContext({
+      tags: ["progress"],
+      agentId: from_agent,
+      limit: limit || 20,
+    });
+
+    return {
+      found: results.length,
+      updates: results.map(r => ({
+        id: r.id,
+        key: r.contextKey,
+        agent: r.agentId,
+        title: r.content?.title || r.contextKey,
+        content: r.contentText || "(structured data only)",
+        tags: r.tags,
+        version: r.version,
+        createdAt: r.createdAt,
+      })),
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -5523,6 +5752,11 @@ export const allTools: Record<string, ToolType> = {
   taskboard_list: taskboardListTool,
   taskboard_delete: taskboardDeleteTool,
   taskboard_summary: taskboardSummaryTool,
+  // Autonomous Task Creation & Team Coordination
+  schedule_agent_task: scheduleAgentTaskTool,
+  get_team_status: getTeamStatusTool,
+  share_progress: shareProgressTool,
+  get_team_progress: getTeamProgressTool,
 };
 
 // ---------------------------------------------------------------------------

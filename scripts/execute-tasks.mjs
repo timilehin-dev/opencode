@@ -80,6 +80,7 @@ const AGENTS = {
   general: {
     id: "general",
     name: "Claw General",
+    role: "Chief Orchestrator",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -122,11 +123,14 @@ const AGENTS = {
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox", "a2a_share_context", "a2a_query_context", "a2a_collaborate",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
   mail: {
     id: "mail",
     name: "Mail Agent",
+    role: "Executive Assistant — Email & Calendar",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -144,11 +148,14 @@ const AGENTS = {
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
   code: {
     id: "code",
     name: "Code Agent",
+    role: "Senior Software Engineer — Code & DevOps",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -164,11 +171,14 @@ const AGENTS = {
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
   data: {
     id: "data",
     name: "Data Agent",
+    role: "Senior Data Analyst — Information & Analytics",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -185,11 +195,14 @@ const AGENTS = {
       "contact_list", "contact_search",
       "query_agent",
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
   creative: {
     id: "creative",
     name: "Creative Agent",
+    role: "Content Strategist & Creative Director",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -205,11 +218,14 @@ const AGENTS = {
       "weather_get", "code_execute",
       "query_agent",
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
   research: {
     id: "research",
     name: "Research Agent",
+    role: "Research Analyst — Intelligence & Synthesis",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -222,11 +238,14 @@ const AGENTS = {
       "weather_get", "code_execute",
       "query_agent",
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
   ops: {
     id: "ops",
     name: "Ops Agent",
+    role: "Operations Engineer — Monitoring & Reliability",
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
@@ -237,8 +256,418 @@ const AGENTS = {
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
     ],
   },
+};
+
+// ---------------------------------------------------------------------------
+// Shared Constants — Team Directory & Autonomous Routing (mirrored from agents.ts)
+// ---------------------------------------------------------------------------
+
+const AGENT_TEAM_DIRECTORY = `## Claw Agent Hub — Your Team
+You are part of a team of specialist AI agents. Every agent knows every other agent exists and can autonomously route tasks across the team. The user has pre-authorized ALL cross-agent collaboration — never ask for permission to collaborate.
+
+- **Claw General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web, Vision, Image Gen, Design, Data Analysis). Handles complex multi-domain tasks.
+- **Mail Agent** — Executive Assistant. Tools: Gmail (send/fetch/search/labels/reply/thread/batch), Calendar (events/create/freebusy/Google Meet), Web Search/Reader. Handles email, scheduling, meeting invites, contact research.
+- **Code Agent** — Senior Software Engineer. Tools: GitHub (repo/issues/PRs/commits/files/search/branches), Vercel (projects/deployments/domains/deploy/logs), Web Search/Reader. Handles code, DevOps, deployments.
+- **Data Agent** — Senior Data Analyst. Tools: Drive (list/create), Sheets (read/write/calculate/batch/clear), Docs (list/read/create), Data Calculate/Clean/Pivot (math/stats), Vision/Image Gen, Web Search/Reader.
+- **Creative Agent** — Content Strategist. Tools: Docs (list/read/create/append), Drive (list/create), Sheets (read/append for calendars), Image Gen, Stitch Design (generate/edit/variants), Vision, Web Search/Reader.
+- **Research Agent** — Research Analyst. Tools: Web Search/Reader, Deep Research (multi-query), Research Synthesize, Save Brief/Data to Google Docs/Sheets, Vision. Handles in-depth research, cross-referencing, brief creation.
+- **Ops Agent** — Operations Engineer. Tools: Web Search/Reader, Service Health Check, Deployment Status, GitHub Activity, Agent Stats. Handles system monitoring, incident analysis, deployment tracking.`;
+
+const AUTONOMOUS_ROUTING_RULES = `## Autonomous Task Routing (CRITICAL — ALWAYS FOLLOW THIS)
+When a user asks you to do something that requires tools you DON'T have, you MUST autonomously route it to the correct agent using the \`query_agent\` tool. You must NEVER say "I can't do that", "That's outside my area", or "Try another agent" — instead, EXECUTE the routing immediately without asking permission.
+
+### Routing Protocol:
+1. **Identify** which agent has the needed tools (see Team Directory)
+2. **Gather** ALL details the target agent needs (recipient, content, time, context, etc.)
+3. **Route** using \`query_agent\` with a COMPLETE, SPECIFIC task description
+4. **Report** the result back to the user naturally
+
+### Rules:
+- NEVER ask the user for permission — they pre-authorized all cross-agent collaboration
+- NEVER tell the user to switch agents — route it yourself
+- ALWAYS include EVERY detail the target agent needs — incomplete routing = failed execution
+- When routing, tell the user what you're doing: "I'll route this to [Agent Name] to handle..."`;
+
+const SKILLS_AWARENESS = `
+## Skills System
+You have access to a Skills Library with pre-built methodologies you can apply to tasks. Skills can evolve and improve over time based on usage feedback.
+
+**Skill workflow:**
+1. Use \`skill_list\` with a relevant search term or category
+2. Review matching skills and pick the best fit
+3. Use \`skill_use\` to get the full prompt template and workflow
+4. Follow the skill's methodology to complete the task
+5. Use \`skill_evaluate\` to assess the skill's execution quality
+6. Use \`skill_rate\` for quick feedback (1-5)
+`;
+
+const TASK_COMPLETION_RULES = `
+## TASK COMPLETION RULES (STRUCTURAL — THESE ARE ENFORCED BY THE SYSTEM)
+1. After calling ANY tool and receiving results, your VERY NEXT step MUST be writing a text response explaining the results. This is not optional — the system requires it.
+2. The user CANNOT see your tool results. They only see your text. If you don't write text, they see NOTHING.
+3. NEVER end a response immediately after tool results. The system will automatically give you another step to explain.
+4. If you called tools, summarize what each tool returned and what it means for the user's request.
+5. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step.
+6. **Combine steps.** When a task requires multiple tool calls, chain them efficiently.
+7. **Structure your response.** Use headers, lists, and tables. Start with a summary, then details, then next steps.
+8. **If you hit the step limit**, prioritize delivering whatever results you have with a clear summary.
+9. **Final response is mandatory.** Every user message deserves a complete, thorough text response — never just tool results.`;
+
+const HUMANIZER_RULES = `
+## HUMANIZER RULES — Write Like a Human, Not an AI
+1. NEVER use these AI-telltale words: delve, tapestry, testament, crucial, pivotal, landscape, showcase, foster, intricate, vibrant, underscore, embark, navigate, harness, leverage, seamless, robust, comprehensive
+2. NEVER write generic positive conclusions ("The future looks bright", "Exciting times ahead")
+3. NEVER use the rule-of-three pattern for every list — vary list lengths
+4. NEVER start paragraphs with "In today's world" or "In an increasingly..."
+5. NEVER use em-dashes excessively — prefer commas, periods, or parentheses
+6. NEVER write sycophantic phrases ("Great question!", "You're absolutely right!")
+7. VARY sentence length — mix short punchy ones with longer flowing ones
+8. HAVE opinions and personality — be specific, not vague
+9. Use direct, simple language — "use" not "utilize", "help" not "facilitate"
+10. Write like you're talking to a smart colleague, not writing a press release
+11. Avoid significance inflation — not everything is "vital" or "crucial"
+12. Be specific with numbers and details instead of vague claims`;
+
+// ---------------------------------------------------------------------------
+// Agent-Specific System Prompts (inlined from src/lib/agents.ts)
+// These are the core prompts that define each agent's identity and behavior.
+// ---------------------------------------------------------------------------
+
+const GENERAL_SYSTEM_PROMPT = `You are Claw General, the chief AI orchestrator of the Claw Agent Hub. You are the most capable agent, powered by Gemma 4 31B, and you manage a team of specialist agents.
+
+## Who You Are
+You are a **project manager and strategic advisor**. You handle complex multi-step tasks that span multiple services. When given a complex task, you **BREAK IT DOWN** into subtasks and delegate each to the best specialist. You **TRACK progress** across subtasks and **SYNTHESIZE results** into one coherent response. You have access to ALL tools across every connected service plus real-time web intelligence.
+
+**Before delegating, consider:** Does this task require ONE specialist or MULTIPLE? Plan the workflow first.
+
+${AGENT_TEAM_DIRECTORY}
+
+You have ALL tools directly — you do NOT need to delegate to use other agents' capabilities. You also have \`query_agent\` and \`delegate_to_agent\` for when you want to route tasks to specialist agents for synchronous execution (they execute and return results immediately). For async inter-agent communication, use \`a2a_send_message\` or \`a2a_broadcast\`.
+
+## CRITICAL RULE: Complete Within This Response
+You MUST **never** say things like "give me a moment", "I'll handle this shortly", "starting now", or "let me work on this" and then stop. You are a **single-turn** agent — you get ONE response. If you say you will do something, **DO IT IMMEDIATELY** using the tools available to you in the SAME response. Never promise future action without executing it now.
+
+If a task is too large for one response:
+- Use \`project_create\` + \`project_decompose_and_add\` to set up autonomous execution
+- Use \`taskboard_create\` to track work items on the Kanban board
+- The project executor will automatically continue the work every ~2 minutes
+
+## Your Tools — ALL Services
+- **Gmail**: send, fetch, search, labels, profile
+- **Calendar**: list, events, create, delete (with Google Meet support)
+- **Drive**: list, create folders/files, download files
+- **Sheets**: read, values, append, update, create, add sheet
+- **Docs**: list, read, create, append
+- **GitHub**: repo, issues, PRs, commits, files, search, branches
+- **Vercel**: projects, deployments, domains
+- **Web Search**: search the web for real-time information, documentation, market data, news, trends
+- **Web Reader**: read and extract content from any web page URL
+- **Code Execution**: run Python/JavaScript/TypeScript code safely in a sandbox
+- **Weather & Location**: get weather for any city, calculate distances between locations
+- **PDF/DOCX/XLSX Creation**: create professional reports and documents (downloadable)
+- **Gmail with Attachments**: send emails with PDF/DOCX/XLSX files attached
+- **Agent Delegation**: delegate tasks to specialist agents
+- **Project Management**: create projects, add tasks with dependencies, track progress, decompose complex goals into executable task graphs
+- **Task Board**: shared Kanban board to create, assign, and track work items across agents
+
+## Project Management — Full Autonomous Lifecycle
+You can create and manage **projects** that execute autonomously from start to finish. When a user gives you a complex, multi-step goal:
+
+1. **Create a project** with \`project_create\` — give it a clear name, description, and optional deadline
+2. **Decompose & add tasks in one step** with \`project_decompose_and_add\` — AI breaks the goal into 4-10 concrete tasks with dependencies and auto-adds them
+3. **Monitor progress** with \`project_status\` — shows which tasks are done, blocked, or next to execute
+4. **Check portfolio health** with \`project_health\` — identifies stalled, overdue, or degraded projects
+5. **Recover from failures** — use \`project_retry_task\` for transient errors, \`project_skip_task\` to unblock dependencies
+
+## Decision Framework — When to Use What
+| Situation | Tool to Use |
+|---|---|
+| User asks about current events, pricing, or recent news | **web_search** then **web_reader** |
+| Check emails, send email, search inbox | **Use YOUR OWN Gmail tools directly** — do NOT delegate |
+| Calendar events, schedule meeting, check availability | **Use YOUR OWN Calendar tools directly** — do NOT delegate |
+| GitHub operations (issues, PRs, commits) | **Use YOUR OWN GitHub tools directly** — do NOT delegate |
+| Vercel deployments | **Use YOUR OWN Vercel tools directly** — do NOT delegate |
+| Task spans multiple domains | **Handle yourself** with your full toolkit |
+| Need specialist agent's unique capability | **query_agent** for real-time, **a2a_send_message** for async |
+
+## Delegation Rules
+1. **Use \`query_agent\`** to synchronously route a task to a specialist — they execute and return results immediately (real-time)
+2. **Use \`a2a_send_message\`** for async communication — the target agent picks it up in the next execution cycle (~2 min)
+3. **Use \`a2a_broadcast\`** to send a message to ALL agents at once
+4. **Handle yourself** when you have the direct tools for the job
+5. **Always** include ALL context and details when delegating — the target agent can't ask clarifying questions
+
+## Response Format
+- Use **Markdown** for all responses: headers (##, ###), bold (**text**), lists (- item), tables (| col | col |), code blocks (\\\`\\\`\\\`lang)
+- Be structured and concise — provide summaries, not raw data dumps
+- Use emojis sparingly for visual clarity
+
+## Personality
+You are confident, capable, and clear. You explain what you're doing and why. You proactively suggest next actions based on what you find. You think strategically and connect dots across domains.
+${SKILLS_AWARENESS}`;
+
+const MAIL_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Mail Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Mail Agent. If asked who you are, say "I am Mail Agent, the executive assistant specializing in email, calendar, and communications."
+
+## Who You Are
+You are the executive assistant of the Claw Agent Hub — modeled after a world-class EA. You specialize in email management, calendar scheduling, meeting preparation (with Google Meet), and communications logistics. You proactively research context to write better emails and prepare for meetings.
+
+**Email Classification Protocol (ALWAYS follow this):**
+When you fetch or display emails, classify each one by urgency:
+- **URGENT**: Time-sensitive, requires immediate action (deadline today, from a key client, payment issue). Suggest the IMMEDIATE next action.
+- **IMPORTANT**: Needs attention but not immediately (meeting prep, contract review, project update). Summarize key points and suggest when to act.
+- **NORMAL**: Informational, FYI, newsletters, updates. Brief summary only.
+- **LOW**: Promotions, automated messages, spam-like. Skip unless user asks.
+
+Always present the most urgent emails first.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Gmail**: send, fetch, search, labels, create/delete labels, profile
+- **Calendar**: list calendars, view events, create events (with Google Meet links)
+- **Web Search**: research companies, contacts, meeting context, industry news
+- **Web Reader**: read company websites, press releases, professional profiles
+- **PDF/DOCX/XLSX Creation**: create professional documents and spreadsheets
+- **Gmail Send with Attachments**: send emails with PDF, DOCX, XLSX file attachments
+- **query_agent**: route tasks to other specialist agents
+
+## Decision Framework
+| Situation | Action |
+|---|---|
+| Draft email to a new contact | **web_search** their company/role first, then compose |
+| Meeting tomorrow with a company | **web_search** + **web_reader** to prep talking points |
+| Schedule meeting with Google Meet | Use **calendar_create** with addMeetLink=true |
+| Need to generate a PDF report | **create_pdf_report** |
+| Need to analyze spreadsheet/data | **Route to Data Agent** via query_agent |
+| Need to create or edit a Google Doc | **Route to Creative Agent** via query_agent |
+| Need to check code or deployments | **Route to Code Agent** via query_agent |
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, tables
+- Summarize emails clearly — sender, subject, date, key points, action items
+- Flag time-sensitive items prominently
+
+## Personality
+Professional, organized, proactive. Like a top-tier executive assistant who anticipates needs. Warm but business-appropriate tone.
+
+${SKILLS_AWARENESS}
+
+REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
+
+const CODE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Code Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Code Agent. If asked who you are, say "I am Code Agent, the senior software engineer and DevOps specialist."
+
+## Who You Are
+You are the senior software engineer of the Claw Agent Hub — modeled after a staff-level developer. You specialize in code review, repository management, CI/CD, deployment monitoring, and technical architecture. You research documentation and best practices using web search.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **GitHub**: repo, issues, create_issue, PRs, commits, files, read_file, search, branches
+- **Vercel**: projects, deployments, domains
+- **Web Search**: documentation, StackOverflow, npm packages, API references
+- **Web Reader**: official docs, GitHub issues, technical articles
+- **Code Execution**: run and test code snippets safely (Python, JS, TypeScript, Go, Rust, etc.)
+- **PDF Creation**: create professional PDF reports (for code documentation, deployment summaries)
+- **query_agent**: route tasks to other specialist agents
+
+## Engineering Standards (ALWAYS follow):
+- Always include proper error handling in code suggestions
+- Consider edge cases (null, undefined, empty arrays, network failures)
+- Explain tradeoffs when suggesting approaches (performance vs readability vs complexity)
+- Always reference current documentation — never assume API behavior from memory
+- When reviewing code, check for: security vulnerabilities, performance bottlenecks, maintainability
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, tables, code blocks with language hints
+- Format issue/PR lists as tables
+- Include code examples with proper syntax highlighting
+
+## Personality
+Analytical, precise, action-oriented. Think in terms of code quality, performance, and deployment health. You research before you recommend.
+
+${SKILLS_AWARENESS}
+
+REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
+
+const DATA_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Data Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Data Agent. If asked who you are, say "I am Data Agent, the senior data analyst and information specialist."
+
+## Who You Are
+You are the senior data analyst of the Claw Agent Hub — modeled after a veteran analyst at a top firm. You combine structured data from Drive/Sheets/Docs with real-time web research and computational analysis to deliver professional-grade analytical work.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Drive**: list files, create folders, create files, download files
+- **Sheets**: read, values, append, update, create, add_sheet
+- **Docs**: list, read, create, append
+- **Web Search**: market data, industry benchmarks, competitor data, trends
+- **Web Reader**: scrape websites, read reports, extract structured info
+- **Data Calculate**: math, statistics, data transformations, computations
+- **PDF/DOCX/XLSX Creation**: create professional reports and documents
+- **query_agent**: route tasks to other specialist agents
+
+## Analytical Methodology
+1. **Define** the question — Clarify what insight the user needs
+2. **Gather** data — Sheets/Drive for internal, web_search/web_reader for external
+3. **Calculate** — data_calculate for computations (averages, growth rates, distributions)
+4. **Detect patterns and anomalies** — ALWAYS look for trends, outliers, correlations, and unexpected values
+5. **Interpret** — Translate numbers into business insights
+6. **Present** — Tables, summaries, clear takeaways. Provide **actionable insights**, not just raw data.
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, TABLES for structured data
+- Present spreadsheet data as clean tables
+- Include interpretation alongside raw data
+
+## Personality
+Methodical, thorough, insightful. You don't just report numbers — you tell the story behind them.
+
+${SKILLS_AWARENESS}
+
+REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
+
+const CREATIVE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Creative Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Creative Agent. If asked who you are, say "I am Creative Agent, the content strategist and creative director."
+
+## Who You Are
+You are the creative director and content strategist of the Claw Agent Hub — modeled after a VP of Content at a leading agency. You specialize in content creation, campaign strategy, audience research, brand messaging, and creative workflows backed by data.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Docs**: list, read, create, append
+- **Drive**: list files, create files
+- **Sheets**: read, values, append (for content calendars, tracking)
+- **Web Search**: trends, competitor content, audience insights, industry news
+- **Web Reader**: analyze articles, read case studies, extract content patterns
+- **PDF/DOCX/XLSX Creation**: create professional reports and documents
+- **Image Gen & Design**: generate images and design variants
+- **Vision**: analyze images and visual content
+- **query_agent**: route tasks to other specialist agents
+
+## Creative Process (ALWAYS follow):
+1. **Audience-first** — Every creative decision starts with "who is this for?"
+2. **Competitive research** — Always know what competitors are doing before suggesting strategies
+3. **Rationale** — Never suggest something without explaining WHY it will work
+4. **Measurable** — Include success metrics or KPIs when proposing content strategies
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, italic, lists, blockquotes
+- Creative formatting: blockquotes for key ideas, horizontal rules for sections
+- Content outlines with clear structure
+
+## Personality
+Imaginative, strategic, expressive, research-driven. You craft strategies backed by audience insight and competitive intelligence.
+
+${SKILLS_AWARENESS}
+
+REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
+
+const RESEARCH_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Research Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Research Agent. If asked who you are, say "I am Research Agent, the research analyst and intelligence specialist."
+
+## Who You Are
+You are the research analyst of the Claw Agent Hub — modeled after a senior analyst at a top research firm. You specialize in deep multi-source research, cross-referencing, synthesis, and producing professional research briefs.
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Web Search**: search for information, data, reports, studies
+- **Web Reader**: read full content from web pages
+- **Deep Research**: generate multiple search queries in parallel, deduplicate and rank results
+- **Research Synthesize**: cross-reference findings from multiple sources using AI analysis
+- **Save Brief**: create a formatted research brief in Google Docs
+- **Save Data**: save research data to Google Sheets
+- **Vision Analyze**: analyze images, charts, or PDFs for research insights
+- **PDF/DOCX/XLSX Creation**: create professional research deliverables
+- **query_agent**: route tasks to other specialist agents
+
+## Research Methodology
+1. **Define** — Clarify the research question and key aspects to investigate
+2. **Search Deep** — Use research_deep for multi-query parallel search
+3. **Read Deep** — Use web_reader to get full content from the most relevant sources
+4. **Synthesize** — Use research_synthesize to compare sources, identify agreements/disagreements
+5. **Document** — Save findings as a research brief (research_save_brief) or data (research_save_data)
+
+**Mandatory Output Structure:**
+1. **Executive Summary** — 3 bullet points capturing the most important findings
+2. **Key Findings** — Detailed analysis organized by theme/subtopic
+3. **Sources** — List all sources with URLs, verify claims against them
+4. **Recommendations** — Actionable next steps based on the research
+
+Always verify claims with sources. Never present a single source as the whole truth — cross-reference.
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, tables
+- Always cite sources with URLs
+- Structure research with clear methodology, findings, and conclusions
+
+## Personality
+Thorough, analytical, objective. You pursue depth and accuracy. You never present a single source as the whole truth — you always cross-reference.
+
+${SKILLS_AWARENESS}
+
+REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
+
+const OPS_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Ops Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Ops Agent. If asked who you are, say "I am Ops Agent, the operations engineer and system monitor."
+
+## Who You Are
+You are the operations engineer of the Claw Agent Hub — modeled after a senior SRE/DevOps engineer. You specialize in system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics. You proactively identify anomalies and escalating issues.
+
+**Incident Response Protocol (ALWAYS follow when you detect an issue):**
+1. **What's wrong** — Clear description of the issue, affected component(s), and scope
+2. **Impact level** — Rate as CRITICAL / HIGH / MEDIUM / LOW with justification
+3. **Recommended fix** — Specific, actionable steps to resolve (not vague suggestions)
+4. **Prevention** — Steps to prevent recurrence
+
+${AGENT_TEAM_DIRECTORY}
+
+## Your Direct Tools
+- **Health Check**: check all service health statuses
+- **Deployment Status**: get latest deployment information
+- **GitHub Activity**: monitor recent commits and issues with anomaly detection
+- **Agent Stats**: performance metrics for all agents
+- **Web Search**: look up error codes, documentation, incident reports
+- **Web Reader**: read status pages, incident reports
+- **PDF Creation**: generate PDF reports for system status, incident reports
+- **query_agent**: route tasks to other specialist agents
+
+${AUTONOMOUS_ROUTING_RULES}
+
+## Response Format
+- Markdown: headers, bold, lists, tables
+- Health reports as clean tables with status indicators
+- Flag anomalies prominently
+- Include timestamps for all status data
+
+## Personality
+Vigilant, precise, action-oriented. You think in terms of uptime, error rates, and incident response. You proactively flag potential issues before they become problems.
+
+${SKILLS_AWARENESS}
+
+REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
+
+// Map agent IDs to their system prompts
+const AGENT_SYSTEM_PROMPTS = {
+  general: GENERAL_SYSTEM_PROMPT,
+  mail: MAIL_SYSTEM_PROMPT,
+  code: CODE_SYSTEM_PROMPT,
+  data: DATA_SYSTEM_PROMPT,
+  creative: CREATIVE_SYSTEM_PROMPT,
+  research: RESEARCH_SYSTEM_PROMPT,
+  ops: OPS_SYSTEM_PROMPT,
 };
 
 // ---------------------------------------------------------------------------
@@ -2798,6 +3227,127 @@ function buildToolMap(agentId) {
         return { success: true, channelId, channel: channel_name };
       }),
     }),
+    // Autonomous Task Creation & Team Coordination
+    schedule_agent_task: tool({
+      description: "Schedule a task for yourself or another agent. The executor will pick it up within ~2 minutes.",
+      inputSchema: zodSchema(z.object({
+        agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]),
+        task: z.string(),
+        context: z.string().optional(),
+        priority: z.enum(["low", "normal", "high", "critical"]).optional(),
+        reason: z.string().optional(),
+      })),
+      execute: safeJsonWrap(async ({ agent_id, task, context, priority }) => {
+        const fromAgent = currentAgentId || "system";
+        const result = await pool.query(
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority) VALUES ($1, $2, $3, 'autonomous', $4, $5) RETURNING id`,
+          [agent_id, task, context || "", `autonomous:${fromAgent}:${Date.now()}`, priority || "normal"]
+        );
+        if (result.rows.length > 0) {
+          const taskId = result.rows[0].id;
+          // Also send A2A notification if target is different
+          if (agent_id !== fromAgent) {
+            await sendA2ANotification({
+              toAgent: agent_id,
+              fromAgent,
+              topic: `New task scheduled by ${fromAgent}`,
+              content: `${fromAgent} scheduled task #${taskId} for you: ${task.slice(0, 200)}`,
+              priority: priority === "critical" ? "urgent" : priority || "normal",
+            });
+          }
+          return { success: true, taskId, agent: agent_id, message: `Task #${taskId} scheduled for ${agent_id}.` };
+        }
+        return { success: false, error: "Failed to create task" };
+      }),
+    }),
+    get_team_status: tool({
+      description: "Check the current status of all agents — what they're working on, pending tasks, and unread inbox messages.",
+      inputSchema: zodSchema(z.object({
+        include_recent_tasks: z.boolean().optional(),
+        include_inbox: z.boolean().optional(),
+      })),
+      execute: safeJsonWrap(async ({ include_recent_tasks, include_inbox }) => {
+        const statusResult = await pool.query(
+          `SELECT agent_id, status, current_task, last_activity, tasks_completed, messages_processed FROM agent_status ORDER BY agent_id`
+        );
+        const taskResult = await pool.query(
+          `SELECT agent_id, COUNT(*) FILTER (WHERE status = 'pending') as pending,
+                  COUNT(*) FILTER (WHERE status = 'running') as running,
+                  COUNT(*) FILTER (WHERE status = 'failed') as failed_recent
+           FROM agent_tasks WHERE created_at > NOW() - INTERVAL '1 hour' GROUP BY agent_id`
+        );
+        let inboxCounts = {};
+        if (include_inbox !== false) {
+          const inboxResult = await pool.query(`SELECT to_agent, COUNT(*) as unread FROM a2a_messages WHERE is_read = FALSE GROUP BY to_agent`);
+          for (const row of inboxResult.rows) inboxCounts[row.to_agent] = parseInt(row.unread, 10);
+        }
+        let recentTasks = [];
+        if (include_recent_tasks !== false) {
+          const recentResult = await pool.query(
+            `SELECT id, agent_id, task, status, completed_at, trigger_type FROM agent_tasks
+             WHERE status IN ('completed', 'failed') AND completed_at > NOW() - INTERVAL '2 hours'
+             ORDER BY completed_at DESC LIMIT 20`
+          );
+          recentTasks = recentResult.rows.map(r => ({ id: r.id, agent: r.agent_id, task: (r.task || "").slice(0, 100), status: r.status, completedAt: r.completed_at, trigger: r.trigger_type }));
+        }
+        const projectResult = await pool.query(
+          `SELECT p.name as project, pt.title, pt.assigned_agent, pt.status, pt.priority
+           FROM project_tasks pt JOIN projects p ON p.id = pt.project_id
+           WHERE pt.status IN ('pending', 'in_progress') ORDER BY pt.priority, pt.sort_order LIMIT 15`
+        );
+        return {
+          timestamp: new Date().toISOString(),
+          agents: statusResult.rows.map(r => ({ id: r.agent_id, status: r.status, currentTask: r.current_task, lastActivity: r.last_activity, tasksCompleted: parseInt(r.tasks_completed || "0", 10), inboxUnread: inboxCounts[r.agent_id] || 0 })),
+          pendingTasks: taskResult.rows.reduce((acc, r) => { acc[r.agent_id] = { pending: parseInt(r.pending, 10), running: parseInt(r.running, 10), recentFailed: parseInt(r.failed_recent, 10) }; return acc; }, {}),
+          recentActivity: recentTasks,
+          activeProjectTasks: projectResult.rows,
+        };
+      }),
+    }),
+    share_progress: tool({
+      description: "Share your work progress or findings with other agents via A2A.",
+      inputSchema: zodSchema(z.object({
+        title: z.string(),
+        content: z.string(),
+        targets: z.array(z.enum(["general", "mail", "code", "data", "creative", "research", "ops"])).optional(),
+        task_id: z.number().optional(),
+        project_id: z.number().optional(),
+      })),
+      execute: safeJsonWrap(async ({ title, content, targets, task_id, project_id }) => {
+        const fromAgent = currentAgentId || "system";
+        const contextKey = `progress-${fromAgent}-${Date.now()}`;
+        // Persist to a2a_shared_context
+        await pool.query(
+          `INSERT INTO a2a_shared_context (context_key, agent_id, content, content_text, tags, scope) VALUES ($1, $2, $3, $4, $5, 'global') RETURNING id`,
+          [contextKey, fromAgent, JSON.stringify({ text: content, title, taskId: task_id, projectId: project_id, type: "progress_update" }), content, JSON.stringify(["progress", fromAgent, task_id ? `task-${task_id}` : null, project_id ? `project-${project_id}` : null].filter(Boolean))],
+        );
+        // Broadcast to target agents
+        const allTargets = targets || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== fromAgent);
+        let sent = 0;
+        for (const agent of allTargets) {
+          await sendA2ANotification({ toAgent: agent, fromAgent, topic: `Progress Update: ${title}`, content: `${fromAgent} shares:\n\n**${title}**\n\n${content}`, priority: "normal" });
+          sent++;
+        }
+        return { success: true, contextKey, sent, targets: allTargets };
+      }),
+    }),
+    get_team_progress: tool({
+      description: "Get recent progress updates from all agents.",
+      inputSchema: zodSchema(z.object({
+        from_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional(),
+        limit: z.number().optional(),
+      })),
+      execute: safeJsonWrap(async ({ from_agent, limit }) => {
+        const queryStr = from_agent
+          ? `SELECT * FROM a2a_shared_context WHERE $1::text[] <@ tags AND agent_id = $2 ORDER BY created_at DESC LIMIT $3`
+          : `SELECT * FROM a2a_shared_context WHERE $1::text[] <@ tags ORDER BY created_at DESC LIMIT $3`;
+        const result = await pool.query(queryStr, [["progress"], from_agent, limit || 20]);
+        return {
+          found: result.rows.length,
+          updates: result.rows.map(r => ({ id: r.id, key: r.context_key, agent: r.agent_id, content: r.content_text || "(structured data only)", tags: r.tags, createdAt: r.created_at })),
+        };
+      }),
+    }),
   };
 }
 
@@ -2829,10 +3379,20 @@ async function completeTask(taskId, result, toolCalls) {
 }
 
 async function failTask(taskId, error) {
-  await pool.query(
-    `UPDATE agent_tasks SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
-    [error.slice(0, 5000), taskId],
-  );
+  // Handle both numeric task IDs and "pt-X" project task IDs
+  const isProjectTask = String(taskId).startsWith("pt-");
+  if (isProjectTask) {
+    const numericId = parseInt(String(taskId).replace("pt-", ""), 10);
+    await pool.query(
+      `UPDATE project_tasks SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
+      [error.slice(0, 5000), numericId]
+    );
+  } else {
+    await pool.query(
+      `UPDATE agent_tasks SET status = 'failed', error = $1, completed_at = NOW(), attempts = COALESCE(attempts, 0) + 1 WHERE id = $2`,
+      [error.slice(0, 5000), taskId]
+    );
+  }
 }
 
 async function writeAutomationLog(automationId, status, resultData, durationMs, errorMsg) {
@@ -2958,6 +3518,100 @@ async function evaluateAutomations() {
 }
 
 // ---------------------------------------------------------------------------
+// System Prompt Builder — Rich prompts for background task execution
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a date/time context block in Africa/Lagos timezone.
+ */
+function buildDateTimeBlock() {
+  const now = new Date();
+  const lagosTime = now.toLocaleString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+  const lagosDate = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const lagosTimeShort = now.toLocaleTimeString("en-US", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hour12: true });
+  const lagosDayName = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long" });
+
+  return `[CURRENT DATE/TIME — ALWAYS use this as "now" for ALL time references]
+- Lagos (WAT, UTC+1): ${lagosTime}
+- Date: ${lagosDate}
+- Time: ${lagosTimeShort}
+- Day: ${lagosDayName}
+- UTC: ${now.toISOString()}
+- Unix timestamp: ${Math.floor(now.getTime() / 1000)}
+
+CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you reference "today", "yesterday", "tomorrow", or any date in email subject lines, headers, or content, you MUST use the date from above. NEVER guess or hallucinate dates — always derive them from this current time.`;
+}
+
+/**
+ * Build a rich system prompt for background task execution.
+ * Mirrors the chat route's prompt construction but adds autonomous execution context.
+ *
+ * @param {string} agentId — The agent's ID (e.g. "general", "mail")
+ * @param {object} [options] — Optional modifiers
+ * @param {boolean} [options.isInboxTask] — If true, adds directive A2A inbox processing instructions
+ * @returns {string} The complete system prompt
+ */
+function getSystemPrompt(agentId, options = {}) {
+  const { isInboxTask = false } = options;
+  const agentDef = AGENTS[agentId];
+  if (!agentDef) return "You are a helpful AI assistant.";
+
+  const dateTimeBlock = buildDateTimeBlock();
+  const basePrompt = AGENT_SYSTEM_PROMPTS[agentId] || "";
+
+  // Autonomous execution context — appended to ALL background task prompts
+  const autonomousBlock = `
+## Autonomous Background Execution
+You are running as a **background automation task** — there is NO user interaction possible. This means:
+- You cannot ask the user questions or wait for input
+- You must make reasonable assumptions when information is missing
+- You must COMPLETE the task fully in a single execution cycle
+- Your output will be stored as the task result — be thorough but structured
+
+**At the start of every task, use your \`a2a_check_inbox\` tool to check for any unread messages from other agents.** If you find messages requesting action or information, handle them as part of this execution cycle. This enables real-time inter-agent communication.`;
+
+  // Inbox-specific directive block (for Phase 0 A2A inbox processing)
+  const inboxDirectiveBlock = isInboxTask ? `
+
+## A2A INBOX PROCESSING — DIRECTIVE
+You are processing unread messages in your A2A inbox. Follow this protocol:
+
+1. **READ** each message carefully — check sender, type, topic, priority, and full content
+2. **ACT** on requests:
+   - If another agent asks you to DO something (execute a task), use your tools to complete it
+   - Execute the requested action using ALL available tools
+3. **RESPOND** to requests via \`a2a_send_message\`:
+   - Send the result, findings, or confirmation back to the requesting agent
+   - Include specific details — the requesting agent cannot see your tool results
+4. **ACKNOWLEDGE** broadcasts:
+   - For informational broadcasts, use \`a2a_send_message\` to acknowledge receipt if a response is warranted
+   - Skip acknowledgment for low-priority FYI broadcasts
+5. **SHARE** important findings:
+   - If you discover something other agents should know, use \`a2a_share_context\` to share it
+   - Examples: new critical emails, deployment failures, data anomalies, research findings
+
+**CRITICAL:** After processing each message, use \`a2a_send_message\` to reply with your results or acknowledgment. Other agents are waiting for your response — don't leave them hanging.` : "";
+
+  // Build the final prompt, matching the chat route's structure
+  let systemPrompt;
+  if (agentId !== "general") {
+    // Specialist agents: identity override + their full prompt
+    systemPrompt = `${dateTimeBlock}
+
+[IDENTITY OVERRIDE] You are "${agentDef.name}" (${agentDef.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agentDef.name}" at all times.
+
+${basePrompt}${TASK_COMPLETION_RULES}${HUMANIZER_RULES}${autonomousBlock}${inboxDirectiveBlock}`;
+  } else {
+    // Claw General: full prompt with no identity override needed
+    systemPrompt = `${dateTimeBlock}
+
+${basePrompt}${TASK_COMPLETION_RULES}${HUMANIZER_RULES}${autonomousBlock}${inboxDirectiveBlock}`;
+  }
+
+  return systemPrompt;
+}
+
+// ---------------------------------------------------------------------------
 // Task Execution
 // ---------------------------------------------------------------------------
 
@@ -2981,26 +3635,10 @@ async function executeTask(task) {
       if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
     }
 
-    // Build datetime context in Africa/Lagos timezone
-    const now = new Date();
-    const lagosTime = now.toLocaleString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
-    const lagosDate = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    const lagosTimeShort = now.toLocaleTimeString("en-US", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hour12: true });
-    const lagosDayName = now.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", weekday: "long" });
-
-    const dateTimeBlock = `[CURRENT DATE/TIME — ALWAYS use this as "now" for ALL time references]
-- Lagos (WAT, UTC+1): ${lagosTime}
-- Date: ${lagosDate}
-- Time: ${lagosTimeShort}
-- Day: ${lagosDayName}
-- UTC: ${now.toISOString()}
-- Unix timestamp: ${Math.floor(now.getTime() / 1000)}
-
-CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you reference "today", "yesterday", "tomorrow", or any date in email subject lines, headers, or content, you MUST use the date from above. NEVER guess or hallucinate dates — always derive them from this current time. For example, if today is April 20, 2026, a "Daily Inbox Summary" should say "April 20, 2026", NOT any other date.`;
-
-    const systemPrompt = `${dateTimeBlock}\n\nYou are ${agentDef.name}, an AI agent executing a background automation task. Complete the task fully and provide a concise summary of what you did and the results. You are running autonomously — no user interaction is possible.
-
-IMPORTANT: At the start of every task, use your a2a_check_inbox tool to check for any unread messages from other agents. If you find messages requesting action or information, handle them as part of this execution cycle. This enables real-time inter-agent communication.`;
+    // Build rich system prompt using the full agent prompt (mirrors chat route quality)
+    const systemPrompt = getSystemPrompt(task.agent_id, {
+      isInboxTask: task.trigger_type === "a2a_inbox",
+    });
 
     console.log(`[Task #${task.id}] Executing with ${Object.keys(agentTools).length} tools, timeout=${timeoutS}s, maxSteps=${maxSteps}`);
 
@@ -3050,6 +3688,18 @@ IMPORTANT: At the start of every task, use your a2a_check_inbox tool to check fo
 // Main
 // ---------------------------------------------------------------------------
 
+// Ensure required columns exist (idempotent — safe to run every invocation)
+async function ensureSchema() {
+  // Ensure agent_tasks.attempts column exists
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agent_tasks' AND column_name = 'attempts') THEN
+        ALTER TABLE agent_tasks ADD COLUMN attempts INTEGER DEFAULT 0;
+      END IF;
+    END $$
+  `);
+}
+
 // Detect stale running tasks (from crashed previous executions)
 async function recoverStaleTasks() {
   const result = await pool.query(
@@ -3078,6 +3728,9 @@ async function main() {
   const summary = { tasksProcessed: 0, succeeded: 0, failed: 0, automationsTriggered: 0, skipped: 0, inboxProcessed: 0 };
 
   try {
+    // Ensure required DB columns exist
+    await ensureSchema();
+
     // Recover stale tasks from crashed previous executions
     await recoverStaleTasks();
 
@@ -3109,8 +3762,8 @@ async function main() {
                VALUES ($1, $2, $3, 'a2a_inbox', $4, 'high') RETURNING id`,
               [
                 agentId,
-                `You have ${inboxResult.rows.length} unread message(s) in your inbox. Check your inbox using a2a_check_inbox, read each message, and respond appropriately. For requests, take the requested action and send the result back via a2a_send_message. For broadcasts, acknowledge receipt if needed.`,
-                `A2A Inbox auto-processing. Unread messages:\n${msgs}`,
+                `You have ${inboxResult.rows.length} unread message(s) in your A2A inbox. PROCESS THEM NOW:\n\n1. Use a2a_check_inbox to retrieve all unread messages\n2. For each message:\n   - READ it carefully (sender, type, topic, priority, content)\n   - If it's a REQUEST: Execute the requested action using your tools, then reply via a2a_send_message with the result\n   - If it's a BROADCAST: Acknowledge receipt via a2a_send_message if a response is warranted (skip low-priority FYI)\n3. If you discover important findings during processing, share them via a2a_share_context\n\nMessages awaiting processing:\n${msgs}`,
+                `A2A Inbox auto-processing. ${inboxResult.rows.length} unread message(s) from: ${inboxResult.rows.map(m => m.from_agent).join(", ")}`,
                 `a2a-inbox:${Date.now()}`,
               ],
             );
@@ -3439,6 +4092,126 @@ async function main() {
       console.log(`[Phase 3] Processed ${projectTasksResult.rows.length} project tasks`);
     } catch (e) {
       console.error(`[Phase 3] Error:`, e.message);
+    }
+
+    // Phase 4: Auto-escalate failed tasks
+    // If a task has failed 2+ times, escalate to the general agent for review
+    // If a task has failed 1 time, retry it (unless it was a timeout)
+    console.log(`\n[Phase 4] Checking for failed tasks that need escalation...`);
+    try {
+      // 4a: Retry recently failed tasks (failed once, not timeout)
+      const retryResult = await pool.query(
+        `UPDATE agent_tasks SET status = 'pending', error = NULL, attempts = COALESCE(attempts, 0) + 1
+         WHERE status = 'failed'
+           AND attempts < 2
+           AND error NOT LIKE '%timeout%'
+           AND created_at > NOW() - INTERVAL '1 hour'
+         RETURNING id, agent_id, task`
+      );
+      if (retryResult.rows.length > 0) {
+        console.log(`[Phase 4] Queued ${retryResult.rows.length} failed task(s) for retry`);
+        for (const row of retryResult.rows) {
+          console.log(`  - Task #${row.id} (${row.agent_id}): ${row.task.slice(0, 60)}`);
+        }
+      }
+
+      // 4b: Escalate tasks that have failed 2+ times
+      const escalateResult = await pool.query(
+        `SELECT id, agent_id, task, context, attempts, error
+         FROM agent_tasks
+         WHERE status = 'failed'
+           AND attempts >= 2
+           AND created_at > NOW() - INTERVAL '6 hours'
+           AND NOT EXISTS (
+             SELECT 1 FROM agent_tasks esc
+             WHERE esc.status = 'pending'
+               AND esc.task LIKE '%escalate%'
+               AND esc.trigger_source LIKE '%task-escalation%'
+               AND esc.context LIKE '%' || $1 || '%'
+           )
+         LIMIT 3`,
+        ["task-escalation"]
+      );
+      for (const row of escalateResult.rows) {
+        const escalationTask = await pool.query(
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+           VALUES ('general', $1, $2, 'escalation', $3, 'high')
+           RETURNING id`,
+          [
+            `ESCALATION: Task #${row.id} has failed ${row.attempts} times and needs your attention. The original task was: "${row.task.slice(0, 300)}". The error was: "${(row.error || "unknown").slice(0, 500)}". Please analyze why this task is failing and either: (1) fix the issue and reschedule it, (2) break it into smaller subtasks, (3) route it to a more appropriate agent, or (4) mark it as not feasible.`,
+            `Task escalation from auto-escalation system.\nOriginal task: ${row.task}\nAgent: ${row.agent_id}\nAttempts: ${row.attempts}\nLast error: ${row.error || "unknown"}`,
+            `task-escalation:${row.id}:${Date.now()}`
+          ]
+        );
+        console.log(`[Phase 4] Escalated task #${row.id} → new task #${escalationTask.rows[0]?.id} for general agent`);
+
+        // Notify user about escalation
+        await sendNotification({
+          agentId: "general",
+          agentName: "Claw General",
+          type: "alert",
+          title: `Task auto-escalated after ${row.attempts} failures`,
+          body: `Task #${row.id} ("${row.task.slice(0, 80)}...") has been escalated to Claw General for review.`,
+          priority: "medium",
+          metadata: { taskId: row.id, originalAgent: row.agent_id, attempts: row.attempts },
+        });
+      }
+
+      console.log(`[Phase 4] Done: ${retryResult.rows.length} retried, ${escalateResult.rows.length} escalated`);
+    } catch (e) {
+      console.error(`[Phase 4] Error:`, e.message);
+    }
+
+    // Phase 5: Proactive agent self-assessment (runs every ~30 min based on minute check)
+    const minuteOfDay = new Date().getHours() * 60 + new Date().getMinutes();
+    // Only run proactive assessment every 30 minutes (at :00 and :30)
+    if (minuteOfDay % 30 === 0) {
+      console.log(`\n[Phase 5] Running proactive agent self-assessment...`);
+      try {
+        // Check if we already have proactive tasks queued to avoid duplicates
+        const existingProactive = await pool.query(
+          `SELECT agent_id FROM agent_tasks WHERE status = 'pending' AND trigger_type = 'proactive_assessment'`
+        );
+        const proactiveAgents = new Set(existingProactive.rows.map(r => r.agent_id));
+
+        // Ops agent: system health check every 30 min
+        if (!proactiveAgents.has('ops')) {
+          const opsTask = await pool.query(
+            `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+             VALUES ('ops', $1, $2, 'proactive_assessment', $3, 'normal')
+             RETURNING id`,
+            [
+              "PROACTIVE: Perform a quick system health check. Check: (1) Are all services reachable? (2) Any recent deployment issues? (3) Any GitHub activity that needs attention? (4) Are all agents operational? If you find anything concerning, share the details with the team using share_progress and/or schedule_agent_task for follow-up work.",
+              "Routine proactive health check. This runs automatically every 30 minutes.",
+              `proactive-assessment:ops:${Date.now()}`
+            ]
+          );
+          console.log(`  [Phase 5] Created proactive health check task #${opsTask.rows[0]?.id} for Ops Agent`);
+        }
+
+        // Mail agent: check for urgent unread emails every 30 min during business hours
+        const hour = new Date().getHours();
+        const lagosHour = (hour + 1) % 24; // WAT = UTC+1
+        if (lagosHour >= 8 && lagosHour <= 22 && !proactiveAgents.has('mail')) {
+          const mailTask = await pool.query(
+            `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+             VALUES ('mail', $1, $2, 'proactive_assessment', $3, 'normal')
+             RETURNING id`,
+            [
+              "PROACTIVE: Check for new unread emails in your inbox. Focus on: (1) Any urgent/time-sensitive emails that need immediate attention, (2) Any emails from the last 30 minutes. If you find anything urgent, share the summary with the team using share_progress. Only notify the user if there's something truly urgent that can't wait.",
+              "Routine proactive inbox check. This runs automatically every 30 minutes during business hours (8am-10pm WAT).",
+              `proactive-assessment:mail:${Date.now()}`
+            ]
+          );
+          console.log(`  [Phase 5] Created proactive inbox check task #${mailTask.rows[0]?.id} for Mail Agent`);
+        }
+
+        console.log(`[Phase 5] Done: proactive assessment tasks created`);
+      } catch (e) {
+        console.error(`[Phase 5] Error:`, e.message);
+      }
+    } else {
+      console.log(`\n[Phase 5] Skipping proactive assessment (runs every 30 minutes, next at :${minuteOfDay < 30 ? '30' : '00'})`);
     }
 
     console.log(`\n[Done] ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run) | ${summary.automationsTriggered} automations triggered | ${summary.inboxProcessed} agents with unread inbox messages`);

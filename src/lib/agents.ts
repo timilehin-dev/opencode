@@ -603,6 +603,8 @@ const agents: AgentConfig[] = [
       // Phase 4: A2A Real-Time Communication
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
       "a2a_share_context", "a2a_query_context", "a2a_collaborate",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect", "skill_evaluate",
       // Phase 6C: Skill Evolution & Rollback
@@ -645,6 +647,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
       // Task Board (Kanban)
@@ -683,6 +687,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
       // Task Board (Kanban)
@@ -723,6 +729,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
       // Task Board (Kanban)
@@ -761,6 +769,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
       // Task Board (Kanban)
@@ -796,6 +806,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
       // Task Board (Kanban)
@@ -829,6 +841,8 @@ const agents: AgentConfig[] = [
       "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_broadcast",
+      // Autonomous Task Creation & Team Coordination
+      "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
       // Task Board (Kanban)
