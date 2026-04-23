@@ -40,20 +40,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Skip chat endpoint — this is the core app endpoint, always needs to work
+  if (pathname.startsWith("/api/chat")) {
+    return NextResponse.next();
+  }
+
   // Skip internal UI endpoints — these are called from the dashboard UI
   // and don't need API key auth (they run in the user's browser session)
   const internalSkips = [
     "/api/taskboard",
     "/api/learning",
-    "/api/skills/evolve",
-    "/api/skills/rollback",
-    "/api/skills/reflection",
-    "/api/skills/evolution",
-    "/api/skills/rate",
-    "/api/skills/evaluate",
-    "/api/skills/search",
-    "/api/skills/seed-builtin",
-    "/api/skills/embeddings",
+    "/api/skills",
     "/api/todos",
     "/api/projects",
     "/api/conversations",
@@ -70,6 +67,14 @@ export function middleware(request: NextRequest) {
     "/api/overview",
     "/api/keys/status",
     "/api/delegations",
+    // Dashboard service endpoints (called from UI views)
+    "/api/gmail",
+    "/api/calendar",
+    "/api/drive",
+    "/api/docs",
+    "/api/sheets",
+    "/api/github",
+    "/api/stitch",
   ];
   if (internalSkips.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
