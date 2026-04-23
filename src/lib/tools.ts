@@ -5442,10 +5442,6 @@ const SKILL_TOOL_MAP: Record<string, { tool: string; description: string; params
   "skill-creator": { tool: "skill_create", description: "Create new skills for the skill library", params_hint: "Provide name, display_name, description, category, prompt_template" },
   "skill-vetter": { tool: "skill_inspect", description: "Vet and inspect skills for quality and security", params_hint: "Provide skill_name or skill_id to inspect" },
   "writing-plans": { tool: "create_docx_document", description: "Create writing plans — methodology + docx output", params_hint: "Follow writing-plans methodology, then create plan document" },
-  "dream-interpreter": { tool: "create_docx_document", description: "Interpret dreams — methodology + docx output", params_hint: "Follow dream-interpreter methodology, then create interpretation" },
-  "get-fortune-analysis": { tool: "create_docx_document", description: "Fortune/luck analysis — methodology + docx output", params_hint: "Follow fortune analysis methodology" },
-  "gift-evaluator": { tool: "create_docx_document", description: "Evaluate gift ideas — methodology + docx output", params_hint: "Follow gift-evaluator methodology" },
-  "mindfulness-meditation": { tool: "create_docx_document", description: "Mindfulness meditation guides — methodology + docx output", params_hint: "Follow mindfulness methodology" },
   "anti-pua": { tool: "create_docx_document", description: "Anti-PUA analysis — methodology + docx output", params_hint: "Follow anti-pua methodology" },
   "qingyan-research": { tool: "web_search", description: "Deep research tool — uses web search + web reader for comprehensive research", params_hint: "Use web_search for research, then web_reader for detailed content" },
   "auto-target-tracker": { tool: "create_xlsx_spreadsheet", description: "Track targets/goals — methodology + xlsx output", params_hint: "Follow methodology, then create tracker with create_xlsx_spreadsheet" },
@@ -5468,22 +5464,27 @@ export const skillUseTool = tool({
     context: z.string().optional().describe("Optional context about the current task to customize the skill application"),
   })),
   execute: safeJson(async ({ skill_name, context }) => {
-    // Direct DB lookup — exact name match first (no fragile HTTP self-call)
-    let result = await query("SELECT * FROM skills WHERE name = $1 AND is_active = true", [skill_name]);
-    if (result.rows.length === 0) {
-      // Fallback: slug match
-      result = await query("SELECT * FROM skills WHERE slug = $1 AND is_active = true", [skill_name]);
-    }
-    if (result.rows.length === 0) {
-      // Fallback: ILIKE match on name or display_name
-      result = await query("SELECT * FROM skills WHERE (name ILIKE $1 OR display_name ILIKE $1) AND is_active = true LIMIT 1", [`%${skill_name}%`]);
-    }
+    // Single optimized query with fallback chain (exact → slug → fuzzy)
+    const result = await query(
+      `SELECT * FROM skills WHERE is_active = true AND (
+        name = $1 OR slug = $1 OR name ILIKE $2 OR display_name ILIKE $2 OR slug ILIKE $2
+      ) ORDER BY
+        CASE WHEN name = $1 THEN 0 WHEN slug = $1 THEN 1 ELSE 2 END
+      LIMIT 1`,
+      [skill_name, `%${skill_name}%`]
+    );
     if (result.rows.length > 0) {
       const skill = result.rows[0];
-      // Look up the execution tool mapping
-      const toolMapping = SKILL_TOOL_MAP[skill.name]
-        || SKILL_TOOL_MAP[skill.slug]
-        || Object.entries(SKILL_TOOL_MAP).find(([key]) => skill.name.includes(key) || skill.slug?.includes(key))?.[1];
+      // Fast lookup: try exact match first, then substring match
+      let toolMapping = SKILL_TOOL_MAP[skill.name] || SKILL_TOOL_MAP[skill.slug!];
+      if (!toolMapping) {
+        for (const key of Object.keys(SKILL_TOOL_MAP)) {
+          if (skill.name.includes(key) || skill.slug?.includes(key)) {
+            toolMapping = SKILL_TOOL_MAP[key];
+            break;
+          }
+        }
+      }
 
       return {
         success: true,
@@ -5495,7 +5496,6 @@ export const skillUseTool = tool({
         difficulty: skill.difficulty,
         performance_score: skill.performance_score,
         context_applied: context || null,
-        // NEW: Tell the agent which tool to actually execute
         execution_tool: toolMapping?.tool || null,
         execution_description: toolMapping?.description || null,
         execution_params_hint: toolMapping?.params_hint || null,

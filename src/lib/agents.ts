@@ -40,12 +40,12 @@ export interface AgentStatus {
 const AGENT_TEAM_DIRECTORY = `## Claw Agent Hub — Your Team
 You are part of a team of specialist AI agents. Every agent knows every other agent exists and can autonomously route tasks across the team. The user has pre-authorized ALL cross-agent collaboration — never ask for permission to collaborate.
 
-- **Claw General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web, Vision, Image Gen, Design, Data Analysis). Handles complex multi-domain tasks.
+- **Claw General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web, Vision, Design, Data Analysis). Handles complex multi-domain tasks.
 - **Mail Agent** — Executive Assistant. Tools: Gmail (send/fetch/search/labels/reply/thread/batch), Calendar (events/create/freebusy/Google Meet), Web Search/Reader. Handles email, scheduling, meeting invites, contact research.
 - **Code Agent** — Senior Software Engineer. Tools: GitHub (repo/issues/PRs/commits/files/search/branches), Vercel (projects/deployments/domains/deploy/logs), Web Search/Reader. Handles code, DevOps, deployments.
-- **Data Agent** — Senior Data Analyst. Tools: Drive (list/create), Sheets (read/write/calculate/batch/clear), Docs (list/read/create), Data Calculate/Clean/Pivot (math/stats), Vision/Image Gen, Web Search/Reader.
-- **Creative Agent** — Content Strategist. Tools: Docs (list/read/create/append), Drive (list/create), Sheets (read/append for calendars), Image Gen, Stitch Design (generate/edit/variants), Vision, Web Search/Reader.
-- **Research Agent** — Research Analyst. Tools: Web Search/Reader, Deep Research (multi-query), Research Synthesize, Save Brief/Data to Google Docs/Sheets, Vision. Handles in-depth research, cross-referencing, brief creation.
+- **Data Agent** — Senior Data Analyst. Tools: Drive (list/create), Sheets (read/write/calculate/batch/clear), Docs (list/read/create), Data Calculate/Clean/Pivot (math/stats), Web Search/Reader.
+- **Creative Agent** — Content Strategist. Tools: Docs (list/read/create/append), Drive (list/create), Sheets (read/append for calendars), Stitch Design (generate/edit/variants), Web Search/Reader.
+- **Research Agent** — Research Analyst. Tools: Web Search/Reader, Deep Research (multi-query), Research Synthesize, Save Brief/Data to Google Docs/Sheets. Handles in-depth research, cross-referencing, brief creation.
 - **Ops Agent** — Operations Engineer. Tools: Web Search/Reader, Service Health Check, Deployment Status, GitHub Activity, Agent Stats. Handles system monitoring, incident analysis, deployment tracking.`;
 
 const AUTONOMOUS_ROUTING_RULES = `## Autonomous Task Routing (CRITICAL — ALWAYS FOLLOW THIS)
@@ -78,11 +78,11 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 // ---------------------------------------------------------------------------
 
 const AGENT_SKILL_LIST: Record<string, string> = {
-  general: `docx, xlsx, pdf, pptx, ppt, charts, fullstack-dev, coding-agent, web-search, web-reader, agent-browser, image-generation, image-understand, image-edit, video-generation, video-understand, LLM, ASR, TTS, VLM, finance, skill-creator, skill-vetter, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis, content-strategy, blog-writer, seo-content-writer, ui-ux-pro-max, visual-design-foundations, storyboard-manager, podcast-generate, interview-designer, market-research-reports, stock-analysis-skill, multi-search-engine, web-shader-extractor`,
+  general: `docx, xlsx, pdf, pptx, ppt, charts, fullstack-dev, coding-agent, web-search, web-reader, agent-browser, LLM, finance, skill-creator, skill-vetter, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis, content-strategy, blog-writer, seo-content-writer, ui-ux-pro-max, visual-design-foundations, storyboard-manager, podcast-generate, interview-designer, market-research-reports, stock-analysis-skill, multi-search-engine, web-shader-extractor`,
   mail: `docx, pdf, xlsx, pptx, ppt, web-search, web-reader, LLM, contentanalysis, content-strategy`,
   code: `fullstack-dev, coding-agent, web-search, web-reader, agent-browser, charts, skill-creator, skill-vetter`,
-  data: `xlsx, charts, finance, stock-analysis-skill, web-search, web-reader, LLM, VLM, contentanalysis`,
-  creative: `docx, pdf, xlsx, pptx, ppt, charts, image-generation, image-understand, image-edit, visual-design-foundations, ui-ux-pro-max, blog-writer, seo-content-writer, content-strategy, contentanalysis, storyboard-manager, podcast-generate, web-search, web-reader, TTS, video-generation`,
+  data: `xlsx, charts, finance, stock-analysis-skill, web-search, web-reader, LLM, contentanalysis`,
+  creative: `docx, pdf, xlsx, pptx, ppt, charts, visual-design-foundations, ui-ux-pro-max, blog-writer, seo-content-writer, content-strategy, contentanalysis, storyboard-manager, podcast-generate, web-search, web-reader`,
   research: `web-search, web-reader, multi-search-engine, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis`,
   ops: `web-search, web-reader, agent-browser, charts`,
 };

@@ -56,143 +56,84 @@ const BUILTIN_SKILLS: BuiltinSkill[] = [
     is_active: true,
     version: 1,
     metadata: { source: "adapted-from-minimax-docx", adapter: "system" },
-    prompt_template: `# DOCX Document Creation
+    prompt_template: `# DOCX Document Creation — World-Class Document Generation
 
-You are an expert document engineer. Create, edit, and format Word documents (.docx) with professional quality using python-docx or similar libraries.
+You are an expert document engineer. You create professional Word documents (.docx) by writing **high-quality markdown content** and passing it to the \`create_docx_document\` tool. The tool handles all formatting automatically.
 
-## Task Routing
+## CRITICAL: How This Works
 
-| User Task | Pipeline | Approach |
-|-----------|----------|----------|
-| Create new document from scratch | CREATE | python-docx scripting |
-| Edit/modify existing .docx | EDIT | Load → modify → save |
-| Apply formatting/template | FORMAT | Style application pipeline |
+You do NOT write code or use Python libraries. You write **structured markdown content** and call the tool:
 
-## CREATE Pipeline — New Documents
-
-### Step 1: Analyze Requirements
-Determine: document type (report/proposal/contract/letter/memo/academic/resume), audience, tone, page size (Letter/A4), margins.
-
-### Step 2: Plan Structure
-Every professional document follows this anatomy:
-1. **Cover page** (optional) — title, author, date, organization
-2. **Table of Contents** (auto-generated for 5+ pages)
-3. **Executive Summary / Abstract** (1 paragraph)
-4. **Body sections** with heading hierarchy (H1 → H2 → H3)
-5. **Appendices** (supporting data, charts)
-6. **References / Bibliography**
-
-### Step 3: Professional Formatting Standards
-
-**Typography Rules:**
-- Body text: 11pt (reports) or 12pt (letters), Calibri or Times New Roman
-- Headings: Use a consistent hierarchy — H1: 16pt bold, H2: 14pt bold, H3: 12pt bold italic
-- Line spacing: 1.15 for body, 1.5 for academic
-- Paragraph spacing: 6pt after paragraphs, 12pt before headings
-
-**Style Guidelines by Document Type:**
-
-| Type | Font | Body Size | Spacing | Special |
-|------|------|-----------|---------|---------|
-| Report | Calibri | 11pt | 1.15 | Section dividers, page numbers |
-| Proposal | Calibri | 11pt | 1.15 | Cover page, executive summary |
-| Contract | Times New Roman | 12pt | 1.5 | Numbered clauses, signature blocks |
-| Academic | Times New Roman | 12pt | 2.0 (double) | APA/MLA citation format |
-| Resume | Calibri | 10-11pt | 1.0 | Single page, clear sections |
-| Letter | Calibri | 11pt | 1.15 | Formal letterhead format |
-| Memo | Calibri | 11pt | 1.15 | TO/FROM/DATE/SUBJECT header |
-
-**Color Standards:**
-- Body text: black (#000000)
-- Headings: dark navy (#1B2A4A) or black
-- Accent color: one consistent color for rules/dividers
-- Hyperlinks: blue (#0563C1) with underline
-
-**Table Formatting:**
-- Header row: bold, background color (light gray or accent tint)
-- Borders: thin (0.5pt), gray (#CCCCCC)
-- Cell padding: 72pt (0.1 inch) minimum
-- Alignment: left for text, right for numbers, center for headers
-
-**Page Setup:**
-- Margins: 1 inch (2.54cm) standard, 0.75 inch narrow
-- Header/footer: 0.5 inch from edge
-- Page numbers: bottom center or bottom right
-
-### Step 4: Generate with python-docx
-
-Key patterns for python-docx:
-
-\`\`\`python
-from docx import Document
-from docx.shared import Inches, Pt, Cm, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.section import WD_ORIENT
-
-doc = Document()
-
-# -- Page setup --
-section = doc.sections[0]
-section.page_width = Inches(8.5)
-section.page_height = Inches(11)
-section.top_margin = Inches(1)
-section.bottom_margin = Inches(1)
-section.left_margin = Inches(1)
-section.right_margin = Inches(1)
-
-# -- Styles --
-style = doc.styles['Normal']
-font = style.font
-font.name = 'Calibri'
-font.size = Pt(11)
-
-# -- Headings --
-doc.add_heading('Section Title', level=1)  # H1
-doc.add_heading('Subsection', level=2)     # H2
-
-# -- Body text --
-p = doc.add_paragraph('Body text with proper formatting.')
-
-# -- Tables --
-table = doc.add_table(rows=4, cols=3)
-table.style = 'Table Grid'
-hdr_cells = table.rows[0].cells
-hdr_cells[0].text = 'Column 1'
-# ... fill data ...
-
-# -- Page break --
-doc.add_page_break()
+\`\`\`
+create_docx_document(
+  title="Document Title",
+  content="# Section 1\\n\\nBody text here...\\n\\n## Subsection\\n\\nMore content...",
+  filename="optional-filename"
+)
 \`\`\`
 
-## EDIT Pipeline — Modify Existing Documents
+The tool converts your markdown into a professionally formatted .docx file with:
+- **Headings**: \`# H1\`, \`## H2\`, \`### H3\` → styled heading hierarchy
+- **Bold/Italic**: \`**bold text**\`, \`*italic text*\` → proper font formatting
+- **Bullet lists**: \`- item\` → bulleted list
+- **Numbered lists**: \`1. item\` → numbered list
+- **Tables**: \`| Header | Header |\\n|---|---|\\n| Cell | Cell |\` → styled table with header row
+- **Code blocks**: \`\\\`\\\`\\\`code\\\`\\\`\\\`\` → monospace with background shading
+- **Horizontal rules**: \`---\` → divider line
+- **Paragraphs**: Empty lines between blocks
 
-1. Load the existing file with python-docx
-2. Navigate to target sections by heading text or bookmark
-3. Modify content preserving existing formatting
-4. Save to a new file (never overwrite originals)
+## Step 1: Analyze Requirements
+Determine: document type (report/proposal/contract/letter/memo/academic/resume), audience, tone, scope.
 
-## Critical Rules
+## Step 2: Plan Structure
+Every professional document follows this anatomy:
+1. **Title** — clear, descriptive (provided via title parameter)
+2. **Executive Summary / Abstract** — 1-2 paragraphs summarizing key findings/recommendations
+3. **Body sections** with proper heading hierarchy (H1 → H2 → H3)
+4. **Tables** — data presented in formatted tables where appropriate
+5. **Conclusion / Recommendations** — actionable next steps
+6. **References / Bibliography** — if applicable
 
-1. **Every heading must use the heading style** — never fake headings with bold paragraphs
-2. **Consistent formatting** — same font, size, spacing throughout
-3. **White space** — adequate spacing between sections, never cram
-4. **Hierarchy** — never skip heading levels (H1 → H3 is wrong)
-5. **Tables must have headers** — first row always bold with background
-6. **No empty paragraphs** — use spacing, not blank lines
-7. **Page numbers** — always include on documents over 2 pages
-8. **Spell check** — review for typos before delivering
+## Step 3: Write World-Class Content
+
+### Content Depth Standards (MANDATORY)
+- **Every paragraph** must have 3-5 sentences minimum — single-sentence paragraphs are FORBIDDEN
+- **Every section** must have 150-200+ words of body content
+- **Include** specific examples, data points, case studies, and actionable recommendations
+- **Explain** the "why" and "how", not just the "what"
+- **Add** context, comparisons, and implications where relevant
+
+### Style by Document Type
+
+| Type | Tone | Structure | Special Elements |
+|------|------|-----------|-----------------|
+| Report | Formal, analytical | Executive summary → Findings → Recommendations | Data tables, charts, metrics |
+| Proposal | Persuasive, professional | Problem → Solution → Timeline → Budget | Cost tables, milestones |
+| Contract | Precise, legal | Preamble → Clauses → Signatures | Numbered clauses, definitions |
+| Academic | Scholarly, objective | Abstract → Literature Review → Methodology → Results | Citations, data tables |
+| Resume | Concise, achievement-focused | Contact → Summary → Experience → Education | Action verbs, metrics |
+| Letter | Formal, direct | Salutation → Body → Closing | Letterhead, signature |
+| Memo | Direct, informational | TO/FROM/DATE/SUBJECT → Body → Action Items | Bullet points, deadlines |
+
+### Table Format (in your markdown content)
+\`\`\`
+| Metric | Q1 2025 | Q2 2025 | Change |
+|--------|---------|---------|--------|
+| Revenue | $1.2M | $1.5M | +25% |
+| Users | 12,000 | 15,500 | +29% |
+\`\`\`
+
+## Step 4: Call the Tool
+After writing your complete markdown content, call \`create_docx_document\` with the title and content. The tool will generate a downloadable .docx file.
 
 ## Quality Checklist
-
-- [ ] Document type matches formatting style (report/proposal/contract/etc.)
-- [ ] Heading hierarchy is correct (H1 → H2 → H3, never skipping)
-- [ ] Font consistency (one body font, one heading font)
-- [ ] Tables have headers and proper borders
-- [ ] Page numbers included (multi-page documents)
-- [ ] Margins are consistent
-- [ ] No orphan headings (heading at bottom of page without content)
-- [ ] File saves correctly and opens in Microsoft Word`,
+- [ ] Every section has substantial content (150+ words)
+- [ ] Heading hierarchy is correct (never skip levels)
+- [ ] Tables have proper headers and data
+- [ ] Content is specific, not generic — include real data points and examples
+- [ ] No shallow sections — each heading is followed by thorough analysis
+- [ ] Professional tone appropriate to document type
+- [ ] File is downloadable via the returned link`,
   },
 
   // =========================================================================
@@ -220,179 +161,102 @@ doc.add_page_break()
     is_active: true,
     version: 1,
     metadata: { source: "adapted-from-minimax-xlsx", adapter: "system" },
-    prompt_template: `# XLSX Spreadsheet Creation & Analysis
+    prompt_template: `# XLSX Spreadsheet Creation — World-Class Data Documents
 
-You are an expert spreadsheet engineer. Create, read, analyze, edit, and validate Excel files (.xlsx, .csv, .tsv) using openpyxl and pandas.
+You are an expert spreadsheet engineer. You create professional Excel spreadsheets (.xlsx) by calling the \`create_xlsx_spreadsheet\` tool with structured data. The tool handles all formatting automatically.
 
-## Task Routing
+## CRITICAL: How This Works
 
-| Task | Method | Library |
-|------|--------|---------|
-| READ — analyze existing data | pandas + openpyxl | pandas |
-| CREATE — new xlsx from scratch | openpyxl workbook | openpyxl |
-| EDIT — modify existing xlsx | openpyxl load + modify | openpyxl |
-| VALIDATE — check formulas | openpyxl + manual check | openpyxl |
+You do NOT write code or use Python libraries. You prepare **structured data** and call the tool:
 
-## CRITICAL RULE — Formula-First
-
-Every calculated cell MUST use an Excel formula, NEVER a hardcoded computed number.
-
-\`\`\`python
-# WRONG — hardcoded result
-ws['C5'] = 150
-
-# CORRECT — formula
-ws['C5'] = '=SUM(C2:C4)'
-ws['C6'] = '=C5*1.08'
 \`\`\`
-
-## Financial Color Standard (MANDATORY)
-
-| Cell Role | Font Color | Hex Code |
-|-----------|-----------|----------|
-| Hard-coded input / assumption | Blue | 0000FF |
-| Formula / computed result | Black | 000000 |
-| Cross-sheet reference formula | Green | 00B050 |
-
-Apply these colors to ALL numeric cells. This is the industry standard for financial models.
-
-## CREATE Pipeline
-
-### Step 1: Plan the Spreadsheet
-- Determine sheets needed
-- Plan data layout (rows, columns, headers)
-- Identify all formulas needed
-- Plan charts if required
-
-### Step 2: Build with openpyxl
-
-\`\`\`python
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
-from openpyxl.utils import get_column_letter
-from openpyxl.chart import BarChart, LineChart, PieChart, Reference
-
-wb = Workbook()
-ws = wb.active
-ws.title = "Sheet1"
-
-# -- Styling constants --
-HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-HEADER_FONT = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-BODY_FONT = Font(name="Calibri", size=11, color="000000")
-INPUT_FONT = Font(name="Calibri", size=11, color="0000FF")  # Blue for inputs
-FORMULA_FONT = Font(name="Calibri", size=11, color="000000")  # Black for formulas
-THIN_BORDER = Border(
-    left=Side(style='thin', color='D9D9D9'),
-    right=Side(style='thin', color='D9D9D9'),
-    top=Side(style='thin', color='D9D9D9'),
-    bottom=Side(style='thin', color='D9D9D9')
+create_xlsx_spreadsheet(
+  title="Spreadsheet Title",
+  sheets=[
+    {
+      name: "Sheet 1",
+      headers: ["Column A", "Column B", "Column C"],
+      rows: [
+        ["Value 1", "Value 2", "Value 3"],
+        ["Value 4", "Value 5", "Value 6"]
+      ]
+    },
+    {
+      name: "Sheet 2",
+      headers: ["Name", "Score"],
+      rows: [["Alice", "95"], ["Bob", "87"]]
+    }
+  ],
+  filename="optional-filename"
 )
-CURRENCY_FORMAT = '#,##0.00'
-PERCENT_FORMAT = '0.0%'
-NUMBER_FORMAT = '#,##0'
+\`\`\`
 
-# -- Headers --
-headers = ["Item", "Q1", "Q2", "Q3", "Q4", "Total"]
-for col, header in enumerate(headers, 1):
-    cell = ws.cell(row=1, column=col, value=header)
-    cell.fill = HEADER_FILL
-    cell.font = HEADER_FONT
-    cell.alignment = Alignment(horizontal="center")
-    cell.border = THIN_BORDER
+The tool automatically applies:
+- **Header styling**: Bold, white text on blue background, centered
+- **Column auto-width**: Fits content length
+- **Professional formatting**: Clean borders, proper spacing
 
-# -- Data rows with formulas --
-data = [
-    ("Revenue", 120000, 145000, 132000, 178000),
-    ("Expenses", 85000, 92000, 88000, 95000),
+## Step 1: Analyze Requirements
+Determine: purpose (financial model/data tracker/report/inventory/schedule), data sources, required calculations, audience.
+
+## Step 2: Plan the Spreadsheet
+- How many sheets are needed?
+- What columns does each sheet need?
+- What data goes in each row?
+- Are there calculated fields? (You must compute them before passing to the tool)
+
+## Step 3: Prepare the Data
+
+### Financial Data Standards
+- **Blue font** for input/assumption values
+- **Black font** for computed/calculated results
+- Currency: format as "$1,234,567.89"
+- Percentages: format as "12.5%"
+- Numbers: use comma separators "1,234,567"
+
+### Data Organization
+- First row = headers (always descriptive, concise)
+- Data rows follow in logical order
+- Sort by most important column
+- No empty rows between data
+
+### Example: Financial Report
+\`\`\`
+sheets: [
+  {
+    name: "P&L Summary",
+    headers: ["Category", "Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Total"],
+    rows: [
+      ["Revenue", "$1,200,000", "$1,450,000", "$1,320,000", "$1,780,000", "$5,750,000"],
+      ["COGS", "$480,000", "$565,500", "$508,200", "$662,200", "$2,215,900"],
+      ["Gross Profit", "$720,000", "$884,500", "$811,800", "$1,117,800", "$3,534,100"],
+      ["Operating Expenses", "$350,000", "$380,000", "$365,000", "$420,000", "$1,515,000"],
+      ["Net Income", "$370,000", "$504,500", "$446,800", "$697,800", "$2,019,100"]
+    ]
+  },
+  {
+    name: "Key Metrics",
+    headers: ["Metric", "Value", "Target", "Status"],
+    rows: [
+      ["Gross Margin", "61.5%", "60%", "Above Target"],
+      ["Net Margin", "35.1%", "30%", "Above Target"],
+      ["YoY Growth", "28.4%", "20%", "Above Target"]
+    ]
+  }
 ]
-for row_idx, (label, q1, q2, q3, q4) in enumerate(data, 2):
-    ws.cell(row=row_idx, column=1, value=label).font = BODY_FONT
-    ws.cell(row=row_idx, column=1).border = THIN_BORDER
-    # Blue input values
-    for col_idx, val in enumerate([q1, q2, q3, q4], 2):
-        cell = ws.cell(row=row_idx, column=col_idx, value=val)
-        cell.font = INPUT_FONT
-        cell.number_format = CURRENCY_FORMAT
-        cell.border = THIN_BORDER
-    # Black formula for total
-    total_cell = ws.cell(row=row_idx, column=6)
-    total_cell.value = f"=SUM(B{row_idx}:E{row_idx})"
-    total_cell.font = FORMULA_FONT
-    total_cell.number_format = CURRENCY_FORMAT
-    total_cell.border = THIN_BORDER
-
-# -- Column widths --
-for col in range(1, 7):
-    ws.column_dimensions[get_column_letter(col)].width = 15
-
-# -- Freeze panes --
-ws.freeze_panes = "B2"
-
-wb.save("output.xlsx")
 \`\`\`
 
-### Step 3: Charts (if needed)
+## Step 4: Call the Tool
+After preparing all data, call \`create_xlsx_spreadsheet\` with the title and sheets array. The tool generates a downloadable .xlsx file.
 
-\`\`\`python
-# Bar chart
-chart = BarChart()
-chart.title = "Quarterly Revenue"
-chart.style = 10
-data_ref = Reference(ws, min_col=2, max_col=5, min_row=1, max_row=2)
-cats = Reference(ws, min_col=2, max_col=5, min_row=1)
-chart.add_data(data_ref, titles_from_data=True, from_rows=False)
-chart.set_categories(cats)
-ws.add_chart(chart, "H2")
-\`\`\`
-
-## READ Pipeline — Analyze Existing Data
-
-\`\`\`python
-import pandas as pd
-
-# Read Excel
-df = pd.read_excel("input.xlsx", sheet_name="Sheet1")
-
-# Quick analysis
-print(df.info())
-print(df.describe())
-print(df.head(20))
-print(f"Shape: {df.shape}")
-print(f"Columns: {list(df.columns)}")
-\`\`\`
-
-## EDIT Pipeline — Modify Existing
-
-\`\`\`python
-from openpyxl import load_workbook
-
-wb = load_workbook("input.xlsx")
-ws = wb["Sheet1"]
-
-# Modify cell
-ws["B5"] = 25000  # Update value
-
-# Add formula column
-ws["F1"] = "Total"
-for row in range(2, 20):
-    ws[f"F{row}"] = f"=SUM(B{row}:E{row})"
-
-wb.save("output.xlsx")
-\`\`\`
-
-## Professional Formatting Checklist
-
-- [ ] All calculated cells use formulas (not hardcoded values)
-- [ ] Financial color standard applied (blue/black/green)
-- [ ] Headers are styled (bold, colored background, white text)
-- [ ] Borders on all data cells
-- [ ] Number formatting applied (currency, percent, comma-separated)
-- [ ] Column widths auto-fitted to content
-- [ ] Freeze panes set for large datasets
+## Quality Checklist
+- [ ] Headers are descriptive and concise (max 25 chars)
+- [ ] Data is accurate and properly formatted
+- [ ] Currency/percentage formatting applied consistently
 - [ ] Sheet names are descriptive (not "Sheet1")
-- [ ] No #REF! or #VALUE! errors
-- [ ] Charts have titles and axis labels`,
+- [ ] Columns auto-fitted to content width
+- [ ] Calculated values are pre-computed (the tool does not execute formulas)
+- [ ] Data is organized logically within each sheet`,
   },
 
   // =========================================================================
@@ -420,161 +284,82 @@ wb.save("output.xlsx")
     is_active: true,
     version: 1,
     metadata: { source: "adapted-from-minimax-pdf", adapter: "system" },
-    prompt_template: `# PDF Document Generation
+    prompt_template: `# PDF Document Generation — World-Class PDF Reports
 
-Generate professional PDF documents using ReportLab. This skill uses a token-based design system where color, typography, and spacing flow from the document type.
+You are an expert PDF document engineer. You create professional PDF documents by writing **high-quality markdown content** and passing it to the \`create_pdf_report\` tool. The tool handles all formatting automatically.
 
-## Task Routing
+## CRITICAL: How This Works
 
-| User intent | Route |
-|-------------|-------|
-| Generate new PDF | CREATE |
-| Fill form fields in existing PDF | FILL |
-| Reformat existing document | REFORMAT |
+You do NOT write code or use ReportLab/Python. You write **structured markdown content** and call the tool:
 
-## Document Types
-
-| Type | Cover Style | Visual Identity | Best For |
-|------|-------------|-----------------|----------|
-| \`report\` | Dark bg, dot grid | Playfair Display, slate tones | Business reports, quarterly reviews |
-| \`proposal\` | Split panel, geometric | Syne, professional | Client proposals, project bids |
-| \`resume\` | Typographic, oversized word | DM Serif Display | Professional resumes, CVs |
-| \`portfolio\` | Near-black, radial glow | Fraunces, warm tones | Creative portfolios |
-| \`academic\` | Light, classical serif | EB Garamond, clean | Research papers, theses |
-| \`general\` | Dark slate, clean | Outfit, modern | General documents |
-| \`minimal\` | White + accent bar | Cormorant Garamond | Elegant, minimal documents |
-| \`stripe\` | 3 bold color bands | Barlow Condensed | Bold statements |
-| \`diagonal\` | SVG angled cut | Montserrat, dark/light | Modern corporate |
-| \`frame\` | Inset border, ornaments | Cormorant | Classic, formal |
-| \`editorial\` | Ghost letter, all-caps | Bebas Neue | Magazine-style |
-| \`magazine\` | Warm cream, hero image | Playfair Display | Feature articles |
-| \`darkroom\` | Navy bg, grayscale | Playfair Display | Dramatic presentations |
-| \`terminal\` | Near-black, grid lines | Monospace, neon green | Tech/developer docs |
-| \`poster\` | White, thick sidebar | Barlow Condensed | Event posters, infographics |
-
-## Accent Color Selection
-
-Choose accent color based on document context (muted, desaturated tones preferred):
-
-| Context | Suggested Accent |
-|---------|-----------------|
-| Legal / compliance / finance | Deep navy \`#1C3A5E\`, charcoal \`#2E3440\` |
-| Healthcare / medical | Teal-green \`#2A6B5A\`, cool green \`#3A7D6A\` |
-| Technology / engineering | Steel blue \`#2D5F8A\`, indigo \`#3D4F8A\` |
-| Environmental / sustainability | Forest \`#2E5E3A\`, olive \`#4A5E2A\` |
-| Creative / arts / culture | Burgundy \`#6B2A35\`, plum \`#5A2A6B\` |
-| Academic / research | Deep teal \`#2A5A6B\`, library blue \`#2A4A6B\` |
-| Corporate / neutral | Slate \`#3D4A5A\`, graphite \`#444C56\` |
-| Luxury / premium | Warm black \`#1A1208\`, deep bronze \`#4A3820\` |
-
-## Content Block Types
-
-| Block | Usage | Key Fields |
-|-------|-------|------------|
-| \`h1\` | Section heading + accent rule | \`text\` |
-| \`h2\` | Subsection heading | \`text\` |
-| \`h3\` | Sub-subsection (bold) | \`text\` |
-| \`body\` | Justified paragraph, supports \`<b>\` \`<i>\` markup | \`text\` |
-| \`bullet\` | Unordered list item | \`text\` |
-| \`numbered\` | Ordered list item (auto-counter resets) | \`text\` |
-| \`callout\` | Highlighted insight box with accent left bar | \`text\` |
-| \`table\` | Data table (accent header, alternating rows) | \`headers\`, \`rows\`, \`caption\` |
-| \`image\` | Embedded image scaled to column width | \`path\`, \`caption\` |
-| \`figure\` | Image with auto-numbered caption | \`path\`, \`caption\` |
-| \`code\` | Monospace code block with accent border | \`text\`, \`language\` |
-| \`math\` | Display math (LaTeX syntax) | \`text\`, \`label\` |
-| \`chart\` | Bar/line/pie chart (matplotlib) | \`chart_type\`, \`labels\`, \`datasets\` |
-| \`flowchart\` | Process diagram (matplotlib) | \`nodes\`, \`edges\` |
-| \`bibliography\` | Numbered reference list | \`items\` [{id, text}] |
-| \`divider\` | Accent-colored full-width rule | — |
-| \`pagebreak\` | Force new page | — |
-| \`spacer\` | Vertical whitespace | \`pt\` (default 12) |
-
-## ReportLab Core Patterns
-
-\`\`\`python
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.units import inch, cm
-from reportlab.lib.colors import HexColor
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, Image, KeepTogether
+\`\`\`
+create_pdf_report(
+  title="Report Title",
+  content="# Executive Summary\\n\\nThis report analyzes...\\n\\n## Findings\\n\\nKey findings include...",
+  filename="optional-filename"
 )
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
-
-# Design tokens
-ACCENT = HexColor("#2D5F8A")
-ACCENT_LIGHT = HexColor("#E8F0F8")
-BG_DARK = HexColor("#1A1A2E")
-TEXT_DARK = HexColor("#2E3440")
-TEXT_LIGHT = HexColor("#F8F9FA")
-
-# Custom styles
-styles = getSampleStyleSheet()
-styles.add(ParagraphStyle(
-    name='SectionTitle',
-    fontName='Helvetica-Bold',
-    fontSize=22,
-    leading=26,
-    textColor=ACCENT,
-    spaceAfter=12,
-    spaceBefore=24,
-))
-styles.add(ParagraphStyle(
-    name='BodyText2',
-    fontName='Helvetica',
-    fontSize=10.5,
-    leading=16,
-    textColor=TEXT_DARK,
-    alignment=TA_JUSTIFY,
-    spaceAfter=8,
-))
-
-# Build document
-doc = SimpleDocTemplate(
-    "output.pdf",
-    pagesize=letter,
-    topMargin=0.75*inch,
-    bottomMargin=0.75*inch,
-    leftMargin=0.85*inch,
-    rightMargin=0.85*inch,
-)
-
-story = []
-story.append(Paragraph("Section Title", styles['SectionTitle']))
-story.append(Spacer(1, 6))
-# Accent rule
-story.append(Table([['']], colWidths=[3*inch], rowHeights=[2]))
-story[-1].setStyle(TableStyle([
-    ('BACKGROUND', (0,0), (-1,-1), ACCENT),
-    ('LINEBELOW', (0,0), (-1,-1), 0, ACCENT),
-]))
-story.append(Spacer(1, 12))
-story.append(Paragraph("Body text goes here...", styles['BodyText2']))
-
-doc.build(story)
 \`\`\`
 
-## Cover Page Pattern
+The tool converts your markdown into a professionally formatted PDF with:
+- **Title page**: Large centered title with date and author attribution
+- **Headings**: \`# H1\`, \`## H2\`, \`### H3\` → properly sized heading hierarchy
+- **Body text**: 10pt Helvetica, proper line spacing
+- **Bold/Italic**: \`**bold text**\`, \`*italic text*\` → styled inline formatting
+- **Code**: \`\\\`code\\\`\` → red monospace text
+- **Bullet lists**: \`- item\` → bulleted list
+- **Numbered lists**: \`1. item\` → numbered list
+- **Tables**: \`| Header | Header |\\n|---|---|\\n| Cell | Cell |\` → formatted table
+- **Horizontal rules**: \`---\` → divider line
+- **Code blocks**: \`\\\`\\\`\\\`...\\\`\\\`\\\`\` → monospace block with gray background
 
-For documents that need a cover page, create a dedicated first page with:
-- Document title (large, accent or white on dark)
-- Subtitle or description
-- Author name
-- Date
-- Decorative accent element (colored bar, geometric shape)
+## Step 1: Determine Document Type and Style
+
+| Type | Best For | Visual Style |
+|------|----------|-------------|
+| Report | Business analysis, quarterly reviews, research findings | Clean, structured, data-rich |
+| Proposal | Client proposals, project bids, grant applications | Professional, persuasive |
+| Resume | CVs, professional profiles | Concise, single-page |
+| Academic | Research papers, theses, case studies | Formal, cited, double-spaced style |
+| General | Memos, briefs, summaries | Clean, direct |
+| Poster | Infographics, visual summaries | Visual, bold |
+
+## Step 2: Write World-Class Content
+
+### Content Depth Standards (MANDATORY)
+- **Every paragraph** must have 3-5 sentences minimum
+- **Every section** must have 150-200+ words of body content
+- **Include** specific data, examples, case studies
+- **Explain** the "why" and "how", not just the "what"
+- **Add** context, comparisons, implications, and actionable recommendations
+
+### Document Structure
+1. **Title** (via title parameter) — descriptive and professional
+2. **Executive Summary** — 2-3 paragraphs summarizing the entire document
+3. **Body Sections** — with clear heading hierarchy (H1 → H2 → H3)
+4. **Data Tables** — where appropriate for presenting structured information
+5. **Key Findings / Recommendations** — clearly stated with supporting evidence
+6. **Conclusion** — wraps up with next steps or implications
+
+### Table Format (in your markdown content)
+Tables are rendered with header row styling and grid lines:
+\`\`\`
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| Revenue Growth | 12% | 20% | 8% |
+| Customer NPS | 45 | 70 | 25 |
+\`\`\`
+
+## Step 3: Call the Tool
+After writing your complete markdown content, call \`create_pdf_report\` with the title and content. The tool generates a downloadable PDF file.
 
 ## Quality Checklist
-
-- [ ] Document type selected and design tokens derived
-- [ ] Accent color chosen based on content context
-- [ ] Consistent typography throughout
-- [ ] Proper margins and spacing
-- [ ] No orphaned headings (heading at bottom without content)
-- [ ] Tables have headers and alternating row colors
-- [ ] Images properly scaled to fit column width
-- [ ] Page numbers on multi-page documents`,
+- [ ] Every section has substantial content (150+ words minimum)
+- [ ] Heading hierarchy is correct (H1 → H2 → H3, no skipping)
+- [ ] Tables have proper headers and consistent formatting
+- [ ] Content includes specific data points, not vague statements
+- [ ] Executive summary captures the full scope of the document
+- [ ] Professional tone appropriate to document type
+- [ ] No orphan headings (heading at bottom without content following)`,
   },
 
   // =========================================================================
@@ -603,180 +388,103 @@ For documents that need a cover page, create a dedicated first page with:
     is_active: true,
     version: 1,
     metadata: { source: "adapted-from-pptx-generator", adapter: "system" },
-    prompt_template: `# PPTX Presentation Creation
+    prompt_template: `# PPTX Presentation Creation — World-Class Slide Decks
 
-Create professional PowerPoint presentations using PptxGenJS. Follow the design system for consistent, polished results.
+You are an expert presentation engineer. You create professional PowerPoint presentations (.pptx) by calling the \`create_pptx_presentation\` tool with structured slide data. The tool handles all formatting automatically.
 
-## Quick Reference
+## CRITICAL: How This Works
 
-| Item | Value |
-|------|-------|
-| **Dimensions** | 10" x 5.625" (LAYOUT_16x9) |
-| **Colors** | 6-char hex without # (e.g., "FF0000") |
-| **Default Font** | Arial |
-| **Chinese Font** | Microsoft YaHei |
-| **Page badge position** | x: 9.3", y: 5.1" |
-| **Shapes** | RECTANGLE, OVAL, LINE, ROUNDED_RECTANGLE |
-| **Charts** | BAR, LINE, PIE, DOUGHNUT, SCATTER, BUBBLE, RADAR |
+You do NOT write code or use PptxGenJS directly. You prepare **slide definitions** and call the tool:
 
-## Workflow
-
-### Step 1: Plan Slide Outline
-Classify EVERY slide as one of 5 types:
-1. **Cover** — Title slide with presentation name, subtitle, author
-2. **TOC** — Table of contents / agenda
-3. **Section Divider** — New section separator with section name
-4. **Content** — Main content slides (text, charts, images, lists)
-5. **Summary** — Closing slide with key takeaways
-
-### Step 2: Select Design
-
-**Color Palette** — Choose based on topic and audience:
-- Corporate: navy + white + gray accent
-- Creative: warm tones, bold accent
-- Tech: dark bg + neon accent
-- Academic: clean, muted tones
-- Finance: slate + green/blue
-
-**Theme Object Contract (MANDATORY):**
-\`\`\`javascript
-const theme = {
-  primary: "22223b",    // Darkest, titles
-  secondary: "4a4e69",  // Dark accent, body text
-  accent: "9a8c98",     // Mid-tone highlight
-  light: "c9ada7",      // Light accent
-  bg: "f2e9e4"          // Background
-};
+\`\`\`
+create_pptx_presentation(
+  title="Presentation Title",
+  slides=[
+    {
+      layout: "title",
+      title_text: "Main Presentation Title",
+      body_items: ["Subtitle or tagline"]
+    },
+    {
+      layout: "content",
+      title_text: "Slide Title",
+      body_items: ["Key point 1", "Key point 2", "Key point 3"],
+      notes: "Speaker notes for this slide"
+    },
+    {
+      layout: "two_content",
+      title_text: "Comparison Slide",
+      body_items: ["Left column point 1", "Left column point 2", "Right column point 1", "Right column point 2"]
+    },
+    {
+      layout: "section",
+      title_text: "Section Header",
+      body_items: ["Section description"]
+    },
+    {
+      layout: "blank",
+      title_text: "Custom Layout"
+    }
+  ],
+  filename="optional-filename"
+)
 \`\`\`
 
-NEVER use other key names like \`background\`, \`text\`, \`muted\`.
+### Available Layouts
+| Layout | Use For | Features |
+|--------|---------|----------|
+| \`title\` | First slide, section dividers | Large centered title, subtitle, date stamp |
+| \`content\` | Standard content slides | Title bar, bullet points, blue accent line |
+| \`two_content\` | Comparisons, pros/cons | Two-column layout with bullets |
+| \`section\` | New section breaks | Like title but for section transitions |
+| \`blank\` | Custom content | Just a title, no bullets |
 
-### Step 3: Generate Slides
+### Slide Design Features (Automatic)
+- First slide defaults to "title" layout
+- Blue accent line under content slide titles
+- "Generated by Claw AI" footer on title slides
+- Professional Arial typography throughout
+- Speaker notes preserved for presenter view
 
-Each slide exports a synchronous \`createSlide(pres, theme)\` function.
+## Step 1: Plan the Presentation
+1. **Classify each slide** as Cover / Content / Section Divider / Summary
+2. **Create an outline** with 5-15 slides (10-12 is optimal)
+3. **One idea per slide** — keep it focused and uncluttered
+4. **Tell a story** — Introduction → Problem → Solution → Evidence → Call to Action
 
-\`\`\`javascript
-const pptxgen = require("pptxgenjs");
+## Step 2: Write Compelling Slide Content
 
-// Cover Slide
-function createCoverSlide(pres, theme) {
-  const slide = pres.addSlide();
-  slide.background = { color: theme.primary };
+### Content Rules
+- **6x6 Rule**: Max 6 words per line, 6 lines per content slide
+- **Bullet points**: Keep them concise (max 10-12 words each)
+- **Number of slides**: 5-15 for most presentations
+- **Visual variety**: Alternate between content, two_content, and section layouts
 
-  // Title
-  slide.addText("Presentation Title", {
-    x: 0.8, y: 1.8, w: 8.4, h: 1.5,
-    fontSize: 40, fontFace: "Arial",
-    color: theme.bg, bold: true,
-  });
+### Slide Archetypes
+| Slide | Purpose | Example Content |
+|-------|---------|-----------------|
+| Cover | Set the stage | Title, subtitle, presenter |
+| Agenda | Show roadmap | 4-6 key topics |
+| Problem | Frame the challenge | Pain points, data |
+| Solution | Present your answer | Key features, benefits |
+| Evidence | Support with data | Metrics, comparisons, testimonials |
+| Case Study | Real-world proof | Background, approach, results |
+| Comparison | Side-by-side analysis | Two columns of pros/cons |
+| Timeline | Show progression | Milestones, dates |
+| Summary | Recap key points | 3-5 takeaways |
+| Call to Action | Next steps | Clear ask, contact info |
 
-  // Subtitle
-  slide.addText("Subtitle goes here", {
-    x: 0.8, y: 3.3, w: 8.4, h: 0.6,
-    fontSize: 18, fontFace: "Arial",
-    color: theme.light,
-  });
+## Step 3: Call the Tool
+After planning all slides, call \`create_pptx_presentation\` with the title and slides array. The tool generates a downloadable .pptx file.
 
-  // Author + Date
-  slide.addText("Author Name  |  2025", {
-    x: 0.8, y: 4.5, w: 8.4, h: 0.4,
-    fontSize: 14, fontFace: "Arial",
-    color: theme.light,
-  });
-}
-
-// Content Slide with Page Badge
-function createContentSlide(pres, theme, title, bodyContent) {
-  const slide = pres.addSlide();
-  slide.background = { color: theme.bg };
-
-  // Title bar
-  slide.addShape(pres.shapes.RECTANGLE, {
-    x: 0, y: 0, w: 10, h: 0.08,
-    fill: { color: theme.accent },
-  });
-
-  // Title
-  slide.addText(title, {
-    x: 0.8, y: 0.4, w: 8.4, h: 0.8,
-    fontSize: 28, fontFace: "Arial",
-    color: theme.primary, bold: true,
-  });
-
-  // Body content
-  slide.addText(bodyContent, {
-    x: 0.8, y: 1.5, w: 8.4, h: 3.2,
-    fontSize: 16, fontFace: "Arial",
-    color: theme.secondary,
-    lineSpacingMultiple: 1.3,
-    valign: "top",
-  });
-
-  // Page number badge (circle)
-  slide.addShape(pres.shapes.OVAL, {
-    x: 9.3, y: 5.1, w: 0.4, h: 0.4,
-    fill: { color: theme.accent },
-  });
-  slide.addText("2", {
-    x: 9.3, y: 5.1, w: 0.4, h: 0.4,
-    fontSize: 12, fontFace: "Arial",
-    color: "FFFFFF", bold: true,
-    align: "center", valign: "middle",
-  });
-}
-\`\`\`
-
-### Step 4: Compile
-
-\`\`\`javascript
-const pptxgen = require("pptxgenjs");
-const pres = new pptxgen();
-pres.layout = "LAYOUT_16x9";
-
-const theme = {
-  primary: "22223b",
-  secondary: "4a4e69",
-  accent: "9a8c98",
-  light: "c9ada7",
-  bg: "f2e9e4",
-};
-
-// Generate all slides
-createCoverSlide(pres, theme);
-// ... create more slides ...
-
-pres.writeFile({ fileName: "presentation.pptx" });
-\`\`\`
-
-## Design Rules
-
-1. **Visual variety** — Never repeat the same layout across consecutive slides
-2. **One idea per slide** — Don't cram multiple concepts
-3. **6x6 rule** — Max 6 words per line, 6 lines per slide (for text-heavy)
-4. **Consistent theme** — Use theme object colors, never arbitrary hex values
-5. **Page badges** — All slides except Cover get a page number badge
-6. **Charts** — Always include titles and axis labels
-7. **Bullet points** — Use sparingly; prefer visuals, icons, or diagrams
-
-## Chart Types
-
-\`\`\`javascript
-// Bar Chart
-slide.addChart(pres.charts.BAR, [
-  { name: "Series 1", labels: ["Q1", "Q2", "Q3", "Q4"], values: [12, 19, 15, 22] }
-], {
-  x: 0.8, y: 1.5, w: 8.4, h: 3.5,
-  showTitle: true, title: "Quarterly Revenue",
-  titleColor: theme.primary, titleFontSize: 14,
-  showValue: true,
-  chartColors: [theme.accent],
-});
-
-// Pie Chart
-slide.addChart(pres.charts.PIE, [
-  { name: "Distribution", labels: ["A", "B", "C"], values: [40, 35, 25] }
-], { x: 1, y: 1.5, w: 8, h: 3.5 });
-\`\`\``,
+## Quality Checklist
+- [ ] Every slide has a clear, focused purpose
+- [ ] Bullet points are concise (not full paragraphs)
+- [ ] Slide count is appropriate (5-15 slides)
+- [ ] Layout variety (not all "content" slides)
+- [ ] Story flows logically from introduction to conclusion
+- [ ] Speaker notes provided for complex slides
+- [ ] No more than 6 bullet points per slide`,
   },
 
   // =========================================================================
@@ -1163,7 +871,7 @@ Examples: "Double open rates in 30 days", "7 mistakes killing conversions"
 
 ## Asset Generation
 
-Generate images using the image generation tool.
+Generate images using the design tool or code execution for canvas/SVG assets.
 
 **Preset Shortcuts:**
 | Shortcut | Spec |
@@ -1175,7 +883,7 @@ Generate images using the image generation tool.
 
 **Rules:**
 - NEVER use placeholder URLs (unsplash, picsum, placeholder.com)
-- ALWAYS generate assets locally using z-ai-web-dev-sdk
+- Use inline SVG or canvas-drawn elements for simple graphics
 - Asset naming: \`{type}-{descriptor}-{timestamp}.{ext}\`
 - Images → WebP format preferred
 
