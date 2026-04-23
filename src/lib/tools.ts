@@ -4279,7 +4279,7 @@ export const createXlsxSpreadsheetTool = tool({
       name: z.string().describe("Sheet tab name"),
       headers: z.array(z.string()).describe("Column headers"),
       rows: z.array(z.array(z.string())).describe("2D array of row data (each inner array = one row)"),
-      formulas: z.record(z.string()).optional().describe("Auto-calc columns: { 'Column Header': 'SUM(B2:B10)' }. Key = header name, value = Excel formula. Auto-appended as last column."),
+      formulas: z.record(z.string(), z.string()).optional().describe("Auto-calc columns: { 'Column Header': 'SUM(B2:B10)' }. Key = header name, value = Excel formula. Auto-appended as last column."),
       freeze_header: z.boolean().optional().describe("Freeze the header row for scrolling (default: true)"),
     })).describe("Array of sheets to include"),
     filename: z.string().optional().describe("Output filename (without extension). Default: derived from title"),
