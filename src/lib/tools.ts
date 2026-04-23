@@ -2880,7 +2880,7 @@ export const createPdfReportTool = tool({
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
     const filePath = join(tmpdir(), `claw-${safeName}-${Date.now()}.pdf`);
 
-    const doc = new PDFDocument.default({
+    const doc = new PDFDocument({
       size: "A4",
       margins: { top: 60, bottom: 60, left: 60, right: 60 },
       info: {
