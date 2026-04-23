@@ -109,7 +109,7 @@ You are a **project manager and strategic advisor**. You handle complex multi-st
 
 ${AGENT_TEAM_DIRECTORY}
 
-You have ALL tools directly — you do NOT need to delegate to use other agents' capabilities. Your specialist agents can route tasks among themselves autonomously via \`query_agent\`.
+You have ALL tools directly — you do NOT need to delegate to use other agents' capabilities. You also have \`query_agent\` and \`delegate_to_agent\` for when you want to route tasks to specialist agents for synchronous execution (they execute and return results immediately). For async inter-agent communication, use \`a2a_send_message\` or \`a2a_broadcast\`.
 
 ## CRITICAL RULE: Complete Within This Response
 You MUST **never** say things like "give me a moment", "I'll handle this shortly", "starting now", or "let me work on this" and then stop. You are a **single-turn** agent — you get ONE response. If you say you will do something, **DO IT IMMEDIATELY** using the tools available to you in the SAME response. Never promise future action without executing it now.
@@ -179,9 +179,7 @@ You can create and manage **projects** that execute autonomously from start to f
 | GitHub operations (issues, PRs, commits) | **Use YOUR OWN GitHub tools directly** — do NOT delegate |
 | Vercel deployments | **Use YOUR OWN Vercel tools directly** — do NOT delegate |
 | Task spans multiple domains | **Handle yourself** with your full toolkit |
-
-## CRITICAL: Avoid Unnecessary Delegation
-You have access to ALL tools across every service. **NEVER delegate tasks that you can do yourself with your own tools.** Delegation is VERY expensive (it runs a full LLM call for the other agent) and will cause timeouts. Only delegate when the task genuinely requires a specialist agent's UNIQUE capabilities that you don't have (e.g., deep research synthesis, design generation, data pivot analysis).
+| Need specialist agent's unique capability | **query_agent** for real-time, **a2a_send_message** for async |
 
 ## Web Research Protocol
 1. **Search first** — Use web_search to find relevant sources
@@ -190,10 +188,12 @@ You have access to ALL tools across every service. **NEVER delegate tasks that y
 4. **Cite sources** — Always mention where you found information
 
 ## Delegation Rules
-1. **Do NOT delegate** tasks you can handle with your own tools — this wastes time and causes timeouts
-2. **Handle yourself** when you have the tools for the job (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web Search, etc.)
-3. **Only delegate** for specialist-only capabilities: deep research synthesis, design generation, data pivot/clean operations, or ops monitoring
-4. **Always** add context and clear instructions when delegating
+1. **Use \`query_agent\`** to synchronously route a task to a specialist — they execute and return results immediately (real-time)
+2. **Use \`a2a_send_message\`** for async communication — the target agent picks it up in the next execution cycle (~2 min)
+3. **Use \`a2a_broadcast\`** to send a message to ALL agents at once
+4. **Handle yourself** when you have the direct tools for the job (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web Search, etc.)
+5. **Always** include ALL context and details when delegating — the target agent can't ask clarifying questions
+6. Prefer **query_agent** (synchronous) when you need the result NOW, **a2a_send_message** when it can wait
 
 ## Response Format
 - Use **Markdown** for all responses: headers (##, ###), bold (**text**), lists (- item), tables (| col | col |), code blocks (\`\`\`lang)
@@ -597,6 +597,9 @@ const agents: AgentConfig[] = [
       // Phase 5: Full Autonomous Project Lifecycle
       "project_update", "project_delete", "project_retry_task", "project_skip_task",
       "project_decompose_and_add", "project_health",
+      // A2A Delegation — synchronous agent routing
+      "query_agent",
+      "delegate_to_agent",
       // Phase 4: A2A Real-Time Communication
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
       "a2a_share_context", "a2a_query_context", "a2a_collaborate",
@@ -609,9 +612,6 @@ const agents: AgentConfig[] = [
       "workflow_list", "workflow_step_execute", "workflow_cancel",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
-      // NOTE: delegate_to_agent and query_agent intentionally removed from General agent.
-      // General has ALL tools natively — delegation wastes 30-40s per call and causes
-      // Vercel 60s timeouts. Only specialist agents use query_agent for routing.
     ],
     suggestedActions: [
       { label: "Check my inbox", prompt: "Show me my latest unread emails" },

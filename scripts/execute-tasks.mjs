@@ -118,6 +118,8 @@ const AGENTS = {
       "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
       // Phase 5: Full Autonomous Project Lifecycle
       "project_update", "project_delete", "project_retry_task", "project_skip_task", "project_decompose_and_add", "project_health",
+      // A2A Delegation — synchronous agent routing
+      "query_agent",
       // Phase 4: A2A
       "a2a_send_message", "a2a_broadcast", "a2a_check_inbox", "a2a_share_context", "a2a_query_context", "a2a_collaborate",
     ],
