@@ -37,7 +37,7 @@ let _settingsCache: { data: { temperature: number; maxTokens: number }; ts: numb
 const SETTINGS_CACHE_TTL = 60_000;
 
 async function loadUserSettings(): Promise<{ temperature: number; maxTokens: number }> {
-  const defaults = { temperature: 0.7, maxTokens: 65536 };
+  const defaults = { temperature: 0.7, maxTokens: 131072 };
 
   // Return cached if fresh
   if (_settingsCache && Date.now() - _settingsCache.ts < SETTINGS_CACHE_TTL) {

@@ -284,7 +284,7 @@ import {
 // Large results (Gmail, Sheets, etc.) can overwhelm the LLM context window,
 // causing it to stop generating after tool calls. This cap prevents that.
 // Increased from 8K to 16K — 8K was too tight for Gmail threads, Sheets data, etc.
-const MAX_TOOL_RESULT_LENGTH = 16000;
+const MAX_TOOL_RESULT_LENGTH = 65536;
 
 // ---------------------------------------------------------------------------
 // Error Retry Logic with Exponential Backoff
@@ -904,7 +904,7 @@ async function callAgentDirectly(agentId: string, taskPrompt: string, _delegatio
     system: agent.systemPrompt,
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,
-    maxOutputTokens: 65536,
+    maxOutputTokens: 131072,
     stopWhen: stepCountIs(maxSteps),
     abortSignal: AbortSignal.timeout(timeoutMs),
   });
@@ -2621,18 +2621,12 @@ export const opsHealthCheckTool = tool({
     // --- 1) Ping real API routes ---
     const apiEndpoints = [
       { name: "api-status",        path: "/api/status" },
-      { name: "api-services",      path: "/api/services" },
-      { name: "api-chat",          path: "/api/chat" },
+      { name: "api-services",      path: "/api/services?action=status" },
       { name: "api-agents",        path: "/api/agents" },
       { name: "api-analytics",     path: "/api/analytics" },
       { name: "api-memory",        path: "/api/memory" },
       { name: "api-dashboard",     path: "/api/dashboard" },
-      { name: "api-gmail",         path: "/api/gmail" },
-      { name: "api-calendar",      path: "/api/calendar" },
-      { name: "api-drive",         path: "/api/drive" },
-      { name: "api-sheets",        path: "/api/sheets" },
-      { name: "api-github",        path: "/api/github" },
-      { name: "api-vercel",        path: "/api/vercel" },
+      { name: "api-health",        path: "/api/health" },
     ];
 
     const apiResults = await Promise.allSettled(
@@ -2640,6 +2634,7 @@ export const opsHealthCheckTool = tool({
         try {
           const res = await fetch(`${baseUrl}${path}`, {
             method: "GET",
+            headers: getSelfFetchHeaders(),
             signal: AbortSignal.timeout(5000),
           });
           return { service: name, path, status: res.ok ? "healthy" : "unhealthy", statusCode: res.status };

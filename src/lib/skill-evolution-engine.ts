@@ -155,7 +155,7 @@ Return ONLY the improved prompt template text — no explanation, no markdown fe
       const llmResult = await generateText({
         model,
         prompt: evolutionPrompt,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 131072,
         temperature: 0.4,
         abortSignal: AbortSignal.timeout(60000),
       });

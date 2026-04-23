@@ -2539,7 +2539,7 @@ function buildToolMap() {
           model,
           system: `You are a project planner. Decompose goals into tasks. Output ONLY valid JSON with format: {"tasks":[{"title":"...","description":"...","task_type":"research|code|design|testing|deployment|docs|communication|general","priority":"critical|high|medium|low","assigned_agent":"general|mail|code|data|research|ops|creative","depends_on":[],"task_prompt":"...","sort_order":0}]}`,
           messages: [{ role: "user", content: `Decompose: ${goal}\n${context ? "Context: " + context : ""}\nComplexity: ${complexity || "moderate"}, Max: ${Math.min(max_tasks || 8, 15)} tasks` }],
-          maxOutputTokens: 8192,
+          maxOutputTokens: 131072,
           abortSignal: AbortSignal.timeout(60000),
         });
 
@@ -2640,7 +2640,7 @@ function buildToolMap() {
           model,
           system: `Decompose goals into JSON: {"tasks":[{"title","description","task_type":"research|code|design|testing|deployment|docs|communication|general","priority":"critical|high|medium|low","assigned_agent":"general|mail|code|data|research|ops|creative","depends_on":[],"task_prompt":"...","sort_order":0}]}`,
           messages: [{ role: "user", content: `Decompose: ${goal}\n${context ? "Context: " + context : ""}\nComplexity: ${complexity || "moderate"}, Max: ${Math.min(max_tasks || 8, 15)}` }],
-          maxOutputTokens: 8192,
+          maxOutputTokens: 131072,
           abortSignal: AbortSignal.timeout(60000),
         });
 
@@ -3008,7 +3008,7 @@ CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you refer
         },
       ],
       tools: agentTools,
-      maxOutputTokens: 32768,
+      maxOutputTokens: 131072,
       stopWhen: stepCountIs(maxSteps),
       abortSignal: AbortSignal.timeout(timeoutS * 1000),
     });
