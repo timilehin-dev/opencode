@@ -100,36 +100,31 @@ Before starting ANY task, ask yourself: "Is there a skill for this?" If yes, use
 
 | Task Type | Auto-Apply This Skill |
 |---|---|
-| Create Word documents (.docx) | \`skill_use(skill_name="docx")\` |
-| Create Excel spreadsheets (.xlsx) | \`skill_use(skill_name="xlsx")\` |
-| Create PDF documents | \`skill_use(skill_name="pdf")\` |
-| Create PowerPoint presentations | \`skill_use(skill_name="pptx")\` or \`skill_use(skill_name="ppt")\` |
-| Create charts, graphs, diagrams | \`skill_use(skill_name="charts")\` |
-| Search the web for information | \`skill_use(skill_name="web-search")\` |
-| Read/extract content from web pages | \`skill_use(skill_name="web-reader")\` |
-| Generate images | \`skill_use(skill_name="image-generation")\` |
-| Analyze images | \`skill_use(skill_name="image-understand")\` or \`skill_use(skill_name="VLM")\` |
-| Generate audio/speech | \`skill_use(skill_name="TTS")\` |
-| Transcribe audio to text | \`skill_use(skill_name="ASR")\` |
-| Generate video | \`skill_use(skill_name="video-generation")\` |
-| Analyze video content | \`skill_use(skill_name="video-understand")\` |
-| Use AI chat/completions | \`skill_use(skill_name="LLM")\` |
-| Automate browser tasks | \`skill_use(skill_name="agent-browser")\` |
-| Financial/market data | \`skill_use(skill_name="finance")\` |
-| Academic paper search | \`skill_use(skill_name="aminer-academic-search")\` |
-| Full-stack web development | \`skill_use(skill_name="fullstack-dev")\` |
-| Write blog posts | \`skill_use(skill_name="blog-writer")\` |
-| SEO content writing | \`skill_use(skill_name="seo-content-writer")\` |
-| Content analysis/extraction | \`skill_use(skill_name="contentanalysis")\` |
+| Create Word documents (.docx) | \`skill_use(skill_name="docx")\` → then call \`create_docx_document\` |
+| Create Excel spreadsheets (.xlsx) | \`skill_use(skill_name="xlsx")\` → then call \`create_xlsx_spreadsheet\` |
+| Create PDF documents | \`skill_use(skill_name="pdf")\` → then call \`create_pdf_report\` |
+| Create PowerPoint presentations | \`skill_use(skill_name="pptx")\` → then call \`create_pptx_presentation\` |
+| Create charts, graphs, diagrams | \`skill_use(skill_name="charts")\` → then call \`generate_chart\` |
+| Search the web for information | \`skill_use(skill_name="web-search")\` → then call \`web_search\` |
+| Read/extract content from web pages | \`skill_use(skill_name="web-reader")\` → then call \`web_reader\` |
+| Use AI chat/completions | \`skill_use(skill_name="llm")\` → then call \`llm_chat\` |
+| Financial/market data | \`skill_use(skill_name="finance")\` → then call \`finance_query\` |
+| Academic paper search | \`skill_use(skill_name="aminer-academic-search")\` → then call \`academic_search\` |
+| Analyze content quality/SEO | \`skill_use(skill_name="contentanalysis")\` → then call \`content_analyze\` |
+| Write blog posts | \`skill_use(skill_name="blog-writer")\` → follow methodology + call \`create_docx_document\` |
+| SEO content writing | \`skill_use(skill_name="seo-content-writer")\` → follow methodology + call \`create_docx_document\` |
 
 ### How to Use Skills
-1. \`skill_use(skill_name="<name>")\` — loads the skill's full prompt template and methodology
-2. Follow the methodology returned by the skill to complete the task
-3. \`skill_list(search="<keyword>")\` — if unsure which skill applies, search for one
-4. \`skill_rate\` — rate the skill's performance after use (1-5)
+1. \`skill_use(skill_name="<name>")\` — loads the skill's full prompt template, methodology, AND the execution tool to call
+2. The skill response includes \`execution_tool\` — this is the ACTUAL TOOL you must call to execute the task
+3. The skill response includes \`execution_params_hint\` — this tells you what parameters to provide
+4. Follow the methodology from the skill's prompt_template, then call the execution_tool with the right parameters
+5. For methodological skills (blog-writer, seo, etc.), use the methodology to guide your content, then call the execution_tool to produce the file
+6. \`skill_list(search="<keyword>")\` — if unsure which skill applies, search for one
+7. \`skill_rate\` — rate the skill's performance after use (1-5)
 
 ### Workflow
-For EVERY task: first call \`skill_use\` with the most relevant skill, then follow its methodology. This is NOT optional — it is how you ensure professional-quality output.
+For EVERY task: first call \`skill_use\` with the most relevant skill, then call the \`execution_tool\` it returns to actually produce the output. The skill gives you the methodology, the execution_tool produces the result. This is NOT optional — it is how you ensure professional-quality output.
 `;
 }
 
@@ -170,6 +165,12 @@ If a task is too large for one response:
 - **Weather & Location**: get weather for any city, calculate distances between locations
 - **PDF/DOCX Creation**: create professional PDF reports and DOCX documents (downloadable)
 - **XLSX Creation**: create Excel spreadsheets with multiple sheets
+- **PPTX Creation**: create PowerPoint presentations with slides, layouts, and speaker notes
+- **Chart Generation**: create bar, line, pie, scatter charts and diagrams (SVG/PNG)
+- **LLM Chat**: send messages to AI models for text generation, analysis, translation
+- **Finance Query**: stock prices, market data, company financials, market news
+- **Academic Search**: search academic papers, scholarly articles, citations (AMiner)
+- **Content Analysis**: readability, sentiment, SEO, keyword density, structure scoring
 - **Gmail with Attachments**: send emails with PDF/DOCX/XLSX files attached
 - **Agent Delegation**: delegate tasks to specialist agents
 - **Project Management**: create projects, add tasks with dependencies, track progress, decompose complex goals into executable task graphs
@@ -624,7 +625,10 @@ const agents: AgentConfig[] = [
       "research_save_brief", "research_save_data",
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
-      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet", "gmail_send_attachment",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "generate_chart", "llm_chat",
+      "finance_query", "academic_search", "content_analyze",
+      "gmail_send_attachment",
       // Workspace Tools
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
@@ -678,7 +682,9 @@ const agents: AgentConfig[] = [
       "calendar_list", "calendar_events", "calendar_create",
       "calendar_freebusy",
       "web_search", "web_reader",
-      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet", "gmail_send_attachment",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "llm_chat", "content_analyze",
+      "gmail_send_attachment",
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
       "todo_create", "todo_list", "todo_update",
@@ -724,7 +730,8 @@ const agents: AgentConfig[] = [
       "vercel_projects", "vercel_deployments", "vercel_domains",
       "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
-      "create_pdf_report",
+      "create_pdf_report", "create_docx_document",
+      "generate_chart", "llm_chat",
       "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
@@ -769,6 +776,7 @@ const agents: AgentConfig[] = [
       "data_calculate", "data_clean", "data_pivot",
       "vision_analyze", "vision_download_analyze", "image_generate",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "generate_chart", "finance_query", "content_analyze",
       "download_drive_file",
       "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
@@ -814,6 +822,7 @@ const agents: AgentConfig[] = [
       "design_generate", "design_edit", "design_variants",
       "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "generate_chart", "content_analyze", "llm_chat",
       "todo_create", "todo_list", "todo_update",
       "reminder_create", "reminder_list",
       "weather_get", "code_execute",
@@ -855,6 +864,7 @@ const agents: AgentConfig[] = [
       "research_save_brief", "research_save_data",
       "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "academic_search", "content_analyze", "llm_chat",
       "contact_list", "contact_search",
       "todo_list",
       "weather_get", "code_execute",
@@ -894,7 +904,7 @@ const agents: AgentConfig[] = [
       "web_search", "web_reader",
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
-      "create_pdf_report",
+      "create_pdf_report", "generate_chart",
       "todo_stats", "reminder_list",
       "weather_get",
       "query_agent",
