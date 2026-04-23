@@ -121,6 +121,43 @@ export async function getAgentInsights(
 }
 
 // ---------------------------------------------------------------------------
+// getAllInsights — Get insights across ALL agents (optionally filtered by type)
+// ---------------------------------------------------------------------------
+
+export async function getAllInsights(
+  type?: LearningInsight["insightType"],
+  limit = 50,
+): Promise<LearningInsight[]> {
+  if (!process.env.SUPABASE_DB_URL) return [];
+
+  try {
+    let sql: string;
+    let params: unknown[];
+
+    if (type) {
+      sql = `SELECT id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at
+               FROM learning_insights
+               WHERE insight_type = $1
+               ORDER BY updated_at DESC
+               LIMIT $2`;
+      params = [type, limit];
+    } else {
+      sql = `SELECT id, agent_id, insight_type, content, source, confidence, application_count, last_applied_at, created_at, updated_at
+               FROM learning_insights
+               ORDER BY updated_at DESC
+               LIMIT $1`;
+      params = [limit];
+    }
+
+    const result = await query(sql, params);
+    return result.rows.map(mapRow);
+  } catch (err) {
+    console.warn("[SelfLearning] Failed to get all insights:", err);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // getInsightsForPrompt — Format top insights for injection into system prompt
 // ---------------------------------------------------------------------------
 

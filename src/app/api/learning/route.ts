@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import {
   recordLearning,
   getAgentInsights,
+  getAllInsights,
   getInsightsForPrompt,
   detectPatterns,
   decayInsights,
@@ -22,10 +23,17 @@ export async function GET(request: Request) {
   try {
     switch (action) {
       case "insights": {
-        const agentId = searchParams.get("agentId") || "general";
+        const agentIdParam = searchParams.get("agentId") || "";
         const type = searchParams.get("type") as LearningInsight["insightType"] | null;
         const limit = parseInt(searchParams.get("limit") || "50", 10);
-        const data = await getAgentInsights(agentId, type || undefined, limit);
+
+        // If agentId is "all" or empty, fetch insights for all agents
+        let data;
+        if (!agentIdParam || agentIdParam === "all") {
+          data = await getAllInsights(type || undefined, limit);
+        } else {
+          data = await getAgentInsights(agentIdParam, type || undefined, limit);
+        }
         return NextResponse.json({ success: true, data });
       }
 
@@ -102,14 +110,37 @@ export async function POST(req: Request) {
           conversations?: Array<{ role: string; content: string }>;
         };
 
-        if (!agentId || !conversations || !Array.isArray(conversations)) {
-          return NextResponse.json(
-            { error: "Missing required fields: agentId, conversations" },
-            { status: 400 },
-          );
+        // If no conversations provided, fetch recent ones from DB
+        let effectiveConversations = conversations;
+        if (!effectiveConversations || !Array.isArray(effectiveConversations) || effectiveConversations.length === 0) {
+          try {
+            const { query } = await import("@/lib/db");
+            const effectiveAgentId = agentId || "general";
+            const convResult = await query(
+              `SELECT role, content FROM conversation_messages
+               WHERE agent_id = $1
+               ORDER BY created_at DESC
+               LIMIT 50`,
+              [effectiveAgentId]
+            );
+            effectiveConversations = convResult.rows.map((r: { role: string; content: string }) => ({
+              role: r.role === "assistant" ? "assistant" : "user",
+              content: r.content,
+            })).reverse(); // chronological order
+          } catch {
+            effectiveConversations = [];
+          }
         }
 
-        const detected = await detectPatterns(agentId, conversations.slice(-20));
+        if (!effectiveConversations || effectiveConversations.length === 0) {
+          return NextResponse.json({
+            success: true,
+            data: [],
+            message: "No conversations available to analyze",
+          });
+        }
+
+        const detected = await detectPatterns(agentId || "general", effectiveConversations.slice(-20));
         return NextResponse.json({ success: true, data: detected });
       }
 

@@ -40,6 +40,41 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Skip internal UI endpoints — these are called from the dashboard UI
+  // and don't need API key auth (they run in the user's browser session)
+  const internalSkips = [
+    "/api/taskboard",
+    "/api/learning",
+    "/api/skills/evolve",
+    "/api/skills/rollback",
+    "/api/skills/reflection",
+    "/api/skills/evolution",
+    "/api/skills/rate",
+    "/api/skills/evaluate",
+    "/api/skills/search",
+    "/api/skills/seed-builtin",
+    "/api/skills/embeddings",
+    "/api/todos",
+    "/api/projects",
+    "/api/conversations",
+    "/api/memory",
+    "/api/notifications",
+    "/api/workflows",
+    "/api/automations",
+    "/api/analytics",
+    "/api/settings",
+    "/api/agents",
+    "/api/agent-skills",
+    "/api/services",
+    "/api/files/",
+    "/api/overview",
+    "/api/keys/status",
+    "/api/delegations",
+  ];
+  if (internalSkips.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
   // Check for API key in Authorization header or x-api-key header
   const apiKey = request.headers.get("authorization")?.replace("Bearer ", "")
     || request.headers.get("x-api-key");

@@ -47,9 +47,10 @@ export async function POST(req: NextRequest) {
           tags?: string[];
         };
 
-        if (!title || !createdBy) {
-          return err("Missing title or createdBy", 400);
+        if (!title) {
+          return err("Missing title", 400);
         }
+        const effectiveCreatedBy = createdBy || "user";
 
         const validAgents = getAllAgents().map((a) => a.id);
         if (assignedAgent && !validAgents.includes(assignedAgent)) {
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
           description,
           priority,
           assignedAgent,
-          createdBy,
+          createdBy: effectiveCreatedBy,
           context,
           parentTaskId,
           deadline,

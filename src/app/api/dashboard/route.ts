@@ -13,11 +13,13 @@ import {
   getDashboardMetrics,
 } from "@/lib/activity";
 import { listTodos } from "@/lib/workspace";
+import { getRecentTasks } from "@/lib/task-queue";
+import { getRecentDelegations } from "@/lib/delegations";
 import { AGENT_MAP, getAgentMeta } from "@/lib/agent-map";
 
 export async function GET() {
   try {
-    const [inMemoryStatuses, dbStatuses, recentActivity, metrics, todos] =
+    const [inMemoryStatuses, dbStatuses, recentActivity, metrics, todos, recentTasks, recentDelegations] =
       await Promise.all([
         Promise.resolve(getAllAgentStatuses()),
         getAllPersistedStatuses().catch(() => ({} as Record<string, { tasks_completed: number; messages_processed: number }>)),
@@ -29,6 +31,8 @@ export async function GET() {
           activeDelegations: 0,
         })),
         listTodos({ limit: 20 }).catch(() => []),
+        getRecentTasks(20).catch(() => []),
+        getRecentDelegations(20).catch(() => []),
       ]);
 
     // Merge statuses
@@ -54,6 +58,8 @@ export async function GET() {
         recentActivity,
         metrics,
         todos,
+        tasks: recentTasks,
+        delegations: recentDelegations,
       },
     });
   } catch (e) {

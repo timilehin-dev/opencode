@@ -241,9 +241,7 @@ export default function SkillEvolutionPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "error">("success");
 
-  const baseUrl = typeof window !== "undefined"
-    ? window.location.origin
-    : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
 
   const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
     setToastMessage(message);
@@ -255,7 +253,7 @@ export default function SkillEvolutionPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${baseUrl}/api/skills/evolution?period=${period}`);
+      const res = await fetch(`/api/skills/evolution?period=${period}`);
       const json = await res.json();
       if (json.success) {
         setData(json.data);
@@ -267,12 +265,12 @@ export default function SkillEvolutionPage() {
     } finally {
       setLoading(false);
     }
-  }, [period, baseUrl]);
+  }, [period]);
 
   const fetchPending = useCallback(async () => {
     setLoadingPending(true);
     try {
-      const res = await fetch(`${baseUrl}/api/skills/evolve/pending`);
+      const res = await fetch(`/api/skills/evolve/pending`);
       const json = await res.json();
       if (json.success) {
         setPendingSkills(json.data?.pending_skills || []);
@@ -282,7 +280,7 @@ export default function SkillEvolutionPage() {
     } finally {
       setLoadingPending(false);
     }
-  }, [baseUrl]);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -292,7 +290,7 @@ export default function SkillEvolutionPage() {
   const handleEvolve = useCallback(async (skillId: string) => {
     setEvolvingSkillId(skillId);
     try {
-      const res = await fetch(`${baseUrl}/api/skills/evolve`, {
+      const res = await fetch(`/api/skills/evolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ skill_id: skillId, agent_id: "dashboard" }),
@@ -310,12 +308,12 @@ export default function SkillEvolutionPage() {
     } finally {
       setEvolvingSkillId(null);
     }
-  }, [baseUrl, fetchData, fetchPending, showToast]);
+  }, [fetchData, fetchPending, showToast]);
 
   const handleRollback = useCallback(async (skillId: string, evolutionId: string) => {
     setRollingBackId(evolutionId);
     try {
-      const res = await fetch(`${baseUrl}/api/skills/rollback`, {
+      const res = await fetch(`/api/skills/rollback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ skill_id: skillId, evolution_id: evolutionId }),
@@ -332,12 +330,12 @@ export default function SkillEvolutionPage() {
     } finally {
       setRollingBackId(null);
     }
-  }, [baseUrl, fetchData, showToast]);
+  }, [fetchData, showToast]);
 
   const handleReflection = useCallback(async () => {
     setReflecting(true);
     try {
-      const res = await fetch(`${baseUrl}/api/skills/reflection`, {
+      const res = await fetch(`/api/skills/reflection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -355,7 +353,7 @@ export default function SkillEvolutionPage() {
     } finally {
       setReflecting(false);
     }
-  }, [baseUrl, showToast]);
+  }, [showToast]);
 
   const summary = data?.performance_summary;
   const trends = data?.evaluation_trends || [];
