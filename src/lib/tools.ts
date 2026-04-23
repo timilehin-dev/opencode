@@ -5593,6 +5593,130 @@ export const getTeamProgressTool = tool({
 });
 
 // ---------------------------------------------------------------------------
+// Agent Routine Tools — Create, list, update, delete, toggle routines
+// Routines are recurring tasks managed by the Vercel Cron (agent-routines endpoint)
+// and show up on the Routines page in the dashboard.
+// ---------------------------------------------------------------------------
+
+export const routineCreateTool = tool({
+  description: "Create a recurring routine for an agent. Routines run automatically on a schedule (e.g., every 30 minutes, every hour) and show up on the Routines page in the dashboard. Use this for monitoring tasks, periodic reports, health checks, etc.",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).describe("Which agent should execute this routine"),
+    name: z.string().describe("Short descriptive name for the routine"),
+    task: z.string().describe("What the agent should do each time the routine runs"),
+    context: z.string().optional().describe("Additional context or instructions"),
+    interval_minutes: z.number().optional().describe("How often to run in minutes (default: 60). E.g., 30 for every 30 min, 120 for every 2 hours"),
+    priority: z.enum(["high", "medium", "low"]).optional().describe("Priority level (default: medium)"),
+  })),
+  execute: safeJson(async ({ agent_id, name, task, context, interval_minutes, priority }) => {
+    const interval = interval_minutes || 60;
+    const nextRun = new Date(Date.now() + interval * 60 * 1000);
+    const result = await query(
+      `INSERT INTO agent_routines (agent_id, name, task, context, interval_minutes, priority, is_active, next_run)
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+       RETURNING id, agent_id, name, task, interval_minutes, priority, is_active, next_run, created_at`,
+      [agent_id, name, task, context || "", interval, priority || "medium", nextRun.toISOString()]
+    );
+    if (result.rows.length > 0) {
+      return { success: true, routine: result.rows[0], message: `Routine "${name}" created for ${agent_id}. Runs every ${interval} minutes. First run at ${nextRun.toISOString()}.` };
+    }
+    return { success: false, error: "Failed to create routine" };
+  }),
+});
+
+export const routineListTool = tool({
+  description: "List all agent routines. Optionally filter by a specific agent. Shows name, schedule, status, and last run time.",
+  inputSchema: zodSchema(z.object({
+    agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Filter by specific agent"),
+  })),
+  execute: safeJson(async ({ agent_id }) => {
+    let queryString = "SELECT * FROM agent_routines ORDER BY priority DESC, next_run ASC";
+    const params: unknown[] = [];
+    if (agent_id) {
+      queryString = "SELECT * FROM agent_routines WHERE agent_id = $1 ORDER BY priority DESC, next_run ASC";
+      params.push(agent_id);
+    }
+    const result = await query(queryString, params);
+    return {
+      success: true,
+      count: result.rows.length,
+      routines: result.rows.map((r: Record<string, unknown>) => ({
+        id: r.id, agentId: r.agent_id, name: r.name, task: (r.task || "").slice(0, 100),
+        intervalMinutes: r.interval_minutes, priority: r.priority, isActive: r.is_active,
+        lastRun: r.last_run, nextRun: r.next_run, createdAt: r.created_at,
+      })),
+    };
+  }),
+});
+
+export const routineUpdateTool = tool({
+  description: "Update an existing routine — change name, task, interval, priority, or active status.",
+  inputSchema: zodSchema(z.object({
+    routine_id: z.number().describe("The routine ID to update"),
+    name: z.string().optional(),
+    task: z.string().optional(),
+    context: z.string().optional(),
+    interval_minutes: z.number().optional().describe("New interval in minutes"),
+    priority: z.enum(["high", "medium", "low"]).optional(),
+    is_active: z.boolean().optional().describe("Enable or disable the routine"),
+  })),
+  execute: safeJson(async ({ routine_id, name, task, context, interval_minutes, priority, is_active }) => {
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (name) { setClauses.push(`name = $${idx++}`); values.push(name); }
+    if (task) { setClauses.push(`task = $${idx++}`); values.push(task); }
+    if (context !== undefined) { setClauses.push(`context = $${idx++}`); values.push(context); }
+    if (interval_minutes) {
+      setClauses.push(`interval_minutes = $${idx++}, next_run = NOW() + ($${idx++} * INTERVAL '1 minute')`);
+      values.push(interval_minutes, interval_minutes);
+    }
+    if (priority) { setClauses.push(`priority = $${idx++}`); values.push(priority); }
+    if (is_active !== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(is_active); }
+
+    if (setClauses.length === 0) return { success: false, error: "No fields to update" };
+
+    values.push(routine_id);
+    const queryString = `UPDATE agent_routines SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING *`;
+    const result = await query(queryString, values);
+    if (result.rows.length > 0) {
+      return { success: true, routine: result.rows[0] };
+    }
+    return { success: false, error: "Routine not found" };
+  }),
+});
+
+export const routineDeleteTool = tool({
+  description: "Delete an agent routine permanently.",
+  inputSchema: zodSchema(z.object({
+    routine_id: z.number().describe("The routine ID to delete"),
+  })),
+  execute: safeJson(async ({ routine_id }) => {
+    await query("DELETE FROM agent_routines WHERE id = $1", [routine_id]);
+    return { success: true, deleted: true };
+  }),
+});
+
+export const routineToggleTool = tool({
+  description: "Quickly enable or disable a routine without deleting it.",
+  inputSchema: zodSchema(z.object({
+    routine_id: z.number().describe("The routine ID"),
+    is_active: z.boolean().describe("true to enable, false to disable/pause"),
+  })),
+  execute: safeJson(async ({ routine_id, is_active }) => {
+    const result = await query(
+      `UPDATE agent_routines SET is_active = $1, next_run = CASE WHEN $1 THEN NOW() + (interval_minutes * INTERVAL '1 minute') ELSE next_run END WHERE id = $2 RETURNING *`,
+      [is_active, routine_id]
+    );
+    if (result.rows.length > 0) {
+      return { success: true, routine: result.rows[0], message: is_active ? "Routine enabled" : "Routine paused" };
+    }
+    return { success: false, error: "Routine not found" };
+  }),
+});
+
+// ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolType = ReturnType<typeof tool<any, string>>;
@@ -5760,6 +5884,12 @@ export const allTools: Record<string, ToolType> = {
   taskboard_list: taskboardListTool,
   taskboard_delete: taskboardDeleteTool,
   taskboard_summary: taskboardSummaryTool,
+  // Agent Routines
+  routine_create: routineCreateTool,
+  routine_list: routineListTool,
+  routine_update: routineUpdateTool,
+  routine_delete: routineDeleteTool,
+  routine_toggle: routineToggleTool,
   // Autonomous Task Creation & Team Coordination
   schedule_agent_task: scheduleAgentTaskTool,
   get_team_status: getTeamStatusTool,

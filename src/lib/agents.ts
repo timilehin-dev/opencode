@@ -612,6 +612,8 @@ const agents: AgentConfig[] = [
       // Phase 7B: Multi-Step Agent Workflows
       "workflow_plan", "workflow_execute", "workflow_status",
       "workflow_list", "workflow_step_execute", "workflow_cancel",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
@@ -651,6 +653,10 @@ const agents: AgentConfig[] = [
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
@@ -691,6 +697,10 @@ const agents: AgentConfig[] = [
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
@@ -733,6 +743,10 @@ const agents: AgentConfig[] = [
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
@@ -773,6 +787,10 @@ const agents: AgentConfig[] = [
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
@@ -810,6 +828,10 @@ const agents: AgentConfig[] = [
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
@@ -845,6 +867,10 @@ const agents: AgentConfig[] = [
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
       "skill_list", "skill_use", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
