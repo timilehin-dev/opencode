@@ -102,7 +102,7 @@ describe("settings-store", () => {
 
     it("returns saved settings when they exist in localStorage", () => {
       const custom = { ...DEFAULT_SETTINGS, workspaceName: "Test Workspace" };
-      localStorageMock.setItem("claw-settings", JSON.stringify(custom));
+      localStorageMock.setItem("klaw-settings", JSON.stringify(custom));
 
       const settings = loadSettings();
       expect(settings.workspaceName).toBe("Test Workspace");
@@ -110,7 +110,7 @@ describe("settings-store", () => {
 
     it("merges partial saved settings with defaults", () => {
       localStorageMock.setItem(
-        "claw-settings",
+        "klaw-settings",
         JSON.stringify({ theme: "dark", temperature: 0.9 }),
       );
 
@@ -123,7 +123,7 @@ describe("settings-store", () => {
     });
 
     it("returns defaults when localStorage contains invalid JSON", () => {
-      localStorageMock.setItem("claw-settings", "not-json{{");
+      localStorageMock.setItem("klaw-settings", "not-json{{");
 
       const settings = loadSettings();
       expect(settings).toEqual(DEFAULT_SETTINGS);
@@ -139,7 +139,7 @@ describe("settings-store", () => {
       saveSettings(custom);
 
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        "claw-settings",
+        "klaw-settings",
         expect.any(String),
       );
 
@@ -179,7 +179,7 @@ describe("settings-store", () => {
     it("saves the merged result to localStorage", () => {
       updateSettings({ compactMode: true });
 
-      const raw = localStorageMock.getItem("claw-settings");
+      const raw = localStorageMock.getItem("klaw-settings");
       const parsed = JSON.parse(raw!);
       expect(parsed.compactMode).toBe(true);
     });
@@ -198,10 +198,10 @@ describe("settings-store", () => {
   // -----------------------------------------------------------------------
   describe("resetSettings()", () => {
     it("removes the settings key from localStorage", () => {
-      localStorageMock.setItem("claw-settings", JSON.stringify({ theme: "dark" }));
+      localStorageMock.setItem("klaw-settings", JSON.stringify({ theme: "dark" }));
       resetSettings();
 
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("claw-settings");
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith("klaw-settings");
     });
 
     it("returns DEFAULT_SETTINGS", () => {
@@ -210,10 +210,10 @@ describe("settings-store", () => {
     });
 
     it("leaves localStorage empty after reset", () => {
-      localStorageMock.setItem("claw-settings", JSON.stringify({ theme: "dark" }));
+      localStorageMock.setItem("klaw-settings", JSON.stringify({ theme: "dark" }));
       resetSettings();
 
-      expect(localStorageMock.getItem("claw-settings")).toBeNull();
+      expect(localStorageMock.getItem("klaw-settings")).toBeNull();
     });
   });
 });

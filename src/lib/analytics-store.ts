@@ -41,7 +41,7 @@ export interface AnalyticsSummary {
 // Storage constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "claw-analytics-events";
+const STORAGE_KEY = "klaw-analytics-events";
 const MAX_EVENTS = 5000; // Keep last 5000 events to avoid localStorage bloat
 
 // ---------------------------------------------------------------------------

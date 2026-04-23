@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Phase 2: Activity & Status Data Access Layer
+// Klawhub — Phase 2: Activity & Status Data Access Layer
 // Uses raw pg Pool (same pattern as workspace.ts)
 // ---------------------------------------------------------------------------
 

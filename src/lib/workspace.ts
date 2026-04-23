@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI — Workspace Data Access Layer
+// Klawhub — Workspace Data Access Layer
 // Reminders, Todos, Contacts — stored in Supabase via raw pg Pool
 // Pattern matches existing A2A task handling in tools.ts
 // ---------------------------------------------------------------------------

@@ -247,7 +247,7 @@ export function AgentsView() {
 
   // Handle Chat button
   const handleChat = (agentId: string) => {
-    localStorage.setItem("claw-selected-agent", agentId);
+    localStorage.setItem("klaw-selected-agent", agentId);
     router.push("/chat");
   };
 

@@ -1,7 +1,7 @@
-// Claw AI — Service Worker for PWA support
+// Klawhub — Service Worker for PWA support
 // Handles caching for offline-capable experience
 
-const CACHE_NAME = "claw-v1";
+const CACHE_NAME = "klawhub-v1";
 const STATIC_ASSETS = ["/", "/manifest.json"];
 
 // Install — cache static assets

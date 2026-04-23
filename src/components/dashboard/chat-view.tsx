@@ -34,8 +34,8 @@ import { loadAgentOverrides } from "@/lib/agent-overrides";
 // Chat History Version — bump this to trigger a fresh purge on next visit
 // ---------------------------------------------------------------------------
 const CHAT_HISTORY_VERSION = 2;
-const CHAT_VERSION_KEY = "claw-chat-history-version";
-const CONV_KEY = "claw-conversations";
+const CHAT_VERSION_KEY = "klaw-chat-history-version";
+const CONV_KEY = "klaw-conversations";
 
 // ---------------------------------------------------------------------------
 // Minimal agent data (fetched from API on mount)
@@ -53,7 +53,7 @@ interface AgentInfo {
 
 const DEFAULT_AGENT: AgentInfo = {
   id: "general",
-  name: "Claw General",
+  name: "Klawhub General",
   role: "Chief AI Orchestrator & General Manager",
   emoji: "\uD83E\uDDD4",
   color: "emerald",
@@ -161,7 +161,7 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
 
 // Agent metadata for display in conversation list
 const agentMeta: Record<string, { emoji: string; name: string; color: string }> = {
-  general: { emoji: "\uD83E\uDDD4", name: "Claw General", color: "emerald" },
+  general: { emoji: "\uD83E\uDDD4", name: "Klawhub General", color: "emerald" },
   mail: { emoji: "\u2709\uFE0F", name: "Mail Agent", color: "blue" },
   code: { emoji: "\uD83D\uDCBB", name: "Code Agent", color: "purple" },
   data: { emoji: "\uD83D\uDCCA", name: "Data Agent", color: "amber" },
@@ -174,8 +174,8 @@ const agentMeta: Record<string, { emoji: string; name: string; color: string }> 
 // localStorage helpers for session tracking
 // ---------------------------------------------------------------------------
 
-const SESSION_MAP_KEY = "claw-agent-sessions";
-const LAST_AGENT_KEY = "claw-last-active-agent";
+const SESSION_MAP_KEY = "klaw-agent-sessions";
+const LAST_AGENT_KEY = "klaw-last-active-agent";
 
 function loadSessionMap(): Record<string, string> {
   if (typeof window === "undefined") return {};
@@ -203,7 +203,7 @@ function getLastActiveAgent(): string {
     const lastActive = localStorage.getItem(LAST_AGENT_KEY);
     if (lastActive) return lastActive;
     // Fall back to the settings default agent (respects Settings > Agent Configuration)
-    const raw = localStorage.getItem("claw-settings");
+    const raw = localStorage.getItem("klaw-settings");
     if (raw) {
       try {
         const parsed = JSON.parse(raw);

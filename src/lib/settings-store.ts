@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI — Settings Store (localStorage-backed, Supabase optional)
+// Klawhub — Settings Store (localStorage-backed, Supabase optional)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoPurgeDays: 30,
 };
 
-const STORAGE_KEY = "claw-settings";
+const STORAGE_KEY = "klaw-settings";
 
 // ---------------------------------------------------------------------------
 // CRUD

@@ -169,13 +169,13 @@ export async function POST(request: NextRequest) {
         skillDirs.push(entry);
       } catch {
         // Not a skill directory (no SKILL.md) — skip
-        // Also check for single-file skills like claw-designer.md
+        // Also check for single-file skills like klaw-designer.md
       }
     }
 
     // Also check for single .md files in /skills/ root
     for (const entry of entries) {
-      if (entry.endsWith(".md") && !entry.startsWith("claw-")) {
+      if (entry.endsWith(".md") && !entry.startsWith("klaw-")) {
         // Could be a top-level skill file
       }
     }

@@ -41,7 +41,7 @@ interface MemoryItem {
 }
 
 const KNOWN_AGENTS = [
-  { id: "general", name: "Claw General", emoji: "🤵" },
+  { id: "general", name: "Klawhub General", emoji: "🤵" },
   { id: "mail", name: "Mail Agent", emoji: "✉️" },
   { id: "code", name: "Code Agent", emoji: "💻" },
   { id: "data", name: "Data Agent", emoji: "📊" },
@@ -236,7 +236,7 @@ export default function MemoryPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `claw-memories-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `klaw-memories-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast(`Exported ${data.length} memories`);

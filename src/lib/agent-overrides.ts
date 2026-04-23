@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI — Per-Agent Override Store (localStorage-backed)
+// Klawhub — Per-Agent Override Store (localStorage-backed)
 // ---------------------------------------------------------------------------
 // Allows users to customize individual agents without editing source code.
 // Overrides are merged at runtime: base config (agents.ts) ← user overrides.
@@ -27,7 +27,7 @@ export interface AgentOverrides {
 }
 
 function storageKey(agentId: string): string {
-  return `claw-agent-override-${agentId}`;
+  return `klaw-agent-override-${agentId}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,8 +71,8 @@ export function loadAllAgentOverrides(): Record<string, AgentOverrides> {
   const all: Record<string, AgentOverrides> = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key?.startsWith("claw-agent-override-")) {
-      const agentId = key.replace("claw-agent-override-", "");
+    if (key?.startsWith("klaw-agent-override-")) {
+      const agentId = key.replace("klaw-agent-override-", "");
       try {
         all[agentId] = JSON.parse(localStorage.getItem(key) || "{}");
       } catch {

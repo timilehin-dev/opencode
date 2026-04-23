@@ -79,7 +79,7 @@ describe("memory", () => {
       expect(localStorageMock.setItem).toHaveBeenCalled();
       const lastCall = localStorageMock.setItem.mock.calls.at(-1);
       const key = lastCall![0];
-      expect(key).toBe("claw-conversations");
+      expect(key).toBe("klaw-conversations");
 
       const stored = JSON.parse(lastCall![1]);
       expect(stored).toHaveLength(1);
@@ -205,7 +205,7 @@ describe("memory", () => {
       expect(result.localStorage).toBe(true);
 
       // Verify conversations key was removed
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("claw-conversations");
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith("klaw-conversations");
     });
 
     it("returns the status of both localStorage and supabase clear operations", async () => {

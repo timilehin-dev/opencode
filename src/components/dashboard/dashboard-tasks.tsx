@@ -11,7 +11,7 @@ interface DashboardTasksProps {
 }
 
 const AGENT_META: Record<string, { emoji: string; bg: string; name: string }> = {
-  general: { emoji: "🤵", bg: "bg-[#eef2ff]", name: "Claw General" },
+  general: { emoji: "🤵", bg: "bg-[#eef2ff]", name: "Klawhub General" },
   mail: { emoji: "✉️", bg: "bg-[#eff6ff]", name: "Mail Agent" },
   code: { emoji: "💻", bg: "bg-[#faf5ff]", name: "Code Agent" },
   data: { emoji: "📊", bg: "bg-[#fffbeb]", name: "Data Agent" },

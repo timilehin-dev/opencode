@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_AGENTS = [
-  { id: "general", name: "Claw General", role: "General-purpose AI assistant" },
+  { id: "general", name: "Klawhub General", role: "General-purpose AI assistant" },
   { id: "mail", name: "Mail Agent", role: "Email & calendar management" },
   { id: "code", name: "Code Agent", role: "GitHub & Vercel development" },
   { id: "data", name: "Data Agent", role: "Drive, Sheets & Docs" },

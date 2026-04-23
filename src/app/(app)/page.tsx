@@ -294,7 +294,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
           <span className="text-xs font-semibold text-foreground truncate">
-            🤖 Claw General
+            🤖 Klawhub General
           </span>
         </div>
 

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Automation Engine
+// Klawhub — Automation Engine
 // Evaluates enabled automations and triggers agent tasks when conditions match
 // Supports: cron-style schedules, event triggers, manual triggers
 // Uses raw pg Pool (same pattern as activity.ts)

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Supabase Client & Database Layer
+// Klawhub — Supabase Client & Database Layer
 // v2.5 — A2A routing, services sidebar, agent history persistence
 //
 // Hybrid approach: Uses Supabase when configured (NEXT_PUBLIC_SUPABASE_URL +
@@ -55,7 +55,7 @@ export { getSupabase as getDb };
 
 export const SCHEMA_SQL = `
 -- ============================================================
--- Claw AI — Supabase Database Schema
+-- Klawhub — Supabase Database Schema
 -- Run this in the Supabase SQL Editor (https://supabase.com/dashboard)
 -- ============================================================
 
@@ -414,7 +414,7 @@ CREATE INDEX IF NOT EXISTS idx_todos_tags ON todos USING GIN(tags);
 // Supabase enables RLS by default; this adds permissive policies for anon access.
 // ---------------------------------------------------------------------------
 export const RLS_FIX_SQL = `
--- Enable RLS and add permissive policies for all Claw tables
+-- Enable RLS and add permissive policies for all Klawhub tables
 DO $$ DECLARE
   tbl TEXT;
 BEGIN

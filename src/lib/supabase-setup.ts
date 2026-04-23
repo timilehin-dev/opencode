@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Comprehensive Supabase Setup Script (Phase 4)
+// Klawhub — Comprehensive Supabase Setup Script (Phase 4)
 //
 // Contains ALL table schemas needed for the full application, including
 // Phase 4 new tables (proactive_notifications, learning_insights) plus
@@ -226,7 +226,7 @@ END $$;
 
 export const PHASE4_SCHEMA_SQL = `
 -- ============================================================
--- Claw AI — Phase 4: Complete Database Schema
+-- Klawhub — Phase 4: Complete Database Schema
 -- Includes ALL tables from prior phases + new Phase 4 tables
 -- Run via POST /api/setup/phase4?action=setup
 -- ============================================================

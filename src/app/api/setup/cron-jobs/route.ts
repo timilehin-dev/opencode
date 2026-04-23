@@ -80,15 +80,15 @@ export async function POST(request: Request) {
 
       // 2. Register: task-processor (every minute)
       const taskProcessorUrl = `${appUrl}/api/cron/task-processor?secret=${cronSecret}`;
-      results["task-processor"] = await scheduleJob("claw-task-processor", "* * * * *", taskProcessorUrl);
+      results["task-processor"] = await scheduleJob("klaw-task-processor", "* * * * *", taskProcessorUrl);
 
       // 3. Register: agent-routines (every 5 minutes)
       const agentRoutinesUrl = `${appUrl}/api/cron/agent-routines?secret=${cronSecret}`;
-      results["agent-routines"] = await scheduleJob("claw-agent-routines", "*/5 * * * *", agentRoutinesUrl);
+      results["agent-routines"] = await scheduleJob("klaw-agent-routines", "*/5 * * * *", agentRoutinesUrl);
 
       // 4. Register: process-reminders (daily at 9am)
       const processRemindersUrl = `${appUrl}/api/cron/process-reminders?secret=${cronSecret}`;
-      results["process-reminders"] = await scheduleJob("claw-process-reminders", "0 9 * * *", processRemindersUrl);
+      results["process-reminders"] = await scheduleJob("klaw-process-reminders", "0 9 * * *", processRemindersUrl);
 
       return NextResponse.json({
         success: true,
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
         SELECT jobid, schedule, command, nodename, nodeport, database, username,
                active, jobname
         FROM cron.job
-        WHERE jobname LIKE 'claw-%'
+        WHERE jobname LIKE 'klaw-%'
         ORDER BY jobid
       `);
 
@@ -131,9 +131,9 @@ export async function POST(request: Request) {
   if (action === "remove") {
     try {
       const jobNames = [
-        "claw-task-processor",
-        "claw-agent-routines",
-        "claw-process-reminders",
+        "klaw-task-processor",
+        "klaw-agent-routines",
+        "klaw-process-reminders",
       ];
 
       const results: Record<string, string> = {};

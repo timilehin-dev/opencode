@@ -330,7 +330,7 @@ export default function SettingsPage() {
   const handleClearConversations = useCallback(async () => {
     try {
       await fetch("/api/memory/purge", { method: "DELETE" });
-      localStorage.removeItem("claw-conversations");
+      localStorage.removeItem("klaw-conversations");
       setClearConvoConfirm(false);
       showToast("All conversations cleared");
     } catch {
@@ -343,7 +343,7 @@ export default function SettingsPage() {
   // ---------------------------------------------------------------------------
 
   const handleClearAnalytics = useCallback(() => {
-    localStorage.removeItem("claw-analytics");
+    localStorage.removeItem("klaw-analytics");
     setClearAnalyticsConfirm(false);
     showToast("Analytics data cleared");
   }, [showToast]);
@@ -354,10 +354,10 @@ export default function SettingsPage() {
 
   const handleExport = useCallback(() => {
     const data: Record<string, string | null> = {
-      settings: localStorage.getItem("claw-settings"),
-      analytics: localStorage.getItem("claw-analytics"),
-      automations: localStorage.getItem("claw-automations"),
-      conversations: localStorage.getItem("claw-conversations"),
+      settings: localStorage.getItem("klaw-settings"),
+      analytics: localStorage.getItem("klaw-analytics"),
+      automations: localStorage.getItem("klaw-automations"),
+      conversations: localStorage.getItem("klaw-conversations"),
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -366,7 +366,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `claw-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `klaw-export-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast("Data exported successfully");
@@ -814,7 +814,7 @@ export default function SettingsPage() {
                         const newAgent = e.target.value;
                         patch({ defaultAgent: newAgent });
                         // Clear last-active preference so chat loads the new default
-                        try { localStorage.removeItem("claw-last-active-agent"); } catch { /* ignore */ }
+                        try { localStorage.removeItem("klaw-last-active-agent"); } catch { /* ignore */ }
                         showToast(`Default agent set to ${agents.find(a => a.id === newAgent)?.name || newAgent}`);
                       }}
                       className="w-full h-10 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:border-ring transition-colors"

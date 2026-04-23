@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — A2A (Agent-to-Agent) Real-Time Communication Protocol (Phase 4)
+// Klawhub — A2A (Agent-to-Agent) Real-Time Communication Protocol (Phase 4)
 //
 // Enables agents to communicate asynchronously, share context, broadcast
 // to teams, and collaborate via persistent channels. Uses Supabase as the

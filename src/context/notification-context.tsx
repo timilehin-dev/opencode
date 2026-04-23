@@ -93,7 +93,7 @@ export function NotificationProvider({
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => {
     if (typeof window === "undefined") return DEFAULT_PREFERENCES;
     try {
-      const stored = localStorage.getItem("claw-notif-prefs");
+      const stored = localStorage.getItem("klaw-notif-prefs");
       if (stored) return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
     } catch {
       /* ignore */
@@ -107,7 +107,7 @@ export function NotificationProvider({
     typeof window !== "undefined"
       ? (() => {
           try {
-            const stored = localStorage.getItem("claw-notif-seen-ids");
+            const stored = localStorage.getItem("klaw-notif-seen-ids");
             if (stored) return JSON.parse(stored);
           } catch { /* ignore */ }
           return { email: [], calendar: [], github: [] };
@@ -121,7 +121,7 @@ export function NotificationProvider({
     typeof window !== "undefined"
       ? (() => {
           try {
-            const stored = localStorage.getItem("claw-notif-dismissed-ids");
+            const stored = localStorage.getItem("klaw-notif-dismissed-ids");
             if (stored) return new Set<string>(JSON.parse(stored));
           } catch { /* ignore */ }
           return new Set<string>();
@@ -140,7 +140,7 @@ export function NotificationProvider({
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem("claw-notif-prefs", JSON.stringify(preferences));
+      localStorage.setItem("klaw-notif-prefs", JSON.stringify(preferences));
     } catch {
       /* ignore */
     }
@@ -150,7 +150,7 @@ export function NotificationProvider({
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem("claw-notif-seen-ids", JSON.stringify(seenIdsRef.current));
+      localStorage.setItem("klaw-notif-seen-ids", JSON.stringify(seenIdsRef.current));
     } catch {
       /* ignore */
     }
@@ -295,7 +295,7 @@ export function NotificationProvider({
   const persistDismissed = useCallback(() => {
     try {
       const arr = Array.from(dismissedSourceIdsRef.current).slice(0, 500);
-      localStorage.setItem("claw-notif-dismissed-ids", JSON.stringify(arr));
+      localStorage.setItem("klaw-notif-dismissed-ids", JSON.stringify(arr));
     } catch {
       /* ignore */
     }

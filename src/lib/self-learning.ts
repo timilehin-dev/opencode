@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Self-Learning System
+// Klawhub — Self-Learning System
 //
 // Enables agents to learn from user interactions to improve over time.
 // Uses pg Pool with SUPABASE_DB_URL (same pattern as activity.ts).

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Phase 3: Task Queue Manager
+// Klawhub — Phase 3: Task Queue Manager
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 

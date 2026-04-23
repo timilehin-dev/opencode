@@ -239,7 +239,7 @@ export async function POST(req: Request) {
       .join("\n");
 
     // Tool boundary block differs per agent type:
-    // - Claw General: sees all tools, can delegate
+    // - Klawhub General: sees all tools, can delegate
     // - Specialist agents: ONLY their specialized tools + query_agent for routing
     const toolBlock = id !== "general"
       ? `\n\n## YOUR EXCLUSIVE TOOL INVENTORY (${toolCount} tools)\nCRITICAL: These are the ONLY tools available to you — ${agent.name}. You do NOT have access to any other agent's tools. If a user asks you to do something outside your domain, you MUST route it via \_query\_agent\_ to the correct specialist. Do NOT attempt to use tools you don't have.\n\nYour ${toolCount} tools:\n${toolInventory}\n`
@@ -316,11 +316,11 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
 
     const systemPrompt =
       id !== "general"
-        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}${humanizerBlock}`
+        ? `${currentDateTime}\n\n[IDENTITY OVERRIDE] You are "${agent.name}" (${agent.role}). You are NOT Klawhub General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agent.name}" at all times.${memoryBlock}${learningBlock}${reminderAlert}\n\n${agent.systemPrompt}${toolBlock}${taskCompletionBlock}${humanizerBlock}`
         : `${currentDateTime}\n\n${agent.systemPrompt}${memoryBlock}${learningBlock}${reminderAlert}${toolBlock}${taskCompletionBlock}${skillRoutingBlock}${workflowBlock}${humanizerBlock}`;
 
     // Determine step limit: specialist agents get fewer steps to be efficient,
-       // Claw General gets more for complex multi-step orchestration.
+       // Klawhub General gets more for complex multi-step orchestration.
     // Using stopWhen: stepCountIs(N) — each "step" is one LLM turn.
     // With N=1, the model can call tools but NOT explain results afterward.
     // With N>1, after tool results come back, the model gets another turn to explain.

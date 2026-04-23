@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI — Free API Clients (no ZAI SDK dependency)
+// Klawhub — Free API Clients (no ZAI SDK dependency)
 // ---------------------------------------------------------------------------
 // Native implementations for web search, page reading, finance, academic search,
 // and code execution — all using free, no-key-required APIs.

@@ -8,7 +8,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
 // ---------------------------------------------------------------------------
-// Styled Markdown Renderer for Claw Chat
+// Styled Markdown Renderer for Klawhub Chat
 // ---------------------------------------------------------------------------
 // Renders markdown with: tables, code blocks, headers, bold, italic, lists,
 // blockquotes, links, and LaTeX math ($...$ and $$...$$)

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case 'create-project': {
-        const title = body.title || 'Claw Design';
+        const title = body.title || 'Klawhub Design';
         const project = await createProject(title);
         return NextResponse.json({ success: true, data: project });
       }
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ success: false, error: 'Missing prompt' }, { status: 400 });
         }
         const result = await generateDesign(
-          title || 'Claw Design',
+          title || 'Klawhub Design',
           prompt,
           deviceType || 'DESKTOP',
         );

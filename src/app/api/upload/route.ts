@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseFile, type ParsedFile } from "@/lib/file-parser";
 
-const UPLOAD_SECRET = process.env.CLAW_UPLOAD_SECRET || process.env.UPLOAD_SECRET || "";
+const UPLOAD_SECRET = process.env.KLAWHUB_UPLOAD_SECRET || process.env.UPLOAD_SECRET || "";
 
 export async function POST(req: Request) {
   try {

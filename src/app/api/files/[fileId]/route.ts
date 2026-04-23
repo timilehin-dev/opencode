@@ -40,7 +40,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid file ID" }, { status: 400 });
     }
 
-    const safeFileId = fileId.startsWith("claw-") ? fileId : `claw-${fileId}`;
+    const safeFileId = fileId.startsWith("klaw-") ? fileId : `klaw-${fileId}`;
     const ext = extname(fileId).toLowerCase();
     const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
 

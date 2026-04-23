@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI Agent System — File Parsing Utility
+// Klawhub Agent System — File Parsing Utility
 // ---------------------------------------------------------------------------
 // Parses uploaded files into structured content for the chat interface.
 // Supports: PDF, DOCX, TXT, CSV, XLSX, JSON, MD, Images (PNG, JPG, GIF, WEBP)

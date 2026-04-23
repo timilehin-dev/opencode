@@ -11,7 +11,7 @@ export interface AgentMeta {
 }
 
 export const AGENT_MAP: Record<string, AgentMeta> = {
-  general: { id: "general", name: "Claw General", emoji: "🧠", color: "#10B981" },
+  general: { id: "general", name: "Klawhub General", emoji: "🧠", color: "#10B981" },
   mail: { id: "mail", name: "Mail Agent", emoji: "📧", color: "#3B82F6" },
   code: { id: "code", name: "Code Agent", emoji: "💻", color: "#8B5CF6" },
   data: { id: "data", name: "Data Agent", emoji: "📊", color: "#F59E0B" },

@@ -3,13 +3,13 @@ import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Claw AI",
-  description: "Personal AI Agent Ecosystem — Your multi-agent command center",
+  title: "Klawhub",
+  description: "Klawhub — Your multi-agent AI command center",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Claw AI",
+    title: "Klawhub",
   },
   icons: {
     icon: [

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Memory System (Enhanced with 3-Layer Architecture)
+// Klawhub — Memory System (Enhanced with 3-Layer Architecture)
 //
 // Hybrid persistence: Supabase (cloud) with localStorage (offline fallback).
 // - When Supabase is configured: reads/writes to Supabase, syncs to localStorage cache
@@ -44,8 +44,8 @@ export interface AgentMemory {
 // Storage constants (localStorage fallback)
 // ---------------------------------------------------------------------------
 
-const CONV_KEY = "claw-conversations";
-const MEMORY_KEY = "claw-agent-memory";
+const CONV_KEY = "klaw-conversations";
+const MEMORY_KEY = "klaw-agent-memory";
 const MAX_CONV_MESSAGES = 200; // Per session
 const MAX_MEMORIES = 500; // Total across all agents
 
@@ -389,8 +389,8 @@ export async function purgeAllConversations(scope: 'conversations' | 'all' = 'co
   // Clear localStorage conversation data
   try {
     localStorage.removeItem(CONV_KEY);
-    localStorage.removeItem("claw-agent-sessions");
-    localStorage.removeItem("claw-last-active-agent");
+    localStorage.removeItem("klaw-agent-sessions");
+    localStorage.removeItem("klaw-last-active-agent");
     if (scope === 'all') {
       localStorage.removeItem(MEMORY_KEY);
     }

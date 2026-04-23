@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
             ...(create_meeting_room
               ? {
                   conferenceData: {
-                    createRequest: { requestId: `claw-${Date.now()}` },
+                    createRequest: { requestId: `klaw-${Date.now()}` },
                   },
                 }
               : {}),

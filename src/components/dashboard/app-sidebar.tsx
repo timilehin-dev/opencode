@@ -79,10 +79,10 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
       {/* Logo / Brand */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-border">
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-          <span className="text-sm font-black text-white">C</span>
+          <span className="text-sm font-black text-white">K</span>
         </div>
         <div>
-          <h1 className="text-base font-bold text-foreground tracking-tight">CLAW</h1>
+          <h1 className="text-base font-bold text-foreground tracking-tight">Klawhub</h1>
           <p className="text-[11px] text-muted-foreground font-medium">Agent Hub</p>
         </div>
       </div>

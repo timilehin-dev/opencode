@@ -40,8 +40,8 @@ export interface AutomationLog {
 // Storage
 // ---------------------------------------------------------------------------
 
-const AUTOMATIONS_KEY = "claw-automations";
-const LOGS_KEY = "claw-automation-logs";
+const AUTOMATIONS_KEY = "klaw-automations";
+const LOGS_KEY = "klaw-automation-logs";
 
 // ---------------------------------------------------------------------------
 // Helpers

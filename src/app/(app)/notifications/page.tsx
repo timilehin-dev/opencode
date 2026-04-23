@@ -87,7 +87,7 @@ export default function NotificationsPage() {
     setDeliveryConfig(loadDeliveryConfig());
     // Load notifications from localStorage cache
     try {
-      const stored = localStorage.getItem("claw-notif-history");
+      const stored = localStorage.getItem("klaw-notif-history");
       if (stored) setNotifications(JSON.parse(stored));
     } catch {
       // empty
@@ -106,7 +106,7 @@ export default function NotificationsPage() {
       const json = await res.json();
       if (json.success && json.notifications) {
         setNotifications(json.notifications);
-        localStorage.setItem("claw-notif-history", JSON.stringify(json.notifications));
+        localStorage.setItem("klaw-notif-history", JSON.stringify(json.notifications));
       }
     } catch {
       // silent
@@ -422,7 +422,7 @@ function ChannelsTab({
     const success = await deliverWebhook(webhook, {
       type: "system",
       priority: "normal",
-      title: "Test Notification from Claw AI",
+      title: "Test Notification from Klawhub",
       body: "This is a test notification. If you received this, your webhook is configured correctly.",
       timestamp: new Date().toISOString(),
       sourceId: `test-${Date.now()}`,

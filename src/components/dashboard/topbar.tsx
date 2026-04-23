@@ -39,10 +39,10 @@ export function Topbar({ activePage, onPageChange }: TopbarProps) {
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-sm font-black neon-glow">
-            C
+            K
           </div>
           <div className="text-base font-extrabold tracking-tight text-white">
-            CLAW<span className="text-emerald-400">HUB</span>
+            <span className="text-emerald-400">K</span>LAWHUB
           </div>
         </div>
 

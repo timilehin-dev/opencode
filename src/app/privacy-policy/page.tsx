@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Claw AI",
-  description: "Claw AI Privacy Policy. Learn how we handle your data, information, and interactions with our AI agent platform.",
+  title: "Privacy Policy — Klawhub",
+  description: "Klawhub Privacy Policy. Learn how we handle your data, information, and interactions with our AI agent platform.",
 };
 
 export default function PrivacyPolicy() {
@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
       <header className="border-b border-border bg-card">
         <div className="max-w-3xl mx-auto px-6 py-5">
           <a href="/" className="text-xl font-bold text-primary">
-            Claw<span className="text-primary/60">AI</span>
+            Klawhub
           </a>
         </div>
       </header>
@@ -23,7 +23,7 @@ export default function PrivacyPolicy() {
         <p className="text-sm text-muted-foreground mb-8">Last updated: April 23, 2026</p>
 
         <p className="mb-6 text-foreground/80">
-          Claw AI (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI agent platform and related services (collectively, the &quot;Service&quot;). By using the Service, you agree to the collection and use of information in accordance with this policy.
+          Klawhub (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI agent platform and related services (collectively, the &quot;Service&quot;). By using the Service, you agree to the collection and use of information in accordance with this policy.
         </p>
 
         <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">1. Information We Collect</h2>
@@ -91,14 +91,14 @@ export default function PrivacyPolicy() {
 
         <h2 className="text-xl font-semibold text-foreground mt-10 mb-4">9. Contact Us</h2>
         <p className="text-foreground/80">
-          If you have any questions or concerns about this Privacy Policy, please contact us at: <strong>privacy@clawai.dev</strong>
+          If you have any questions or concerns about this Privacy Policy, please contact us at: <strong>privacy@klawhub.xyz</strong>
         </p>
       </article>
 
       {/* Footer */}
       <footer className="border-t border-border bg-card mt-8">
         <div className="max-w-3xl mx-auto px-6 py-6 text-center text-sm text-muted-foreground">
-          <p>&copy; 2026 Claw AI. All rights reserved.</p>
+          <p>&copy; 2026 Klawhub. All rights reserved.</p>
           <div className="mt-2 space-x-4">
             <a href="/" className="hover:text-foreground transition-colors">Home</a>
             <a href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</a>

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI — Notification Delivery Store
+// Klawhub — Notification Delivery Store
 // ---------------------------------------------------------------------------
 // Manages notification delivery channels: desktop, webhook, email.
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ export interface NotificationDeliveryConfig {
   quietHoursEnabled: boolean;
 }
 
-const STORAGE_KEY = "claw-notification-delivery";
+const STORAGE_KEY = "klaw-notification-delivery";
 
 export const DEFAULT_DELIVERY: NotificationDeliveryConfig = {
   webhooks: [],
@@ -153,13 +153,13 @@ export async function deliverWebhook(
     const body = JSON.stringify({
       ...payload,
       deliveredAt: new Date().toISOString(),
-      source: "claw-ai",
+      source: "klawhub",
     });
     const res = await fetch(webhook.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(webhook.secret ? { "X-Claw-Signature": `sha256=${createHmac("sha256", webhook.secret).update(body).digest("hex")}` } : {}),
+        ...(webhook.secret ? { "X-X-Klawhub-Signature": `sha256=${createHmac("sha256", webhook.secret).update(body).digest("hex")}` } : {}),
       },
       body,
       signal: AbortSignal.timeout(5000),

@@ -1,4 +1,4 @@
-// Notification types, constants, and utility functions for Claw AI Agent Hub
+// Notification types, constants, and utility functions for Klawhub Agent Hub
 // Phase 2: Real-Time Updates + Smart Notifications
 
 // ---------------------------------------------------------------------------
@@ -215,13 +215,13 @@ export function pushAgentNotification(notif: AgentNotification): void {
   // Store in localStorage for the notification panel
   if (typeof window !== "undefined") {
     try {
-      const key = "claw-notifications";
+      const key = "klaw-notifications";
       const existing = JSON.parse(localStorage.getItem(key) || "[]");
       existing.unshift(fullNotif);
       // Keep last 200 notifications
       localStorage.setItem(key, JSON.stringify(existing.slice(0, 200)));
       // Dispatch custom event for real-time UI updates
-      window.dispatchEvent(new CustomEvent("claw-notification", { detail: fullNotif }));
+      window.dispatchEvent(new CustomEvent("klaw-notification", { detail: fullNotif }));
     } catch {
       // ignore
     }

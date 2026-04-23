@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw AI Agent System — Tool Definitions for Vercel AI SDK v6
+// Klawhub Agent System — Tool Definitions for Vercel AI SDK v6
 // ---------------------------------------------------------------------------
 // Maps all existing API capabilities to AI SDK tool definitions.
 // Uses `tool()` helper with `zodSchema()` for proper type safety.
@@ -595,7 +595,7 @@ export const calendarCreateTool = tool({
       location,
       description,
       attendees,
-      conferenceData: addMeetLink ? { createRequest: { requestId: `claw-meet-${Date.now()}` } } : undefined,
+      conferenceData: addMeetLink ? { createRequest: { requestId: `klaw-meet-${Date.now()}` } } : undefined,
     });
   }),
 });
@@ -899,7 +899,7 @@ export const vercelDomainsTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Agent Delegation Tool (Claw General only)
+// Agent Delegation Tool (Klawhub General only)
 // ---------------------------------------------------------------------------
 // NOTE: Uses generateText() directly instead of HTTP fetch to avoid Vercel
 // authentication issues with internal API calls.
@@ -1214,7 +1214,7 @@ export const webSearchAdvancedTool = tool({
 async function webReaderFallback(url: string) {
   const res = await fetch(url, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; ClawBot/1.0; +https://claw.ai)",
+      "User-Agent": "Mozilla/5.0 (compatible; KlawhubBot/1.0; +https://klawhub.xyz)",
       "Accept": "text/html,application/xhtml+xml",
     },
     signal: AbortSignal.timeout(15000),
@@ -2481,7 +2481,7 @@ export const researchSaveDataTool = tool({
 // ---------------------------------------------------------------------------
 
 export const opsHealthCheckTool = tool({
-  description: "Check the health status of all Claw services. Returns a structured health report covering real API routes, external integrations, and infrastructure components.",
+  description: "Check the health status of all Klawhub services. Returns a structured health report covering real API routes, external integrations, and infrastructure components.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
     const baseUrl = getSelfBaseUrl();
@@ -2572,12 +2572,12 @@ export const opsHealthCheckTool = tool({
 // ---------------------------------------------------------------------------
 
 export const opsDeploymentStatusTool = tool({
-  description: "Get the latest deployment status for the Claw HQ project on Vercel.",
+  description: "Get the latest deployment status for the Klawhub HQ project on Vercel.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
-    const deployments = await listDeployments(process.env.VERCEL_PROJECT_NAME || "claw-hq", 1);
+    const deployments = await listDeployments(process.env.VERCEL_PROJECT_NAME || "klawhub-hq", 1);
     if (!deployments.length) {
-      return { status: "no_deployments", message: `No deployments found for ${process.env.VERCEL_PROJECT_NAME || "claw-hq"}` };
+      return { status: "no_deployments", message: `No deployments found for ${process.env.VERCEL_PROJECT_NAME || "klawhub-hq"}` };
     }
 
     const latest = deployments[0];
@@ -2653,7 +2653,7 @@ export const opsGithubActivityTool = tool({
 // ---------------------------------------------------------------------------
 
 export const opsAgentStatsTool = tool({
-  description: "Get performance statistics for all Claw agents including status, tasks completed, and messages processed.",
+  description: "Get performance statistics for all Klawhub agents including status, tasks completed, and messages processed.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
     // Dynamically import to avoid circular dependency
@@ -2685,7 +2685,7 @@ export const createPdfReportTool = tool({
     title: z.string().describe("Title of the PDF document"),
     content: z.string().describe("Content in markdown format (supports headers, lists, tables, bold, italic, code blocks, blockquotes)"),
     filename: z.string().optional().describe("Output filename (without extension). Default: derived from title"),
-    author: z.string().optional().describe("Author name (default: 'Claw AI Agent')"),
+    author: z.string().optional().describe("Author name (default: 'Klawhub Agent')"),
     subtitle: z.string().optional().describe("Subtitle displayed below the title on the cover page"),
   })),
   execute: safeJson(async ({ title, content, filename, author, subtitle }) => {
@@ -2696,7 +2696,7 @@ export const createPdfReportTool = tool({
     const { tmpdir } = await import("os");
 
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
-    const filePath = join(tmpdir(), `claw-${safeName}-${Date.now()}.pdf`);
+    const filePath = join(tmpdir(), `klaw-${safeName}-${Date.now()}.pdf`);
     const generatedDate = new Date();
     const dateStr = generatedDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
@@ -2706,8 +2706,8 @@ export const createPdfReportTool = tool({
       bufferPages: true, // Required for TOC and page numbers
       info: {
         Title: title,
-        Author: author || "Claw AI Agent",
-        Creator: "Claw Agent Hub",
+        Author: author || "Klawhub Agent",
+        Creator: "Klawhub Agent Hub",
         Subject: subtitle || title,
         CreationDate: generatedDate,
       },
@@ -2768,7 +2768,7 @@ export const createPdfReportTool = tool({
       doc.save();
       doc.fontSize(7).font("Helvetica").fillColor(C.muted);
       doc.moveTo(ML, 54).lineTo(PW - MR, 54).strokeColor(C.border).lineWidth(0.3).stroke();
-      doc.text("Claw AI Agent Hub", ML, 42, { width: CW, align: "right" });
+      doc.text("Klawhub Agent Hub", ML, 42, { width: CW, align: "right" });
       doc.restore();
     };
 
@@ -2805,14 +2805,14 @@ export const createPdfReportTool = tool({
 
     // Metadata block
     doc.fontSize(10).font("Helvetica").fillColor(C.muted);
-    doc.text(`Prepared by: ${author || "Claw AI Agent"}`, ML, doc.y, { width: CW, align: "center" });
+    doc.text(`Prepared by: ${author || "Klawhub Agent"}`, ML, doc.y, { width: CW, align: "center" });
     doc.text(`Date: ${dateStr}`, ML, doc.y + 4, { width: CW, align: "center" });
 
     // Bottom decorative band
     doc.rect(0, PH - 24, PW, 24).fill(C.primary);
     doc.rect(0, PH - 27, PW, 3).fill(C.secondary);
     doc.fontSize(8).font("Helvetica").fillColor(C.white);
-    doc.text("Generated by Claw AI Agent Hub", 0, PH - 18, { width: PW, align: "center" });
+    doc.text("Generated by Klawhub Agent Hub", 0, PH - 18, { width: PW, align: "center" });
 
     // ═══════════════════════════════════════════════════════════════
     // PAGE 2: TABLE OF CONTENTS
@@ -3160,7 +3160,7 @@ export const createPdfReportTool = tool({
       doc.save();
       doc.fontSize(7).font("Helvetica").fillColor(C.muted);
       doc.moveTo(ML, 54).lineTo(PW - MR, 54).strokeColor(C.border).lineWidth(0.3).stroke();
-      doc.text("Claw AI Agent Hub", ML, 42, { width: CW, align: "right" });
+      doc.text("Klawhub Agent Hub", ML, 42, { width: CW, align: "right" });
       doc.restore();
       // Footer
       doc.save();
@@ -3176,7 +3176,7 @@ export const createPdfReportTool = tool({
     doc.save();
     doc.fontSize(7).font("Helvetica").fillColor(C.muted);
     doc.moveTo(ML, 54).lineTo(PW - MR, 54).strokeColor(C.border).lineWidth(0.3).stroke();
-    doc.text("Claw AI Agent Hub", ML, 42, { width: CW, align: "right" });
+    doc.text("Klawhub Agent Hub", ML, 42, { width: CW, align: "right" });
     doc.restore();
     doc.save();
     doc.fontSize(8).font("Helvetica").fillColor(C.muted);
@@ -3223,7 +3223,7 @@ export const createDocxDocumentTool = tool({
     title: z.string().describe("Title of the DOCX document"),
     content: z.string().describe("Content in markdown format (supports headers, lists, tables, bold, italic, code blocks, blockquotes)"),
     filename: z.string().optional().describe("Output filename (without extension). Default: derived from title"),
-    author: z.string().optional().describe("Author name (default: 'Claw AI Agent')"),
+    author: z.string().optional().describe("Author name (default: 'Klawhub Agent')"),
   })),
   execute: safeJson(async ({ title, content, filename, author }) => {
     const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, PageNumber, Footer, Header } = await import("docx");
@@ -3255,7 +3255,7 @@ export const createDocxDocumentTool = tool({
       new Paragraph({
         children: [
           new TextRun({ text: "Prepared by: ", size: 22, color: "6B7280", font: "Calibri" }),
-          new TextRun({ text: author || "Claw AI Agent", size: 22, color: "1E3A5F", font: "Calibri", bold: true }),
+          new TextRun({ text: author || "Klawhub Agent", size: 22, color: "1E3A5F", font: "Calibri", bold: true }),
         ],
         alignment: AlignmentType.CENTER,
         spacing: { after: 80 },
@@ -3269,7 +3269,7 @@ export const createDocxDocumentTool = tool({
       }),
       new Paragraph({
         children: [
-          new TextRun({ text: "Generated by Claw AI Agent Hub", size: 18, color: "9CA3AF", font: "Calibri", italics: true }),
+          new TextRun({ text: "Generated by Klawhub Agent Hub", size: 18, color: "9CA3AF", font: "Calibri", italics: true }),
         ],
         alignment: AlignmentType.CENTER,
       }),
@@ -3547,7 +3547,7 @@ export const createDocxDocumentTool = tool({
     }
 
     const doc = new Document({
-      creator: "Claw AI Agent Hub",
+      creator: "Klawhub Agent Hub",
       title: title,
       description: title,
       numbering: {
@@ -3591,7 +3591,7 @@ export const createDocxDocumentTool = tool({
               children: [
                 new Paragraph({
                   children: [
-                    new TextRun({ text: "Generated by Claw AI Agent Hub", size: 16, color: "9CA3AF", font: "Calibri" }),
+                    new TextRun({ text: "Generated by Klawhub Agent Hub", size: 16, color: "9CA3AF", font: "Calibri" }),
                     new TextRun({ text: "    |    Page ", size: 16, color: "9CA3AF", font: "Calibri" }),
                     new TextRun({ children: [PageNumber.CURRENT], size: 16, color: "6B7280", font: "Calibri" }),
                   ],
@@ -4187,7 +4187,7 @@ export const weatherGetTool = tool({
 async function webReaderEnhanced(url: string) {
   const res = await fetch(url, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; ClawBot/1.0; +https://claw.ai)",
+      "User-Agent": "Mozilla/5.0 (compatible; KlawhubBot/1.0; +https://klawhub.xyz)",
       "Accept": "text/html,application/xhtml+xml",
     },
     signal: AbortSignal.timeout(15000),
@@ -4290,7 +4290,7 @@ export const createXlsxSpreadsheetTool = tool({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Workbook = (ExcelJS as any).default?.Workbook || (ExcelJS as any).Workbook;
     const workbook = new Workbook();
-    (workbook as any).creator = "Claw AI Agent Hub";
+    (workbook as any).creator = "Klawhub Agent Hub";
     (workbook as any).created = new Date();
 
     // Color palette
@@ -4426,11 +4426,11 @@ export const createPptxPresentationTool = tool({
     const { writeFileSync, readFileSync } = await import("fs");
 
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
-    const filePath = join(tmpdir(), `claw-${safeName}-${Date.now()}.pptx`);
+    const filePath = join(tmpdir(), `klaw-${safeName}-${Date.now()}.pptx`);
 
     const pptx = new (PptxGenJS as any)();
-    pptx.author = "Claw AI Agent";
-    pptx.company = "Claw Agent Hub";
+    pptx.author = "Klawhub Agent";
+    pptx.company = "Klawhub Agent Hub";
     pptx.title = title;
     pptx.subject = title;
 
@@ -4454,7 +4454,7 @@ export const createPptxPresentationTool = tool({
             align: "center", valign: "top",
           });
         }
-        pptSlide.addText("Generated by Claw AI", {
+        pptSlide.addText("Generated by Klawhub", {
           x: 1, y: 4.5, w: "80%", h: 0.5,
           fontSize: 10, fontFace: "Arial", color: "9CA3AF",
           align: "center",
@@ -4748,7 +4748,7 @@ export const generateChartTool = tool({
       }
     }
 
-    const filePath = join(tmpdir(), `claw-${safeName}-${Date.now()}.${fileExt}`);
+    const filePath = join(tmpdir(), `klaw-${safeName}-${Date.now()}.${fileExt}`);
     writeFileSync(filePath, svgContent);
     const fileBuffer = Buffer.from(svgContent);
     const fileBase64 = fileBuffer.toString("base64");
@@ -5141,7 +5141,7 @@ export const gmailSendWithAttachmentTool = tool({
   })),
   execute: safeJson(async ({ to, subject, body, isHtml, attachments, cc, bcc }) => {
     // Build MIME multipart message with attachments
-    const boundary = "claw-boundary-" + Date.now();
+    const boundary = "klaw-boundary-" + Date.now();
     const sanitize = (s: string) => s.replace(/[\r\n]/g, "");
 
     let message = "";

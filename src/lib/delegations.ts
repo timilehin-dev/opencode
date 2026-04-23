@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Phase 3: Delegation Logger
+// Klawhub — Phase 3: Delegation Logger
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 

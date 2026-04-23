@@ -39,7 +39,7 @@ interface AgentOption {
 }
 
 const KNOWN_AGENTS: AgentOption[] = [
-  { id: "general", name: "Claw General" },
+  { id: "general", name: "Klawhub General" },
   { id: "mail", name: "Mail Agent" },
   { id: "code", name: "Code Agent" },
   { id: "data", name: "Data Agent" },

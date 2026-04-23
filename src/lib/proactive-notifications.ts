@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Claw — Proactive Notifications System
+// Klawhub — Proactive Notifications System
 //
 // API-driven notification system where agents can proactively send notifications
 // to the user. Uses pg Pool with SUPABASE_DB_URL (same pattern as activity.ts).

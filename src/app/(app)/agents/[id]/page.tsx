@@ -483,7 +483,7 @@ export default function AgentDetailPage() {
         >
           {activeTab === "overview" && (
             <OverviewTab agent={agent} colors={colors} stats={stats} effectiveTools={effectiveTools} onChat={() => {
-              localStorage.setItem("claw-selected-agent", agent.id);
+              localStorage.setItem("klaw-selected-agent", agent.id);
               router.push("/chat?agent=" + agent.id);
             }} />
           )}
