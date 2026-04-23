@@ -125,3 +125,29 @@ Stage Summary:
 - DB pool: Fixed with pgbouncer transaction-mode pooling
 - Context: Doubled from 128k to 256k tokens
 - Commit: 198603c
+---
+Task ID: 1
+Agent: Main Agent
+Task: Enable world-class document generation, remove unwanted skills, optimize speed
+
+Work Log:
+- Investigated full codebase: skills system, tools, document generation capabilities
+- Confirmed document tools already exist (create_pdf_report, create_docx_document, create_xlsx_spreadsheet, create_pptx_presentation, generate_chart) using npm packages (pdfkit, docx, exceljs, pptxgenjs)
+- Identified critical mismatch: skill templates instructed agents to write Python code (python-docx, openpyxl, reportlab) but tools work with markdown content parameters
+- Removed unwanted skills from SKILL_TOOL_MAP: dream-interpreter, get-fortune-analysis, gift-evaluator, mindfulness-meditation
+- Cleaned AGENT_SKILL_LIST: removed image-generation, image-understand, image-edit, video-generation, video-understand, ASR, TTS, VLM from all agents
+- Cleaned AGENT_TEAM_DIRECTORY: removed Image Gen, Vision refs from agent descriptions
+- Rewrote 4 document skill templates (docx, xlsx, pdf, pptx) to instruct agents to produce markdown content and call execution tools directly
+- Added content depth standards (150+ words per section, 3-5 sentences per paragraph) for world-class quality
+- Optimized skill_use: reduced from 3 sequential DB queries to single optimized query with ORDER BY priority
+- Removed z-ai-web-dev-sdk from next.config.ts serverExternalPackages
+- Fixed frontend_dev skill template (removed z-ai-web-dev-sdk reference)
+- Build passed, pushed as commit dd9c703
+
+Stage Summary:
+- Document generation is fully functional — agents create files by calling tools with markdown content
+- No sandbox needed for document generation (tools use native npm packages)
+- Sandbox (Judge0) still available for arbitrary code execution tasks
+- All unwanted skills removed from mappings and agent configs
+- speed optimization: skill_use reduced from 3 DB queries to 1
+- Commit: dd9c703 pushed to main
