@@ -4352,7 +4352,7 @@ export const createXlsxSpreadsheetTool = tool({
 
       // Add formula column if specified
       if (sheetDef.formulas && Object.keys(sheetDef.formulas).length > 0) {
-        const formulaCol = sheetDef.headers.length + 1;
+        let formulaCol = sheetDef.headers.length + 1;
         for (const [header, formula] of Object.entries(sheetDef.formulas)) {
           sheet.getCell(1, formulaCol).value = header;
           sheet.getCell(1, formulaCol).font = { bold: true, size: 11, color: { argb: WHITE }, name: "Calibri" };
