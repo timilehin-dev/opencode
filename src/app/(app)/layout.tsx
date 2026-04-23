@@ -53,6 +53,13 @@ export default function AppLayout({
           <div className="min-h-full">
             {children}
           </div>
+          {/* Legal footer — required by Google OAuth verification */}
+          <footer className="px-6 py-4 text-center text-[11px] text-muted-foreground border-t border-border/40">
+            <span className="opacity-70">&copy; {new Date().getFullYear()} Klawhub.</span>{" "}
+            <a href="/privacy-policy" className="underline hover:text-foreground transition-colors">Privacy Policy</a>
+            {" · "}
+            <a href="/terms-of-service" className="underline hover:text-foreground transition-colors">Terms of Service</a>
+          </footer>
         </main>
 
         {/* Bottom Nav (mobile) */}
