@@ -239,7 +239,7 @@ export default function SettingsPage() {
     fetch("/api/agents")
       .then((r) => r.json())
       .then((json) => {
-        if (json.success?.data) setAgents(json.data);
+        if (json.success && json.data) setAgents(json.data);
         else setAgents(AGENT_LIST);
       })
       .catch(() => setAgents(AGENT_LIST));
@@ -919,7 +919,7 @@ export default function SettingsPage() {
                         </div>
                         <div className="flex-shrink-0">
                           <Badge variant="outline" className="text-[9px]">
-                            {agent.tools.length} tools
+                            {agent.tools?.length ?? 0} tools
                           </Badge>
                         </div>
                       </div>
