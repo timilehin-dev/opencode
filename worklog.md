@@ -92,3 +92,36 @@ Stage Summary:
 - LLM: Falls back to Ollama (gemma4:31b-cloud) when ZAI unavailable
 - ZAI SDK only used for image/video/voice generation (lazy-loaded)
 - Commit: 8db8820
+---
+Task ID: 4
+Agent: Main Agent
+Task: Remove z-ai-web-dev-sdk completely, fix DB pool, enable 256k context
+
+Work Log:
+- Completely removed z-ai-web-dev-sdk package (npm uninstall)
+- Removed all getZAI()/ZAI.create() references from tools.ts
+- Removed 4 tools: imageGenerateTool, videoGenerateTool, ttsGenerateTool, asrTranscribeTool
+- Restored design tools (designGenerate, designEdit, designVariants) accidentally removed
+- Fixed EMAXCONNSESSION error in src/lib/db.ts:
+  - Added ?pgbouncer=true to connection string for Supavisor transaction-mode pooling
+  - Added ?prepare=false (required for pgbouncer transaction mode)
+  - Reduced pool max from 10 to 5 (Supavisor multiplexes)
+  - Reduced idleTimeoutMillis from 15000 to 10000
+  - Added statement_timeout=30000 to prevent runaway queries
+  - Added pool stats monitoring (dev only)
+- Enabled Gemma 4 full 256k context (131072 → 262144) in:
+  - src/app/api/chat/route.ts (defaults + maxOutputTokens)
+  - src/lib/tools.ts (queryAgent maxOutputTokens)
+  - src/lib/workflow-engine.ts
+  - src/lib/skill-evolution-engine.ts
+  - src/app/api/cron/agent-routines/route.ts
+  - src/app/(app)/settings/page.tsx (slider max)
+  - src/app/(app)/agents/[id]/page.tsx (slider max + gradient)
+- Build passes, committed as 198603c
+
+Stage Summary:
+- z-ai-web-dev-sdk: COMPLETELY removed (package + code + references)
+- 4 media generation tools removed (image, video, TTS, ASR)
+- DB pool: Fixed with pgbouncer transaction-mode pooling
+- Context: Doubled from 128k to 256k tokens
+- Commit: 198603c
