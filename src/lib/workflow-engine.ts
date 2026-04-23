@@ -92,7 +92,7 @@ async function callGemma4(prompt: string, temperature = 0.3): Promise<string> {
   const result = await generateText({
     model,
     prompt,
-    maxOutputTokens: 131072,
+    maxOutputTokens: 262144,
     temperature,
     abortSignal: AbortSignal.timeout(60000),
   });

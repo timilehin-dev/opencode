@@ -1026,7 +1026,7 @@ Client → POST /api/photos { fileKey: "uploads/abc.jpg" }
     workflow_steps: [
       { step: 1, action: "Analyze request and set design dials" },
       { step: 2, action: "Plan layout sections and motion architecture" },
-      { step: 3, action: "Generate media assets using z-ai-web-dev-sdk image generation" },
+      { step: 3, action: "Generate media assets using image generation" },
       { step: 4, action: "Craft copy using AIDA/PAS/FAB frameworks" },
       { step: 5, action: "Build UI with animations" },
       { step: 6, action: "Quality gates review" },
@@ -1163,7 +1163,7 @@ Examples: "Double open rates in 30 days", "7 mistakes killing conversions"
 
 ## Asset Generation
 
-Generate images using the z-ai-web-dev-sdk image generation tool.
+Generate images using the image generation tool.
 
 **Preset Shortcuts:**
 | Shortcut | Spec |
@@ -1808,7 +1808,7 @@ Stay within these limits:
     workflow_steps: [
       { step: 1, action: "Auto-detect image from user message (file path or URL)" },
       { step: 2, action: "Determine analysis mode (describe/ocr/ui-review/chart-data/object-detect)" },
-      { step: 3, action: "Call z-ai-web-dev-sdk VLM tool with mode-specific prompt" },
+      { step: 3, action: "Call VLM tool with mode-specific prompt" },
       { step: 4, action: "Present structured results" },
     ],
     is_builtin: true,
@@ -1817,7 +1817,7 @@ Stay within these limits:
     metadata: { source: "adapted-from-vision-analysis", adapter: "system" },
     prompt_template: `# Image Analysis
 
-Analyze, describe, and extract information from images using the z-ai-web-dev-sdk VLM (Vision Language Model) tool.
+Analyze, describe, and extract information from images using the VLM (Vision Language Model) tool.
 
 ## Trigger
 
@@ -1857,7 +1857,7 @@ Determine the mode based on the user's request:
 
 ### Step 3: Call VLM Tool
 
-Use the z-ai-web-dev-sdk VLM tool with a mode-specific system prompt:
+Use the VLM tool with a mode-specific system prompt:
 
 **describe:**
 \`\`\`
@@ -1951,7 +1951,7 @@ Return the analysis in a clear, structured format:
 
 - Support for JPEG, PNG, GIF, WebP, BMP formats
 - Both local file paths and URLs work
-- The VLM tool from z-ai-web-dev-sdk handles the actual image processing
+- The VLM tool from handles the actual image processing
 - For complex analysis tasks, you can chain multiple mode calls
 - Always present results in a structured, readable format`,
   },

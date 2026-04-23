@@ -37,7 +37,7 @@ let _settingsCache: { data: { temperature: number; maxTokens: number }; ts: numb
 const SETTINGS_CACHE_TTL = 60_000;
 
 async function loadUserSettings(): Promise<{ temperature: number; maxTokens: number }> {
-  const defaults = { temperature: 0.7, maxTokens: 131072 };
+  const defaults = { temperature: 0.7, maxTokens: 262144 };
 
   // Return cached if fresh
   if (_settingsCache && Date.now() - _settingsCache.ts < SETTINGS_CACHE_TTL) {
@@ -334,7 +334,7 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: Math.min(userSettings.maxTokens, 131072),
+      maxOutputTokens: Math.min(userSettings.maxTokens, 262144),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
       // prepareStep: On continuation steps where tool results exist but no text has been

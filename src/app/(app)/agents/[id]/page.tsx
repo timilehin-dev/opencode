@@ -1232,13 +1232,13 @@ function ParametersTab({
           <input
             type="range"
             min="1024"
-            max="131072"
+            max="262144"
             step="1024"
             value={maxTokens}
             onChange={(e) => { const v = parseInt(e.target.value); setMaxTokens(v); onUpdate("maxTokens", v === 4096 ? undefined : v); }}
             className="w-full h-2 rounded-full appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 131072) * 100)}%, hsl(var(--muted)) ${((maxTokens / 131072) * 100)}%, hsl(var(--muted)) 100%)`,
+              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 262144) * 100)}%, hsl(var(--muted)) ${((maxTokens / 262144) * 100)}%, hsl(var(--muted)) 100%)`,
             }}
           />
           <div className="flex flex-wrap gap-1.5">
@@ -1246,7 +1246,7 @@ function ParametersTab({
               { label: "Short", value: 4096 },
               { label: "Default", value: 65536 },
               { label: "Long", value: 98304 },
-              { label: "Maximum", value: 131072 },
+              { label: "Maximum", value: 262144 },
             ].map((p) => (
               <button
                 key={p.label}

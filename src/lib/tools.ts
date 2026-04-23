@@ -9,17 +9,8 @@ import { z } from "zod";
 import { tool, zodSchema } from "ai";
 import { query } from "@/lib/db";
 
-// z-ai-web-dev-sdk — lazy-loaded only for media generation tools (image/video/voice)
-// All other tools use native free APIs (see api-clients.ts)
-let ZAI: any = null;
-async function getZAI(): Promise<any> {
-  if (!ZAI) {
-    try { const mod = await import('z-ai-web-dev-sdk'); ZAI = mod.default || mod; } catch { return null; }
-  }
-  try { return await ZAI.create(); } catch { return null; }
-}
-
-// Native API clients (no ZAI dependency)
+// Native API clients — all tools use free, no-key-required APIs (see api-clients.ts)
+// z-ai-web-dev-sdk has been completely removed.
 import { executeCodeJudge0, readWebPage, getStockQuote, getHistoricalData, searchPapers, duckDuckGoSearch, getMarketNews } from '@/lib/api-clients';
 
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -949,7 +940,7 @@ async function callAgentDirectly(agentId: string, taskPrompt: string, _delegatio
     system: agent.systemPrompt,
     messages: [{ role: "user", content: taskPrompt }],
     tools: agentTools,
-    maxOutputTokens: 131072,
+    maxOutputTokens: 262144,
     stopWhen: stepCountIs(maxSteps),
     abortSignal: AbortSignal.timeout(timeoutMs),
   });
@@ -1194,17 +1185,7 @@ export const webSearchTool = tool({
   })),
   execute: safeJson(async ({ query, num_results }) => {
     const num = Math.min(num_results || 10, 20);
-    // Try Z.ai SDK first (if available in environment)
-    try {
-      const zai = await getZAI();
-      if (zai) {
-        const results = await zai.functions.invoke("web_search", { query, num });
-        if (results && Array.isArray(results) && results.length > 0) return results;
-      }
-    } catch {
-      // Z.ai SDK not available — use fallback
-    }
-    // Fallback: Tavily (basic mode) → DuckDuckGo → Wikipedia → Brave
+    // Multi-layer fallback: Tavily (optional) → duck-duck-scrape → DDG HTML → Wikipedia → Brave
     return await webSearchFallback(query, num, "basic");
   }),
 });
@@ -1221,17 +1202,7 @@ export const webSearchAdvancedTool = tool({
   })),
   execute: safeJson(async ({ query, num_results }) => {
     const num = Math.min(num_results || 10, 10);
-    // Try Z.ai SDK first (if available in environment)
-    try {
-      const zai = await getZAI();
-      if (zai) {
-        const results = await zai.functions.invoke("web_search", { query, num });
-        if (results && Array.isArray(results) && results.length > 0) return results;
-      }
-    } catch {
-      // Z.ai SDK not available — use Tavily advanced
-    }
-    // Advanced search: Tavily advanced mode → DuckDuckGo → Wikipedia → Brave
+    // Multi-layer fallback: Tavily advanced → duck-duck-scrape → DDG HTML → Wikipedia → Brave
     return await webSearchFallback(query, num, "advanced");
   }),
 });
@@ -1292,17 +1263,7 @@ export const webReaderTool = tool({
     url: z.string().describe("The full URL of the web page to read. Must include protocol (https://)"),
   })),
   execute: safeJson(async ({ url }) => {
-    // Try Z.ai SDK first (if available in environment)
-    try {
-      const zai = await getZAI();
-      if (zai) {
-        const result = await zai.functions.invoke("page_reader", { url });
-        if (result) return result;
-      }
-    } catch {
-      // Z.ai SDK not available — use cheerio fallback
-    }
-    // Fallback: cheerio-based reader (fast, no browser needed)
+    // Cheerio-based reader (fast, no browser needed)
     return await readWebPage(url);
   }),
 });
@@ -1978,167 +1939,8 @@ export const visionDownloadAnalyzeTool = tool({
   }),
 });
 
+// Image/Video/Voice generation tools removed (not needed)
 // ---------------------------------------------------------------------------
-// Image Generate Tool (AIHubMix — DALL-E compatible)
-// ---------------------------------------------------------------------------
-
-export const imageGenerateTool = tool({
-  description: "Generate images from text prompts using AI. Returns base64-encoded image data.",
-  inputSchema: zodSchema(z.object({
-    prompt: z.string().describe("Text description of the image to generate"),
-    size: z.enum(["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"]).optional().describe("Image size (default: '1024x1024')"),
-  })),
-  execute: safeJson(async ({ prompt, size }) => {
-    // Call AIHubMix image generation directly
-    const apiKey = nextAIHubMixKey();
-    const res = await fetch(`${AIHUBMIX_BASE}/images/generations`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "dall-e-3",
-        prompt,
-        size: size || "1024x1024",
-        n: 1,
-      }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "Unknown error");
-      throw new Error(`Image generation error (${res.status}): ${errText}`);
-    }
-    const data = await safeParseRes(res) as { data?: Array<{ url?: string; b64_json?: string; base64?: string }> };
-    // Handle both URL and base64 responses
-    const imgData = data.data?.[0];
-    if (imgData?.b64_json) {
-      return { imageBase64: imgData.b64_json };
-    }
-    if (imgData?.url) {
-      return { imageUrl: imgData.url };
-    }
-    if (imgData?.base64) {
-      return { imageBase64: imgData.base64 };
-    }
-    return { imageBase64: JSON.stringify(data) };
-  }),
-});
-
-// ---------------------------------------------------------------------------
-// TTS Generate Tool (AIHubMix — OpenAI TTS compatible)
-// ---------------------------------------------------------------------------
-
-export const ttsGenerateTool = tool({
-  description: "Convert text to speech audio using AI. Returns base64-encoded audio data. Uses the OpenAI TTS-compatible endpoint via AIHubMix.",
-  inputSchema: zodSchema(z.object({
-    text: z.string().describe("Text to convert to speech"),
-    voice: z.string().optional().describe("Voice name (default: 'alloy')"),
-    speed: z.number().optional().describe("Speech speed multiplier (default: 1.0)"),
-  })),
-  execute: safeJson(async ({ text, voice, speed }) => {
-    // Call AIHubMix TTS endpoint (OpenAI-compatible)
-    const apiKey = nextAIHubMixKey();
-    const res = await fetch(`${AIHUBMIX_BASE}/audio/speech`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "tts-1",
-        input: text,
-        voice: voice || "alloy",
-        speed: speed || 1.0,
-        response_format: "mp3",
-      }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "Unknown error");
-      throw new Error(`TTS error (${res.status}): ${errText}`);
-    }
-    const arrayBuffer = await res.arrayBuffer();
-    const audioBase64 = Buffer.from(arrayBuffer).toString("base64");
-    return { audioBase64, format: "mp3" };
-  }),
-});
-
-// ---------------------------------------------------------------------------
-// ASR Transcribe Tool (AIHubMix — Whisper compatible)
-// ---------------------------------------------------------------------------
-
-export const asrTranscribeTool = tool({
-  description: "Transcribe audio to text using AI speech recognition. Accepts base64-encoded audio data (mp3, wav, etc.).",
-  inputSchema: zodSchema(z.object({
-    audioBase64: z.string().describe("Base64-encoded audio data to transcribe"),
-  })),
-  execute: safeJson(async ({ audioBase64 }) => {
-    // Call AIHubMix Whisper endpoint (OpenAI-compatible)
-    const apiKey = nextAIHubMixKey();
-    const audioBuffer = Buffer.from(audioBase64, "base64");
-    const formData = new FormData();
-    formData.append("file", new Blob([audioBuffer]), "audio.mp3");
-    formData.append("model", "whisper-1");
-    const res = await fetch(`${AIHUBMIX_BASE}/audio/transcriptions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: formData,
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "Unknown error");
-      throw new Error(`ASR error (${res.status}): ${errText}`);
-    }
-    const data = await safeParseRes<{text?: string}>(res);
-    return { transcription: data.text || JSON.stringify(data) };
-  }),
-});
-
-// ---------------------------------------------------------------------------
-// Video Generate Tool (Z.ai platform — local only)
-// ---------------------------------------------------------------------------
-
-export const videoGenerateTool = tool({
-  description: "Generate video using AI from text prompt or image. Note: Video generation uses the Z.ai platform API and is only available in the local development environment.",
-  inputSchema: zodSchema(z.object({
-    prompt: z.string().optional().describe("Text description of the video to generate"),
-    imageUrl: z.string().optional().describe("URL of a source image for image-to-video generation"),
-    quality: z.enum(["speed", "quality"]).optional().describe("Generation quality preference (default: 'speed')"),
-    duration: z.number().optional().describe("Video duration in seconds (default: 5)"),
-  })),
-  execute: safeJson(async ({ prompt, imageUrl, quality, duration }) => {
-    try {
-      const zai = await getZAI();
-      if (!zai) throw new Error("Z.ai SDK not available");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = await zai.video.generations.create({
-        prompt,
-        image_url: imageUrl,
-        quality: quality || "speed",
-        duration: duration || 5,
-      });
-      const taskId = result.taskId || result.id || result;
-      if (typeof taskId !== "string") {
-        return { status: "completed", result };
-      }
-      // Poll up to 3 times (5s intervals)
-      for (let i = 0; i < 3; i++) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const status: any = await (zai.video.generations as any).get(taskId);
-          if (status.status === "completed" || status.url || status.video_url) {
-            return { status: "completed", taskId, result: status };
-          }
-        } catch {
-          // Still processing
-        }
-      }
-      return { status: "pending", taskId, message: "Video generation in progress. Check back later." };
-    } catch (err: any) {
-      // Z.ai SDK not available on Vercel — provide helpful error
-      throw new Error(`Video generation requires the Z.ai platform (local environment only). Error: ${err.message}`);
-    }
-  }),
-});
 
 // ---------------------------------------------------------------------------
 // Design Generate Tool (Stitch)
@@ -2507,19 +2309,8 @@ export const researchDeepTool = tool({
       ...(aspects || []).map(a => `${topic} ${a}`),
     ].slice(0, 4); // Reduced from 5 to 4 queries to cut search load
 
-    // Search helper: try Z.ai SDK first, then Tavily, then DuckDuckGo/Wikipedia/Brave
+    // Search helper: Tavily → DuckDuckGo → Wikipedia → Brave
     async function searchQuery(q: string): Promise<Array<Record<string, unknown>>> {
-      try {
-        const zai = await getZAI();
-        if (zai) {
-          const results = await zai.functions.invoke("web_search", { query: q, num: Math.ceil(capped / 2) });
-          if (Array.isArray(results) && results.length > 0) {
-            return results as unknown as Array<Record<string, unknown>>;
-          }
-        }
-      } catch {
-        // Z.ai SDK not available — use fallback
-      }
       // Fallback: webSearchFallback (tries Tavily → DuckDuckGo → Wikipedia → Brave)
       const fallbackResults = await webSearchFallback(q, Math.ceil(capped / 2));
       return fallbackResults;
@@ -4527,24 +4318,7 @@ export const llmChatTool = tool({
   })),
   execute: safeJson(async ({ messages, temperature }) => {
     try {
-      // Try ZAI SDK first (if available in environment)
-      const zai = await getZAI();
-      if (zai) {
-        const completion = await zai.chat.completions.create({
-          messages: messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
-          temperature: temperature || 0.7,
-          max_tokens: 2048,
-        });
-        return {
-          success: true,
-          content: completion.choices?.[0]?.message?.content || "",
-          model: completion.model || "default",
-          usage: completion.usage || {},
-          message: "LLM chat completion successful.",
-          source: "zai-sdk",
-        };
-      }
-      // Fallback: use Ollama API directly
+      // Use Ollama API directly (self-hosted model)
       const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
       const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:31b-cloud";
       const systemMsg = messages.find(m => m.role === "system")?.content || "You are a helpful assistant.";
@@ -6577,10 +6351,6 @@ export const allTools: Record<string, ToolType> = {
   // Vision Tools (Ollama Cloud — FREE)
   vision_analyze: visionAnalyzeTool,
   vision_download_analyze: visionDownloadAnalyzeTool,
-  image_generate: imageGenerateTool,
-  tts_generate: ttsGenerateTool,
-  asr_transcribe: asrTranscribeTool,
-  video_generate: videoGenerateTool,
   // Stitch Design Tools
   design_generate: designGenerateTool,
   design_edit: designEditTool,
