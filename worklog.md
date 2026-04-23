@@ -54,3 +54,41 @@ Stage Summary:
 - When an agent calls skill_use, it gets back the methodology AND the specific tool to call
 - 6 new tools add: PPTX creation, chart generation, LLM chat, finance, academic search, content analysis
 - All 7 agents have updated tool assignments
+---
+Task ID: 3
+Agent: Main Agent
+Task: Replace all ZAI SDK dependencies with free native APIs + fix code sandbox
+
+Work Log:
+- Audited all 11 ZAI.create() calls in tools.ts
+- Found web_search and web_reader already had fallbacks (Tavily + DDG + Wiki + Brave)
+- Found code_execute used Piston (user said Piston is out)
+- Found llm_chat, finance_query, academic_search had NO fallbacks (broken without ZAI)
+- Created src/lib/api-clients.ts with native implementations:
+  1. Judge0 CE (code_execute) - 15 languages, no API key, submit+poll pattern
+  2. Cheerio web reader (web_reader fallback) - proper HTML parsing, metadata extraction
+  3. Yahoo Finance API (finance_query) - stock quotes, historical data, market news
+  4. Semantic Scholar API (academic_search) - paper search, author search, paper details
+  5. duck-duck-scrape (web search Layer 1) - npm package for DDG search
+  6. Market news scraper - Yahoo Finance news via cheerio
+- Replaced Piston API with Judge0 CE in code_execute
+- Replaced ZAI web_reader with cheerio-based reader
+- Replaced ZAI finance_query with Yahoo Finance (4 query types)
+- Replaced ZAI academic_search with Semantic Scholar (3 search types)
+- Made llm_chat use ZAI → Ollama API fallback (uses own model)
+- Made ZAI SDK lazy-loaded (only for image/video/voice generation)
+- Added duck-duck-scrape as Layer 1 in web search fallback chain
+- Expanded SKILL_TOOL_MAP from 30 to 40+ skill-to-tool mappings
+- Installed cheerio and duck-duck-scrape npm packages
+- Build passes, committed as 8db8820
+
+Stage Summary:
+- ALL core tools now work without ANY API key
+- Code sandbox: Judge0 CE (free, 60+ languages, no key)
+- Web search: 5-layer fallback (Tavily → duck-duck-scrape → DDG HTML → Wikipedia → Brave)
+- Web reader: cheerio parser with proper content extraction
+- Finance: Yahoo Finance API (real-time stock data, historical, news)
+- Academic: Semantic Scholar (real paper search with citations)
+- LLM: Falls back to Ollama (gemma4:31b-cloud) when ZAI unavailable
+- ZAI SDK only used for image/video/voice generation (lazy-loaded)
+- Commit: 8db8820
