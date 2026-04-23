@@ -23,3 +23,34 @@ Stage Summary:
 - Agents now have MANDATORY skill awareness with task→skill mapping table in system prompts
 - skill_use tool will find skills via exact name match → slug match → ILIKE fuzzy match
 - Commits: 28515c1 (initial), dea93f7 (UUID fix)
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Make all skills functional by adding execution tools
+
+Work Log:
+- Investigated current skills system: 65+ skills in DB, 45+ filesystem skills with SKILL.md files
+- Mapped all skills to existing execution tools (pdf→create_pdf_report, docx→create_docx_document, xlsx→create_xlsx_spreadsheet, web-search→web_search, web-reader→web_reader, coding-agent→code_execute)
+- Identified missing execution tools: PPTX, Charts, LLM Chat, Finance, Academic Search, Content Analysis
+- Installed pptxgenjs for PPTX generation
+- Created 6 new execution tools in src/lib/tools.ts:
+  1. create_pptx_presentation - PPTX generation with slides, layouts, speaker notes
+  2. generate_chart - SVG chart generation (bar/line/pie/scatter/mermaid/table)
+  3. llm_chat - AI chat completions via z-ai-web-dev-sdk chat.completions.create()
+  4. finance_query - Financial data queries via z-ai-web-dev-sdk functions.invoke()
+  5. academic_search - Academic paper search via web_search with academic query prefix
+  6. content_analyze - Content analysis (readability/sentiment/SEO/keywords/structure)
+- Created SKILL_TOOL_MAP: Maps 30+ skills to their execution tools with param hints
+- Updated skill_use tool to return execution_tool, execution_description, execution_params_hint, and action_required
+- Updated all 7 agent tool assignments in agents.ts with new tools
+- Updated skills awareness section with execution tool references (skill → tool → params)
+- Fixed TS errors in opencode-fix/skills (image-edit.ts, stock-analysis-skill/analyzer.ts)
+- Build passes successfully
+- Committed as 76875ae and pushed
+
+Stage Summary:
+- Skills now bridge from prompt templates to actual executable tools
+- When an agent calls skill_use, it gets back the methodology AND the specific tool to call
+- 6 new tools add: PPTX creation, chart generation, LLM chat, finance, academic search, content analysis
+- All 7 agents have updated tool assignments
