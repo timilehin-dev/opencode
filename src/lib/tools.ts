@@ -93,7 +93,7 @@ async function tavilySearch(query: string, numResults: number, mode: "basic" | "
   const body: Record<string, unknown> = {
     api_key: apiKey,
     query,
-    max_results: mode === "advanced" ? Math.min(numResults, 10) : Math.min(numResults, 10),
+    max_results: mode === "advanced" ? Math.min(numResults, 10) : Math.min(numResults, 5),
     include_answer: mode === "advanced",
     include_raw_content: false,
   };
@@ -235,7 +235,13 @@ async function safeParseRes<T = unknown>(res: Response): Promise<T> {
   if (!res.ok) {
     // Try to extract error message from response body
     const text = await res.text().catch(() => "");
-    const errMsg = text ? JSON.parse(text)?.error || text.slice(0, 200) : res.statusText;
+    let errMsg: string;
+    if (text) {
+      try { errMsg = JSON.parse(text)?.error || text.slice(0, 200); }
+      catch { errMsg = text.slice(0, 200); }
+    } else {
+      errMsg = res.statusText;
+    }
     throw new Error(`API error (${res.status}): ${errMsg}`);
   }
   const text = await res.text().catch(() => "");
@@ -289,7 +295,7 @@ import {
 // Maximum characters for a tool result before truncation.
 // Large results (Gmail, Sheets, etc.) can overwhelm the LLM context window,
 // causing it to stop generating after tool calls. This cap prevents that.
-// Increased from 8K to 16K — 8K was too tight for Gmail threads, Sheets data, etc.
+// Increased from 8K to 64K — 8K was too tight for Gmail threads, Sheets data, etc.
 const MAX_TOOL_RESULT_LENGTH = 65536;
 
 // ---------------------------------------------------------------------------
@@ -988,14 +994,17 @@ export const delegateToAgentTool = tool({
       }
 
       // Update legacy a2a_tasks status (fire-and-forget)
+      // Use most recent in_progress task for this agent pair to avoid ID mismatch
       try {
         await query(
-          `UPDATE a2a_tasks SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2`,
-          [text.trim().slice(0, 2000), taskId]
+          `UPDATE a2a_tasks SET status = 'completed', result = $1, completed_at = NOW()
+           WHERE initiator_agent = $2 AND assigned_agent = $3 AND status = 'in_progress'
+           ORDER BY created_at DESC LIMIT 1`,
+          [text.trim().slice(0, 2000), fromAgent, agent_id]
         );
       } catch { /* non-critical */ }
 
-      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", taskId, steps, durationMs };
+      return { success: true, agent: agent_id, response: text.trim() || "(Agent returned no text response)", steps, durationMs };
     } catch (error) {
       const durationMs = Date.now() - startTime;
       console.error(`[A2A] Delegation to ${agent_id} failed:`, error);

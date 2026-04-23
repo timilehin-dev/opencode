@@ -111,9 +111,11 @@ export async function POST(req: Request) {
         agentTools[toolId] = allTools[toolId];
       }
     }
-    // Add any extra enabled tools that aren't in the agent's default set
+    // Add any extra enabled tools that are in the agent's allowed list but not currently loaded
+    // SECURITY: Only allow enabling tools that are defined in the agent's tool list —
+    // this prevents clients from granting arbitrary tools to restricted agents.
     for (const toolId of enabledSet) {
-      if (allTools[toolId] && !agentTools[toolId]) {
+      if (allTools[toolId] && agent.tools.includes(toolId) && !agentTools[toolId]) {
         agentTools[toolId] = allTools[toolId];
       }
     }
@@ -333,7 +335,7 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       system: systemPrompt,
       messages: modelMessages,
       tools: agentTools,
-      maxOutputTokens: Math.max(userSettings.maxTokens, 131072),
+      maxOutputTokens: Math.min(userSettings.maxTokens, 131072),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
       // prepareStep: On continuation steps where tool results exist but no text has been
@@ -383,11 +385,6 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
         if (finishReason === "stop" && text) {
           logActivity({ agentId: id, agentName: agent.name, action: "chat_message", detail: `responding to: ${lastContent?.slice(0, 60) || "user"}` }).catch(() => {});
           persistAgentStatus(id, { messagesProcessed: 1 }).catch(() => {});
-        }
-
-        // Detect the "stopped after tool calls" pattern — model got results but produced no text
-        if (finishReason === "stop" && !text && toolResults?.length > 0 && toolCalls?.length === 0) {
-          console.error(`[Chat] 🚨 MID-TASK STOP BUG: ${agent.name} stopped after receiving ${toolResults.length} tool result(s) without generating any text response. The user will see nothing.`);
         }
 
         // Detect when approaching step limit with no text generated yet

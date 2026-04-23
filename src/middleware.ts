@@ -46,8 +46,15 @@ export function middleware(request: NextRequest) {
 
   const apiSecret = process.env.API_SECRET;
 
-  // If no API_SECRET is configured, allow all requests (development mode)
+  // If no API_SECRET is configured, allow all requests in development mode.
+  // In production (Vercel), require API_SECRET for all mutating endpoints.
   if (!apiSecret) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "API_SECRET must be configured in production" },
+        { status: 500 },
+      );
+    }
     return NextResponse.next();
   }
 

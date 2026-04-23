@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
               : msg.from;
 
             notifications.push({
-              id: `email-${msg.id}-${Date.now()}`,
+              id: `email-${msg.id}`,
               type: 'email',
               priority,
               title: `New email from ${sender}`,
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
             : `In ${minsUntil}m`;
 
         notifications.push({
-          id: `cal-${evt.id}-${Date.now()}`,
+          id: `cal-${evt.id}`,
           type: 'calendar',
           priority,
           title: `Upcoming: ${evt.summary || 'Event'}`,
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
 
         const hasLabel = issue.labels?.length > 0;
         notifications.push({
-          id: `gh-issue-${issue.number}-${Date.now()}`,
+          id: `gh-issue-${issue.number}`,
           type: 'github',
           priority: hasLabel ? 'high' : 'normal',
           title: `Issue: ${issue.title}`,
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
         }
 
         notifications.push({
-          id: `gh-pr-${pr.number}-${Date.now()}`,
+          id: `gh-pr-${pr.number}`,
           type: 'github',
           priority: 'normal',
           title: `PR: ${pr.title}`,
