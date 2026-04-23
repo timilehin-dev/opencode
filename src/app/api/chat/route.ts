@@ -13,7 +13,7 @@
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyError } from "@/lib/agents";
-import { allTools } from "@/lib/tools";
+import { allTools, setCurrentAgentId } from "@/lib/tools";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
@@ -91,6 +91,9 @@ export async function POST(req: Request) {
 
     const id = agentId || "general";
     const agent = getAgent(id);
+
+    // Set current agent ID so A2A tools know who's calling
+    setCurrentAgentId(id);
 
     if (!agent) {
       return new Response(

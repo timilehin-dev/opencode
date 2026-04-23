@@ -12,6 +12,12 @@ import { query } from "@/lib/db";
 // z-ai-web-dev-sdk for web tools (local Z.ai environment only)
 import ZAI from 'z-ai-web-dev-sdk';
 
+// --- Current agent context for A2A tools ---
+// Set by chat route / executor before each request so A2A tools know who's calling.
+let __currentAgentId: string = 'general';
+export function setCurrentAgentId(id: string) { __currentAgentId = id; }
+export function getCurrentAgentId() { return __currentAgentId; }
+
 // --- Self-referencing base URL helper (for server-side fetch to own API routes) ---
 function getSelfBaseUrl(): string {
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
@@ -875,10 +881,13 @@ export const vercelDomainsTool = tool({
 async function callAgentDirectly(agentId: string, taskPrompt: string, _delegationDepth: number = 0): Promise<{ text: string; steps: number }> {
   const { generateText, stepCountIs } = await import("ai");
   const { getAgent, getProvider } = await import("@/lib/agents");
-  const { allTools } = await import("@/lib/tools");
+  const { allTools, setCurrentAgentId } = await import("@/lib/tools");
 
   const agent = getAgent(agentId);
   if (!agent) throw new Error(`Unknown agent: ${agentId}`);
+
+  // Set current agent context for A2A tools
+  setCurrentAgentId(agentId);
 
   // Phase 4: Multi-hop delegation — up to 3 levels deep with per-hop timeouts
   // Circuit breaker: after 3 hops, strip all delegation tools to prevent infinite loops
@@ -4651,7 +4660,7 @@ export const a2aSendMessageTool = tool({
   execute: safeJson(async ({ to_agent, topic, content, priority, msg_type }) => {
     const { sendA2AMessage } = await import("@/lib/a2a");
     const msg = await sendA2AMessage({
-      fromAgent: "current", // Will be set by the route handler if available
+      fromAgent: __currentAgentId, // Dynamically resolved from chat route / executor
       toAgent: to_agent,
       type: msg_type || "request",
       topic,
@@ -4676,7 +4685,7 @@ export const a2aBroadcastTool = tool({
   execute: safeJson(async ({ topic, content, targets, priority }) => {
     const { broadcastA2AMessage } = await import("@/lib/a2a");
     const result = await broadcastA2AMessage({
-      fromAgent: "current",
+      fromAgent: __currentAgentId, // Dynamically resolved from chat route / executor
       targets,
       topic,
       payload: { content, source: "a2a_broadcast" },
@@ -4695,13 +4704,14 @@ export const a2aCheckInboxTool = tool({
   })),
   execute: safeJson(async ({ agent_id, limit, mark_as_read }) => {
     const { getAgentInbox, markMessagesRead } = await import("@/lib/a2a");
-    const messages = await getAgentInbox(agent_id, limit || 20);
+    const checkAgent = agent_id || __currentAgentId; // Default to current agent if not specified
+    const messages = await getAgentInbox(checkAgent, limit || 20);
     
     // Auto mark as read
     let markedCount = 0;
     if (mark_as_read !== false && messages.length > 0) {
       const ids = messages.map(m => m.id);
-      markedCount = await markMessagesRead(agent_id, ids);
+      markedCount = await markMessagesRead(checkAgent, ids);
     }
 
     return {
@@ -4732,7 +4742,7 @@ export const a2aShareContextTool = tool({
     const { shareContext } = await import("@/lib/a2a");
     const ctxId = await shareContext({
       contextKey: context_key,
-      agentId: "current",
+      agentId: __currentAgentId, // Dynamically resolved from chat route / executor
       content: { text: content, ...structured_data },
       contentText: content,
       tags: tags || [],
@@ -4789,17 +4799,17 @@ export const a2aCollaborateTool = tool({
   })),
   execute: safeJson(async ({ channel_name, message, members, channel_type, project_id }) => {
     const { getOrCreateChannel, postToChannel } = await import("@/lib/a2a");
-    const allMembers = members || ["general", "mail", "code", "data", "creative", "research", "ops"];
+    const allMembers = members || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== __currentAgentId);
     const channelId = await getOrCreateChannel({
       name: channel_name,
       channelType: channel_type || "project",
       projectId: project_id,
-      members: allMembers,
+      members: [...allMembers, __currentAgentId], // Include self in channel members
     });
     if (!channelId) return { success: false, error: "Failed to create/get channel" };
 
     const msgId = await postToChannel(channelId, {
-      agentId: "current",
+      agentId: __currentAgentId,
       content: message,
       messageType: "message",
     });
@@ -4807,7 +4817,7 @@ export const a2aCollaborateTool = tool({
     // Also broadcast to members' inboxes
     const { broadcastA2AMessage } = await import("@/lib/a2a");
     await broadcastA2AMessage({
-      fromAgent: "current",
+      fromAgent: __currentAgentId,
       targets: allMembers,
       topic: `New message in #${channel_name}`,
       payload: { content: message.slice(0, 500), channelId, source: "a2a_collaborate" },

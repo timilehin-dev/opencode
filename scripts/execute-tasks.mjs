@@ -735,7 +735,8 @@ async function vercelFetch(path) {
 }
 
 // --- Build tool map ---
-function buildToolMap() {
+function buildToolMap(agentId) {
+  const currentAgentId = agentId || "general";
   return {
     // Gmail
     gmail_send: tool({
@@ -2972,7 +2973,7 @@ async function executeTask(task) {
     const model = getProvider(agentDef);
 
     // Build tool subset for this agent
-    const allTools = buildToolMap();
+    const allTools = buildToolMap(task.agent_id);
     const agentTools = {};
     for (const toolId of agentDef.tools) {
       if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
@@ -2995,7 +2996,9 @@ async function executeTask(task) {
 
 CRITICAL: You are in Nigeria, timezone Africa/Lagos (WAT, UTC+1). When you reference "today", "yesterday", "tomorrow", or any date in email subject lines, headers, or content, you MUST use the date from above. NEVER guess or hallucinate dates — always derive them from this current time. For example, if today is April 20, 2026, a "Daily Inbox Summary" should say "April 20, 2026", NOT any other date.`;
 
-    const systemPrompt = `${dateTimeBlock}\n\nYou are ${agentDef.name}, an AI agent executing a background automation task. Complete the task fully and provide a concise summary of what you did and the results. You are running autonomously — no user interaction is possible.`;
+    const systemPrompt = `${dateTimeBlock}\n\nYou are ${agentDef.name}, an AI agent executing a background automation task. Complete the task fully and provide a concise summary of what you did and the results. You are running autonomously — no user interaction is possible.
+
+IMPORTANT: At the start of every task, use your a2a_check_inbox tool to check for any unread messages from other agents. If you find messages requesting action or information, handle them as part of this execution cycle. This enables real-time inter-agent communication.`;
 
     console.log(`[Task #${task.id}] Executing with ${Object.keys(agentTools).length} tools, timeout=${timeoutS}s, maxSteps=${maxSteps}`);
 
@@ -3070,11 +3073,54 @@ async function recoverStaleTasks() {
 }
 
 async function main() {
-  const summary = { tasksProcessed: 0, succeeded: 0, failed: 0, automationsTriggered: 0, skipped: 0 };
+  const summary = { tasksProcessed: 0, succeeded: 0, failed: 0, automationsTriggered: 0, skipped: 0, inboxProcessed: 0 };
 
   try {
     // Recover stale tasks from crashed previous executions
     await recoverStaleTasks();
+
+    // Phase 0: Auto-respond to unread A2A messages
+    // Check each agent's inbox. If there are unread messages, create a task
+    // for that agent to process and respond to them.
+    console.log("\n[Phase 0] Checking agent inboxes for unread A2A messages...");
+    try {
+      const allAgentIds = Object.keys(AGENTS);
+      for (const agentId of allAgentIds) {
+        const inboxResult = await pool.query(
+          "SELECT id, from_agent, type, topic, payload, priority FROM a2a_messages WHERE to_agent = $1 AND is_read = FALSE ORDER BY priority, created_at ASC",
+          [agentId]
+        );
+        if (inboxResult.rows.length > 0) {
+          // Only create a task if one doesn't already exist for this agent's inbox processing
+          const existingTask = await pool.query(
+            "SELECT id FROM agent_tasks WHERE agent_id = $1 AND status = 'pending' AND trigger_type = 'a2a_inbox' LIMIT 1",
+            [agentId]
+          );
+          if (existingTask.rows.length === 0) {
+            // Build a task prompt from the unread messages
+            const msgs = inboxResult.rows.map(m =>
+              `[From: ${m.from_agent}, Type: ${m.type}, Priority: ${m.priority}, Topic: ${m.topic}] ${m.payload?.content || m.payload?.task || "(no content)"}`
+            ).join("\n\n");
+
+            const taskResult = await pool.query(
+              `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+               VALUES ($1, $2, $3, 'a2a_inbox', $4, 'high') RETURNING id`,
+              [
+                agentId,
+                `You have ${inboxResult.rows.length} unread message(s) in your inbox. Check your inbox using a2a_check_inbox, read each message, and respond appropriately. For requests, take the requested action and send the result back via a2a_send_message. For broadcasts, acknowledge receipt if needed.`,
+                `A2A Inbox auto-processing. Unread messages:\n${msgs}`,
+                `a2a-inbox:${Date.now()}`,
+              ],
+            );
+            console.log(`  [Phase 0] Created inbox task #${taskResult.rows[0]?.id} for ${AGENTS[agentId]?.name || agentId} (${inboxResult.rows.length} unread)`);
+            summary.inboxProcessed++;
+          }
+        }
+      }
+      console.log(`[Phase 0] Done: ${summary.inboxProcessed} agents with unread messages`);
+    } catch (e) {
+      console.warn(`[Phase 0] Error:`, e.message);
+    }
 
     // Phase 1: Evaluate automations
     console.log("\n[Phase 1] Evaluating automations...");
@@ -3393,7 +3439,7 @@ async function main() {
       console.error(`[Phase 3] Error:`, e.message);
     }
 
-    console.log(`\n[Done] ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run) | ${summary.automationsTriggered} automations triggered`);
+    console.log(`\n[Done] ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run) | ${summary.automationsTriggered} automations triggered | ${summary.inboxProcessed} agents with unread inbox messages`);
   } catch (error) {
     console.error("[Fatal Error]", error);
   } finally {
