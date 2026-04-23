@@ -9,8 +9,18 @@ import { z } from "zod";
 import { tool, zodSchema } from "ai";
 import { query } from "@/lib/db";
 
-// z-ai-web-dev-sdk for web tools (local Z.ai environment only)
-import ZAI from 'z-ai-web-dev-sdk';
+// z-ai-web-dev-sdk — lazy-loaded only for media generation tools (image/video/voice)
+// All other tools use native free APIs (see api-clients.ts)
+let ZAI: any = null;
+async function getZAI(): Promise<any> {
+  if (!ZAI) {
+    try { const mod = await import('z-ai-web-dev-sdk'); ZAI = mod.default || mod; } catch { return null; }
+  }
+  try { return await ZAI.create(); } catch { return null; }
+}
+
+// Native API clients (no ZAI dependency)
+import { executeCodeJudge0, readWebPage, getStockQuote, getHistoricalData, searchPapers, duckDuckGoSearch, getMarketNews } from '@/lib/api-clients';
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
@@ -1057,7 +1067,13 @@ async function webSearchFallback(query: string, numResults: number, mode: "basic
     } catch { /* Tavily failed, try next layer */ }
   }
 
-  // Layer 1: DuckDuckGo HTML search (POST request)
+  // Layer 1: DuckDuckGo via duck-duck-scrape npm package (more reliable than HTML scraping)
+  try {
+    const ddgResults = await duckDuckGoSearch(query, numResults);
+    if (ddgResults.length > 0) return ddgResults;
+  } catch { /* duck-duck-scrape failed, try HTML fallback */ }
+
+  // Layer 1b: DuckDuckGo HTML search (POST request — fallback)
   try {
     const searchUrl = "https://html.duckduckgo.com/html/";
     const res = await fetch(searchUrl, {
@@ -1178,15 +1194,17 @@ export const webSearchTool = tool({
   })),
   execute: safeJson(async ({ query, num_results }) => {
     const num = Math.min(num_results || 10, 20);
-    // Try Z.ai SDK first (local environment)
+    // Try Z.ai SDK first (if available in environment)
     try {
-      const zai = await ZAI.create();
-      const results = await zai.functions.invoke("web_search", { query, num });
-      if (results && Array.isArray(results) && results.length > 0) return results;
+      const zai = await getZAI();
+      if (zai) {
+        const results = await zai.functions.invoke("web_search", { query, num });
+        if (results && Array.isArray(results) && results.length > 0) return results;
+      }
     } catch {
       // Z.ai SDK not available — use fallback
     }
-    // Fallback: Tavily (basic mode) → DuckDuckGo → Wikipedia
+    // Fallback: Tavily (basic mode) → DuckDuckGo → Wikipedia → Brave
     return await webSearchFallback(query, num, "basic");
   }),
 });
@@ -1203,15 +1221,17 @@ export const webSearchAdvancedTool = tool({
   })),
   execute: safeJson(async ({ query, num_results }) => {
     const num = Math.min(num_results || 10, 10);
-    // Try Z.ai SDK first
+    // Try Z.ai SDK first (if available in environment)
     try {
-      const zai = await ZAI.create();
-      const results = await zai.functions.invoke("web_search", { query, num });
-      if (results && Array.isArray(results) && results.length > 0) return results;
+      const zai = await getZAI();
+      if (zai) {
+        const results = await zai.functions.invoke("web_search", { query, num });
+        if (results && Array.isArray(results) && results.length > 0) return results;
+      }
     } catch {
       // Z.ai SDK not available — use Tavily advanced
     }
-    // Advanced search: Tavily advanced mode → DuckDuckGo → Wikipedia
+    // Advanced search: Tavily advanced mode → DuckDuckGo → Wikipedia → Brave
     return await webSearchFallback(query, num, "advanced");
   }),
 });
@@ -1272,16 +1292,18 @@ export const webReaderTool = tool({
     url: z.string().describe("The full URL of the web page to read. Must include protocol (https://)"),
   })),
   execute: safeJson(async ({ url }) => {
-    // Try Z.ai SDK first (local environment)
+    // Try Z.ai SDK first (if available in environment)
     try {
-      const zai = await ZAI.create();
-      const result = await zai.functions.invoke("page_reader", { url });
-      if (result) return result;
+      const zai = await getZAI();
+      if (zai) {
+        const result = await zai.functions.invoke("page_reader", { url });
+        if (result) return result;
+      }
     } catch {
-      // Z.ai SDK not available — use fallback
+      // Z.ai SDK not available — use cheerio fallback
     }
-    // Fallback: direct fetch + HTML extraction (enhanced with OG metadata)
-    return await webReaderEnhanced(url);
+    // Fallback: cheerio-based reader (fast, no browser needed)
+    return await readWebPage(url);
   }),
 });
 
@@ -2084,7 +2106,8 @@ export const videoGenerateTool = tool({
   })),
   execute: safeJson(async ({ prompt, imageUrl, quality, duration }) => {
     try {
-      const zai = await ZAI.create();
+      const zai = await getZAI();
+      if (!zai) throw new Error("Z.ai SDK not available");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result: any = await zai.video.generations.create({
         prompt,
@@ -2487,10 +2510,12 @@ export const researchDeepTool = tool({
     // Search helper: try Z.ai SDK first, then Tavily, then DuckDuckGo/Wikipedia/Brave
     async function searchQuery(q: string): Promise<Array<Record<string, unknown>>> {
       try {
-        const zai = await ZAI.create();
-        const results = await zai.functions.invoke("web_search", { query: q, num: Math.ceil(capped / 2) });
-        if (Array.isArray(results) && results.length > 0) {
-          return results as unknown as Array<Record<string, unknown>>;
+        const zai = await getZAI();
+        if (zai) {
+          const results = await zai.functions.invoke("web_search", { query: q, num: Math.ceil(capped / 2) });
+          if (Array.isArray(results) && results.length > 0) {
+            return results as unknown as Array<Record<string, unknown>>;
+          }
         }
       } catch {
         // Z.ai SDK not available — use fallback
@@ -3782,20 +3807,8 @@ export const contactDeleteTool = tool({
 // Code Execution Sandbox (Piston API — FREE, runs Python/JS safely)
 // ---------------------------------------------------------------------------
 
-const PISTON_API = "https://emkc.org/api/v2/piston/execute";
-
-const PISTON_LANGUAGES: Record<string, { language: string; version: string; aliases: string[] }> = {
-  javascript: { language: "javascript", version: "18.15.0", aliases: ["js", "node"] },
-  python:     { language: "python",     version: "3.10.0",  aliases: ["py"] },
-  typescript: { language: "typescript", version: "5.0.3",   aliases: ["ts"] },
-  go:         { language: "go",         version: "1.20.0",  aliases: [] },
-  rust:       { language: "rust",       version: "1.68.0",  aliases: [] },
-  java:       { language: "java",       version: "15.0.2",  aliases: [] },
-  cpp:        { language: "c++",        version: "10.2.0",  aliases: ["c"] },
-  ruby:       { language: "ruby",       version: "3.2.0",   aliases: [] },
-  php:        { language: "php",        version: "8.2.3",   aliases: [] },
-  swift:      { language: "swift",      version: "5.5.3",   aliases: [] },
-};
+// Code execution now uses Judge0 CE (see api-clients.ts)
+// Judge0 supports: javascript, python, typescript, go, rust, java, cpp, ruby, php, swift, kotlin, r, sql, bash, csharp
 
 export const codeExecuteTool = tool({
   description: "Execute code snippets safely in a sandboxed environment. Supports JavaScript, Python, TypeScript, Go, Rust, Java, C++, Ruby, PHP, and Swift. Perfect for quick calculations, data transformations, string processing, algorithms, or prototyping. Returns stdout, stderr, and exit code. Execution timeout: 10s. No internet access. Max output: 64KB.",
@@ -3805,53 +3818,14 @@ export const codeExecuteTool = tool({
     stdin: z.string().optional().describe("Optional stdin input for the program"),
   })),
   execute: safeJson(async ({ code, language, stdin }) => {
-    const langKey = (language || "javascript").toLowerCase().trim();
-    let langConfig = PISTON_LANGUAGES[langKey];
-    if (!langConfig) {
-      // Check aliases
-      for (const cfg of Object.values(PISTON_LANGUAGES)) {
-        if (cfg.aliases.includes(langKey)) { langConfig = cfg; break; }
-      }
-    }
-    if (!langConfig) {
-      throw new Error(`Unsupported language: "${langKey}". Supported: ${Object.keys(PISTON_LANGUAGES).join(", ")}`);
-    }
-
-    const res = await fetch(PISTON_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        language: langConfig.language,
-        version: langConfig.version,
-        files: [{ name: `main.${langConfig.language === "c++" ? "cpp" : langConfig.language === "c" ? "c" : langConfig.language}`, content: code }],
-        stdin: stdin || "",
-        compile_timeout: 10000,
-        run_timeout: 10000,
-      }),
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "Unknown error");
-      throw new Error(`Code execution failed (${res.status}): ${errText}`);
-    }
-
-    const data = await safeParseRes<{
-      run?: { stdout?: string; stderr?: string; exit_code: number; output?: string; signal?: string };
-      compile?: { stdout?: string; stderr?: string; exit_code: number; output?: string };
-      language?: string;
-      version?: string;
-    }>(res);
-
-    const run = data.run || data.compile;
+    const result = await executeCodeJudge0(code, language, stdin);
     return {
-      language: data.language,
-      version: data.version,
-      exitCode: run?.exit_code ?? -1,
-      stdout: (run?.stdout || "").trim(),
-      stderr: (run?.stderr || "").trim(),
-      output: (run?.output || "").trim(),
-      signal: "signal" in (run || {}) ? (run as { signal?: string }).signal || null : null,
+      language: result.language,
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      status: result.status,
+      durationMs: result.duration,
     };
   }),
 });
@@ -4539,33 +4513,64 @@ function escapeXml(str: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// LLM Chat Completions Tool (via z-ai-web-dev-sdk)
+// LLM Chat Completions Tool (via agent's own Ollama model — no external SDK needed)
 // ---------------------------------------------------------------------------
 
 export const llmChatTool = tool({
-  description: "Send a message to an AI language model and get a response. Use this for text generation, summarization, translation, analysis, brainstorming, coding help, Q&A, or any task that requires AI text intelligence. Supports multi-turn conversations.",
+  description: "Send a message to an AI language model and get a response. Use this for text generation, summarization, translation, analysis, brainstorming, coding help, Q&A, or any task that requires AI text intelligence. NOTE: This tool uses your configured Ollama model (gemma4:31b). For simple tasks, you can generate the response directly as an LLM agent.",
   inputSchema: zodSchema(z.object({
     messages: z.array(z.object({
       role: z.enum(["system", "user", "assistant"]).describe("Message role"),
       content: z.string().describe("Message content"),
     })).describe("Array of conversation messages (system prompt + user message at minimum)"),
     temperature: z.number().optional().describe("Creativity level 0-2 (default: 0.7). Lower = more focused, higher = more creative."),
-    max_tokens: z.number().optional().describe("Max response length in tokens (default: 2048)"),
   })),
-  execute: safeJson(async ({ messages, temperature, max_tokens }) => {
+  execute: safeJson(async ({ messages, temperature }) => {
     try {
-      const zai = await ZAI.create();
-      const completion = await zai.chat.completions.create({
-        messages: messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
-        temperature: temperature || 0.7,
-        max_tokens: max_tokens || 2048,
+      // Try ZAI SDK first (if available in environment)
+      const zai = await getZAI();
+      if (zai) {
+        const completion = await zai.chat.completions.create({
+          messages: messages.map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
+          temperature: temperature || 0.7,
+          max_tokens: 2048,
+        });
+        return {
+          success: true,
+          content: completion.choices?.[0]?.message?.content || "",
+          model: completion.model || "default",
+          usage: completion.usage || {},
+          message: "LLM chat completion successful.",
+          source: "zai-sdk",
+        };
+      }
+      // Fallback: use Ollama API directly
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:31b-cloud";
+      const systemMsg = messages.find(m => m.role === "system")?.content || "You are a helpful assistant.";
+      const userMsg = messages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n\n");
+
+      const res = await fetch(`${ollamaUrl}/api/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel,
+          prompt: userMsg,
+          system: systemMsg,
+          stream: false,
+          options: { temperature: temperature || 0.7 },
+        }),
+        signal: AbortSignal.timeout(60000),
       });
+      if (!res.ok) throw new Error(`Ollama API error: ${res.status}`);
+      const data = await res.json() as any;
       return {
         success: true,
-        content: completion.choices?.[0]?.message?.content || "",
-        model: completion.model || "default",
-        usage: completion.usage || {},
+        content: data.response || "",
+        model: ollamaModel,
+        usage: { prompt_tokens: data.prompt_eval_count || 0, completion_tokens: data.eval_count || 0 },
         message: "LLM chat completion successful.",
+        source: "ollama",
       };
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
@@ -4575,38 +4580,83 @@ export const llmChatTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Finance Query Tool (via z-ai-web-dev-sdk)
+// Finance Query Tool (via Yahoo Finance API — FREE, no API key needed)
 // ---------------------------------------------------------------------------
 
 export const financeQueryTool = tool({
-  description: "Query financial data including stock prices, market data, company financials, market news, and investment information. Use this when the user asks about stock prices, market trends, financial analysis, company earnings, or any finance-related queries.",
+  description: "Query financial data including stock prices, market data, historical data, and market news. Use this when the user asks about stock prices, market trends, financial analysis, company earnings, or any finance-related queries. Powered by Yahoo Finance (free, no API key required).",
   inputSchema: zodSchema(z.object({
-    query_type: z.enum(["stock_price", "market_data", "company_info", "market_news", "stock_screener"]).describe("Type of financial query"),
-    symbol: z.string().optional().describe("Stock ticker symbol (e.g., 'AAPL', 'GOOGL', 'MSFT')"),
+    query_type: z.enum(["stock_price", "historical_data", "market_news", "company_info"]).describe("Type of financial query"),
+    symbol: z.string().optional().describe("Stock ticker symbol (e.g., 'AAPL', 'GOOGL', 'MSFT', 'TSLA')"),
     query: z.string().describe("Natural language query describing what financial information you need"),
+    range: z.string().optional().describe("Time range for historical data: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, ytd, max"),
   })),
-  execute: safeJson(async ({ query_type, symbol, query }) => {
+  execute: safeJson(async ({ query_type, symbol, query, range }) => {
     try {
-      const zai = await ZAI.create();
-      const functionMap: Record<string, string> = {
-        stock_price: "stock_price",
-        market_data: "market_data",
-        company_info: "company_financials",
-        market_news: "market_news",
-        stock_screener: "stock_screener",
-      };
-      const funcName = functionMap[query_type] || "stock_price";
-      const args: Record<string, unknown> = { query };
-      if (symbol) args.symbol = symbol;
-      if (query_type === "stock_screener") args.screener = query;
-
-      const result = await zai.functions.invoke("web_search" as any, args);
-      return {
-        success: true,
-        query_type,
-        data: result,
-        message: `Financial data retrieved for ${symbol || query}.`,
-      };
+      switch (query_type) {
+        case "stock_price": {
+          if (!symbol) {
+            // Try to extract symbol from query
+            const match = query.match(/\b([A-Z]{1,5})\b/);
+            if (!match) return { success: false, error: "Please provide a stock ticker symbol (e.g., 'AAPL', 'GOOGL')." };
+            symbol = match[1];
+          }
+          const quote = await getStockQuote(symbol.toUpperCase());
+          return {
+            success: true,
+            query_type: "stock_price",
+            symbol: quote.symbol,
+            data: quote,
+            message: `${quote.name || quote.symbol} is trading at $${quote.price} (${quote.change >= 0 ? "+" : ""}${quote.changePercent}%)`,
+          };
+        }
+        case "historical_data": {
+          if (!symbol) {
+            const match = query.match(/\b([A-Z]{1,5})\b/);
+            if (!match) return { success: false, error: "Please provide a stock ticker symbol." };
+            symbol = match[1];
+          }
+          const historical = await getHistoricalData(symbol.toUpperCase(), range || "1mo");
+          return {
+            success: true,
+            query_type: "historical_data",
+            symbol: symbol.toUpperCase(),
+            range: range || "1mo",
+            data: historical,
+            message: `Retrieved ${historical.length} data points for ${symbol.toUpperCase()}.`,
+          };
+        }
+        case "market_news": {
+          const news = await getMarketNews();
+          return {
+            success: true,
+            query_type: "market_news",
+            data: news,
+            message: `Retrieved ${news.length} market news articles.`,
+          };
+        }
+        case "company_info": {
+          if (!symbol) {
+            const match = query.match(/\b([A-Z]{1,5})\b/);
+            if (!match) return { success: false, error: "Please provide a stock ticker symbol." };
+            symbol = match[1];
+          }
+          const quote = await getStockQuote(symbol.toUpperCase());
+          const historical = await getHistoricalData(symbol.toUpperCase(), "1mo");
+          return {
+            success: true,
+            query_type: "company_info",
+            symbol: quote.symbol,
+            data: {
+              quote,
+              recentPerformance: historical.slice(-5),
+            },
+            message: `Retrieved company info for ${quote.name || quote.symbol}.`,
+          };
+        }
+        default:
+          return { success: false, error: `Unknown query type: ${query_type}` };
+      }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       return { success: false, error: `Finance query failed: ${errMsg}` };
@@ -4615,39 +4665,69 @@ export const financeQueryTool = tool({
 });
 
 // ---------------------------------------------------------------------------
-// Academic Search Tool (via z-ai-web-dev-sdk)
+// Academic Search Tool (via Semantic Scholar API — FREE, no API key needed)
 // ---------------------------------------------------------------------------
 
 export const academicSearchTool = tool({
-  description: "Search for academic papers, scholarly articles, research publications, citations, and author information. Use this when the user asks about academic research, scientific papers, literature reviews, citations, research trends, or scholarly publications. Powered by AMiner Open Platform.",
+  description: "Search for academic papers, scholarly articles, research publications, citations, and author information. Use this when the user asks about academic research, scientific papers, literature reviews, citations, research trends, or scholarly publications. Powered by Semantic Scholar (free, no API key required).",
   inputSchema: zodSchema(z.object({
     query: z.string().describe("Search query for academic papers (e.g., 'transformer architecture attention mechanism')"),
-    search_type: z.enum(["paper_search", "author_search", "publication_venue", "expert_search", "citation_analysis"]).optional().describe("Type of academic search (default: 'paper_search')"),
-    num_results: z.number().optional().describe("Number of results to return (default: 10)"),
+    search_type: z.enum(["paper_search", "author_search", "paper_detail"]).optional().describe("Type of academic search (default: 'paper_search')"),
+    paper_id: z.string().optional().describe("Paper ID for paper_detail search (DOI, ArXiv ID, or Semantic Scholar ID)"),
+    author_id: z.string().optional().describe("Author ID for author_search (Semantic Scholar author ID)"),
+    num_results: z.number().optional().describe("Number of results to return (default: 10, max: 100)"),
+    year: z.string().optional().describe("Filter by year (e.g., '2024' or '2020-2024')"),
   })),
-  execute: safeJson(async ({ query, search_type, num_results }) => {
+  execute: safeJson(async ({ query, search_type, paper_id, author_id, num_results, year }) => {
     try {
-      const zai = await ZAI.create();
-      const functionMap: Record<string, string> = {
-        paper_search: "web_search",
-        author_search: "web_search",
-        publication_venue: "web_search",
-        expert_search: "web_search",
-        citation_analysis: "web_search",
-      };
-      // Use web_search via functions.invoke for academic queries
-      const academicQuery = `academic research ${search_type || "paper"}: ${query}`;
-      const result = await zai.functions.invoke("web_search", {
-        query: academicQuery,
-        num: num_results || 10,
-      });
-      return {
-        success: true,
-        search_type: search_type || "paper_search",
-        query,
-        data: result,
-        message: `Academic search completed for "${query}". Found ${Array.isArray(result) ? result.length : "multiple"} results.`,
-      };
+      switch (search_type || "paper_search") {
+        case "paper_search": {
+          const result = await searchPapers(query, num_results || 10, year);
+          return {
+            success: true,
+            search_type: "paper_search",
+            query,
+            total: result.total,
+            papers: result.papers,
+            message: `Found ${result.total} papers matching "${query}". Showing ${result.papers.length} results.`,
+          };
+        }
+        case "paper_detail": {
+          if (!paper_id) return { success: false, error: "Please provide a paper_id (DOI, ArXiv ID, or Semantic Scholar ID)." };
+          const { getPaperDetails } = await import("@/lib/api-clients");
+          const paper = await getPaperDetails(paper_id);
+          return {
+            success: true,
+            search_type: "paper_detail",
+            data: paper,
+            message: `Retrieved details for paper: ${paper.title || paper_id}.`,
+          };
+        }
+        case "author_search": {
+          if (!author_id) {
+            // Fall back to paper search with the query
+            const result = await searchPapers(query, num_results || 10, year);
+            return {
+              success: true,
+              search_type: "author_search",
+              query,
+              papers: result.papers,
+              message: `No author_id provided. Showing paper search results for "${query}" instead.`,
+            };
+          }
+          const { getAuthorPapers } = await import("@/lib/api-clients");
+          const papers = await getAuthorPapers(author_id, num_results || 10);
+          return {
+            success: true,
+            search_type: "author_search",
+            author_id,
+            papers,
+            message: `Retrieved ${papers.length} papers for author ${author_id}.`,
+          };
+        }
+        default:
+          return { success: false, error: `Unknown search type: ${search_type}` };
+      }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       return { success: false, error: `Academic search failed: ${errMsg}` };
@@ -5558,39 +5638,53 @@ const SKILL_TOOL_MAP: Record<string, { tool: string; description: string; params
   // Data Visualization
   charts: { tool: "generate_chart", description: "Generate charts, graphs, and diagrams (bar, line, pie, scatter, mermaid, table)", params_hint: "Provide chart_type, title, data (JSON string)" },
   // Web Tools
-  "web-search": { tool: "web_search", description: "Search the web for real-time information", params_hint: "Provide query (string) and optional num_results" },
-  "web-reader": { tool: "web_reader", description: "Read and extract content from web pages", params_hint: "Provide url (string)" },
+  "web-search": { tool: "web_search", description: "Search the web for real-time information (Tavily + DuckDuckGo + Wikipedia + Brave)", params_hint: "Provide query (string) and optional num_results" },
+  "web-reader": { tool: "web_reader", description: "Read and extract content from web pages using cheerio HTML parser", params_hint: "Provide url (string)" },
+  "multi-search-engine": { tool: "web_search_advanced", description: "Advanced multi-engine web search with AI answer synthesis", params_hint: "Provide query (string) for deep search results" },
   // AI/ML Tools
-  llm: { tool: "llm_chat", description: "Send messages to AI language model for text generation, analysis, brainstorming", params_hint: "Provide messages (array of {role, content})" },
-  // Finance
-  finance: { tool: "finance_query", description: "Query financial data — stock prices, market data, company info, market news", params_hint: "Provide query_type, optional symbol, and query" },
-  "stock-analysis-skill": { tool: "finance_query", description: "Analyze stocks using financial data queries", params_hint: "Use query_type='stock_price' or 'company_info', provide symbol" },
-  // Academic Research
-  "aminer-academic-search": { tool: "academic_search", description: "Search academic papers, scholarly articles, citations", params_hint: "Provide query (string), optional search_type and num_results" },
-  "aminer-daily-paper": { tool: "academic_search", description: "Get daily paper recommendations via academic search", params_hint: "Provide query (string) describing research interests" },
-  "aminer-open-academic": { tool: "academic_search", description: "Open academic search via AMiner platform", params_hint: "Provide query (string)" },
+  llm: { tool: "llm_chat", description: "Send messages to AI language model (Ollama) for text generation, analysis, brainstorming", params_hint: "Provide messages (array of {role, content})" },
+  // Code Execution
+  "coding-agent": { tool: "code_execute", description: "Execute code in Judge0 CE sandbox — JS, Python, TS, Go, Rust, Java, C++, Ruby, PHP, Swift, Kotlin, R, SQL, Bash", params_hint: "Provide code (string) and language" },
+  "fullstack-dev": { tool: "code_execute", description: "Full-stack web development using code execution sandbox", params_hint: "Provide code for web development tasks" },
+  // Finance (Yahoo Finance — FREE, no API key)
+  finance: { tool: "finance_query", description: "Query financial data — stock prices, historical data, market news, company info via Yahoo Finance", params_hint: "Provide query_type (stock_price/historical_data/market_news/company_info), optional symbol" },
+  "stock-analysis-skill": { tool: "finance_query", description: "Analyze stocks using Yahoo Finance data", params_hint: "Use query_type='stock_price' or 'company_info', provide symbol" },
+  // Academic Research (Semantic Scholar — FREE, no API key)
+  "aminer-academic-search": { tool: "academic_search", description: "Search academic papers via Semantic Scholar API", params_hint: "Provide query (string), optional search_type and num_results" },
+  "aminer-daily-paper": { tool: "academic_search", description: "Get daily paper recommendations via Semantic Scholar", params_hint: "Provide query (string) describing research interests" },
+  "aminer-open-academic": { tool: "academic_search", description: "Open academic search via Semantic Scholar", params_hint: "Provide query (string)" },
   // Content Analysis
   contentanalysis: { tool: "content_analyze", description: "Analyze content for readability, sentiment, SEO, keywords, structure", params_hint: "Provide content (string) and optional analysis_type" },
   // Content Creation (methodological — use docx/pdf tools with methodology)
   "blog-writer": { tool: "create_docx_document", description: "Write blog posts — use skill methodology + docx tool for output", params_hint: "Follow blog-writer methodology from prompt_template, then create with create_docx_document" },
   "seo-content-writer": { tool: "create_docx_document", description: "Write SEO-optimized content — use methodology + docx tool for output", params_hint: "Follow seo-content-writer methodology, then create with create_docx_document" },
-  "content-strategy": { tool: "llm_chat", description: "Develop content strategy using AI analysis", params_hint: "Use llm_chat with content-strategy methodology as system prompt" },
+  "content-strategy": { tool: "create_docx_document", description: "Develop content strategy — methodology + docx tool for output", params_hint: "Follow content-strategy methodology, then create strategy document with create_docx_document" },
   "market-research-reports": { tool: "create_pdf_report", description: "Create market research reports — use methodology + PDF tool", params_hint: "Follow methodology, research with web_search, then create with create_pdf_report" },
-  // Code & Development
-  "coding-agent": { tool: "code_execute", description: "Execute code (Python, JavaScript, TypeScript) in a sandbox", params_hint: "Provide code (string) and language" },
-  "fullstack-dev": { tool: "code_execute", description: "Full-stack web development using code execution", params_hint: "Provide code for web development tasks" },
-  "agent-browser": { tool: "web_reader", description: "Browser automation — use web_reader to fetch pages", params_hint: "Provide url (string) to read page content" },
-  // Multi-search
-  "multi-search-engine": { tool: "web_search_advanced", description: "Advanced multi-engine web search", params_hint: "Provide query (string) for deep search results" },
-  // Specialized
-  "interview-designer": { tool: "create_docx_document", description: "Design interview guides — methodology + docx output", params_hint: "Follow interview-designer methodology, then create with create_docx_document" },
+  // Browser & Extraction
+  "agent-browser": { tool: "web_reader", description: "Browser automation — read web pages and extract content", params_hint: "Provide url (string) to read page content" },
   "web-shader-extractor": { tool: "web_reader", description: "Extract WebGL/Canvas shader code from web pages", params_hint: "Provide url (string) of the page to extract from" },
+  // Specialized Skills
+  "interview-designer": { tool: "create_docx_document", description: "Design interview guides — methodology + docx output", params_hint: "Follow interview-designer methodology, then create with create_docx_document" },
   "skill-creator": { tool: "skill_create", description: "Create new skills for the skill library", params_hint: "Provide name, display_name, description, category, prompt_template" },
   "skill-vetter": { tool: "skill_inspect", description: "Vet and inspect skills for quality and security", params_hint: "Provide skill_name or skill_id to inspect" },
-  // Design (methodological — uses existing design tools or docx for output)
+  "writing-plans": { tool: "create_docx_document", description: "Create writing plans — methodology + docx output", params_hint: "Follow writing-plans methodology, then create plan document" },
+  "dream-interpreter": { tool: "create_docx_document", description: "Interpret dreams — methodology + docx output", params_hint: "Follow dream-interpreter methodology, then create interpretation" },
+  "get-fortune-analysis": { tool: "create_docx_document", description: "Fortune/luck analysis — methodology + docx output", params_hint: "Follow fortune analysis methodology" },
+  "gift-evaluator": { tool: "create_docx_document", description: "Evaluate gift ideas — methodology + docx output", params_hint: "Follow gift-evaluator methodology" },
+  "mindfulness-meditation": { tool: "create_docx_document", description: "Mindfulness meditation guides — methodology + docx output", params_hint: "Follow mindfulness methodology" },
+  "anti-pua": { tool: "create_docx_document", description: "Anti-PUA analysis — methodology + docx output", params_hint: "Follow anti-pua methodology" },
+  "qingyan-research": { tool: "web_search", description: "Deep research tool — uses web search + web reader for comprehensive research", params_hint: "Use web_search for research, then web_reader for detailed content" },
+  "auto-target-tracker": { tool: "create_xlsx_spreadsheet", description: "Track targets/goals — methodology + xlsx output", params_hint: "Follow methodology, then create tracker with create_xlsx_spreadsheet" },
+  // Design (methodological — uses docx/pdf for output)
   "ui-ux-pro-max": { tool: "create_docx_document", description: "UI/UX design guidance — methodology + docx output", params_hint: "Follow ui-ux methodology, create design doc with create_docx_document" },
   "visual-design-foundations": { tool: "create_docx_document", description: "Visual design foundations — methodology + docx output", params_hint: "Follow design methodology, create guidelines with create_docx_document" },
   "storyboard-manager": { tool: "create_docx_document", description: "Storyboard management — methodology + docx output", params_hint: "Follow storyboard methodology, create with create_docx_document" },
+  // Podcast & Media
+  "podcast-generate": { tool: "create_docx_document", description: "Generate podcast scripts — methodology + docx output", params_hint: "Follow podcast methodology, create script with create_docx_document" },
+  // Marketing
+  "marketing-mode": { tool: "create_docx_document", description: "Marketing content — methodology + docx output", params_hint: "Follow marketing methodology, create content with create_docx_document" },
+  // Finance research (uses academic + finance tools)
+  "ai-news-collectors": { tool: "web_search", description: "Collect AI news — uses web search", params_hint: "Search for latest AI news with web_search" },
 };
 
 export const skillUseTool = tool({
