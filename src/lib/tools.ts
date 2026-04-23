@@ -3226,10 +3226,7 @@ export const createDocxDocumentTool = tool({
     author: z.string().optional().describe("Author name (default: 'Claw AI Agent')"),
   })),
   execute: safeJson(async ({ title, content, filename, author }) => {
-    const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, PageNumber, Footer, Header, Tab, TabStopType, TabStopPosition } = await import("docx");
-    const { join } = await import("path");
-    const { writeFileSync } = await import("fs");
-    const { tmpdir } = await import("os");
+    const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, PageNumber, Footer, Header } = await import("docx");
     const Packer = await import("docx").then((m) => (m as unknown as { Packer: { toBuffer: (doc: unknown) => Promise<Buffer> } }).Packer);
     const TextRunCtor = (await import("docx") as any).TextRun;
     const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -4275,14 +4272,16 @@ async function webReaderEnhanced(url: string) {
 // ---------------------------------------------------------------------------
 
 export const createXlsxSpreadsheetTool = tool({
-  description: "Create a professional Excel spreadsheet (.xlsx) and return it as a downloadable file. Supports multiple sheets, cell formatting (bold, colors, borders), formulas, column auto-width, and data validation. The 'sheets' parameter defines each sheet with a name, headers, and rows of data.",
+  description: "Create a professional Excel spreadsheet (.xlsx) and return it as downloadable. Supports multiple sheets, auto-fit columns, formula evaluation, number formatting, freeze panes, navy-themed headers, alternating row colors, and more. Use 'formulas' for auto-calculated columns (e.g., SUM, AVERAGE, COUNT).",
   inputSchema: zodSchema(z.object({
     title: z.string().describe("Title of the spreadsheet (used as filename)"),
     sheets: z.array(z.object({
       name: z.string().describe("Sheet tab name"),
-      headers: z.array(z.string()).describe("Column headers for the sheet"),
+      headers: z.array(z.string()).describe("Column headers"),
       rows: z.array(z.array(z.string())).describe("2D array of row data (each inner array = one row)"),
-    })).describe("Array of sheets to include in the workbook"),
+      formulas: z.record(z.string()).optional().describe("Auto-calc columns: { 'Column Header': 'SUM(B2:B10)' }. Key = header name, value = Excel formula. Auto-appended as last column."),
+      freeze_header: z.boolean().optional().describe("Freeze the header row for scrolling (default: true)"),
+    })).describe("Array of sheets to include"),
     filename: z.string().optional().describe("Output filename (without extension). Default: derived from title"),
   })),
   execute: safeJson(async ({ title, sheets, filename }) => {
@@ -4291,48 +4290,105 @@ export const createXlsxSpreadsheetTool = tool({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Workbook = (ExcelJS as any).default?.Workbook || (ExcelJS as any).Workbook;
     const workbook = new Workbook();
-    (workbook as any).creator = "Claw AI Agent";
+    (workbook as any).creator = "Claw AI Agent Hub";
     (workbook as any).created = new Date();
+
+    // Color palette
+    const NAVY = "FF1E3A5F";
+    const BLUE = "FF2563EB";
+    const WHITE = "FFFFFFFF";
+    const ALT_ROW = "FFF8FAFC";
+    const LIGHT_GRAY = "FFE5E7EB";
 
     for (const sheetDef of sheets) {
       const sheet = workbook.addWorksheet(sheetDef.name);
 
-      // Add header row with styling
+      // Add header row with professional styling
       const headerRow = sheet.addRow(sheetDef.headers);
-      headerRow.font = { bold: true, size: 11 };
-      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
-      headerRow.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
-      headerRow.alignment = { horizontal: "center" };
-      headerRow.border = { bottom: { style: "medium" } };
+      headerRow.height = 28;
+      headerRow.font = { bold: true, size: 11, color: { argb: WHITE }, name: "Calibri" };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+      headerRow.alignment = { horizontal: "center", vertical: "middle" };
+      headerRow.border = {
+        bottom: { style: "medium", color: { argb: NAVY } },
+        top: { style: "thin", color: { argb: LIGHT_GRAY } },
+      };
 
-      // Add data rows
-      for (const row of sheetDef.rows) {
-        sheet.addRow(row);
+      // Add data rows with alternating colors
+      for (let r = 0; r < sheetDef.rows.length; r++) {
+        const row = sheet.addRow(sheetDef.rows[r]);
+        row.height = 22;
+        if (r % 2 === 1) {
+          row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ALT_ROW } };
+        }
+        row.font = { size: 10, name: "Calibri", color: { argb: "FF1F2937" } };
+        row.alignment = { vertical: "middle" };
+        row.border = {
+          bottom: { style: "thin", color: { argb: LIGHT_GRAY } },
+        };
+
+        // Auto-detect numbers and apply formatting
+        for (let c = 0; c < row.cellCount; c++) {
+          const cell = row.getCell(c + 1);
+          const val = cell.value;
+          if (typeof val === "number" || (typeof val === "string" && !isNaN(Number(val)) && val.trim() !== "")) {
+            cell.numFmt = "#,##0.00";
+            cell.alignment = { horizontal: "right", vertical: "middle" };
+          } else if (typeof val === "string" && val.includes("%")) {
+            cell.numFmt = "0.0%";
+            cell.alignment = { horizontal: "right", vertical: "middle" };
+          }
+        }
       }
 
       // Auto-fit column widths
       for (let col = 1; col <= sheetDef.headers.length; col++) {
-        let maxLen = String(sheetDef.headers[col - 1]).length;
+        let maxLen = String(sheetDef.headers[col - 1] || "").length;
         for (const row of sheetDef.rows) {
           if (row[col - 1]) maxLen = Math.max(maxLen, String(row[col - 1]).length);
         }
-        sheet.getColumn(col).width = Math.min(maxLen + 2, 50);
+        sheet.getColumn(col).width = Math.min(maxLen + 4, 50);
+      }
+
+      // Add formula column if specified
+      if (sheetDef.formulas && Object.keys(sheetDef.formulas).length > 0) {
+        const formulaCol = sheetDef.headers.length + 1;
+        for (const [header, formula] of Object.entries(sheetDef.formulas)) {
+          sheet.getCell(1, formulaCol).value = header;
+          sheet.getCell(1, formulaCol).font = { bold: true, size: 11, color: { argb: WHITE }, name: "Calibri" };
+          sheet.getCell(1, formulaCol).fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+          sheet.getCell(1, formulaCol).alignment = { horizontal: "center", vertical: "middle" };
+          // Apply formula to each data row
+          for (let r = 0; r < sheetDef.rows.length; r++) {
+            const cell = sheet.getCell(r + 2, formulaCol);
+            cell.value = { formula: formula.replace(/ROWS_START/g, "2").replace(/ROWS_END/g, `${sheetDef.rows.length + 1}`) };
+            cell.font = { bold: true, size: 10, name: "Calibri", color: { argb: BLUE } };
+            cell.numFmt = "#,##0.00";
+            cell.alignment = { horizontal: "right", vertical: "middle" };
+            cell.border = { bottom: { style: "thin", color: { argb: LIGHT_GRAY } } };
+          }
+          sheet.getColumn(formulaCol).width = 18;
+          formulaCol++;
+        }
+      }
+
+      // Freeze header row
+      if (sheetDef.freeze_header !== false) {
+        sheet.views = [{ state: "frozen", ySplit: 1 }];
       }
     }
 
-    // Write to buffer
     const buffer = await workbook.xlsx.writeBuffer();
     const base64 = Buffer.from(buffer).toString("base64");
 
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
     const fileBaseName = `${safeName}.xlsx`;
 
-    // Cache the file for download via /api/files/ endpoint
     try {
       const { cacheFile } = await import("@/lib/file-cache");
       await cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBaseName);
     } catch {
-      // Caching is best-effort
+      // best-effort
     }
 
     return {
@@ -4342,7 +4398,7 @@ export const createXlsxSpreadsheetTool = tool({
       fileSize: buffer.byteLength,
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       downloadUrl: `/api/files/${fileBaseName}`,
-      message: `Excel spreadsheet "${title}" created successfully with ${sheets.length} sheet(s). Download available.`,
+      message: `Excel spreadsheet "${title}" created successfully with ${sheets.length} sheet(s), navy headers, alternating rows${Object.values(sheets).some((s: any) => s.formulas) ? ", and formula columns" : ""}. Download available.`,
     };
   }),
 });
