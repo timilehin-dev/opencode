@@ -1,12 +1,24 @@
 /**
- * In-process file cache for serving generated documents.
- * 
- * On Vercel serverless, /tmp/ is ephemeral — files written during tool execution
- * in one request aren't accessible in subsequent GET requests. This cache
- * stores file buffers in memory so /api/files/[fileId] can serve them.
- * 
- * Files auto-expire after 10 minutes to prevent memory leaks.
+ * File cache for serving agent-generated documents.
+ *
+ * Storage strategy:
+ * 1. Supabase Storage (persistent, cross-instance) — primary on Vercel
+ * 2. In-memory Map (fast-path within same serverless instance)
+ *
+ * Files are uploaded to the 'agent-files' bucket in Supabase Storage.
+ * The in-memory cache is kept as a fast-path to avoid network round-trips
+ * within the same request lifecycle.
  */
+
+import { getSupabase } from "@/lib/supabase";
+
+const BUCKET = "agent-files";
+const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_CACHE_SIZE = 50;
+
+// ---------------------------------------------------------------------------
+// In-memory fast-path (same instance, avoids Supabase round-trip)
+// ---------------------------------------------------------------------------
 
 interface CachedFile {
   buffer: Buffer;
@@ -15,55 +27,124 @@ interface CachedFile {
   createdAt: number;
 }
 
-const TTL_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_CACHE_SIZE = 100;
+const memoryCache = new Map<string, CachedFile>();
 
-const fileCache = new Map<string, CachedFile>();
-
-// Clean expired entries periodically
 let _cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 function ensureCleanup() {
   if (_cleanupTimer) return;
   _cleanupTimer = setInterval(() => {
     const now = Date.now();
-    for (const [key, file] of fileCache.entries()) {
+    for (const [key, file] of memoryCache.entries()) {
       if (now - file.createdAt > TTL_MS) {
-        fileCache.delete(key);
+        memoryCache.delete(key);
       }
     }
   }, 60_000);
-  
-  // Don't prevent process exit
   if (_cleanupTimer.unref) _cleanupTimer.unref();
 }
 
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
- * Store a file in the cache. Returns the fileId that can be used to retrieve it.
+ * Store a file for later download.
+ * Uploads to Supabase Storage (persistent) and caches in memory (fast-path).
  */
-export function cacheFile(fileId: string, buffer: Buffer, mimeType: string, filename: string): void {
+export async function cacheFile(
+  fileId: string,
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+): Promise<void> {
   ensureCleanup();
-  
-  // Evict oldest if at capacity
-  if (fileCache.size >= MAX_CACHE_SIZE) {
-    const oldestKey = fileCache.keys().next().value;
-    if (oldestKey !== undefined) fileCache.delete(oldestKey);
+
+  // Always store in memory for same-instance fast-path
+  if (memoryCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = memoryCache.keys().next().value;
+    if (oldestKey !== undefined) memoryCache.delete(oldestKey);
   }
-  
-  fileCache.set(fileId, { buffer, mimeType, filename, createdAt: Date.now() });
+  memoryCache.set(fileId, { buffer, mimeType, filename, createdAt: Date.now() });
+
+  // Upload to Supabase Storage (persistent, cross-instance)
+  const supabase = getSupabase();
+  if (!supabase) {
+    console.warn("[file-cache] Supabase not configured — file only cached in memory (will not persist across serverless instances)");
+    return;
+  }
+
+  try {
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(fileId, buffer, {
+        contentType: mimeType,
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("[file-cache] Supabase Storage upload failed:", error.message);
+    }
+  } catch (err) {
+    console.error("[file-cache] Supabase Storage upload error:", err);
+  }
 }
 
 /**
- * Retrieve a file from the cache. Returns null if not found or expired.
+ * Retrieve a file for download.
+ * Checks in-memory cache first, then Supabase Storage.
  */
-export function getCachedFile(fileId: string): { buffer: Buffer; mimeType: string; filename: string } | null {
-  const file = fileCache.get(fileId);
-  if (!file) return null;
-  
-  if (Date.now() - file.createdAt > TTL_MS) {
-    fileCache.delete(fileId);
+export async function getCachedFile(
+  fileId: string,
+): Promise<{ buffer: Buffer; mimeType: string; filename: string } | null> {
+  // Fast-path: in-memory cache
+  const memFile = memoryCache.get(fileId);
+  if (memFile) {
+    if (Date.now() - memFile.createdAt > TTL_MS) {
+      memoryCache.delete(fileId);
+    } else {
+      return { buffer: memFile.buffer, mimeType: memFile.mimeType, filename: memFile.filename };
+    }
+  }
+
+  // Slow-path: Supabase Storage (works across serverless instances)
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .download(fileId);
+
+    if (error || !data) {
+      return null;
+    }
+
+    const arrayBuffer = await data.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Determine mime type from the fileId extension
+    const ext = fileId.split(".").pop()?.toLowerCase() || "";
+    const mimeMap: Record<string, string> = {
+      pdf: "application/pdf",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      txt: "text/plain",
+      csv: "text/csv",
+      json: "application/json",
+      md: "text/markdown",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+    };
+
+    return {
+      buffer,
+      mimeType: mimeMap[ext] || "application/octet-stream",
+      filename: fileId,
+    };
+  } catch (err) {
+    console.error("[file-cache] Supabase Storage download error:", err);
     return null;
   }
-  
-  return { buffer: file.buffer, mimeType: file.mimeType, filename: file.filename };
 }

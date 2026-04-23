@@ -3094,7 +3094,7 @@ export const createPdfReportTool = tool({
     // Cache the file for download via /api/files/ endpoint
     try {
       const { cacheFile } = await import("@/lib/file-cache");
-      cacheFile(basename, fileBuffer, "application/pdf", basename);
+      await cacheFile(basename, fileBuffer, "application/pdf", basename);
     } catch {
       // Caching is best-effort — base64 download still works
     }
@@ -3421,7 +3421,7 @@ export const createDocxDocumentTool = tool({
     // Cache the file for download via /api/files/ endpoint
     try {
       const { cacheFile } = await import("@/lib/file-cache");
-      cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileBaseName);
+      await cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileBaseName);
     } catch {
       // Caching is best-effort
     }
@@ -4145,7 +4145,7 @@ export const createXlsxSpreadsheetTool = tool({
     // Cache the file for download via /api/files/ endpoint
     try {
       const { cacheFile } = await import("@/lib/file-cache");
-      cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBaseName);
+      await cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBaseName);
     } catch {
       // Caching is best-effort
     }

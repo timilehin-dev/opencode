@@ -44,8 +44,8 @@ export async function GET(
     const ext = extname(fileId).toLowerCase();
     const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
 
-    // Strategy 1: Check in-memory cache (works on Vercel serverless)
-    const cached = getCachedFile(safeFileId) || getCachedFile(fileId);
+    // Strategy 1: Check file cache (in-memory fast-path + Supabase Storage persistent)
+    const cached = await getCachedFile(safeFileId) || await getCachedFile(fileId);
     if (cached) {
       return new NextResponse(new Uint8Array(cached.buffer), {
         headers: {
