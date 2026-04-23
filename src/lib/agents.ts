@@ -74,27 +74,38 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 - When routing, tell the user what you're doing: "I'll route this to [Agent Name] to handle..."`;
 
 // ---------------------------------------------------------------------------
-// Skills Awareness (shared across all agents)
+// Skills Awareness — per-agent based on their equipped skills
 // ---------------------------------------------------------------------------
 
-const SKILLS_AWARENESS = `
+const AGENT_SKILL_LIST: Record<string, string> = {
+  general: `code_review, research_deep, meeting_prep, documentation, troubleshooting, task_planning, data_analysis, creative_writing, docx, xlsx, pdf, pptx, security_audit, web_scraping, report_generation, email_compose, shader_dev, humanizer, react_native_dev, frontend_dev, vision_analysis, fullstack_dev`,
+  mail: `meeting_prep, creative_writing, docx, pdf, pptx, report_generation, email_compose, humanizer`,
+  code: `code_review, documentation, troubleshooting, security_audit, shader_dev, react_native_dev, frontend_dev, fullstack_dev`,
+  data: `task_planning, data_analysis, docx, xlsx, pdf, web_scraping, report_generation, vision_analysis`,
+  creative: `documentation, creative_writing, docx, pdf, pptx, shader_dev, humanizer, frontend_dev, vision_analysis`,
+  research: `research_deep, docx, pdf, pptx, web_scraping, report_generation, vision_analysis`,
+  ops: `troubleshooting, task_planning, docx, xlsx, pdf, security_audit`,
+};
+
+function getSkillsAwareness(agentId: string): string {
+  const skills = AGENT_SKILL_LIST[agentId] ?? "code_review, research_deep";
+  return `
 ## Skills System
 You have access to a Skills Library with pre-built methodologies you can apply to tasks. Skills can evolve and improve over time based on usage feedback.
+
+**Your available skills:** ${skills}
 
 **Skill workflow:**
 1. Use \`skill_list\` with a relevant search term or category
 2. Review matching skills and pick the best fit
 3. Use \`skill_use\` to get the full prompt template and workflow
 4. Follow the skill's methodology to complete the task
-5. Use \`skill_evaluate\` to assess the skill's execution quality
-6. Use \`skill_rate\` for quick feedback (1-5)
+5. Use \`skill_rate\` for quick feedback (1-5)
 
-**Advanced skill management:**
-- Use \`skill_evolve\` to improve a skill based on past evaluation feedback
-- Use \`skill_rollback\` to revert a skill if an evolution made it worse
-- Use \`skill_create\` to create new skills for recurring patterns
-- Use \`skill_inspect\` for detailed skill analysis
+**Skill inspection:**
+- Use \`skill_inspect\` for detailed skill analysis (performance, evolution history, agent bindings)
 `;
+}
 
 // ---------------------------------------------------------------------------
 // System Prompts — Each agent has a UNIQUE identity and personality
@@ -203,7 +214,7 @@ You can create and manage **projects** that execute autonomously from start to f
 
 ## Personality
 You are confident, capable, and clear. You explain what you're doing and why. You proactively suggest next actions based on what you find. You think strategically and connect dots across domains.
-${SKILLS_AWARENESS}`;
+${getSkillsAwareness("general")}`;
 
 const MAIL_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Mail Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Mail Agent. If asked who you are, say "I am Mail Agent, the executive assistant specializing in email, calendar, and communications."
 
@@ -263,7 +274,7 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Professional, organized, proactive. Like a top-tier executive assistant who anticipates needs. Warm but business-appropriate tone.
 
-${SKILLS_AWARENESS}
+${getSkillsAwareness("mail")}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -319,7 +330,7 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Analytical, precise, action-oriented. Think in terms of code quality, performance, and deployment health. You research before you recommend.
 
-${SKILLS_AWARENESS}
+${getSkillsAwareness("code")}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -378,7 +389,7 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Methodical, thorough, insightful. You don't just report numbers — you tell the story behind them.
 
-${SKILLS_AWARENESS}
+${getSkillsAwareness("data")}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -432,7 +443,7 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Imaginative, strategic, expressive, research-driven. You craft strategies backed by audience insight and competitive intelligence.
 
-${SKILLS_AWARENESS}
+${getSkillsAwareness("creative")}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -490,7 +501,7 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Thorough, analytical, objective. You pursue depth and accuracy. You never present a single source as the whole truth — you always cross-reference.
 
-${SKILLS_AWARENESS}
+${getSkillsAwareness("research")}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -539,7 +550,7 @@ ${AUTONOMOUS_ROUTING_RULES}
 ## Personality
 Vigilant, precise, action-oriented. You think in terms of uptime, error rates, and incident response. You proactively flag potential issues before they become problems.
 
-${SKILLS_AWARENESS}
+${getSkillsAwareness("ops")}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
@@ -652,7 +663,7 @@ const agents: AgentConfig[] = [
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
-      "skill_list", "skill_use", "skill_rate",
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
       // Workflows
       "workflow_plan", "workflow_status", "workflow_list",
       // Agent Routines
@@ -696,7 +707,7 @@ const agents: AgentConfig[] = [
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
-      "skill_list", "skill_use", "skill_rate",
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
       // Workflows
       "workflow_plan", "workflow_status", "workflow_list",
       // Agent Routines
@@ -742,7 +753,7 @@ const agents: AgentConfig[] = [
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
-      "skill_list", "skill_use", "skill_rate",
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
       // Workflows
       "workflow_plan", "workflow_status", "workflow_list",
       // Agent Routines
@@ -786,7 +797,7 @@ const agents: AgentConfig[] = [
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
-      "skill_list", "skill_use", "skill_rate",
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
       // Workflows
       "workflow_plan", "workflow_status", "workflow_list",
       // Agent Routines
@@ -827,7 +838,7 @@ const agents: AgentConfig[] = [
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
-      "skill_list", "skill_use", "skill_rate",
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
       // Workflows
       "workflow_plan", "workflow_status", "workflow_list",
       // Agent Routines
@@ -866,7 +877,7 @@ const agents: AgentConfig[] = [
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
       // Skills
-      "skill_list", "skill_use", "skill_rate",
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
       // Workflows
       "workflow_plan", "workflow_status", "workflow_list",
       // Agent Routines

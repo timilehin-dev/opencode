@@ -45,7 +45,7 @@ const BUILTIN_SKILLS: BuiltinSkill[] = [
     difficulty: "intermediate",
     tags: ["docx", "word", "document", "report", "proposal", "contract"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "mail", "creative", "research", "data", "ops"],
     workflow_steps: [
       { step: 1, action: "Analyze document requirements (type, audience, structure)" },
       { step: 2, action: "Plan document architecture (sections, headings, styles)" },
@@ -209,7 +209,7 @@ doc.add_page_break()
     difficulty: "intermediate",
     tags: ["xlsx", "excel", "spreadsheet", "financial", "data", "csv", "pivot"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "data", "ops"],
     workflow_steps: [
       { step: 1, action: "Determine task type (CREATE/READ/EDIT/VALIDATE)" },
       { step: 2, action: "Plan data structure and formulas" },
@@ -409,7 +409,7 @@ wb.save("output.xlsx")
     difficulty: "advanced",
     tags: ["pdf", "report", "proposal", "resume", "portfolio", "poster", "design"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "mail", "creative", "research", "data", "ops"],
     workflow_steps: [
       { step: 1, action: "Determine document type and design style" },
       { step: 2, action: "Select accent color and typography from design system" },
@@ -591,7 +591,7 @@ For documents that need a cover page, create a dedicated first page with:
     difficulty: "intermediate",
     tags: ["pptx", "powerpoint", "presentation", "slides", "deck"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "creative", "mail", "research"],
     workflow_steps: [
       { step: 1, action: "Research requirements and plan slide outline" },
       { step: 2, action: "Select color palette, fonts, and design style" },
@@ -793,7 +793,7 @@ slide.addChart(pres.charts.PIE, [
     difficulty: "advanced",
     tags: ["fullstack", "api", "backend", "frontend", "database", "auth", "real-time"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "code"],
     workflow_steps: [
       { step: 1, action: "Gather requirements (stack, service type, database, auth)" },
       { step: 2, action: "Make architectural decisions and explain choices" },
@@ -1022,7 +1022,7 @@ Client → POST /api/photos { fileKey: "uploads/abc.jpg" }
     difficulty: "advanced",
     tags: ["frontend", "ui", "ux", "animation", "design", "landing-page", "motion"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "code", "creative"],
     workflow_steps: [
       { step: 1, action: "Analyze request and set design dials" },
       { step: 2, action: "Plan layout sections and motion architecture" },
@@ -1223,7 +1223,7 @@ For generative art:
     difficulty: "advanced",
     tags: ["react-native", "expo", "mobile", "ios", "android", "animation"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "code"],
     workflow_steps: [
       { step: 1, action: "Set up project with Expo" },
       { step: 2, action: "Implement core screens and navigation" },
@@ -1427,7 +1427,7 @@ function LoginForm() {
     difficulty: "intermediate",
     tags: ["humanizer", "writing", "ai-detection", "editing", "natural-language"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "creative", "mail"],
     workflow_steps: [
       { step: 1, action: "Identify AI patterns in the text" },
       { step: 2, action: "Rewrite problematic sections" },
@@ -1607,7 +1607,7 @@ After rewriting, ask yourself:
     difficulty: "expert",
     tags: ["shader", "glsl", "webgl", "ray-marching", "sdf", "procedural", "gpu"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "code", "creative"],
     workflow_steps: [
       { step: 1, action: "Identify required techniques from routing table" },
       { step: 2, action: "Write GLSL shader code" },
@@ -1804,7 +1804,7 @@ Stay within these limits:
     difficulty: "intermediate",
     tags: ["vision", "image", "ocr", "analysis", "object-detection", "ui-review"],
     required_tools: [],
-    agent_bindings: [],
+    agent_bindings: ["general", "creative", "data", "research"],
     workflow_steps: [
       { step: 1, action: "Auto-detect image from user message (file path or URL)" },
       { step: 2, action: "Determine analysis mode (describe/ocr/ui-review/chart-data/object-detect)" },
@@ -2162,12 +2162,12 @@ export async function POST() {
 
     const AGENT_SKILL_MAP: Record<string, string[]> = {
       general: ["docx", "xlsx", "pdf", "pptx", "fullstack_dev", "frontend_dev", "react_native_dev", "humanizer", "shader_dev", "vision_analysis"],
-      mail: ["docx", "pdf", "pptx", "xlsx", "humanizer"],
-      code: ["fullstack_dev", "frontend_dev", "react_native_dev", "humanizer"],
-      data: ["xlsx", "pdf", "humanizer"],
-      creative: ["docx", "pptx", "pdf", "humanizer"],
-      research: ["pdf", "docx", "humanizer"],
-      ops: ["pdf", "humanizer"],
+      mail: ["docx", "pdf", "pptx", "humanizer"],
+      code: ["fullstack_dev", "frontend_dev", "react_native_dev", "shader_dev"],
+      data: ["xlsx", "pdf", "vision_analysis"],
+      creative: ["docx", "pptx", "pdf", "humanizer", "frontend_dev", "shader_dev", "vision_analysis"],
+      research: ["pdf", "docx", "pptx", "vision_analysis"],
+      ops: ["docx", "xlsx", "pdf"],
     };
 
     let equipCount = 0;

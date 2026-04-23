@@ -4923,13 +4923,18 @@ export const skillUseTool = tool({
     context: z.string().optional().describe("Optional context about the current task to customize the skill application"),
   })),
   execute: safeJson(async ({ skill_name, context }) => {
-    const params = new URLSearchParams({ search: skill_name, limit: "1" });
-    const res = await fetch(`${getSelfBaseUrl()}/api/skills?${params.toString()}`, {
-      headers: getSelfFetchHeaders(),
-    });
-    const data = await safeParseRes<{ success: boolean; data?: Array<Record<string, unknown>> }>(res);
-    if (data.success && data.data && data.data.length > 0) {
-      const skill = data.data[0];
+    // Direct DB lookup — exact name match first (no fragile HTTP self-call)
+    let result = await query("SELECT * FROM skills WHERE name = $1 AND is_active = true", [skill_name]);
+    if (result.rows.length === 0) {
+      // Fallback: slug match
+      result = await query("SELECT * FROM skills WHERE slug = $1 AND is_active = true", [skill_name]);
+    }
+    if (result.rows.length === 0) {
+      // Fallback: ILIKE match on name or display_name
+      result = await query("SELECT * FROM skills WHERE (name ILIKE $1 OR display_name ILIKE $1) AND is_active = true LIMIT 1", [`%${skill_name}%`]);
+    }
+    if (result.rows.length > 0) {
+      const skill = result.rows[0];
       return {
         success: true,
         skill_name: skill.name,
