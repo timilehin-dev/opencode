@@ -54,9 +54,9 @@ jobs:
           TAVILY_API_KEY_1: ${{ secrets.TAVILY_API_KEY_1 }}
           TAVILY_API_KEY_2: ${{ secrets.TAVILY_API_KEY_2 }}
           TAVILY_API_KEY_3: ${{ secrets.TAVILY_API_KEY_3 }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLAW_GITHUB_PAT: ${{ secrets.CLAW_GITHUB_PAT }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
         run: node scripts/execute-tasks.mjs --tasks 5 --timeout 300 --max-steps 40
 
       - name: Log completion

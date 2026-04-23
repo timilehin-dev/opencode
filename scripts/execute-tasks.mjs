@@ -23,7 +23,8 @@
 //   GOOGLE_CLIENT_SECRET      — Google OAuth client secret
 //   GOOGLE_REFRESH_TOKEN      — Google OAuth refresh token
 //   TAVILY_API_KEY_1          — Tavily search API key (optional, for web_search)
-//   OPENROUTER_API_KEY        — OpenRouter key (optional)
+//   CLAW_GITHUB_PAT           — GitHub PAT for GitHub API tools
+//   VERCEL_TOKEN               — Vercel API token (optional, for deploy checks)
 // ---------------------------------------------------------------------------
 
 import pg from "pg";
@@ -712,7 +713,7 @@ async function driveList({ query, pageSize }) {
 }
 
 // --- GitHub Tools ---
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
+const GITHUB_TOKEN = process.env.CLAW_GITHUB_PAT || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
 const GITHUB_REPO = process.env.GITHUB_REPO || "";
 
 async function githubFetch(path) {
