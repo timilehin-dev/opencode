@@ -78,32 +78,58 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 // ---------------------------------------------------------------------------
 
 const AGENT_SKILL_LIST: Record<string, string> = {
-  general: `code_review, research_deep, meeting_prep, documentation, troubleshooting, task_planning, data_analysis, creative_writing, docx, xlsx, pdf, pptx, security_audit, web_scraping, report_generation, email_compose, shader_dev, humanizer, react_native_dev, frontend_dev, vision_analysis, fullstack_dev`,
-  mail: `meeting_prep, creative_writing, docx, pdf, pptx, report_generation, email_compose, humanizer`,
-  code: `code_review, documentation, troubleshooting, security_audit, shader_dev, react_native_dev, frontend_dev, fullstack_dev`,
-  data: `task_planning, data_analysis, docx, xlsx, pdf, web_scraping, report_generation, vision_analysis`,
-  creative: `documentation, creative_writing, docx, pdf, pptx, shader_dev, humanizer, frontend_dev, vision_analysis`,
-  research: `research_deep, docx, pdf, pptx, web_scraping, report_generation, vision_analysis`,
-  ops: `troubleshooting, task_planning, docx, xlsx, pdf, security_audit`,
+  general: `docx, xlsx, pdf, pptx, ppt, charts, fullstack-dev, coding-agent, web-search, web-reader, agent-browser, image-generation, image-understand, image-edit, video-generation, video-understand, LLM, ASR, TTS, VLM, finance, skill-creator, skill-vetter, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis, content-strategy, blog-writer, seo-content-writer, ui-ux-pro-max, visual-design-foundations, storyboard-manager, podcast-generate, interview-designer, market-research-reports, stock-analysis-skill, multi-search-engine, web-shader-extractor`,
+  mail: `docx, pdf, xlsx, pptx, ppt, web-search, web-reader, LLM, contentanalysis, content-strategy`,
+  code: `fullstack-dev, coding-agent, web-search, web-reader, agent-browser, charts, skill-creator, skill-vetter`,
+  data: `xlsx, charts, finance, stock-analysis-skill, web-search, web-reader, LLM, VLM, contentanalysis`,
+  creative: `docx, pdf, xlsx, pptx, ppt, charts, image-generation, image-understand, image-edit, visual-design-foundations, ui-ux-pro-max, blog-writer, seo-content-writer, content-strategy, contentanalysis, storyboard-manager, podcast-generate, web-search, web-reader, TTS, video-generation`,
+  research: `web-search, web-reader, multi-search-engine, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis`,
+  ops: `web-search, web-reader, agent-browser, charts`,
 };
 
 function getSkillsAwareness(agentId: string): string {
-  const skills = AGENT_SKILL_LIST[agentId] ?? "code_review, research_deep";
+  const skills = AGENT_SKILL_LIST[agentId] ?? "docx, web-search, web-reader";
   return `
-## Skills System
-You have access to a Skills Library with pre-built methodologies you can apply to tasks. Skills can evolve and improve over time based on usage feedback.
+## SKILLS SYSTEM — MANDATORY PROACTIVE USAGE
+You have access to a Skills Library containing pre-built expert methodologies. **You MUST proactively apply skills to EVERY relevant task** — do NOT wait for the user to tell you to use a skill. Automatically detect when a skill applies and use it.
 
 **Your available skills:** ${skills}
 
-**Skill workflow:**
-1. Use \`skill_list\` with a relevant search term or category
-2. Review matching skills and pick the best fit
-3. Use \`skill_use\` to get the full prompt template and workflow
-4. Follow the skill's methodology to complete the task
-5. Use \`skill_rate\` for quick feedback (1-5)
+### CRITICAL RULE: Auto-Apply Skills
+Before starting ANY task, ask yourself: "Is there a skill for this?" If yes, use \`skill_use\` IMMEDIATELY. Do not skip this step.
 
-**Skill inspection:**
-- Use \`skill_inspect\` for detailed skill analysis (performance, evolution history, agent bindings)
+| Task Type | Auto-Apply This Skill |
+|---|---|
+| Create Word documents (.docx) | \`skill_use(skill_name="docx")\` |
+| Create Excel spreadsheets (.xlsx) | \`skill_use(skill_name="xlsx")\` |
+| Create PDF documents | \`skill_use(skill_name="pdf")\` |
+| Create PowerPoint presentations | \`skill_use(skill_name="pptx")\` or \`skill_use(skill_name="ppt")\` |
+| Create charts, graphs, diagrams | \`skill_use(skill_name="charts")\` |
+| Search the web for information | \`skill_use(skill_name="web-search")\` |
+| Read/extract content from web pages | \`skill_use(skill_name="web-reader")\` |
+| Generate images | \`skill_use(skill_name="image-generation")\` |
+| Analyze images | \`skill_use(skill_name="image-understand")\` or \`skill_use(skill_name="VLM")\` |
+| Generate audio/speech | \`skill_use(skill_name="TTS")\` |
+| Transcribe audio to text | \`skill_use(skill_name="ASR")\` |
+| Generate video | \`skill_use(skill_name="video-generation")\` |
+| Analyze video content | \`skill_use(skill_name="video-understand")\` |
+| Use AI chat/completions | \`skill_use(skill_name="LLM")\` |
+| Automate browser tasks | \`skill_use(skill_name="agent-browser")\` |
+| Financial/market data | \`skill_use(skill_name="finance")\` |
+| Academic paper search | \`skill_use(skill_name="aminer-academic-search")\` |
+| Full-stack web development | \`skill_use(skill_name="fullstack-dev")\` |
+| Write blog posts | \`skill_use(skill_name="blog-writer")\` |
+| SEO content writing | \`skill_use(skill_name="seo-content-writer")\` |
+| Content analysis/extraction | \`skill_use(skill_name="contentanalysis")\` |
+
+### How to Use Skills
+1. \`skill_use(skill_name="<name>")\` — loads the skill's full prompt template and methodology
+2. Follow the methodology returned by the skill to complete the task
+3. \`skill_list(search="<keyword>")\` — if unsure which skill applies, search for one
+4. \`skill_rate\` — rate the skill's performance after use (1-5)
+
+### Workflow
+For EVERY task: first call \`skill_use\` with the most relevant skill, then follow its methodology. This is NOT optional — it is how you ensure professional-quality output.
 `;
 }
 

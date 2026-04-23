@@ -2190,10 +2190,121 @@ export async function POST() {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // 4. Also sync filesystem skills (from /skills/ directory)
+    // -----------------------------------------------------------------------
+    let fsSyncResult = { synced: 0, total: 0 };
+    try {
+      const { readdir, readFile } = await import("node:fs/promises");
+      const { join } = await import("node:path");
+
+      const skillsDir = join(process.cwd(), "skills");
+      let entries: string[];
+      try {
+        entries = await readdir(skillsDir);
+      } catch { entries = []; }
+
+      // Find all directories with SKILL.md
+      const skillDirs: string[] = [];
+      for (const entry of entries) {
+        try {
+          await readFile(join(skillsDir, entry, "SKILL.md"), "utf-8");
+          skillDirs.push(entry);
+        } catch {}
+      }
+
+      // Agent → skill patterns mapping for filesystem skills
+      const fsAgentMap: Record<string, string[]> = {
+        general: ["*"],
+        mail: ["docx", "pdf", "xlsx", "pptx", "ppt", "web-search", "web-reader", "llm", "contentanalysis", "content-strategy"],
+        code: ["fullstack-dev", "fullstack_dev", "coding-agent", "web-search", "web-reader", "agent-browser", "charts", "skill-creator", "skill-vetter"],
+        data: ["xlsx", "charts", "finance", "stock-analysis-skill", "web-search", "web-reader", "llm", "vlm", "contentanalysis"],
+        creative: ["docx", "pdf", "xlsx", "pptx", "ppt", "charts", "image-generation", "image-understand", "image-edit", "visual-design-foundations", "ui-ux-pro-max", "blog-writer", "seo-content-writer", "content-strategy", "contentanalysis", "storyboard-manager", "podcast-generate", "web-search", "web-reader", "tts", "video-generation"],
+        research: ["web-search", "web-reader", "multi-search-engine", "aminer-academic-search", "aminer-daily-paper", "aminer-open-academic", "contentanalysis"],
+        ops: ["web-search", "web-reader", "agent-browser", "charts"],
+      };
+
+      for (const dirName of skillDirs) {
+        try {
+          const content = await readFile(join(skillsDir, dirName, "SKILL.md"), "utf-8");
+
+          // Extract display name and description from SKILL.md
+          const lines = content.split("\n").slice(0, 20);
+          let display_name = dirName.replace(/[-_]/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase());
+          let description = `${display_name} — provides structured methodology for ${dirName.replace(/-/g, " ")} tasks`;
+
+          for (const line of lines) {
+            if (line.startsWith("# ") && display_name === dirName.replace(/[-_]/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())) {
+              display_name = line.slice(2).trim();
+            }
+            if (line.startsWith("> ") && description.includes("provides structured methodology")) {
+              description = line.slice(2).trim().slice(0, 500);
+            }
+          }
+
+          // Auto-detect category
+          const lowerDir = dirName.toLowerCase();
+          let category = "general";
+          if (/docx|pdf|pptx|ppt|document/.test(lowerDir)) category = "document";
+          else if (/code|dev|frontend|fullstack|backend|shader|browser/.test(lowerDir)) category = "code";
+          else if (/xlsx|data|finance|stock|analy/.test(lowerDir)) category = "data";
+          else if (/research|search|aminer|academic/.test(lowerDir)) category = "research";
+          else if (/blog|content|seo|writing|creative|podcast|storyboard/.test(lowerDir)) category = "content";
+          else if (/image|video|vision|tts|asr|design|ui-ux/.test(lowerDir)) category = "media";
+
+          const id = `skill-${dirName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+          const name = dirName.toLowerCase().replace(/\s+/g, "_");
+          const slug = dirName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
+          // Determine agent bindings
+          const agentBindings: string[] = [];
+          for (const [agent, patterns] of Object.entries(fsAgentMap)) {
+            if (patterns.includes("*")) { agentBindings.push(agent); continue; }
+            if (patterns.some(p => p.toLowerCase() === name || p.toLowerCase() === slug || p.toLowerCase() === lowerDir)) {
+              agentBindings.push(agent);
+            }
+          }
+
+          await query(
+            `INSERT INTO skills (id, name, display_name, slug, description, category, difficulty, prompt_template, tags, agent_bindings, is_builtin, is_active, version)
+             VALUES ($1, $2, $3, $4, $5, $6, 'intermediate', $7, '{}', $8, true, true, 1)
+             ON CONFLICT (name) DO UPDATE SET
+               display_name = EXCLUDED.display_name,
+               slug = EXCLUDED.slug,
+               description = EXCLUDED.description,
+               category = EXCLUDED.category,
+               prompt_template = EXCLUDED.prompt_template,
+               agent_bindings = EXCLUDED.agent_bindings,
+               is_builtin = true,
+               is_active = true,
+               updated_at = NOW(),
+               version = skills.version + 1`,
+            [id, name, display_name, slug, description, category, content, agentBindings]
+          );
+          fsSyncResult.synced++;
+        } catch (e) {
+          console.warn(`[seed-builtin] Failed to sync filesystem skill ${dirName}:`, e);
+        }
+      }
+      fsSyncResult.total = skillDirs.length;
+
+      // Auto-equip all filesystem skills to their bound agents
+      await query(`
+        INSERT INTO agent_skills (agent_id, skill_id, is_equipped)
+        SELECT DISTINCT unnest(s.agent_bindings), s.id, true
+        FROM skills s
+        WHERE s.is_active = true AND array_length(s.agent_bindings, 1) > 0
+        ON CONFLICT (agent_id, skill_id) DO UPDATE SET is_equipped = true, equipped_at = NOW()
+      `);
+    } catch (e) {
+      console.warn("[seed-builtin] Filesystem sync failed (non-critical):", e);
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Seeded ${results.length} builtin skills, equipped ${equipCount} agent-skill bindings`,
+      message: `Seeded ${results.length} builtin skills + synced ${fsSyncResult.synced}/${fsSyncResult.total} filesystem skills, equipped ${equipCount} agent-skill bindings`,
       data: results,
+      filesystem_sync: fsSyncResult,
     });
   } catch (error) {
     const message =
