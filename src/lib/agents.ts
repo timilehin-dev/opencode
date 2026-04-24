@@ -653,7 +653,7 @@ const agents: AgentConfig[] = [
       "workflow_plan", "workflow_execute", "workflow_status",
       "workflow_list", "workflow_step_execute", "workflow_cancel",
       // Agent Routines
-      "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle",
+      "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle", "cron_sync",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],

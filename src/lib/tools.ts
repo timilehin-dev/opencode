@@ -6778,13 +6778,13 @@ export const getTeamProgressTool = tool({
 // ---------------------------------------------------------------------------
 
 export const routineCreateTool = tool({
-  description: "Create a recurring routine for an agent. Routines run automatically on a schedule (e.g., every 30 minutes, every hour) and show up on the Routines page in the dashboard. Use this for monitoring tasks, periodic reports, health checks, etc.",
+  description: "Create a recurring routine for an agent. Routines run automatically on a schedule (e.g., every 30 minutes, every hour) via dedicated pg_cron jobs. Each routine gets its own cron schedule. Use this for monitoring tasks, periodic reports, health checks, inbox checks, etc.",
   inputSchema: zodSchema(z.object({
     agent_id: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).describe("Which agent should execute this routine"),
     name: z.string().describe("Short descriptive name for the routine"),
     task: z.string().describe("What the agent should do each time the routine runs"),
     context: z.string().optional().describe("Additional context or instructions"),
-    interval_minutes: z.number().optional().describe("How often to run in minutes (default: 60). E.g., 30 for every 30 min, 120 for every 2 hours"),
+    interval_minutes: z.number().optional().describe("How often to run in minutes (default: 60). E.g., 30 for every 30 min, 120 for every 2 hours, 1440 for daily"),
     priority: z.enum(["high", "medium", "low"]).optional().describe("Priority level (default: medium)"),
   })),
   execute: safeJson(async ({ agent_id, name, task, context, interval_minutes, priority }) => {
@@ -6797,7 +6797,15 @@ export const routineCreateTool = tool({
       [agent_id, name, task, context || "", interval, priority || "medium", nextRun.toISOString()]
     );
     if (result.rows.length > 0) {
-      return { success: true, routine: result.rows[0], message: `Routine "${name}" created for ${agent_id}. Runs every ${interval} minutes. First run at ${nextRun.toISOString()}.` };
+      // Auto-register pg_cron job for this routine
+      const { registerRoutineCron } = await import("@/lib/pg-cron-manager");
+      const cronResult = await registerRoutineCron(result.rows[0].id, interval);
+      return {
+        success: true,
+        routine: result.rows[0],
+        cron: cronResult,
+        message: `Routine "${name}" created for ${agent_id}. Runs every ${interval} min via pg_cron (${cronResult.schedule}).${cronResult.success ? "" : ` Cron warning: ${cronResult.error}`}`,
+      };
     }
     return { success: false, error: "Failed to create routine" };
   }),
@@ -6829,7 +6837,7 @@ export const routineListTool = tool({
 });
 
 export const routineUpdateTool = tool({
-  description: "Update an existing routine — change name, task, interval, priority, or active status.",
+  description: "Update an existing routine — change name, task, interval, priority, or active status. If interval or active status changes, the pg_cron job is automatically updated.",
   inputSchema: zodSchema(z.object({
     routine_id: z.number().describe("The routine ID to update"),
     name: z.string().optional(),
@@ -6859,6 +6867,17 @@ export const routineUpdateTool = tool({
     values.push(routine_id);
     const queryString = `UPDATE agent_routines SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING *`;
     const result = await query(queryString, values);
+
+    // Auto-sync pg_cron job if interval or active status changed
+    if (interval_minutes || is_active !== undefined) {
+      const { registerRoutineCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+      if (is_active === false) {
+        await unregisterCron(`routine-${routine_id}`);
+      } else {
+        const routine = result.rows[0];
+        if (routine) await registerRoutineCron(routine_id, Number(routine.interval_minutes));
+      }
+    }
     if (result.rows.length > 0) {
       return { success: true, routine: result.rows[0] };
     }
@@ -6867,18 +6886,21 @@ export const routineUpdateTool = tool({
 });
 
 export const routineDeleteTool = tool({
-  description: "Delete an agent routine permanently.",
+  description: "Delete an agent routine permanently. Also removes the pg_cron job.",
   inputSchema: zodSchema(z.object({
     routine_id: z.number().describe("The routine ID to delete"),
   })),
   execute: safeJson(async ({ routine_id }) => {
+    // Remove pg_cron job first
+    const { unregisterCron } = await import("@/lib/pg-cron-manager");
+    await unregisterCron(`routine-${routine_id}`);
     await query("DELETE FROM agent_routines WHERE id = $1", [routine_id]);
     return { success: true, deleted: true };
   }),
 });
 
 export const routineToggleTool = tool({
-  description: "Quickly enable or disable a routine without deleting it.",
+  description: "Quickly enable or disable a routine without deleting it. Enabling re-registers the pg_cron job; disabling removes it.",
   inputSchema: zodSchema(z.object({
     routine_id: z.number().describe("The routine ID"),
     is_active: z.boolean().describe("true to enable, false to disable/pause"),
@@ -6889,9 +6911,36 @@ export const routineToggleTool = tool({
       [is_active, routine_id]
     );
     if (result.rows.length > 0) {
-      return { success: true, routine: result.rows[0], message: is_active ? "Routine enabled" : "Routine paused" };
+      // Sync pg_cron job
+      const { registerRoutineCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+      if (is_active) {
+        await registerRoutineCron(routine_id, Number(result.rows[0].interval_minutes));
+      } else {
+        await unregisterCron(`routine-${routine_id}`);
+      }
+      return { success: true, routine: result.rows[0], message: is_active ? "Routine enabled (pg_cron job registered)" : "Routine paused (pg_cron job removed)" };
     }
     return { success: false, error: "Routine not found" };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Cron Sync Tool — Sync all routines to pg_cron
+// ---------------------------------------------------------------------------
+
+export const cronSyncTool = tool({
+  description: "Synchronize all agent routines with pg_cron jobs. Ensures every active routine has a dedicated pg_cron job registered, and removes jobs for inactive/deleted routines. Use this after bulk changes or to fix scheduling issues.",
+  inputSchema: zodSchema(z.object({})),
+  execute: safeJson(async () => {
+    const { syncRoutineCronJobs, listKlawCronJobs } = await import("@/lib/pg-cron-manager");
+    const syncResult = await syncRoutineCronJobs();
+    const jobs = await listKlawCronJobs();
+    return {
+      success: true,
+      ...syncResult,
+      totalCronJobs: jobs.length,
+      cronJobs: jobs.map((j) => ({ name: j.jobname, schedule: j.schedule, active: j.active })),
+    };
   }),
 });
 
@@ -7072,6 +7121,7 @@ export const allTools: Record<string, ToolType> = {
   routine_update: routineUpdateTool,
   routine_delete: routineDeleteTool,
   routine_toggle: routineToggleTool,
+  cron_sync: cronSyncTool,
   // Autonomous Task Creation & Team Coordination
   schedule_agent_task: scheduleAgentTaskTool,
   get_team_status: getTeamStatusTool,
