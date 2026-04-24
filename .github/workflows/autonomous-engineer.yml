@@ -1,0 +1,123 @@
+# KlawHub Autonomous Engineer — Twice-daily self-improvement cycle
+# Runs at 9:00 AM and 9:00 PM WAT (Africa/Lagos).
+# Checks build health, monitors deploys, scans for issues, and can auto-apply fixes.
+#
+# This workflow monitors the live system and creates actionable reports.
+# It does NOT auto-push code changes — that's done by the AI Chief Engineer
+# who reviews these reports and ships improvements.
+
+name: Autonomous Engineer
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 9:00 AM WAT (UTC+1)
+    - cron: '0 20 * * *'  # 9:00 PM WAT (UTC+1)
+  workflow_dispatch:       # manual trigger from GitHub UI
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - monitor-only
+          - build-check
+
+concurrency:
+  group: autonomous-engineer
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  # ── Job 1: Health & Deploy Monitor ──────────────────────────────────────
+  monitor:
+    name: System Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run monitoring script
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODE: ${{ github.event.inputs.mode || 'full' }}
+        run: node scripts/autonomous-engineer.mjs
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engineer-report-${{ github.run_number }}
+          path: /tmp/engineer-report.json
+          retention-days: 7
+
+  # ── Job 2: Build Verification ──────────────────────────────────────────
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run TypeScript build
+        run: npm run build 2>&1 | tee /tmp/build-output.txt
+
+      - name: Check for build errors
+        if: failure()
+        run: |
+          echo "::error::Build failed! Output saved to artifact."
+
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ github.run_number }}
+          path: /tmp/build-output.txt
+          retention-days: 3
+
+  # ── Job 3: Issue Triage (only in full mode) ────────────────────────────
+  triage:
+    name: Issue Triage
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.mode != 'build-check' }}
+    timeout-minutes: 3
+    steps:
+      - name: Check for open issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OPEN=$(gh issue list --state open --json number,title,labels,createdAt --limit 10)
+          COUNT=$(echo "$OPEN" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+          echo "Open issues: $COUNT"
+          echo "$OPEN" | python3 -c "
+          import json, sys
+          issues = json.load(sys.stdin)
+          for i in issues:
+            labels = ', '.join([l['name'] for l in i.get('labels', [])])
+            print(f\"  #{i['number']} [{labels}] {i['title']} ({i['createdAt'][:10]})\")
+          " 2>/dev/null || echo "  No issues or gh CLI issue"
