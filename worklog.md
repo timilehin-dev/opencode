@@ -213,3 +213,22 @@ Stage Summary:
 - Commit includes: project decompose fix, security headers, accessibility, page tracking
 - DB confirmed clean — no stale ghost skill entries
 - Remaining growth items: user auth (large feature), cost/token tracking
+---
+Task ID: 19-22
+Agent: Main Agent
+Task: Major document quality upgrade — LaTeX conversion, DOCX improvements, PDF fix
+
+Work Log:
+- Analyzed user's test DOCX output — found $\rightarrow$ LaTeX artifacts, fragmented paragraphs, no TOC
+- Created src/lib/latex-symbols.ts — 100+ LaTeX-to-Unicode symbol mappings (arrows, Greek, math ops, sets, etc.)
+- Upgraded DOCX tool: added TOC page, A4 page size, subtitle param, paragraph merging, enhanced inline formatting (bold+italic, links), table cell formatting
+- Fixed PDF tool: added LaTeX conversion, pdfkit import guard with clear error message
+- Installed pdfkit dependency
+- Committed ec06e73 and pushed
+
+Stage Summary:
+- LaTeX symbols like $\rightarrow$ now convert to → automatically
+- DOCX now has professional TOC between cover and content
+- Consecutive text lines merge into proper paragraphs (no more 1-line fragments)
+- Table cells support bold/italic formatting
+- PDF tool has graceful error if pdfkit missing
