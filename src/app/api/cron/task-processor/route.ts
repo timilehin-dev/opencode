@@ -19,7 +19,10 @@ import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
 import { query } from "@/lib/db";
 
-export const maxDuration = 300; // 5 min — Vercel Pro
+// Vercel Hobby (free) has a 10s timeout — maxDuration is best-effort.
+// pg_cron fires every 5 min, so even with timeouts, tasks progress over time.
+// If you upgrade to Vercel Pro, change this to 300 for 5-min execution windows.
+export const maxDuration = 300;
 
 // ---------------------------------------------------------------------------
 // Helper: execute a task prompt using an agent
@@ -117,7 +120,7 @@ export async function GET(request: Request) {
       SELECT * FROM agent_tasks
       WHERE status = 'pending'
       ORDER BY priority DESC, created_at ASC
-      LIMIT 3
+      LIMIT 1
       FOR UPDATE SKIP LOCKED
     `);
 
@@ -182,7 +185,7 @@ export async function GET(request: Request) {
       ORDER BY
         CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
         created_at ASC
-      LIMIT 2
+      LIMIT 1
       FOR UPDATE SKIP LOCKED
     `);
 
@@ -255,7 +258,7 @@ export async function GET(request: Request) {
       ORDER BY
         CASE pt.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
         pt.created_at ASC
-      LIMIT 2
+      LIMIT 1
       FOR UPDATE SKIP LOCKED
     `);
 
