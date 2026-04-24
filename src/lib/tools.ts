@@ -5556,7 +5556,8 @@ export const projectDecomposeAndAddTool = tool({
 Each task should be specific, actionable, and assigned to the right agent.
 Available agents: general, mail, code, data, creative, research, ops
 Task types: research, code, design, testing, deployment, docs, communication, general
-Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "priority", "assigned_agent", "depends_on": [], "task_prompt", "sort_order" }] }`;
+Priorities: critical, high, medium, low
+Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "priority": "critical|high|medium|low", "assigned_agent", "depends_on": [], "task_prompt", "sort_order" }] }`;
 
       const userPrompt = `Decompose this project goal into tasks:\n\nGoal: ${goal}\n${context ? `Context: ${context}` : ""}\nComplexity: ${complexity || "moderate"}\nMax tasks: ${Math.min(max_tasks || 8, 15)}`;
 
@@ -5586,30 +5587,41 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
 
       if (tasks.length === 0) return { success: false, error: "AI returned no tasks" };
 
-      // Insert all tasks into the project
+      // Validate and sanitize tasks before insert
+      const VALID_PRIORITIES = new Set(['critical', 'high', 'medium', 'low']);
+      const VALID_TYPES = new Set(['research', 'code', 'design', 'testing', 'deployment', 'docs', 'communication', 'general']);
+      const VALID_AGENTS = new Set(['general', 'mail', 'code', 'data', 'creative', 'research', 'ops']);
+
+      // Build batch insert
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const insertedTasks: any[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const titleToId: Record<string, any> = {}; // Map title → task ID for dependency resolution
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+      let paramIdx = 1;
 
-      for (const task of tasks) {
-        // Resolve depends_on: titles → IDs
-        const dependsOnIds = (task.depends_on || []).map((title: string) => titleToId[title]).filter(Boolean);
+      for (let idx = 0; idx < tasks.length; idx++) {
+        const task = tasks[idx];
+        const safePriority = VALID_PRIORITIES.has(task.priority) ? task.priority : 'medium';
+        const safeType = VALID_TYPES.has(task.task_type) ? task.task_type : 'general';
+        const safeAgent = VALID_AGENTS.has(task.assigned_agent) ? task.assigned_agent : 'general';
 
-        const insertResult = await query(
-          `INSERT INTO project_tasks (project_id, title, description, task_type, priority, assigned_agent, depends_on, task_prompt, sort_order)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, title, priority, assigned_agent`,
-          [
-            project_id, task.title, task.description || "", task.task_type || "general",
-            task.priority || "medium", task.assigned_agent || "general",
-            dependsOnIds.length > 0 ? dependsOnIds : null,
-            task.task_prompt || task.description || "",
-            task.sort_order || insertedTasks.length,
-          ],
+        placeholders.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
+        values.push(
+          project_id,
+          task.title || 'Untitled Task',
+          task.description || null,
+          safeType,
+          safePriority,
+          safeAgent,
+          task.task_prompt || null,
+          task.sort_order || idx,
         );
+      }
 
-        insertedTasks.push(insertResult.rows[0]);
-        titleToId[task.title] = insertResult.rows[0].id;
+      if (values.length > 0) {
+        const insertSql = `INSERT INTO project_tasks (project_id, title, description, task_type, priority, assigned_agent, task_prompt, sort_order) VALUES ${placeholders.join(', ')} RETURNING id, title, status`;
+        const result = await query(insertSql, values);
+        insertedTasks.push(...result.rows);
       }
 
       // Force recalculate project task counts

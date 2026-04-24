@@ -975,7 +975,7 @@ function AgentChatSession({
   return (
     <div className="flex flex-col h-full">
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 lg:px-6 py-4">
+      <div aria-live="polite" role="log" className="flex-1 overflow-y-auto custom-scrollbar px-4 lg:px-6 py-4">
         {visibleMessages.length === 0 ? (
           /* Empty State — redesigned with larger visual cards */
           <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto text-center">

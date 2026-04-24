@@ -88,7 +88,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
+      <nav aria-label="Main navigation" className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
         {/* Core navigation items */}
         {coreNavItems.map((item) => {
           const active = isActive(item.href);
@@ -97,6 +97,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
               key={item.href}
               href={item.href}
               onClick={onItemClick}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
                 active
@@ -166,6 +167,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
                       key={item.href}
                       href={item.href}
                       onClick={onItemClick}
+                      aria-current={active ? "page" : undefined}
                       className={cn(
                         "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 group",
                         active

@@ -5,6 +5,7 @@ import { NotificationProvider } from "@/context/notification-context";
 import { NotificationPanel } from "@/components/dashboard/notification-panel";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { AppBottomNav } from "@/components/dashboard/app-bottom-nav";
+import { PageViewTracker } from "@/components/page-view-tracker";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 export default function AppLayout({
@@ -44,13 +45,22 @@ export default function AppLayout({
 
   return (
     <NotificationProvider onNavigate={handleNotificationNavigate}>
+      <PageViewTracker />
       <div className="h-dvh h-screen flex overflow-hidden bg-secondary">
+        {/* Skip to main content — accessibility */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-blue-600 focus:px-3 focus:py-2 focus:text-white"
+        >
+          Skip to main content
+        </a>
+
         {/* Left Sidebar (desktop) */}
         <AppSidebar />
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto custom-scrollbar mobile-scroll pb-[var(--bottom-nav-height)]">
-          <div className="min-h-full">
+          <div id="main-content" className="min-h-full">
             {children}
           </div>
           {/* Legal footer — required by Google OAuth verification */}

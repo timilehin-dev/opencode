@@ -139,6 +139,16 @@ export function trackAgentSwitch(fromAgentId: string, toAgentId: string, toAgent
   });
 }
 
+/** Track a page view event (convenience wrapper). */
+export function trackPageView(path: string): void {
+  trackEvent({
+    type: "page_view",
+    agentId: "system",
+    agentName: "System",
+    data: { path },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Public API — Queries
 // ---------------------------------------------------------------------------
