@@ -59,7 +59,7 @@ jobs:
 
             // 2. Check for stale running tasks (>15 min)
             const stale = await pool.query(
-              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'\"
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'\"
             );
             console.log('Stale running tasks:', stale.rows[0].count);
 
@@ -89,7 +89,7 @@ jobs:
 
             // 7. Recent errors
             const errors = await pool.query(
-              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '1 hour'\"
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '1 hour'\"
             );
             console.log('Recent task failures (1h):', errors.rows[0].count);
 
@@ -106,7 +106,7 @@ jobs:
             // Recover stale tasks
             if (Number(stale.rows[0].count) > 0) {
               const recovered = await pool.query(
-                \"UPDATE agent_tasks SET status = 'pending', updated_at = NOW() WHERE status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'\"
+                \"UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'\"
               );
               console.log('Recovered stale tasks:', recovered.rowCount);
             }
