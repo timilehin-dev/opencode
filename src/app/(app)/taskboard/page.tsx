@@ -32,14 +32,14 @@ interface Task {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  assigned_agent: string | null;
-  created_by: string | null;
+  assignedAgent: string | null;
+  createdBy: string | null;
   context: string | null;
-  parent_task_id: string | null;
+  parentTaskId: string | null;
   deadline: string | null;
   tags: string[];
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface TaskSummary {
@@ -160,7 +160,7 @@ export default function TaskBoardPage() {
   const uniqueAgents = useMemo(() => {
     const agents = new Set<string>();
     for (const t of tasks) {
-      if (t.assigned_agent) agents.add(t.assigned_agent);
+      if (t.assignedAgent) agents.add(t.assignedAgent);
     }
     return Array.from(agents).sort();
   }, [tasks]);
@@ -168,7 +168,7 @@ export default function TaskBoardPage() {
   // Filtered tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (filterAgent !== "all" && t.assigned_agent !== filterAgent) return false;
+      if (filterAgent !== "all" && t.assignedAgent !== filterAgent) return false;
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       return true;
     });
@@ -546,10 +546,10 @@ function TaskCard({ task, onClick, onDragStart, isDragging }: { task: Task; onCl
           {priority.label}
         </Badge>
 
-        {task.assigned_agent && (
+        {task.assignedAgent && (
           <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <User className="w-3 h-3" />
-            {task.assigned_agent}
+            {task.assignedAgent}
           </span>
         )}
 
@@ -612,8 +612,8 @@ function TaskPanel({
   const [description, setDescription] = useState(task?.description || "");
   const [status, setStatus] = useState<TaskStatus>(task?.status || "backlog");
   const [priority, setPriority] = useState<TaskPriority>(task?.priority || "medium");
-  const [assignedAgent, setAssignedAgent] = useState(task?.assigned_agent || "");
-  const [deadline, setDeadline] = useState(task?.deadline?.split("T")[0] || "");
+  const [assignedAgent, setAssignedAgent] = useState(task?.assignedAgent || "");
+  const [deadline, setDeadline] = useState(task?.deadline ? task.deadline.split("T")[0] : "");
   const [tagsInput, setTagsInput] = useState(task?.tags?.join(", ") || "");
 
   const tags = tagsInput
