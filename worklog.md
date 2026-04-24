@@ -170,3 +170,25 @@ Stage Summary:
 - Settings default now 262144 across client, server, and agent override pages
 - All 3 document generation tools (PDF, DOCX, XLSX) now have consistent professional navy/blue design system
 - Commits pushed: 2329579, d0f7bf6, 7b4b548
+---
+Task ID: 1-8
+Agent: Main Agent
+Task: Production-grade improvements — High + Medium priority items
+
+Work Log:
+- Explored entire routines system (cron endpoint, DB schema, tool definitions, frontend UI)
+- Explored document generation system (tools, chat UI, file caching, download mechanism)
+- Explored skill categories, error handling, rate limiting, message persistence
+- Fixed critical bug: wrapped executeRoutine() in withAgentContext(agentId) so tools get correct agent ID
+- Wired up rate limiting middleware for /api/chat POST requests
+- Added retry logic (3 attempts, exponential backoff) to Supabase message persistence
+- Removed 4 ghost skill directories: dream-interpreter, get-fortune-analysis, mindfulness-meditation, gift-evaluator
+- Added contextual loading indicators for document generation tools in chat UI
+- Adopted withErrorHandler in cron route POST handler
+- Committed as e9d3fbc and pushed to main
+
+Stage Summary:
+- Commit: e9d3fbc — "Production-grade improvements: fix routines agent context, wire rate limiting, add retry logic, remove ghost skills, improve loading states, adopt error handling"
+- All 8 items (3 HIGH + 5 MEDIUM) completed
+- Key finding: Document downloads, streaming, and loading states were already implemented — only needed minor enhancements
+- Routines "agent ID undefined" bug root cause: missing withAgentContext wrapper in executeRoutine()
