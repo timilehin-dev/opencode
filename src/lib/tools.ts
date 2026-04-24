@@ -5665,17 +5665,29 @@ export const projectSkipTaskTool = tool({
 export const projectDecomposeAndAddTool = tool({
   description: "ALL-IN-ONE project decomposition: Takes a project ID and a goal, decomposes it into structured tasks via AI, and automatically adds all tasks to the project. This is the recommended way to set up a new project — create the project first with project_create, then use this tool to fill it with tasks. The executor will automatically start executing tasks that have no dependencies.",
   inputSchema: zodSchema(z.object({
-    project_id: z.number().describe("Project ID to add tasks to"),
+    project_id: z.number().optional().describe("Project ID to add tasks to"),
+    project_name: z.string().optional().describe("Project name (alternative to project_id — looked up by name)"),
     goal: z.string().describe("Project goal to decompose into tasks"),
     context: z.string().optional().describe("Additional context, constraints, or requirements"),
     complexity: z.enum(["simple", "moderate", "complex"]).optional().describe("Complexity level (default: moderate)"),
     max_tasks: z.number().optional().describe("Max tasks to create (default 8, max 15)"),
   })),
-  execute: safeJson(async ({ project_id, goal, context, complexity, max_tasks }) => {
+  execute: safeJson(async ({ project_id, project_name, goal, context, complexity, max_tasks }) => {
     try {
-      // Verify project exists
-      const proj = await query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
-      if (proj.rows.length === 0) return { success: false, error: `Project ${project_id} not found` };
+      if (!project_id && !project_name) return { success: false, error: "Either project_id or project_name is required" };
+
+      // Verify project exists — try ID first, then name fallback
+      let proj;
+      if (project_id) {
+        proj = await query("SELECT id, name, status FROM projects WHERE id = $1", [project_id]);
+      }
+      if ((!proj || proj.rows.length === 0) && project_name) {
+        proj = await query("SELECT id, name, status FROM projects WHERE name ILIKE $1", [project_name]);
+      }
+      if (!proj || proj.rows.length === 0)
+        return { success: false, error: `Project not found (id=${project_id}, name=${project_name})` };
+
+      const resolvedProjectId = proj.rows[0].id;
 
       // Get AI decomposition via Ollama Cloud (Gemma 4 31B)
       const ollamaKey = nextOllamaKey();
@@ -5735,7 +5747,7 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
 
         placeholders.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
         values.push(
-          project_id,
+          resolvedProjectId,
           task.title || 'Untitled Task',
           task.description || null,
           safeType,
@@ -5753,11 +5765,11 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
       }
 
       // Force recalculate project task counts
-      await query("SELECT update_project_task_counts($1)", [project_id]);
+      await query("SELECT update_project_task_counts($1)", [resolvedProjectId]);
 
       return {
         success: true,
-        project_id,
+        project_id: resolvedProjectId,
         project_name: proj.rows[0].name,
         tasks_added: insertedTasks.length,
         tasks: insertedTasks,

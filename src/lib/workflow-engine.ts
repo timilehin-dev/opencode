@@ -81,7 +81,23 @@ export interface WorkflowWithSteps extends Omit<WorkflowRow, "quality_score" | "
 // LLM Helper — Gemma 4 via Ollama Cloud
 // ---------------------------------------------------------------------------
 
-async function callGemma4(prompt: string, temperature = 0.3): Promise<string> {
+// System prompt for workflow step execution — prevents the "Template Trap"
+// where agents describe HOW to do work instead of actually doing it.
+const EXECUTOR_SYSTEM_PROMPT = `You are a production executor in a multi-step workflow. Your ONLY job is to PRODUCE ACTUAL OUTPUT, not describe how to produce it.
+
+ABSOLUTE RULES:
+1. NEVER provide templates, frameworks, outlines, or methodologies unless the step EXPLICITLY asks for one.
+2. NEVER say "Here is a template you could use" or "Consider the following approach."
+3. ALWAYS produce the final, actual, deliverable content that the step requires.
+4. If the step says "Write a report about X", WRITE THE ACTUAL REPORT — every section, every paragraph, every word. Not a report outline.
+5. If the step says "Analyze data about X", provide the actual analysis with real findings, numbers, and conclusions — not "here are the steps to analyze."
+6. If the step says "Create a strategy for X", provide the actual strategy document with specific tactics, timelines, and KPIs — not a "strategy framework."
+7. OUTPUT QUALITY CHECK: Before responding, ask yourself "Could someone use this output directly without further work?" If NO, rewrite it until YES.
+8. DEFAULT TO OVERPRODUCTION. It is better to produce 2000 words of actual content than 500 words that say "fill in the details here."`;
+
+
+
+async function callGemma4(prompt: string, temperature = 0.3, systemPrompt?: string): Promise<string> {
   const { generateText } = await import("ai");
   const { createOpenAI } = await import("@ai-sdk/openai");
 
@@ -93,6 +109,7 @@ async function callGemma4(prompt: string, temperature = 0.3): Promise<string> {
 
   const result = await generateText({
     model,
+    ...(systemPrompt ? { system: systemPrompt } : {}),
     prompt,
     maxOutputTokens: 262144,
     temperature,
@@ -186,6 +203,11 @@ Rules:
 3. For each step, recommend the best skill to use (or "none" if no skill fits)
 4. Each step needs a clear input_context describing what data from previous steps it needs
 5. Keep input_context concise but actionable
+6. CRITICAL: Each step's "description" must specify the CONCRETE DELIVERABLE expected, not just what the step "does". The executor agent will receive ONLY this description and must produce the final output.
+   BAD: "Research the market and compile findings"
+   GOOD: "Search the web for recent market data on [specific topic]. Identify the top 5 trends with specific statistics, sources, and dates. Write a 500-word analysis of each trend with supporting evidence."
+   BAD: "Create a content strategy"
+   GOOD: "Write a complete content strategy document including: target audience persona (demographics, psychographics, pain points), content pillars (3-5 with rationale), channel strategy with posting frequency, 10 specific content ideas with titles and formats, and KPIs with baseline metrics."
 
 User request: ${query}
 
@@ -195,7 +217,7 @@ Respond ONLY in this JSON format (no markdown, no code blocks):
   "steps": [
     {
       "title": "Step title",
-      "description": "Detailed description of what this step does",
+      "description": "Detailed description specifying the EXACT deliverable this step must produce. Be prescriptive about format, length, and content requirements.",
       "skill_name": "skill name or none",
       "input_context": "What data/input this step needs"
     }
@@ -385,17 +407,35 @@ export async function executeWorkflow(
           }
         }
 
-        // Build executor prompt
-        const executorPrompt = `${skillPrompt}## Task
+        // Build executor prompt — includes original query to ground the agent
+        const executorPrompt = `${skillPrompt}## ORIGINAL USER REQUEST
+${workflow.query || step.description}
+
+## YOUR TASK (Step ${step.step_number}: ${step.title})
 ${step.description}
 
 ## Context from previous steps
 ${previousContext || "(This is the first step — no prior context)"}
 
-## Instructions
-Complete this step thoroughly. Produce a comprehensive output that can be used by subsequent steps. Be specific and actionable.`;
+## CRITICAL EXECUTION INSTRUCTIONS
+You are EXECUTING this step, not planning it. You must produce the FINAL, ACTUAL deliverable.
 
-        const outputResult = await callGemma4(executorPrompt, 0.4);
+FORBIDDEN:
+- Templates, frameworks, outlines with placeholders like "[insert here]", "TODO", "fill in"
+- Methodology descriptions ("first do X, then do Y, then do Z")
+- Meta-commentary ("I would recommend...", "You should consider...")
+- Placeholder sections, skeleton content, or abbreviated examples
+
+REQUIRED:
+- Complete, finished content that can be used as-is by the next step
+- Specific data, actual numbers, real content — never generic placeholders
+- If writing content: write every paragraph fully
+- If analyzing: provide the actual analysis results, not the analysis method
+- If creating: produce the final creation, not a plan for creating
+
+Produce the complete output now.`;
+
+        const outputResult = await callGemma4(executorPrompt, 0.2, EXECUTOR_SYSTEM_PROMPT);
         const durationMs = Date.now() - startTime;
 
         // Generate a brief summary
@@ -558,6 +598,7 @@ interface ValidationResult {
   accuracy: number;
   relevance: number;
   clarity: number;
+  concreteness?: number;
   overall: number;
   feedback: string;
 }
@@ -580,9 +621,22 @@ Score each dimension 0-100 and provide brief feedback:
 - accuracy: Is the information correct?
 - relevance: Is it relevant to the step's purpose?
 - clarity: Is it well-structured and clear?
+- concreteness: Is this ACTUAL OUTPUT or just a template/outline/methodology?
+  - 100 = Fully concrete, deliverable-ready output
+  - 50 = Mix of concrete content and some template-like sections
+  - 0 = Pure template, outline, framework, or methodology with no actual content
+
+TEMPLATE DETECTION RULES — Score concreteness 0-30 if the output contains ANY of:
+- Placeholders like "[insert here]", "[your content]", "TODO", "fill in"
+- Template language: "Here is a template...", "Framework for...", "Outline:"
+- More than 2 levels of heading hierarchy with no body content underneath
+- Generic advice without specific data, examples, or concrete recommendations
+- Empty sections or sections with only 1-2 sentences describing what should go there
+
+If concreteness < 40, the output MUST be rejected regardless of other scores. Set overall = concreteness.
 
 Respond ONLY in JSON (no markdown, no code blocks):
-{"completeness": 85, "accuracy": 90, "relevance": 95, "clarity": 80, "overall": 87, "feedback": "Brief feedback"}`;
+{"completeness": 85, "accuracy": 90, "relevance": 95, "clarity": 80, "concreteness": 90, "overall": 87, "feedback": "Brief feedback"}`;
 
   const validationText = await callGemma4(validatorPrompt, 0.2);
 
@@ -669,9 +723,10 @@ export async function runSingleStep(
     if (step.status === "cancelled") throw new Error("Workflow is cancelled");
 
     // Get workflow
-    const wfResult = await pool.query(`SELECT status FROM agent_workflows WHERE id = $1`, [workflowId]);
+    const wfResult = await pool.query(`SELECT status, query FROM agent_workflows WHERE id = $1`, [workflowId]);
     if (wfResult.rows.length === 0) throw new Error("Workflow not found");
     if (wfResult.rows[0].status === "cancelled") throw new Error("Workflow is cancelled");
+    const workflowQuery = wfResult.rows[0].query || step.description;
 
     // Set status to running
     await pool.query(
@@ -716,16 +771,34 @@ export async function runSingleStep(
         }
       }
 
-      const executorPrompt = `${skillPrompt}## Task
+      const executorPrompt = `${skillPrompt}## ORIGINAL USER REQUEST
+${workflowQuery}
+
+## YOUR TASK (Step ${step.step_number}: ${step.title})
 ${step.description}
 
 ## Context from previous steps
 ${previousContext || "(This is the first step — no prior context)"}
 
-## Instructions
-Complete this step thoroughly. Produce a comprehensive output.`;
+## CRITICAL EXECUTION INSTRUCTIONS
+You are EXECUTING this step, not planning it. You must produce the FINAL, ACTUAL deliverable.
 
-      const outputResult = await callGemma4(executorPrompt, 0.4);
+FORBIDDEN:
+- Templates, frameworks, outlines with placeholders like "[insert here]", "TODO", "fill in"
+- Methodology descriptions ("first do X, then do Y, then do Z")
+- Meta-commentary ("I would recommend...", "You should consider...")
+- Placeholder sections, skeleton content, or abbreviated examples
+
+REQUIRED:
+- Complete, finished content that can be used as-is by the next step
+- Specific data, actual numbers, real content — never generic placeholders
+- If writing content: write every paragraph fully
+- If analyzing: provide the actual analysis results, not the analysis method
+- If creating: produce the final creation, not a plan for creating
+
+Produce the complete output now.`;
+
+      const outputResult = await callGemma4(executorPrompt, 0.2, EXECUTOR_SYSTEM_PROMPT);
       const durationMs = Date.now() - startTime;
 
       const summaryPrompt = `Summarize in 1-2 sentences (max 200 chars):\n\n${outputResult}`;

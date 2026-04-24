@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "@google/stitch-sdk",
     "pg",
+    "pdfkit",
+    "fontkit",
   ],
   poweredByHeader: false,
   async headers() {
