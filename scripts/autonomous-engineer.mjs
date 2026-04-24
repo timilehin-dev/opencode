@@ -29,9 +29,10 @@ const report = {
 // ── 1. Database Health Check ──────────────────────────────────────────────
 async function checkDatabase() {
   const pool = new pg.Pool({
-    connectionString: process.env.SUPABASE_DB_URL,
+    connectionString: process.env.SUPABASE_DB_URL + '?pgbouncer=true&prepare=false',
     connectionTimeoutMillis: 10000,
     statement_timeout: 15000,
+    max: 3,
   });
 
   try {
