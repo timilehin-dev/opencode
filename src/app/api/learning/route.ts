@@ -149,6 +149,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, decayed: count });
       }
 
+      case "delete": {
+        const { insightId } = body as { insightId?: string };
+        if (!insightId) {
+          return NextResponse.json({ error: "Missing insightId" }, { status: 400 });
+        }
+        const { query } = await import("@/lib/db");
+        const result = await query("DELETE FROM learning_insights WHERE id = $1 RETURNING id", [insightId]);
+        return NextResponse.json({ success: true, deleted: result.rowCount > 0 });
+      }
+
       default:
         return NextResponse.json(
           { error: `Unknown action: ${action}. Use record, detect_patterns, or decay.` },
