@@ -108,8 +108,8 @@ function convertLatexCommand(text: string): string {
   result = result.replace(/\$/g, '');
 
   // Clean up any remaining bare backslashes (but not escaped ones)
-  // Only remove \ if followed by a space or end of string (likely leftover)
-  result = result.replace(/\\(?=[\s,;.)]|\\$/g, '');
+  // Only remove backslash if followed by a space or punctuation (likely leftover)
+  result = result.replace(/\\(?=[\s,;.)\]])/, '');
 
   return result;
 }

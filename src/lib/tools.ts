@@ -3385,7 +3385,7 @@ export const createDocxDocumentTool = tool({
     // Pre-process: merge consecutive plain text lines into paragraphs
     const rawLines = cleanedContent.split("\n");
     const mergedLines: string[] = [];
-    let buffer = "";
+    let lineBuffer = "";
     for (const line of rawLines) {
       const trimmed = line.trim();
       // If it's a special line (heading, list, table, code fence, hr, blockquote), flush buffer first
@@ -3399,18 +3399,18 @@ export const createDocxDocumentTool = tool({
         trimmed === "---" || trimmed === "***" ||
         trimmed.startsWith("> ")
       ) {
-        if (buffer.trim()) {
-          mergedLines.push(buffer.trim());
-          buffer = "";
+        if (lineBuffer.trim()) {
+          mergedLines.push(lineBuffer.trim());
+          lineBuffer = "";
         }
         mergedLines.push(line);
       } else {
         // Continuation of a paragraph
-        buffer += (buffer ? " " : "") + trimmed;
+        lineBuffer += (lineBuffer ? " " : "") + trimmed;
       }
     }
-    if (buffer.trim()) {
-      mergedLines.push(buffer.trim());
+    if (lineBuffer.trim()) {
+      mergedLines.push(lineBuffer.trim());
     }
 
     const lines = mergedLines;
@@ -3732,13 +3732,13 @@ export const createDocxDocumentTool = tool({
       ],
     });
 
-    const buffer = await Packer.toBuffer(doc);
+    const docBuffer = await Packer.toBuffer(doc) as Buffer;
 
     const fileBaseName = `${safeName}.docx`;
-    const fileBase64 = Buffer.from(buffer).toString("base64");
+    const fileBase64 = Buffer.from(docBuffer).toString("base64");
     try {
       const { cacheFile } = await import("@/lib/file-cache");
-      await cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileBaseName);
+      await cacheFile(fileBaseName, Buffer.from(docBuffer), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileBaseName);
     } catch {
       // best-effort
     }
@@ -3747,7 +3747,7 @@ export const createDocxDocumentTool = tool({
       title,
       downloadUrl: `/api/files/${fileBaseName}`,
       fileBase64,
-      fileSize: buffer.byteLength,
+      fileSize: docBuffer.byteLength,
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       message: `DOCX document "${title}" created successfully (with cover page, TOC, A4 page size, headers, footers, and page numbers). Download available.`,
     };
