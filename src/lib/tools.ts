@@ -2689,11 +2689,20 @@ export const createPdfReportTool = tool({
     subtitle: z.string().optional().describe("Subtitle displayed below the title on the cover page"),
   })),
   execute: safeJson(async ({ title, content, filename, author, subtitle }) => {
-    const PDFDocumentMod = await import("pdfkit");
-    const PDFDocument = (PDFDocumentMod as any).default || PDFDocumentMod;
+    // Runtime guard for pdfkit
+    let PDFDocumentMod: any;
+    try {
+      PDFDocumentMod = await import("pdfkit");
+    } catch {
+      return { success: false, error: "PDF library (pdfkit) is not installed. Run: npm install pdfkit" };
+    }
+    const PDFDocument = PDFDocumentMod.default || PDFDocumentMod;
     const { join } = await import("path");
     const { writeFileSync, createWriteStream, readFileSync } = await import("fs");
     const { tmpdir } = await import("os");
+    const { convertLatexToUnicode } = await import("@/lib/latex-symbols");
+
+    const cleanedContent = convertLatexToUnicode(content);
 
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
     const filePath = join(tmpdir(), `klaw-${safeName}-${Date.now()}.pdf`);
@@ -2826,7 +2835,7 @@ export const createPdfReportTool = tool({
     doc.moveDown(1);
 
     // Parse content to collect headings for TOC
-    const tocLines = content.split("\n");
+    const tocLines = cleanedContent.split("\n");
     const headingList: Array<{ level: number; title: string }> = [];
     for (const tl of tocLines) {
       const h1 = tl.match(/^# (.+)/);
@@ -2857,7 +2866,7 @@ export const createPdfReportTool = tool({
     doc.addPage();
     addHeader();
 
-    const lines = content.split("\n");
+    const lines = cleanedContent.split("\n");
     let inCodeBlock = false;
     let codeLang = "";
     let codeStartY: number | undefined;
@@ -3221,16 +3230,19 @@ export const createDocxDocumentTool = tool({
   description: "Create a professional DOCX document and return it as a downloadable file. Produces polished Word documents with cover page, styled headings, formatted tables, blockquotes, page numbers, and rich inline formatting. Supports markdown: headers, lists, tables, bold, italic, code blocks, blockquotes.",
   inputSchema: zodSchema(z.object({
     title: z.string().describe("Title of the DOCX document"),
+    subtitle: z.string().optional().describe("Subtitle displayed below the title on the cover page"),
     content: z.string().describe("Content in markdown format (supports headers, lists, tables, bold, italic, code blocks, blockquotes)"),
     filename: z.string().optional().describe("Output filename (without extension). Default: derived from title"),
     author: z.string().optional().describe("Author name (default: 'Klawhub Agent')"),
   })),
-  execute: safeJson(async ({ title, content, filename, author }) => {
-    const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, PageNumber, Footer, Header } = await import("docx");
+  execute: safeJson(async ({ title, subtitle, content, filename, author }) => {
+    const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType, PageNumber, Footer, Header, TableOfContents, ExternalHyperlink } = await import("docx");
     const Packer = await import("docx").then((m) => (m as unknown as { Packer: { toBuffer: (doc: unknown) => Promise<Buffer> } }).Packer);
     const TextRunCtor = (await import("docx") as any).TextRun;
+    const { convertLatexToUnicode } = await import("@/lib/latex-symbols");
     const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
+    const cleanedContent = convertLatexToUnicode(content);
     const safeName = (filename || title).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 60);
 
     // ─── Cover page section ────────────────────────────────────────
@@ -3245,6 +3257,20 @@ export const createDocxDocumentTool = tool({
         alignment: AlignmentType.CENTER,
         spacing: { after: 200 },
       }),
+    ];
+
+    // Add subtitle to cover if provided
+    if (subtitle) {
+      (coverChildren as unknown[]).push(
+        new Paragraph({
+          children: [new TextRun({ text: subtitle, size: 26, color: "6B7280", font: "Calibri", italics: true })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+      );
+    }
+
+    (coverChildren as unknown[]).push(
       // Divider line
       new Paragraph({
         children: [new TextRun({ text: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━", size: 16, color: "2563EB" })],
@@ -3273,30 +3299,121 @@ export const createDocxDocumentTool = tool({
         ],
         alignment: AlignmentType.CENTER,
       }),
-    ];
+    );
 
     // ─── Content section ───────────────────────────────────────────
     const contentChildren: unknown[] = [];
 
-    // Helper: parse inline formatting
+    // Helper: parse inline formatting (supports bold, italic, bold-italic, code, links)
     const parseInlineFormatting = (text: string): any[] => {
       const runs: any[] = [];
+      // Match patterns in order of precedence: code, bold-italic, bold, italic, links, plain
+      const pattern = /(`[^`]+`|\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|\[([^\]]+)\]\(([^)]+)\))/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = pattern.exec(text)) !== null) {
+        // Add preceding plain text
+        if (match.index > lastIndex) {
+          const plainText = text.slice(lastIndex, match.index);
+          if (plainText) {
+            runs.push(new TextRunCtor({ text: plainText, size: 22, font: "Calibri", color: "1F2937" }));
+          }
+        }
+
+        const token = match[0];
+
+        if (token.startsWith("`")) {
+          // Inline code
+          runs.push(new TextRun({ text: token.slice(1, -1), size: 20, font: "Courier New", color: "DC2626", shading: { fill: "F1F5F9" } }));
+        } else if (token.startsWith("***")) {
+          // Bold + Italic
+          runs.push(new TextRunCtor({ text: token.slice(3, -3), bold: true, italics: true, size: 22, font: "Calibri", color: "1F2937" }));
+        } else if (token.startsWith("**")) {
+          // Bold
+          runs.push(new TextRunCtor({ text: token.slice(2, -2), bold: true, size: 22, font: "Calibri", color: "1F2937" }));
+        } else if (token.startsWith("*")) {
+          // Italic
+          runs.push(new TextRunCtor({ text: token.slice(1, -1), italics: true, size: 22, font: "Calibri", color: "374151" }));
+        } else if (token.startsWith("[")) {
+          // Link [text](url)
+          const linkText = match[2] || token;
+          const linkUrl = match[3] || "#";
+          try {
+            runs.push(new ExternalHyperlink({
+              children: [new TextRun({ text: linkText, size: 22, font: "Calibri", color: "2563EB", underline: { type: "single" as any } })],
+              link: linkUrl,
+            }));
+          } catch {
+            runs.push(new TextRun({ text: linkText, size: 22, font: "Calibri", color: "2563EB", underline: { type: "single" as any } }));
+          }
+        }
+
+        lastIndex = match.index + token.length;
+      }
+
+      // Add remaining plain text
+      if (lastIndex < text.length) {
+        const remaining = text.slice(lastIndex);
+        if (remaining) {
+          runs.push(new TextRunCtor({ text: remaining, size: 22, font: "Calibri", color: "1F2937" }));
+        }
+      }
+
+      return runs.length > 0 ? runs : [new TextRun({ text, size: 22, font: "Calibri", color: "1F2937" })];
+    };
+
+    // Helper: parse table cell formatting (simplified — no links for table context)
+    const parseTableFormatting = (text: string, isHeader: boolean): any[] => {
       const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/);
+      const runs: any[] = [];
       for (const part of parts) {
+        if (!part) continue;
         if (part.startsWith("**") && part.endsWith("**")) {
-          runs.push(new TextRunCtor({ text: part.slice(2, -2), bold: true, size: 22, font: "Calibri", color: "1F2937" }));
+          runs.push(new TextRun({ text: part.slice(2, -2), bold: true, size: isHeader ? 20 : 18, font: "Calibri", color: isHeader ? "FFFFFF" : "1F2937" }));
         } else if (part.startsWith("*") && part.endsWith("*")) {
-          runs.push(new TextRunCtor({ text: part.slice(1, -1), italics: true, size: 22, font: "Calibri", color: "374151" }));
+          runs.push(new TextRun({ text: part.slice(1, -1), italics: true, size: isHeader ? 20 : 18, font: "Calibri", color: isHeader ? "FFFFFF" : "1F2937" }));
         } else if (part.startsWith("`") && part.endsWith("`")) {
-          runs.push(new TextRun({ text: part.slice(1, -1), size: 20, font: "Courier New", color: "DC2626", shading: { fill: "F1F5F9" } }));
-        } else if (part) {
-          runs.push(new TextRun({ text: part, size: 22, font: "Calibri", color: "1F2937" }));
+          runs.push(new TextRun({ text: part.slice(1, -1), size: isHeader ? 20 : 18, font: "Courier New", color: isHeader ? "FFFFFF" : "1F2937" }));
+        } else {
+          runs.push(new TextRun({ text: part, bold: isHeader, size: isHeader ? 20 : 18, font: "Calibri", color: isHeader ? "FFFFFF" : "1F2937" }));
         }
       }
       return runs;
     };
 
-    const lines = content.split("\n");
+    // Pre-process: merge consecutive plain text lines into paragraphs
+    const rawLines = cleanedContent.split("\n");
+    const mergedLines: string[] = [];
+    let buffer = "";
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      // If it's a special line (heading, list, table, code fence, hr, blockquote), flush buffer first
+      if (
+        trimmed === "" ||
+        trimmed.startsWith("#") ||
+        trimmed.startsWith("-") || trimmed.startsWith("* ") || trimmed.startsWith("+ ") ||
+        /^\d+\.\s/.test(trimmed) ||
+        trimmed.startsWith("|") ||
+        trimmed.startsWith("```") ||
+        trimmed === "---" || trimmed === "***" ||
+        trimmed.startsWith("> ")
+      ) {
+        if (buffer.trim()) {
+          mergedLines.push(buffer.trim());
+          buffer = "";
+        }
+        mergedLines.push(line);
+      } else {
+        // Continuation of a paragraph
+        buffer += (buffer ? " " : "") + trimmed;
+      }
+    }
+    if (buffer.trim()) {
+      mergedLines.push(buffer.trim());
+    }
+
+    const lines = mergedLines;
     let inCodeBlock = false;
     let codeLines: string[] = [];
     let codeLang = "";
@@ -3391,15 +3508,7 @@ export const createDocxDocumentTool = tool({
                 new TableCell({
                   children: [
                     new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: cell,
-                          bold: rowIdx === 0,
-                          size: rowIdx === 0 ? 20 : 18,
-                          font: "Calibri",
-                          color: rowIdx === 0 ? "FFFFFF" : "1F2937",
-                        }),
-                      ],
+                      children: parseTableFormatting(cell, rowIdx === 0),
                       spacing: { before: 40, after: 40 },
                     }),
                   ],
@@ -3562,14 +3671,33 @@ export const createDocxDocumentTool = tool({
         }],
       },
       sections: [
-        // Cover page (no headers/footers)
+        // 1. Cover page (no headers/footers)
         {
           children: coverChildren as any,
         },
-        // Content pages (with header and footer)
+        // 2. Table of Contents
         {
           properties: {
             page: {
+              size: { width: 11906, height: 16838 }, // A4
+            },
+          },
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: "Table of Contents", bold: true, size: 36, font: "Calibri", color: "1E3A5F" })],
+              spacing: { after: 300 },
+            }),
+            new TableOfContents("Table of Contents", {
+              hyperlink: true,
+              headingStyleRange: "1-3",
+            }),
+          ],
+        },
+        // 3. Content pages (with header and footer)
+        {
+          properties: {
+            page: {
+              size: { width: 11906, height: 16838 }, // A4
               margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
               pageNumbers: { start: 1 },
             },
@@ -3621,7 +3749,7 @@ export const createDocxDocumentTool = tool({
       fileBase64,
       fileSize: buffer.byteLength,
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      message: `DOCX document "${title}" created successfully (with cover page, headers, footers, and page numbers). Download available.`,
+      message: `DOCX document "${title}" created successfully (with cover page, TOC, A4 page size, headers, footers, and page numbers). Download available.`,
     };
   }),
 });
