@@ -232,3 +232,36 @@ Stage Summary:
 - Consecutive text lines merge into proper paragraphs (no more 1-line fragments)
 - Table cells support bold/italic formatting
 - PDF tool has graceful error if pdfkit missing
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Extend pg_cron auto-scheduling from routines to task board and workflows
+
+Work Log:
+- Read full codebase: pg-cron-manager.ts, tools.ts, taskboard.ts, workflow-engine.ts, API routes
+- Identified routine pg_cron pattern: create → register cron, update → sync cron, delete → unregister cron
+- Found task board tools already exist but NO pg_cron integration
+- Found workflow tools already exist but NO pg_cron scheduling capability
+- Added schedule_interval column to task_board and agent_workflows tables (migration ran via Node/pg)
+- Extended pg-cron-manager.ts with: registerTaskCron, registerWorkflowCron, syncTaskCronJobs, syncWorkflowCronJobs, syncAllCronJobs
+- Created /api/cron/execute-task/route.ts — per-task pg_cron execution endpoint
+- Created /api/cron/execute-workflow/route.ts — per-workflow pg_cron execution endpoint
+- Updated taskboardCreateTool — added schedule_interval_minutes param, auto-registers pg_cron
+- Updated taskboardUpdateTool — added schedule_interval_minutes param, auto-syncs pg_cron, auto-cleans on done
+- Updated taskboardDeleteTool — auto-unregisters pg_cron job before deleting
+- Updated taskboardListTool — includes scheduleInterval in response
+- Added workflowScheduleTool — plan + create + schedule recurring workflow in one call
+- Added workflowUpdateScheduleTool — change/remove schedule for existing workflow
+- Updated workflowCancelTool — auto-cleans pg_cron job
+- Updated cronSyncTool — now master sync for routines + tasks + workflows
+- Updated WorkflowRow/WorkflowWithSteps interfaces with schedule_interval
+- Updated workflow setup SQL with schedule_interval column
+- Build passes, committed as 736664a, pushed to main
+
+Stage Summary:
+- Task board and workflows now have the same pg_cron auto-scheduling as routines
+- Each agent can independently create scheduled tasks and recurring workflows
+- 3 new pg_cron job types: routine-{id}, taskboard-{id}, workflow-{id}
+- Master sync tool (cron_sync) handles all 3 types
+- Commit: 736664a
