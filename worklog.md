@@ -265,3 +265,30 @@ Stage Summary:
 - 3 new pg_cron job types: routine-{id}, taskboard-{id}, workflow-{id}
 - Master sync tool (cron_sync) handles all 3 types
 - Commit: 736664a
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix health-check GitHub Actions workflow + reconstruct insights page
+
+Work Log:
+- Investigated GitHub Actions run failures: Health Check consistently failing (runs 26, 27)
+- Found critical YAML syntax error: types: ealth-check] → missing opening bracket + typo
+  The correct syntax is types: [health-check]
+- Found ESM import issue: workflow used import pg from 'pg' but GitHub Actions Node.js
+  doesn't have ESM configured. Changed to require()
+- Added early DB connectivity check with proper process.exit(1) on failure
+- Wrapped automation_logs INSERT in try/catch (table may not exist)
+- Investigated insights page — found critical type mismatch
+- Page defined LearningInsight with snake_case fields (agent_id, insight_type, content)
+  but self-learning.ts mapRow() returns camelCase (agentId, insightType, content)
+  → data was silently empty/mismatched
+- Stats page expected topApplied as LearningInsight[] but API returns number
+- Fully reconstructed insights page with corrected types, error handling, delete, decay
+- Added delete action to /api/learning POST route
+- Build passes, committed as 74edb13, pushed to main
+
+Stage Summary:
+- Health check YAML fix: types: ealth-check] → types: [health-check] + ESM → require()
+- Insights page: Fixed camelCase/snake_case mismatch, added delete + decay actions
+- Commits: 34e66e2 (health check), 74edb13 (insights page)
