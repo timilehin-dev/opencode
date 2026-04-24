@@ -211,10 +211,14 @@ describe("memory", () => {
     it("returns the status of both localStorage and supabase clear operations", async () => {
       // Supabase is mocked to null, so supabase should be false
       const result = await purgeAllConversations();
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         localStorage: true,
         supabase: false,
       });
+      // Additional purge keys should all be false (no DB connection in test env)
+      expect(result.agentMemory).toBe(false);
+      expect(result.agentActivity).toBe(false);
+      expect(result.learningInsights).toBe(false);
     });
   });
 });

@@ -47,8 +47,6 @@ export async function isSupabaseReady(): Promise<boolean> {
   }
 }
 
-export { getSupabase as getDb };
-
 // ---------------------------------------------------------------------------
 // SQL Schema — Run this in the Supabase SQL Editor to set up tables
 // ---------------------------------------------------------------------------
@@ -426,7 +424,10 @@ BEGIN
       'delegations','key_usage','agent_activity','agent_status',
       'todos','contacts','learning_insights','skill_executions',
       'skill_evaluations','skill_evolution_records','skills',
-      'agent_skills','workflows','workflow_steps','workflow_step_validations'
+      'agent_skills','workflows','workflow_steps','workflow_step_validations',
+      'a2a_messages','a2a_shared_context','a2a_channels',
+      'a2a_channel_messages','a2a_tasks','agent_routines',
+      'task_board','workflow_executions'
     )
   LOOP
     EXECUTE format('ALTER TABLE IF EXISTS %I ENABLE ROW LEVEL SECURITY', tbl);

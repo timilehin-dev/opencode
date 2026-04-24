@@ -114,10 +114,15 @@ export async function googleFetch(url: string, options?: RequestInit, retryCount
       ...(isGet ? {} : { "Content-Type": "application/json" }),
     },
   });
-  // On 401, invalidate cached token and retry once
-  if (res.status === 401 && retryCount === 0) {
-    // Clear all cached tokens to force re-authentication
-    tokenCache.clear();
+  // Retry on 401 (auth), 429 (rate limit), 503 (service unavailable) with exponential backoff + jitter
+  if ((res.status === 401 || res.status === 429 || res.status === 503) && retryCount < 3) {
+    if (res.status === 401) {
+      // Clear all cached tokens to force re-authentication
+      tokenCache.clear();
+    }
+    const backoffMs = res.status === 429 ? 2000 : 1000;
+    const waitMs = backoffMs * Math.pow(2, retryCount) + Math.random() * 500;
+    await new Promise(r => setTimeout(r, waitMs));
     return googleFetch(url, options, retryCount + 1);
   }
   if (!res.ok) {

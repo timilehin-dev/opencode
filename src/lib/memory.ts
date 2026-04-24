@@ -628,11 +628,15 @@ export async function deleteMemory(id: string): Promise<boolean> {
   // Supabase
   const supabase = getSupabase();
   if (supabase && found) {
-    // Convert string id to number for Supabase
-    const numId = parseInt(id.split("-").pop() || "0", 10);
-    if (!isNaN(numId)) {
-      await supabase.from("agent_memory").delete().eq("id", numId);
+    // Convert string id to number for Supabase (BIGSERIAL)
+    // Try parsing the full string first (handles pure numeric IDs from Supabase),
+    // then fall back to the first segment before "-" (handles generated IDs like "1234567890-abc123")
+    let numId = parseInt(id, 10);
+    if (isNaN(numId)) {
+      numId = parseInt(id.split("-")[0] || "0", 10);
     }
+    if (isNaN(numId)) return false;
+    await supabase.from("agent_memory").delete().eq("id", numId);
   }
 
   return found;

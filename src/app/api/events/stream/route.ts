@@ -17,7 +17,10 @@ import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/activ
 import type { AgentTask } from "@/lib/task-queue";
 import type { Delegation } from "@/lib/delegations";
 
-export const maxDuration = 300; // SSE streams need long-lived connections on Vercel Pro
+// Vercel Hobby (free) tier limits function execution to 60s.
+// The client hook (use-dashboard-stream.ts) auto-reconnects on disconnect,
+// so a shorter maxDuration is fine — it just means more frequent reconnections.
+export const maxDuration = 60;
 
 const POLL_INTERVAL_MS = 3000;
 

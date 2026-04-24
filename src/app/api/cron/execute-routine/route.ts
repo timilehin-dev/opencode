@@ -16,8 +16,8 @@ import { sendProactiveNotification } from "@/lib/proactive-notifications";
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
+  const secret = request.headers.get("x-cron-secret") || new URL(request.url).searchParams.get("secret");
   const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
   const routineId = searchParams.get("routineId");
 
   const expectedSecret = process.env.CRON_SECRET;

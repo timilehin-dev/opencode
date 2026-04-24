@@ -200,7 +200,74 @@ export async function readWebPage(url: string): Promise<PageContent> {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // YAHOO FINANCE API — Free stock data (no API key needed)
+// Falls back to v6 query endpoint if v8 returns 401 (deprecated/geo-blocked)
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fetch Yahoo Finance chart data. Tries v8 first, falls back to v6 on failure.
+ * Both endpoints are free and require no API key.
+ */
+async function fetchYahooChart(symbol: string, range = "1d", interval = "1d"): Promise<any> {
+  const encoded = encodeURIComponent(symbol);
+
+  // Try v8 first (preferred — richer metadata)
+  try {
+    const v8Url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?range=${range}&interval=${interval}&includePrePost=false`;
+    const v8Res = await fetch(v8Url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (v8Res.ok) {
+      const v8Data = await v8Res.json() as any;
+      if (v8Data?.chart?.result?.[0]) return v8Data;
+    }
+  } catch {
+    // v8 failed, try v6
+  }
+
+  // Fallback: v6 query endpoint
+  const v6Url = `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${encoded}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketDayHigh,regularMarketDayLow,regularMarketDayOpen,regularMarketVolume,fiftyTwoWeekHigh,fiftyTwoWeekLow,regularMarketChange,regularMarketChangePercent,shortName,longName,fullExchangeName,currency,marketCap`;
+  const v6Res = await fetch(v6Url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!v6Res.ok) throw new Error(`Yahoo Finance API error: ${v6Res.status}`);
+
+  const v6Data = await v6Res.json() as any;
+  const quote = v6Data?.quoteResponse?.result?.[0];
+  if (!quote) throw new Error(`No data found for symbol: ${symbol}`);
+
+  // Convert v6 quote format to v8 chart format for unified parsing
+  return {
+    chart: {
+      result: [{
+        meta: {
+          symbol: quote.symbol,
+          regularMarketPrice: quote.regularMarketPrice,
+          chartPreviousClose: quote.regularMarketPreviousClose,
+          regularMarketDayHigh: quote.regularMarketDayHigh,
+          regularMarketDayLow: quote.regularMarketDayLow,
+          regularMarketDayOpen: quote.regularMarketDayOpen,
+          regularMarketVolume: quote.regularMarketVolume,
+          fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh,
+          fiftyTwoWeekLow: quote.fiftyTwoWeekLow,
+          longName: quote.longName,
+          shortName: quote.shortName,
+          fullExchangeName: quote.fullExchangeName,
+          currency: quote.currency,
+          regularMarketCap: quote.marketCap,
+        },
+        timestamp: [],
+        indicators: { quote: [{ open: [], high: [], low: [], close: [], volume: [] }] },
+      }],
+    },
+  };
+}
 
 export interface StockQuote {
   symbol: string;
@@ -222,18 +289,7 @@ export interface StockQuote {
 }
 
 export async function getStockQuote(symbol: string): Promise<StockQuote> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d&includePrePost=false`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    },
-    signal: AbortSignal.timeout(10000),
-  });
-
-  if (!res.ok) throw new Error(`Yahoo Finance API error: ${res.status}`);
-  const data = await res.json() as any;
-
+  const data = await fetchYahooChart(symbol);
   const meta = data?.chart?.result?.[0]?.meta;
   if (!meta) throw new Error(`No data found for symbol: ${symbol}`);
 
@@ -276,6 +332,7 @@ export async function getHistoricalData(
   range: string = "1mo",
   interval: string = "1d"
 ): Promise<HistoricalData[]> {
+  // Historical data requires the chart endpoint (v8 only, v6 doesn't support range queries)
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=false`;
   const res = await fetch(url, {
     headers: {

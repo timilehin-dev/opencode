@@ -29,6 +29,82 @@ function getCronSecret(): string {
 }
 
 /**
+ * Sanitize a pg_cron job name to only allow safe characters.
+ * pg_cron job names must be valid identifiers: alphanumeric and hyphens only.
+ * Rejects anything containing characters that could lead to SQL injection.
+ */
+function sanitizeJobName(name: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9-]/g, "");
+  if (sanitized !== name || sanitized.length === 0) {
+    throw new Error(`Invalid job name: contains unsafe characters or is empty`);
+  }
+  return sanitized;
+}
+
+/**
+ * Validate a cron schedule expression.
+ * Only allows: digits, asterisks, slashes, commas, hyphens, and spaces.
+ */
+function validateCronSchedule(schedule: string): void {
+  const validPattern = /^[0-9*/,\- ]+$/;
+  if (!validPattern.test(schedule)) {
+    throw new Error(`Invalid cron schedule: contains disallowed characters`);
+  }
+  // Must have exactly 5 fields
+  const fields = schedule.trim().split(/\s+/);
+  if (fields.length !== 5) {
+    throw new Error(`Invalid cron schedule: must have exactly 5 fields, got ${fields.length}`);
+  }
+}
+
+/**
+ * Validate that a URL matches the expected base URL pattern.
+ * Only allows URLs that start with https:// followed by the known app domain
+ * or the configured CRON_WEBHOOK_URL base.
+ */
+function validateCronUrl(url: string): void {
+  const allowedPrefixes: string[] = [];
+
+  const webhookUrl = process.env.CRON_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      const parsed = new URL(webhookUrl);
+      allowedPrefixes.push(`${parsed.protocol}//${parsed.host}`);
+    } catch {
+      // ignore invalid URL
+    }
+  }
+
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) {
+    allowedPrefixes.push(`https://${vercelUrl}`);
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+  if (baseUrl) {
+    try {
+      const parsed = new URL(baseUrl);
+      allowedPrefixes.push(`${parsed.protocol}//${parsed.host}`);
+    } catch {
+      // ignore invalid URL
+    }
+  }
+
+  // Default allowed domain
+  allowedPrefixes.push("https://klawhub.xyz");
+
+  const isAllowed = allowedPrefixes.some(prefix => url.startsWith(prefix));
+  if (!isAllowed) {
+    throw new Error(`Invalid cron URL: does not match any allowed base URL`);
+  }
+
+  // URL must use https (no http)
+  if (!url.startsWith("https://")) {
+    throw new Error(`Invalid cron URL: must use HTTPS`);
+  }
+}
+
+/**
  * Convert interval in minutes to a pg_cron schedule expression.
  * For sub-hourly intervals (e.g. 30 min): star-slash-N schedule
  * For hourly intervals (e.g. 120 min): 0 star-slash-N schedule
@@ -56,15 +132,20 @@ async function registerCronJob(
   const schedule = intervalToCron(intervalMinutes);
 
   try {
-    // Remove existing job if any
-    await query(`SELECT cron.unschedule('${jobName}')`).catch(() => {});
+    // Sanitize all inputs to prevent SQL injection
+    const safeJobName = sanitizeJobName(jobName);
+    validateCronSchedule(schedule);
+    validateCronUrl(url);
 
-    // Register new job
+    // Remove existing job if any (using sanitized name)
+    await query(`SELECT cron.unschedule('${safeJobName}')`).catch(() => {});
+
+    // Register new job (all values are now validated/sanitized)
     await query(
-      `SELECT cron.schedule('${jobName}', '${schedule}', $$SELECT net.http_get('${url}')$$)`,
+      `SELECT cron.schedule('${safeJobName}', '${schedule}', $$SELECT net.http_get('${url}')$$)`,
     );
 
-    return { success: true, jobName, schedule };
+    return { success: true, jobName: safeJobName, schedule };
   } catch (error) {
     return {
       success: false,
@@ -126,7 +207,8 @@ export async function registerWorkflowCron(
 
 export async function unregisterCron(jobName: string): Promise<void> {
   try {
-    await query(`SELECT cron.unschedule('${jobName}')`).catch(() => {});
+    const safeJobName = sanitizeJobName(jobName);
+    await query(`SELECT cron.unschedule('${safeJobName}')`).catch(() => {});
   } catch {
     // Silently ignore — job may not exist
   }

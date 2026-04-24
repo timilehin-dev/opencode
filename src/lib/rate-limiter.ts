@@ -178,21 +178,17 @@ export async function rateLimit<T extends Response>(
 
   const response = await handler();
 
-  // Add rate limit headers to successful responses
-  if (response.headers) {
-    const newHeaders = new Headers(response.headers);
-    newHeaders.set("X-RateLimit-Remaining", String(result.remaining));
-    newHeaders.set("X-RateLimit-Reset", String(Math.ceil(result.resetAt / 1000)));
-    // Return new response with added headers
-    const body = await response.text();
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: newHeaders,
-    });
-  }
-
-  return response;
+  // Add rate limit headers to successful responses without consuming the body.
+  // Pass response.body (ReadableStream) directly to preserve streaming and
+  // avoid buffering the entire response into memory.
+  const newHeaders = new Headers(response.headers);
+  newHeaders.set("X-RateLimit-Remaining", String(result.remaining));
+  newHeaders.set("X-RateLimit-Reset", String(Math.ceil(result.resetAt / 1000)));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
 }
 
 /**

@@ -39,12 +39,14 @@ const {
   saveSettings,
   updateSettings,
   resetSettings,
+  invalidateSettingsCache,
 } = await import("@/lib/settings-store");
 
 describe("settings-store", () => {
   beforeEach(() => {
     localStorageMock.clear();
     vi.clearAllMocks();
+    invalidateSettingsCache();
   });
 
   // -----------------------------------------------------------------------

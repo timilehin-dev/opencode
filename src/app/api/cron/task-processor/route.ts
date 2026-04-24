@@ -76,8 +76,7 @@ async function executeTaskWithAgent(
 // ---------------------------------------------------------------------------
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
+  const secret = request.headers.get("x-cron-secret") || new URL(request.url).searchParams.get("secret");
   const expectedSecret = process.env.CRON_SECRET;
   if (!expectedSecret) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
@@ -119,6 +118,7 @@ export async function GET(request: Request) {
     const { rows } = await query(`
       SELECT * FROM agent_tasks
       WHERE status = 'pending'
+        AND trigger_type IN ('automation', 'cron', 'delegation', 'proactive_assessment', 'a2a_inbox', 'project')
       ORDER BY priority DESC, created_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED
@@ -134,6 +134,13 @@ export async function GET(request: Request) {
       // Mark as running
       await query("UPDATE agent_tasks SET status = 'running', started_at = NOW() WHERE id = $1", [row.id]);
 
+      logActivity({
+        agentId,
+        agentName: getAgent(agentId)?.name || agentId,
+        action: "task_started",
+        detail: `[Agent Task] ${taskPrompt.slice(0, 200)}`,
+      }).catch(() => {});
+
       persistAgentStatus(agentId, {
         status: "busy",
         currentTask: taskPrompt.slice(0, 100),
@@ -148,6 +155,13 @@ export async function GET(request: Request) {
         ]);
         results.phase2_agentTasks.succeeded++;
 
+        logActivity({
+          agentId,
+          agentName: getAgent(agentId)?.name || agentId,
+          action: "task_completed",
+          detail: `[Agent Task] ${taskPrompt.slice(0, 200)}`,
+        }).catch(() => {});
+
         persistAgentStatus(agentId, {
           status: "idle",
           currentTask: null,
@@ -159,6 +173,13 @@ export async function GET(request: Request) {
           result.error?.slice(0, 2000) || "Unknown error", row.id,
         ]);
         results.phase2_agentTasks.failed++;
+
+        logActivity({
+          agentId,
+          agentName: getAgent(agentId)?.name || agentId,
+          action: "task_failed",
+          detail: `[Agent Task] ${taskPrompt.slice(0, 200)} — ${result.error || "Unknown error"}`,
+        }).catch(() => {});
 
         persistAgentStatus(agentId, {
           status: "error",

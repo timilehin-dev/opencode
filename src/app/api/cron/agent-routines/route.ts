@@ -27,8 +27,7 @@ export const maxDuration = 300; // 5 min for routine execution
 // ---------------------------------------------------------------------------
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
+  const secret = request.headers.get("x-cron-secret") || new URL(request.url).searchParams.get("secret");
   const expectedSecret = process.env.CRON_SECRET;
   if (!expectedSecret) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
@@ -98,16 +97,24 @@ export async function GET(request: Request) {
         // Execute the routine
         const routineResult = await executeRoutine(agentId, task, context);
 
-        // Update next_run
+        // Update next_run, last_status
         const nextRun = new Date(Date.now() + intervalMinutes * 60 * 1000);
+        const lastStatus = routineResult.success ? 'success' : 'failed';
         await query(
-          "UPDATE agent_routines SET last_run = NOW(), next_run = $1, last_result = $2 WHERE id = $3",
-          [nextRun.toISOString(), routineResult.success ? routineResult.text.slice(0, 2000) : routineResult.error, routineId],
+          "UPDATE agent_routines SET last_run = NOW(), last_status = $1, next_run = $2, last_result = $3 WHERE id = $4",
+          [lastStatus, nextRun.toISOString(), routineResult.success ? routineResult.text.slice(0, 2000) : routineResult.error, routineId],
         );
 
         if (routineResult.success) {
           results.routinesExecuted++;
           results.details.push({ agentId, routineName, status: "success", result: routineResult.text.slice(0, 200) });
+
+          logActivity({
+            agentId,
+            agentName: agent.name,
+            action: "routine_completed",
+            detail: `Routine completed: ${routineName}`,
+          }).catch(() => {});
 
           persistAgentStatus(agentId, {
             status: "idle",
@@ -128,6 +135,13 @@ export async function GET(request: Request) {
         } else {
           results.routinesFailed++;
           results.details.push({ agentId, routineName, status: "failed", result: routineResult.error });
+
+          logActivity({
+            agentId,
+            agentName: agent.name,
+            action: "routine_failed",
+            detail: `Routine failed: ${routineName} — ${routineResult.error || "Unknown error"}`,
+          }).catch(() => {});
 
           persistAgentStatus(agentId, {
             status: "error",
@@ -180,6 +194,8 @@ export async function POST(req: Request) {
         case "setup": {
           // Create the agent_routines table
           await query(AGENT_ROUTINES_SCHEMA);
+          // Add last_status column if it doesn't exist (migration for existing tables)
+          await query(`ALTER TABLE agent_routines ADD COLUMN IF NOT EXISTS last_status TEXT DEFAULT NULL`);
           return NextResponse.json({ success: true, message: "agent_routines table created" });
         }
 

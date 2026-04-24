@@ -70,16 +70,40 @@ export const DEFAULT_SETTINGS: AppSettings = {
 const STORAGE_KEY = "klaw-settings";
 
 // ---------------------------------------------------------------------------
+// In-memory cache — avoids redundant localStorage reads in hot paths.
+// 60s TTL matches the chat route's settings cache. Invalidated on writes.
+// ---------------------------------------------------------------------------
+
+let _settingsCache: AppSettings | null = null;
+let _settingsCacheAt = 0;
+const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
+
+export function invalidateSettingsCache(): void {
+  _settingsCache = null;
+  _settingsCacheAt = 0;
+}
+
+// ---------------------------------------------------------------------------
 // CRUD
 // ---------------------------------------------------------------------------
 
 export function loadSettings(): AppSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
+
+  // Return cached value if still fresh
+  if (_settingsCache && Date.now() - _settingsCacheAt < SETTINGS_CACHE_TTL) {
+    return _settingsCache;
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const settings = { ...DEFAULT_SETTINGS, ...parsed };
+    // Populate cache
+    _settingsCache = settings;
+    _settingsCacheAt = Date.now();
+    return settings;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -92,7 +116,9 @@ export function saveSettings(settings: AppSettings): void {
   } catch {
     // Storage full or unavailable
   }
-  // Fire-and-forget sync to cloud
+  // Update in-memory cache and sync to cloud
+  _settingsCache = settings;
+  _settingsCacheAt = Date.now();
   syncSettingsToCloud(settings).catch(() => {});
 }
 
@@ -136,6 +162,7 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
 export function resetSettings(): AppSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   localStorage.removeItem(STORAGE_KEY);
+  invalidateSettingsCache();
   return DEFAULT_SETTINGS;
 }
 

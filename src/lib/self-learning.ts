@@ -221,28 +221,7 @@ async function markInsightsApplied(insightIds: string[]): Promise<void> {
 // applyInsight — Increment application count and update last_applied_at
 // ---------------------------------------------------------------------------
 
-export async function applyInsight(id: string): Promise<boolean> {
-  if (!process.env.SUPABASE_DB_URL) return false;
-
-  try {
-    const numId = parseInt(id, 10);
-    if (isNaN(numId)) return false;
-
-    await query(
-      `UPDATE learning_insights
-       SET application_count = application_count + 1,
-           last_applied_at = NOW(),
-           confidence = LEAST(1.0, confidence + 0.02),
-           updated_at = NOW()
-       WHERE id = $1`,
-      [numId],
-    );
-    return true;
-  } catch (err) {
-    console.warn("[SelfLearning] Failed to apply insight:", err);
-    return false;
-  }
-}
+// NOTE: applyInsight removed — replaced by internal batch markInsightsApplied() in getInsightsForPrompt
 
 // ---------------------------------------------------------------------------
 // detectPatterns — Analyze recent conversations to find patterns

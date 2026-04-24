@@ -374,8 +374,8 @@ export async function executeWorkflow(
     );
     const completedSteps = completedResult.rows;
 
-    // Build context from completed steps
-    const previousContext = completedSteps
+    // Build context from completed steps (mutable — accumulated in-memory per step)
+    let previousContext = completedSteps
       .map((s: { step_number: number; output_summary: string | null; output_result: string | null }) =>
         `--- Step ${s.step_number} Output ---\n${s.output_summary || (s.output_result || "").slice(0, 500)}`
       )
@@ -456,14 +456,10 @@ Produce the complete output now.`;
           [outputResult, outputSummary, durationMs, step.id],
         );
 
-        // Update previous context for next step
-        const newCompletedResult = await pool.query(
-          `SELECT step_number, output_result, output_summary
-           FROM workflow_steps
-           WHERE workflow_id = $1 AND status = 'completed'
-           ORDER BY step_number ASC`,
-          [workflowId],
-        );
+        // Accumulate this step's output in-memory for the next step's context
+        previousContext = previousContext
+          ? `${previousContext}\n\n--- Step ${step.step_number} Output ---\n${outputSummary}`
+          : `--- Step ${step.step_number} Output ---\n${outputSummary}`;
 
         await logExecution(pool, {
           workflowId,
@@ -511,6 +507,11 @@ Produce the complete output now.`;
                 `UPDATE workflow_steps SET validation_score = $1, validation_feedback = $2 WHERE id = $3`,
                 [validation.overall, validation.feedback, step.id],
               );
+              // Track validation score for constructing result without re-fetch
+              Object.assign(step, {
+                validation_score: String(validation.overall),
+                validation_feedback: validation.feedback,
+              });
             }
           } catch (validationError) {
             // Validation failure is non-fatal
@@ -521,9 +522,16 @@ Produce the complete output now.`;
           }
         }
 
-        // Fetch updated step
-        const updatedStep = await pool.query(`SELECT * FROM workflow_steps WHERE id = $1`, [step.id]);
-        allResults.push(updatedStep.rows[0] as WorkflowStepRow);
+        // Construct result from known data — avoids redundant SELECT
+        allResults.push({
+          ...step,
+          status: 'completed',
+          output_result: outputResult,
+          output_summary: outputSummary,
+          duration_ms: durationMs,
+          completed_at: new Date().toISOString(),
+          attempts: step.attempts + 1,
+        } as WorkflowStepRow);
       } catch (stepError) {
         const durationMs = Date.now() - startTime;
         const errorMsg = stepError instanceof Error ? stepError.message : "Unknown step error";
@@ -555,10 +563,9 @@ Produce the complete output now.`;
           durationMs,
         });
 
-        // Check if we should retry
-        const retryCheck = await pool.query(`SELECT attempts, max_attempts FROM workflow_steps WHERE id = $1`, [step.id]);
-        const retryRow = retryCheck.rows[0];
-        if (Number(retryRow.attempts) < Number(retryRow.max_attempts)) {
+        // Check if we should retry (attempts was incremented when set to running)
+        const currentAttempts = step.attempts + 1;
+        if (currentAttempts < step.max_attempts) {
           // Reset to pending for retry
           await pool.query(
             `UPDATE workflow_steps SET status = 'pending', started_at = NULL, error_message = NULL WHERE id = $1`,
@@ -566,8 +573,17 @@ Produce the complete output now.`;
           );
         }
 
-        const failedStep = await pool.query(`SELECT * FROM workflow_steps WHERE id = $1`, [step.id]);
-        allResults.push(failedStep.rows[0] as WorkflowStepRow);
+        // Construct result from known data — avoids redundant SELECT
+        allResults.push({
+          ...step,
+          status: currentAttempts < step.max_attempts ? 'pending' : 'failed',
+          error_message: errorMsg,
+          duration_ms: durationMs,
+          completed_at: currentAttempts >= step.max_attempts ? new Date().toISOString() : null,
+          attempts: currentAttempts,
+          started_at: currentAttempts < step.max_attempts ? null : step.started_at,
+          error: currentAttempts < step.max_attempts ? null : errorMsg,
+        } as WorkflowStepRow);
       }
     }
 
@@ -835,8 +851,16 @@ Produce the complete output now.`;
       // Recalculate workflow state
       await recalcWorkflowState(pool, workflowId);
 
-      const updatedResult = await pool.query(`SELECT * FROM workflow_steps WHERE id = $1`, [step.id]);
-      return updatedResult.rows[0] as WorkflowStepRow;
+      // Construct result from known data — avoids redundant SELECT
+      return {
+        ...step,
+        status: 'completed',
+        output_result: outputResult,
+        output_summary: outputSummary,
+        duration_ms: durationMs,
+        completed_at: new Date().toISOString(),
+        attempts: step.attempts + 1,
+      } as WorkflowStepRow;
     } catch (stepError) {
       const durationMs = Date.now() - startTime;
       const errorMsg = stepError instanceof Error ? stepError.message : "Unknown error";
@@ -856,8 +880,15 @@ Produce the complete output now.`;
         durationMs,
       });
 
-      const failedResult = await pool.query(`SELECT * FROM workflow_steps WHERE id = $1`, [step.id]);
-      return failedResult.rows[0] as WorkflowStepRow;
+      // Construct result from known data — avoids redundant SELECT
+      return {
+        ...step,
+        status: 'failed',
+        error_message: errorMsg,
+        duration_ms: durationMs,
+        completed_at: new Date().toISOString(),
+        attempts: step.attempts + 1,
+      } as WorkflowStepRow;
     }
   } catch (err) {
     logger.error("workflow-engine", "Single step execution error", {

@@ -11,6 +11,32 @@
 import { query } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
+// Deduplication cache — prevents sending identical notifications repeatedly
+// Key: `${agentId}:${type}:${title}`, Value: timestamp
+// Entries expire after DEDUP_TTL_MS
+// ---------------------------------------------------------------------------
+
+const _dedupCache = new Map<string, number>();
+const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function isDuplicate(agentId: string, type: string, title: string): boolean {
+  const key = `${agentId}:${type}:${title}`;
+  const now = Date.now();
+  const lastSent = _dedupCache.get(key);
+  if (lastSent && now - lastSent < DEDUP_TTL_MS) {
+    return true; // Duplicate within TTL window
+  }
+  _dedupCache.set(key, now);
+  // Periodically prune expired entries to prevent unbounded growth
+  if (_dedupCache.size > 1000) {
+    for (const [k, ts] of _dedupCache) {
+      if (now - ts >= DEDUP_TTL_MS) _dedupCache.delete(k);
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -71,6 +97,11 @@ export async function sendProactiveNotification(params: {
   metadata?: Record<string, unknown>;
 }): Promise<ProactiveNotification | null> {
   if (!process.env.SUPABASE_DB_URL) return null;
+
+  // Deduplication check — skip if the same notification was sent within TTL
+  if (isDuplicate(params.agentId, params.type, params.title)) {
+    return null;
+  }
 
   try {
     const result = await query(

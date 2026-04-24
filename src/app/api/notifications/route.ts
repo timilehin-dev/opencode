@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
     // ---------------------------------------------------------------
     try {
       // Only fetch unread emails from the last 7 days to avoid stale notifications
-      const sevenDaysAgo = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
-      const listRes = await gGmailListMessages(`is:unread newer_than:${sevenDaysAgo}s`, undefined, 10);
+      // Gmail API newer_than operator uses day/month/year format (e.g., "7d"), not epoch seconds
+      const listRes = await gGmailListMessages(`is:unread newer_than:7d`, undefined, 10);
       currentCounts.unreadEmails = listRes.resultSizeEstimate ?? listRes.messages?.length ?? 0;
 
       if (listRes.messages?.length) {

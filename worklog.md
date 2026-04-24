@@ -1,4 +1,31 @@
 ---
+Task ID: 2
+Agent: Main Agent
+Task: Consolidate database schema and remove dead code
+
+Work Log:
+- Analyzed all schema SQL across the codebase: SCHEMA_SQL, PHASE2_SCHEMA_SQL, PHASE3_SCHEMA_SQL, KEY_USAGE_SCHEMA_SQL, WORKSPACE_SCHEMA_SQL, RLS_FIX_SQL (supabase.ts), LEARNING_INSIGHTS_SCHEMA (self-learning.ts), PHASE4_SCHEMA_SQL (supabase-setup.ts), inline SQL in workflows/setup and phase5 routes
+- Confirmed WORKSPACE_SCHEMA_SQL is a DUPLICATE of tables already in SCHEMA_SQL (reminders, todos, contacts)
+- Confirmed LEARNING_INSIGHTS_SCHEMA is duplicated inside PHASE4_SCHEMA_SQL
+- Confirmed PHASE2_SCHEMA_SQL is duplicated inside PHASE4_SCHEMA_SQL
+- Found workflow_executions table referenced in workflow-engine.ts but missing from all schema SQL files
+- Found a2a_shared_context, a2a_channels, a2a_channel_messages tables used in a2a.ts but missing from any schema file
+- Created src/lib/unified-schema.ts — single entry point for ALL table DDL with correct dependency order (9 phases)
+- Created WORKFLOW_SCHEMA_SQL with agent_workflows, workflow_steps, AND the missing workflow_executions table
+- Created A2A_EXTENDED_TABLES_SQL with a2a_shared_context, a2a_channels, a2a_channel_messages + required PostgreSQL functions (upsert_shared_context, get_agent_inbox, mark_messages_read, get_or_create_channel, expire_old_a2a_messages)
+- Created src/app/api/setup/master/route.ts — GET for status check, POST for idempotent setup, POST with X-Confirm-Reset for drop+recreate
+- Ran comprehensive dead code analysis via grep across entire src/ directory
+- Created DEAD_CODE_REPORT.md documenting 25+ dead exports across 9 files
+- Build verified: npx next build passes with zero errors, 87 static pages generated
+
+Stage Summary:
+- Files created: src/lib/unified-schema.ts, src/app/api/setup/master/route.ts, DEAD_CODE_REPORT.md
+- No existing files modified — all changes are additive
+- workflow_executions table gap FIXED in unified-schema.ts
+- A2A extended tables gap FIXED in unified-schema.ts
+- Unified table list: 27 tables across all phases
+
+---
 Task ID: 1
 Agent: Main Agent
 Task: Complete skills system overhaul — sync filesystem skills, fix phantom names, make agents self-aware

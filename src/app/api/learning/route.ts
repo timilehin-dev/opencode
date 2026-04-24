@@ -117,7 +117,7 @@ export async function POST(req: Request) {
             const { query } = await import("@/lib/db");
             const effectiveAgentId = agentId || "general";
             const convResult = await query(
-              `SELECT role, content FROM conversation_messages
+              `SELECT role, content FROM conversations
                WHERE agent_id = $1
                ORDER BY created_at DESC
                LIMIT 50`,

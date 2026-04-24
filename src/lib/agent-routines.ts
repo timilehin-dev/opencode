@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS agent_routines (
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
   is_active BOOLEAN NOT NULL DEFAULT true,
   last_run TIMESTAMPTZ,
+  last_status TEXT DEFAULT NULL,
   next_run TIMESTAMPTZ NOT NULL,
   last_result TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()

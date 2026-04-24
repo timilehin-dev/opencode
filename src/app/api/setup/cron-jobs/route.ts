@@ -3,7 +3,15 @@
 // POST /api/setup/cron-jobs?action=setup
 //
 // Registers pg_cron jobs in Supabase that call the app's API endpoints on schedule.
-// This is the Supabase equivalent of Vercel Cron Jobs (needed for Hobby plan).
+//
+// ⚠️  FREE TIER WARNING: On Vercel Hobby (free), serverless functions are capped
+//     at 10 seconds. LLM-based endpoints (task-processor, agent-routines) will
+//     likely time out. For reliable execution on the free tier, use the
+//     GitHub Actions workflows (.github/workflows/) as the PRIMARY cron system,
+//     with pg_cron-backup-triggers.sql as a backup trigger for GitHub Actions.
+//
+//     This route is best suited for Vercel Pro (300s timeout) deployments where
+//     pg_cron → Vercel endpoint execution has enough time to complete.
 //
 // Jobs registered:
 //   - task-processor:  every minute → /api/cron/task-processor

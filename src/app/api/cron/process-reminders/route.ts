@@ -10,9 +10,8 @@ import { query } from "@/lib/db";
 export const maxDuration = 30; // 30s max for cron handler
 
 export async function GET(request: Request) {
-  // Simple auth: query param secret must match CRON_SECRET env var
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
+  // Simple auth: header or query param secret must match CRON_SECRET env var
+  const secret = request.headers.get("x-cron-secret") || new URL(request.url).searchParams.get("secret");
   const expectedSecret = process.env.CRON_SECRET;
   if (!expectedSecret) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
