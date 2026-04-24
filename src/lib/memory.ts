@@ -118,17 +118,29 @@ export async function saveMessage(msg: {
     : all;
   saveJSON(CONV_KEY, trimmed);
 
-  // Save to Supabase (await to catch errors properly)
+  // Save to Supabase with retry (up to 2 retries)
   const supabase = getSupabase();
   if (supabase) {
-    const { error } = await supabase.from("conversations").insert({
-      session_id: message.sessionId,
-      agent_id: message.agentId,
-      role: message.role,
-      content: message.content,
-      tool_calls: message.toolCalls || null,
-    });
-    if (error) console.error("[Memory] Supabase save failed:", error.message);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { error } = await supabase.from("conversations").insert({
+          session_id: message.sessionId,
+          agent_id: message.agentId,
+          role: message.role,
+          content: message.content,
+          tool_calls: message.toolCalls || null,
+        });
+        if (error) throw error;
+        break; // Success — exit retry loop
+      } catch (err) {
+        if (attempt === 2) {
+          console.error("[Memory] Supabase save failed after 3 attempts:", err instanceof Error ? err.message : err);
+        } else {
+          // Exponential backoff: 100ms, 300ms
+          await new Promise(r => setTimeout(r, 100 * Math.pow(3, attempt)));
+        }
+      }
+    }
   }
 
   return message;

@@ -13,11 +13,12 @@
 
 import { NextResponse } from "next/server";
 import { getAgent, getProvider, getAllAgents } from "@/lib/agents";
-import { allTools } from "@/lib/tools";
+import { allTools, withAgentContext } from "@/lib/tools";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { AGENT_ROUTINES_SCHEMA } from "@/lib/agent-routines";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
 import { query } from "@/lib/db";
+import { withErrorHandler } from "@/lib/api-errors";
 
 export const maxDuration = 300; // 5 min for routine execution
 
@@ -50,6 +51,9 @@ export async function GET(request: Request) {
 
   try {
     // Get due routines (active, next_run <= now)
+    // NOTE: FOR UPDATE SKIP LOCKED runs outside a transaction, so the row-level
+    // lock is released immediately after the query returns. This is fine for
+    // our simple queue — each cron invocation picks the next available routine.
     const { rows } = await query(`
       SELECT * FROM agent_routines
       WHERE is_active = true
@@ -163,20 +167,21 @@ export async function GET(request: Request) {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const { action } = body as { action?: string };
+  return withErrorHandler(async () => {
+    try {
+      const body = await req.json();
+      const { action } = body as { action?: string };
 
-    if (!process.env.SUPABASE_DB_URL) {
-      return NextResponse.json({ error: "No database configured" }, { status: 500 });
-    }
-
-    switch (action) {
-      case "setup": {
-        // Create the agent_routines table
-        await query(AGENT_ROUTINES_SCHEMA);
-        return NextResponse.json({ success: true, message: "agent_routines table created" });
+      if (!process.env.SUPABASE_DB_URL) {
+        return NextResponse.json({ error: "No database configured" }, { status: 500 });
       }
+
+      switch (action) {
+        case "setup": {
+          // Create the agent_routines table
+          await query(AGENT_ROUTINES_SCHEMA);
+          return NextResponse.json({ success: true, message: "agent_routines table created" });
+        }
 
       case "create": {
         const { agentId, name, task, context, intervalMinutes, priority, isActive } = body as {
@@ -277,12 +282,13 @@ export async function POST(req: Request) {
       default:
         return NextResponse.json({ error: `Unknown action. Use setup, create, list, update, or delete.` }, { status: 400 });
     }
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 },
-    );
-  }
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Internal server error" },
+        { status: 500 },
+      );
+    }
+  }, "POST:/api/cron/agent-routines");
 }
 
 // ---------------------------------------------------------------------------
@@ -311,16 +317,20 @@ async function executeRoutine(
 
     const { generateText, stepCountIs } = await import("ai");
 
-    const result = await generateText({
-      model: providerResult.model,
-      system: systemPrompt,
-      messages: [
-        { role: "user", content: `${task}\n\n${context ? `Context: ${context}` : ""}` },
-      ],
-      tools: agentTools,
-      maxOutputTokens: 4096,
-      stopWhen: stepCountIs(15),
-      abortSignal: AbortSignal.timeout(120_000),
+    // CRITICAL FIX: Wrap in withAgentContext so tools get correct agent ID
+    // during routine execution instead of always falling back to 'general'
+    const result = await withAgentContext(agentId, async () => {
+      return await generateText({
+        model: providerResult.model,
+        system: systemPrompt,
+        messages: [
+          { role: "user", content: `${task}\n\n${context ? `Context: ${context}` : ""}` },
+        ],
+        tools: agentTools,
+        maxOutputTokens: 4096,
+        stopWhen: stepCountIs(15),
+        abortSignal: AbortSignal.timeout(120_000),
+      });
     });
 
     return { success: true, text: result.text || "(Routine completed with no output)" };

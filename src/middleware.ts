@@ -10,6 +10,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,6 +18,12 @@ export function middleware(request: NextRequest) {
   // Only apply to /api/* routes
   if (!pathname.startsWith("/api/")) {
     return NextResponse.next();
+  }
+
+  // Rate limit check for high-traffic mutating routes (before auth checks)
+  if (pathname.startsWith("/api/chat") && request.method === "POST") {
+    const limit = checkRateLimit(request, "chat");
+    if (limit.limited) return limit.response!;
   }
 
   // Skip GET/HEAD/OPTIONS requests (needed for SSE, health checks, page loads)

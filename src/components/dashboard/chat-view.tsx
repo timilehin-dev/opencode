@@ -97,6 +97,27 @@ const SUGGESTED_ACTIONS: Record<string, { label: string; prompt: string }[]> = {
 const DEFAULT_SUGGESTED = SUGGESTED_ACTIONS.general;
 
 // ---------------------------------------------------------------------------
+// Human-readable descriptions for in-progress tool calls
+// ---------------------------------------------------------------------------
+
+const TOOL_DESCRIPTIONS: Record<string, string> = {
+  create_pdf_report: "Generating PDF report...",
+  create_docx_document: "Creating DOCX document...",
+  create_xlsx_spreadsheet: "Building spreadsheet...",
+  create_pptx_presentation: "Building presentation...",
+  generate_chart: "Creating chart...",
+  code_execute: "Running code...",
+  python_data_process: "Processing data...",
+  tavily_search: "Searching the web...",
+  duckduckgo_search: "Searching the web...",
+  gmail_send: "Sending email...",
+  gmail_fetch: "Fetching emails...",
+  delegate_to_agent: "Delegating to specialist...",
+  github_create_issue: "Creating GitHub issue...",
+  calendar_create: "Creating calendar event...",
+};
+
+// ---------------------------------------------------------------------------
 // Color map for agent themes
 // ---------------------------------------------------------------------------
 
@@ -1132,7 +1153,7 @@ function AgentChatSession({
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary border border-border text-[11px] text-muted-foreground"
                             >
                               <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                              <span>{toolName.replace(/_/g, " ")}</span>
+                              <span>{TOOL_DESCRIPTIONS[toolName] || toolName.replace(/_/g, " ")}</span>
                             </div>
                           );
                         })}
