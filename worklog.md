@@ -192,3 +192,24 @@ Stage Summary:
 - All 8 items (3 HIGH + 5 MEDIUM) completed
 - Key finding: Document downloads, streaming, and loading states were already implemented — only needed minor enhancements
 - Routines "agent ID undefined" bug root cause: missing withAgentContext wrapper in executeRoutine()
+---
+Task ID: 9-18
+Agent: Main Agent
+Task: Fix bugs from test, production essentials, growth features
+
+Work Log:
+- Analyzed test chat log identifying two bugs in project_decompose_and_add tool
+- Fixed priority constraint violation: added valid priorities to system prompt + runtime validation
+- Fixed timeout: replaced sequential inserts with batch INSERT VALUES
+- Added security headers to next.config.ts (CSP, HSTS, X-Frame-Options, etc.)
+- Created public/robots.txt
+- Added accessibility: skip-to-content link, nav aria-label, aria-current, chat aria-live
+- Created PageViewTracker component, added trackPageView to analytics-store
+- Wired page view tracking in app layout
+- Checked DB for stale skill entries — DB already clean, no action needed
+- Committed and pushed all changes
+
+Stage Summary:
+- Commit includes: project decompose fix, security headers, accessibility, page tracking
+- DB confirmed clean — no stale ghost skill entries
+- Remaining growth items: user auth (large feature), cost/token tracking
