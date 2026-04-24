@@ -1,4 +1,4 @@
-# Claw Health Check — Monitors system health
+# Klawhub Health Check — Monitors system health
 # Runs every hour. Also triggerable via repository_dispatch from pg_cron.
 #
 # Checks agent_status, stale tasks, and system metrics.
@@ -42,52 +42,66 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           node -e "
-          import pg from 'pg';
+          const pg = require('pg');
           const pool = new pg.Pool({ connectionString: process.env.SUPABASE_DB_URL });
           const now = new Date().toISOString();
 
           async function check() {
-            // 1. Check for stale running tasks (>15 min)
+            // 1. Check database connectivity
+            try {
+              await pool.query('SELECT 1');
+              console.log('Database: connected');
+            } catch(e) {
+              console.error('Database: FAILED', e.message);
+              await pool.end();
+              process.exit(1);
+            }
+
+            // 2. Check for stale running tasks (>15 min)
             const stale = await pool.query(
               \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'\"
             );
             console.log('Stale running tasks:', stale.rows[0].count);
 
-            // 2. Check for stale project tasks
+            // 3. Check for stale project tasks
             const stalePT = await pool.query(
               \"SELECT COUNT(*) as count FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '15 minutes'\"
             );
             console.log('Stale project tasks:', stalePT.rows[0].count);
 
-            // 3. Agent status overview
+            // 4. Agent status overview
             const agents = await pool.query(
               'SELECT agent_id, status, current_task, last_activity FROM agent_status ORDER BY agent_id'
             );
             console.log('Agent status:', JSON.stringify(agents.rows));
 
-            // 4. Pending tasks count
+            // 5. Pending tasks count
             const pending = await pool.query(
               \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'pending'\"
             );
             console.log('Pending tasks:', pending.rows[0].count);
 
-            // 5. Unread notifications count
+            // 6. Unread notifications count
             const notifs = await pool.query(
               'SELECT COUNT(*) as count FROM proactive_notifications WHERE is_read = FALSE'
             );
             console.log('Unread notifications:', notifs.rows[0].count);
 
-            // 6. Recent errors
+            // 7. Recent errors
             const errors = await pool.query(
               \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'failed' AND updated_at > NOW() - INTERVAL '1 hour'\"
             );
             console.log('Recent task failures (1h):', errors.rows[0].count);
 
-            // Write health log
-            await pool.query(
-              \"INSERT INTO automation_logs (automation_id, status, result, created_at) VALUES (0, 'success', \$1, NOW())\",
-              [JSON.stringify({ type: 'health_check', timestamp: now, stale_tasks: stale.rows[0].count, stale_project_tasks: stalePT.rows[0].count, pending_tasks: pending.rows[0].count, unread_notifications: notifs.rows[0].count, recent_failures: errors.rows[0].count })]
-            );
+            // 8. Write health log
+            try {
+              await pool.query(
+                \"INSERT INTO automation_logs (automation_id, status, result, created_at) VALUES (0, 'success', \$1, NOW())\",
+                [JSON.stringify({ type: 'health_check', timestamp: now, stale_tasks: stale.rows[0].count, stale_project_tasks: stalePT.rows[0].count, pending_tasks: pending.rows[0].count, unread_notifications: notifs.rows[0].count, recent_failures: errors.rows[0].count })]
+              );
+            } catch(e) {
+              console.log('Could not write health log (automation_logs table may not exist):', e.message);
+            }
 
             // Recover stale tasks
             if (Number(stale.rows[0].count) > 0) {
