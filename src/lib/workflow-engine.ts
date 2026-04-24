@@ -62,16 +62,18 @@ interface WorkflowRow {
   failed_steps: number;
   quality_score: string | null;
   error_message: string | null;
+  schedule_interval: number | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
 }
 
-export interface WorkflowWithSteps extends Omit<WorkflowRow, "quality_score" | "total_steps" | "completed_steps" | "failed_steps"> {
+export interface WorkflowWithSteps extends Omit<WorkflowRow, "quality_score" | "total_steps" | "completed_steps" | "failed_steps" | "schedule_interval"> {
   quality_score: number | null;
   total_steps: number;
   completed_steps: number;
   failed_steps: number;
+  schedule_interval: number | null;
   steps: Array<Omit<WorkflowStepRow, "validation_score"> & { validation_score: number | null }>;
 }
 

@@ -20,6 +20,7 @@ export interface TaskBoardItem {
   context: string;
   parentTaskId: string | null;
   deadline: string | null;
+  scheduleInterval: number | null;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS task_board (
   context TEXT DEFAULT '',
   parent_task_id INTEGER DEFAULT NULL,
   deadline TIMESTAMPTZ DEFAULT NULL,
+  schedule_interval INTEGER DEFAULT NULL,
   tags JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -242,6 +244,7 @@ function mapRow(row: Record<string, unknown>): TaskBoardItem {
     context: row.context as string,
     parentTaskId: row.parent_task_id ? String(row.parent_task_id) : null,
     deadline: row.deadline ? String(row.deadline) : null,
+    scheduleInterval: row.schedule_interval ? Number(row.schedule_interval) : null,
     tags: typeof row.tags === "string" ? JSON.parse(row.tags) : (row.tags as string[]),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,

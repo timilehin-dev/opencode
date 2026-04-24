@@ -23,6 +23,7 @@ export async function POST() {
         failed_steps INTEGER DEFAULT 0,
         quality_score NUMERIC(5,2),
         error_message TEXT,
+        schedule_interval INTEGER DEFAULT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
         completed_at TIMESTAMPTZ

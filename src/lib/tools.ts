@@ -6388,7 +6388,7 @@ export const workflowStepExecuteTool = tool({
 });
 
 export const workflowCancelTool = tool({
-  description: "Cancel a running or paused workflow. This will skip all remaining pending steps.",
+  description: "Cancel a running or paused workflow. This will skip all remaining pending steps and remove its pg_cron job if it was scheduled.",
   inputSchema: zodSchema(z.object({
     workflow_id: z.string().describe("The UUID of the workflow to cancel"),
   })),
@@ -6398,7 +6398,98 @@ export const workflowCancelTool = tool({
       headers: getSelfFetchHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ status: "cancelled" }),
     });
+    // Clean up pg_cron job if it exists
+    try {
+      const { unregisterCron } = await import("@/lib/pg-cron-manager");
+      const jobName = `workflow-${workflow_id.replace(/[^a-zA-Z0-9-]/g, "")}`;
+      await unregisterCron(jobName);
+    } catch { /* ignore */ }
     return await safeParseRes(res);
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Workflow Schedule Tool — Create recurring workflows with pg_cron
+// ---------------------------------------------------------------------------
+
+export const workflowScheduleTool = tool({
+  description: "Plan, create, and optionally SCHEDULE a recurring workflow. Decomposes a complex task into multi-step workflow, then registers a pg_cron job to auto-execute it on a schedule. Use this for recurring complex tasks like weekly analysis reports, daily monitoring workflows, or periodic research digests.",
+  inputSchema: zodSchema(z.object({
+    query: z.string().describe("The complex task to decompose into a multi-step workflow"),
+    agent_id: z.string().optional().describe("Agent ID (default: 'general')"),
+    schedule_interval_minutes: z.number().optional().describe("Make this a RECURRING workflow. How often to re-execute in minutes (e.g., 60, 120, 1440 for daily). Registers a dedicated pg_cron job."),
+  })),
+  execute: safeJson(async ({ query, agent_id, schedule_interval_minutes }) => {
+    try {
+      // 1. Plan and create the workflow
+      const { planWorkflow } = await import("@/lib/workflow-engine");
+      const planResult = await planWorkflow(query, agent_id || "general");
+
+      let cronResult = null;
+      const workflowId = planResult.workflowId;
+
+      // 2. If schedule is requested, register pg_cron job
+      if (schedule_interval_minutes && schedule_interval_minutes > 0 && workflowId) {
+        // Store schedule_interval in the workflow
+        const { query: dbQuery } = await import("@/lib/db");
+        await dbQuery("UPDATE agent_workflows SET schedule_interval = $1 WHERE id = $2", [schedule_interval_minutes, workflowId]);
+        // Register the pg_cron job
+        const { registerWorkflowCron } = await import("@/lib/pg-cron-manager");
+        cronResult = await registerWorkflowCron(workflowId, schedule_interval_minutes);
+      }
+
+      return {
+        success: true,
+        workflow_id: planResult.workflowId,
+        plan: planResult.plan,
+        cron: cronResult,
+        message: schedule_interval_minutes
+          ? `Workflow created and scheduled via pg_cron (${cronResult?.schedule || "failed"}).${cronResult?.success ? "" : ` Cron warning: ${cronResult?.error}`}`
+          : "Workflow planned and created. Use workflow_execute to run it.",
+      };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to create workflow" };
+    }
+  }),
+});
+
+export const workflowUpdateScheduleTool = tool({
+  description: "Update or remove the schedule of an existing workflow. Change schedule_interval_minutes to update the pg_cron job, or set to 0/null to remove it. The workflow itself is not affected.",
+  inputSchema: zodSchema(z.object({
+    workflow_id: z.string().describe("The UUID of the workflow"),
+    schedule_interval_minutes: z.number().nullable().describe("New schedule in minutes (e.g., 60, 1440). Set to 0 or null to remove the pg_cron job."),
+  })),
+  execute: safeJson(async ({ workflow_id, schedule_interval_minutes }) => {
+    try {
+      const { query } = await import("@/lib/db");
+      const { registerWorkflowCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+      const jobName = `workflow-${workflow_id.replace(/[^a-zA-Z0-9-]/g, "")}`;
+      const interval = schedule_interval_minutes === null ? 0 : schedule_interval_minutes;
+
+      // Update DB
+      await query("UPDATE agent_workflows SET schedule_interval = $1 WHERE id = $2", [
+        interval === 0 ? null : interval, workflow_id,
+      ]);
+
+      let cronResult;
+      if (interval > 0) {
+        cronResult = await registerWorkflowCron(workflow_id, interval);
+      } else {
+        await unregisterCron(jobName);
+        cronResult = { success: true, jobName, message: "pg_cron job removed" };
+      }
+
+      return {
+        success: true,
+        workflow_id,
+        cron: cronResult,
+        message: interval > 0
+          ? `Workflow schedule updated: every ${interval} minutes (${cronResult.schedule})`
+          : "Workflow schedule removed. Workflow is now one-time only.",
+      };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Failed to update workflow schedule" };
+    }
   }),
 });
 
@@ -6408,7 +6499,7 @@ export const workflowCancelTool = tool({
 // ---------------------------------------------------------------------------
 
 export const taskboardCreateTool = tool({
-  description: "Create a new task on the shared task board (Kanban). Use this to track work items, assign tasks to yourself or other agents, and coordinate work across the team. Tasks start in 'backlog' column.",
+  description: "Create a new task on the shared task board (Kanban). Use this to track work items, assign tasks to yourself or other agents, and coordinate work across the team. Tasks start in 'backlog' column. Set schedule_interval_minutes to make the task RECURRING — it will get its own pg_cron job that executes it automatically on the schedule.",
   inputSchema: zodSchema(z.object({
     title: z.string().describe("Task title — clear and actionable"),
     description: z.string().optional().describe("Detailed task description"),
@@ -6416,9 +6507,10 @@ export const taskboardCreateTool = tool({
     assigned_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Agent to assign this task to"),
     context: z.string().optional().describe("Additional context for the assigned agent"),
     deadline: z.string().optional().describe("Deadline (ISO 8601 datetime)"),
+    schedule_interval_minutes: z.number().optional().describe("Make this a RECURRING task. How often to auto-execute in minutes (e.g., 30, 60, 120, 1440 for daily). Registers a pg_cron job."),
     tags: z.array(z.string()).optional().describe("Tags for categorization"),
   })),
-  execute: safeJson(async ({ title, description, priority, assigned_agent, context, deadline, tags }) => {
+  execute: safeJson(async ({ title, description, priority, assigned_agent, context, deadline, schedule_interval_minutes, tags }) => {
     try {
       const { createTask } = await import("@/lib/taskboard");
       const task = await createTask({
@@ -6432,7 +6524,26 @@ export const taskboardCreateTool = tool({
         tags,
       });
       if (!task) return { success: false, error: "Failed to create task — database error" };
-      return { success: true, task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent } };
+
+      // If schedule_interval is set, register a pg_cron job
+      let cronResult = null;
+      if (schedule_interval_minutes && schedule_interval_minutes > 0) {
+        // Update the DB with the schedule interval
+        const { query } = await import("@/lib/db");
+        await query("UPDATE task_board SET schedule_interval = $1 WHERE id = $2", [schedule_interval_minutes, task.id]);
+        // Register the pg_cron job
+        const { registerTaskCron } = await import("@/lib/pg-cron-manager");
+        cronResult = await registerTaskCron(Number(task.id), schedule_interval_minutes);
+      }
+
+      return {
+        success: true,
+        task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent, scheduleInterval: schedule_interval_minutes || null },
+        cron: cronResult,
+        message: schedule_interval_minutes
+          ? `Task "${title}" created with pg_cron schedule (${cronResult?.schedule || "failed"}).${cronResult?.success ? "" : ` Cron warning: ${cronResult?.error}`}`
+          : `Task "${title}" created successfully.`,
+      };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : "Failed to create task" };
     }
@@ -6440,7 +6551,7 @@ export const taskboardCreateTool = tool({
 });
 
 export const taskboardUpdateTool = tool({
-  description: "Update a task on the shared task board. Can change title, description, status (backlog/in_progress/waiting/done), priority, assignment, context, deadline, or tags. Use this to move tasks between columns or reassign them.",
+  description: "Update a task on the shared task board. Can change title, description, status (backlog/in_progress/waiting/done), priority, assignment, context, deadline, schedule, or tags. Changing schedule_interval_minutes will auto-update the pg_cron job. Setting it to 0 or null removes the cron job.",
   inputSchema: zodSchema(z.object({
     task_id: z.number().describe("Task ID to update"),
     title: z.string().optional().describe("New title"),
@@ -6450,9 +6561,10 @@ export const taskboardUpdateTool = tool({
     assigned_agent: z.enum(["general", "mail", "code", "data", "creative", "research", "ops"]).optional().describe("Reassign to a different agent"),
     context: z.string().optional().describe("Update context"),
     deadline: z.string().optional().describe("Update deadline (ISO 8601)"),
+    schedule_interval_minutes: z.number().nullable().optional().describe("Update recurring schedule in minutes (e.g., 60, 1440). Set to 0 or null to remove the pg_cron job."),
     tags: z.array(z.string()).optional().describe("Update tags"),
   })),
-  execute: safeJson(async ({ task_id, title, description, status, priority, assigned_agent, context, deadline, tags }) => {
+  execute: safeJson(async ({ task_id, title, description, status, priority, assigned_agent, context, deadline, schedule_interval_minutes, tags }) => {
     try {
       const { updateTask } = await import("@/lib/taskboard");
       const updates: Record<string, unknown> = {};
@@ -6467,7 +6579,37 @@ export const taskboardUpdateTool = tool({
 
       const task = await updateTask(task_id, updates);
       if (!task) return { success: false, error: `Task ${task_id} not found or update failed` };
-      return { success: true, task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent } };
+
+      // Handle schedule_interval changes — sync pg_cron job
+      let cronResult = null;
+      if (schedule_interval_minutes !== undefined) {
+        const { query } = await import("@/lib/db");
+        const { registerTaskCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+        const interval = schedule_interval_minutes === null ? 0 : schedule_interval_minutes;
+
+        await query("UPDATE task_board SET schedule_interval = $1 WHERE id = $2", [
+          interval === 0 ? null : interval, task_id,
+        ]);
+
+        if (interval > 0) {
+          cronResult = await registerTaskCron(task_id, interval);
+        } else {
+          await unregisterCron(`taskboard-${task_id}`);
+          cronResult = { success: true, jobName: `taskboard-${task_id}`, message: "pg_cron job removed" };
+        }
+      }
+
+      // If status changed to 'done', also clean up the cron job
+      if (status === "done") {
+        const { unregisterCron } = await import("@/lib/pg-cron-manager");
+        await unregisterCron(`taskboard-${task_id}`);
+      }
+
+      return {
+        success: true,
+        task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent },
+        cron: cronResult,
+      };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : "Failed to update task" };
     }
@@ -6493,7 +6635,7 @@ export const taskboardListTool = tool({
           id: t.id, title: t.title, status: t.status, priority: t.priority,
           assignedAgent: t.assignedAgent, createdBy: t.createdBy,
           description: t.description, context: t.context,
-          deadline: t.deadline, tags: t.tags,
+          deadline: t.deadline, scheduleInterval: t.scheduleInterval, tags: t.tags,
           createdAt: t.createdAt,
         })),
       };
@@ -6504,16 +6646,19 @@ export const taskboardListTool = tool({
 });
 
 export const taskboardDeleteTool = tool({
-  description: "Delete a task from the shared task board. Use with caution — this permanently removes the task. Prefer updating status to 'done' instead of deleting completed tasks.",
+  description: "Delete a task from the shared task board. Permanently removes the task and its pg_cron job (if scheduled). Prefer updating status to 'done' instead of deleting completed tasks.",
   inputSchema: zodSchema(z.object({
     task_id: z.number().describe("Task ID to delete"),
   })),
   execute: safeJson(async ({ task_id }) => {
     try {
+      // Remove pg_cron job first
+      const { unregisterCron } = await import("@/lib/pg-cron-manager");
+      await unregisterCron(`taskboard-${task_id}`);
       const { deleteTask } = await import("@/lib/taskboard");
       const ok = await deleteTask(task_id);
       if (!ok) return { success: false, error: `Task ${task_id} not found or delete failed` };
-      return { success: true, message: `Task ${task_id} deleted` };
+      return { success: true, message: `Task ${task_id} deleted (pg_cron job removed)` };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : "Failed to delete task" };
     }
@@ -6929,17 +7074,20 @@ export const routineToggleTool = tool({
 // ---------------------------------------------------------------------------
 
 export const cronSyncTool = tool({
-  description: "Synchronize all agent routines with pg_cron jobs. Ensures every active routine has a dedicated pg_cron job registered, and removes jobs for inactive/deleted routines. Use this after bulk changes or to fix scheduling issues.",
+  description: "Master synchronization tool — syncs ALL pg_cron jobs (routines, task board tasks, workflows) with the database. Ensures every active scheduled item has a pg_cron job registered, and removes jobs for completed/inactive items. Use this after bulk changes or to fix scheduling issues.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
-    const { syncRoutineCronJobs, listKlawCronJobs } = await import("@/lib/pg-cron-manager");
-    const syncResult = await syncRoutineCronJobs();
+    const { syncAllCronJobs, listKlawCronJobs } = await import("@/lib/pg-cron-manager");
+    const syncResult = await syncAllCronJobs();
     const jobs = await listKlawCronJobs();
     return {
       success: true,
-      ...syncResult,
       totalCronJobs: jobs.length,
+      routines: syncResult.routines,
+      tasks: syncResult.tasks,
+      workflows: syncResult.workflows,
       cronJobs: jobs.map((j) => ({ name: j.jobname, schedule: j.schedule, active: j.active })),
+      message: `Synced ${syncResult.routines.registered} routines, ${syncResult.tasks.registered} tasks, ${syncResult.workflows.registered} workflows. Total active pg_cron jobs: ${jobs.length}`,
     };
   }),
 });
@@ -7109,6 +7257,8 @@ export const allTools: Record<string, ToolType> = {
   workflow_list: workflowListTool,
   workflow_step_execute: workflowStepExecuteTool,
   workflow_cancel: workflowCancelTool,
+  workflow_schedule: workflowScheduleTool,
+  workflow_update_schedule: workflowUpdateScheduleTool,
   // Task Board (Kanban)
   taskboard_create: taskboardCreateTool,
   taskboard_update: taskboardUpdateTool,
