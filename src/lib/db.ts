@@ -8,6 +8,11 @@
 // EMAXCONNSESSION errors. Each query gets its own backend connection
 // from Supavisor's pool, then returns it immediately after the transaction.
 //
+// Features:
+// - Auto-recovery: if the pool hits EMAXCONNSESSION, it's recreated
+// - Retry logic: transient connection errors get up to 2 retries
+// - Connection-aware: logs congestion warnings
+//
 // Usage: import { getPool, query, withPool } from "@/lib/db"
 // ---------------------------------------------------------------------------
 
@@ -15,23 +20,15 @@
 const { Pool } = require("pg");
 
 let _pool: ReturnType<typeof Pool> | null = null;
-let _poolError: string | null = null;
+let _creatingPool = false;
 
 /**
- * Get or create the shared connection pool singleton.
- * Uses SUPABASE_DB_URL environment variable with pgbouncer for connection pooling.
+ * Build the connection string with pgbouncer params.
  */
-export function getPool(): ReturnType<typeof Pool> {
-  if (_poolError) {
-    throw new Error(_poolError);
-  }
-
-  if (_pool) return _pool;
-
+function buildConnectionString(): string {
   let connectionString = process.env.SUPABASE_DB_URL;
   if (!connectionString) {
-    _poolError = "SUPABASE_DB_URL environment variable is not configured";
-    throw new Error(_poolError);
+    throw new Error("SUPABASE_DB_URL environment variable is not configured");
   }
 
   // Force transaction-mode pooling via pgbouncer to avoid EMAXCONNSESSION errors.
@@ -45,50 +42,133 @@ export function getPool(): ReturnType<typeof Pool> {
   if (!url.searchParams.has("prepare")) {
     url.searchParams.set("prepare", "false");
   }
-  connectionString = url.toString();
+  return url.toString();
+}
 
-  _pool = new Pool({
+/**
+ * Create a new pool instance. Does NOT cache — caller must assign to _pool.
+ */
+function createPool(): ReturnType<typeof Pool> {
+  const connectionString = buildConnectionString();
+
+  const pool = new Pool({
     connectionString,
     // Connection pool settings tuned for Supabase + Vercel serverless
-    max: 5,                     // Keep low — Supavisor multiplexes to backend
-    min: 0,                     // No idle connections in serverless
-    idleTimeoutMillis: 10000,   // Release idle connections after 10s (was 15s)
-    connectionTimeoutMillis: 8000, // Fail fast (was 10s)
-    // Allow prepared statements to be reused across connections
-    allowExitOnIdle: true,      // Let process exit if pool is idle
-    // Statement timeout to prevent runaway queries from holding connections
-    statement_timeout: 30000,   // 30s max per query
+    max: 3,                      // Keep very low — Supavisor multiplexes to backend
+    min: 0,                      // No idle connections in serverless
+    idleTimeoutMillis: 5000,     // Release idle connections fast (5s)
+    connectionTimeoutMillis: 5000, // Fail fast (5s)
+    allowExitOnIdle: true,       // Let process exit if pool is idle
+    statement_timeout: 30000,    // 30s max per query
   });
 
-  // Log pool errors (don't crash the process)
-  _pool.on("error", (err: Error) => {
+  // On pool-level error (e.g. backend crash), mark pool for recreation
+  pool.on("error", (err: Error) => {
     console.error("[DB] Pool error:", err.message);
+    // If it's a session limit error, destroy and recreate the pool
+    if (err.message.includes("EMAXCONNSESSION") || err.message.includes("max clients")) {
+      console.warn("[DB] Session limit hit — destroying pool for recreation");
+      _pool = null;
+    }
   });
 
-  // Log pool stats periodically for monitoring
-  if (process.env.NODE_ENV === "development") {
-    setInterval(() => {
-      const stats = {
-        total: _pool!.totalCount,
-        idle: _pool!.idleCount,
-        waiting: _pool!.waitingCount,
-      };
-      if (stats.waiting > 0) {
-        console.warn("[DB] Pool congestion:", stats);
-      }
-    }, 30000);
+  return pool;
+}
+
+/**
+ * Get or create the shared connection pool singleton.
+ * If the pool was destroyed due to EMAXCONNSESSION, a fresh one is created.
+ */
+export function getPool(): ReturnType<typeof Pool> {
+  // Pool exists and is healthy — return it
+  if (_pool) return _pool;
+
+  // Prevent concurrent pool creation
+  if (_creatingPool) {
+    throw new Error("Database pool is being recreated — please retry in a moment");
   }
 
-  return _pool;
+  _creatingPool = true;
+  try {
+    _pool = createPool();
+    return _pool;
+  } finally {
+    _creatingPool = false;
+  }
+}
+
+/**
+ * Destroy the current pool and create a fresh one.
+ * Used for recovery after EMAXCONNSESSION errors.
+ */
+export async function resetPool(): Promise<void> {
+  if (_pool) {
+    try {
+      await _pool.end();
+    } catch {
+      // Ignore errors during shutdown
+    }
+    _pool = null;
+  }
+  // Create fresh pool on next getPool() call
+  getPool();
+}
+
+/**
+ * Check if an error is a transient connection/session error that can be
+ * retried by creating a new pool.
+ */
+function isSessionError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message;
+    return (
+      msg.includes("EMAXCONNSESSION") ||
+      msg.includes("max clients") ||
+      msg.includes("connection") ||
+      msg.includes("terminating connection") ||
+      msg.includes("too many connections") ||
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("ECONNRESET") ||
+      msg.includes("socket hang up")
+    );
+  }
+  return false;
 }
 
 /**
  * Execute a single SQL query against the shared pool.
- * Shorthand for getPool().query(sql, params).
+ * Includes retry logic for transient connection errors.
  */
 export async function query(sql: string, params?: unknown[]) {
-  const pool = getPool();
-  return pool.query(sql, params);
+  const maxRetries = 2;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const pool = getPool();
+      return await pool.query(sql, params);
+    } catch (error) {
+      lastError = error;
+
+      // If it's a session/connection error, reset the pool and retry
+      if (isSessionError(error) && attempt < maxRetries) {
+        console.warn(`[DB] Session error on attempt ${attempt + 1}, resetting pool...`);
+        try {
+          await resetPool();
+          // Brief delay before retry
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+        } catch (resetErr) {
+          console.error("[DB] Pool reset failed:", resetErr);
+        }
+        continue;
+      }
+
+      // Non-retriable error or max retries exceeded
+      throw error;
+    }
+  }
+
+  throw lastError;
 }
 
 /**
