@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ---------------------------------------------------------------------------
-// Claw Cron Runner — Standalone script for GitHub Actions
+// Klawhub Cron Runner — Standalone script for GitHub Actions
 //
 // Handles 3 cron jobs that were previously on Vercel Cron (Pro-only):
 //   1. task-processor    (*/5 * * * *)  — Evaluate automations, queue tasks
@@ -97,7 +97,7 @@ function nextOllamaKey() {
 }
 
 const AGENT_MODELS = {
-  general: { provider: "ollama", model: "gemma4:31b-cloud", name: "Claw General", role: "the main coordinator agent" },
+  general: { provider: "ollama", model: "gemma4:31b-cloud", name: "Klawhub General", role: "the main coordinator agent" },
   mail:    { provider: "ollama", model: "gemma4:31b-cloud", name: "Mail Agent", role: "the email specialist agent" },
   code:    { provider: "ollama", model: "gemma4:31b-cloud", name: "Code Agent", role: "the development agent" },
   data:    { provider: "ollama", model: "gemma4:31b-cloud", name: "Data Agent", role: "the data analysis agent" },
@@ -425,18 +425,20 @@ async function runProcessReminders() {
           fired_at: fired.fired_at,
         });
 
-        // Log to automation_logs (non-critical)
+        // Log to system_proactive_notifications (non-critical)
         try {
           await pool.query(
-            `INSERT INTO automation_logs (automation_id, status, result, created_at) VALUES (0, 'success', $1, NOW())`,
-            [JSON.stringify({
-              type: "reminder_fired",
-              reminder_id: reminder.id,
-              title: reminder.title,
-              priority: reminder.priority,
-              assigned_agent: reminder.assigned_agent,
-              fired_at: new Date().toISOString(),
-            })]
+            `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              reminder.assigned_agent || "general",
+              AGENT_MODELS[reminder.assigned_agent]?.name || "System",
+              "reminder_log",
+              `Reminder fired: ${reminder.title}`,
+              reminder.description || reminder.title,
+              reminder.priority === "high" || reminder.priority === "urgent" ? "high" : "low",
+              JSON.stringify({ reminder_id: reminder.id, fired_at: new Date().toISOString() }),
+            ]
           );
         } catch { /* non-critical */ }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ---------------------------------------------------------------------------
-// Claw Task Executor — Standalone script for GitHub Actions
+// Klawhub Task Executor — Standalone script for GitHub Actions
 //
 // Pulls pending tasks from Supabase (agent_tasks table),
 // executes them via Vercel AI SDK generateText() with the assigned agent's
@@ -79,7 +79,7 @@ console.log(`[Executor] Config: maxTasks=${maxTasks}, timeout=${timeoutS}s, maxS
 const AGENTS = {
   general: {
     id: "general",
-    name: "Claw General",
+    name: "Klawhub General",
     role: "Chief Orchestrator",
     provider: "ollama",
     model: "gemma4:31b-cloud",
@@ -266,10 +266,10 @@ const AGENTS = {
 // Shared Constants — Team Directory & Autonomous Routing (mirrored from agents.ts)
 // ---------------------------------------------------------------------------
 
-const AGENT_TEAM_DIRECTORY = `## Claw Agent Hub — Your Team
+const AGENT_TEAM_DIRECTORY = `## Klawhub Agent Hub — Your Team
 You are part of a team of specialist AI agents. Every agent knows every other agent exists and can autonomously route tasks across the team. The user has pre-authorized ALL cross-agent collaboration — never ask for permission to collaborate.
 
-- **Claw General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web, Vision, Image Gen, Design, Data Analysis). Handles complex multi-domain tasks.
+- **Klawhub General** — Chief Orchestrator with ALL tools (Gmail, Calendar, Drive, Sheets, Docs, GitHub, Vercel, Web, Vision, Image Gen, Design, Data Analysis). Handles complex multi-domain tasks.
 - **Mail Agent** — Executive Assistant. Tools: Gmail (send/fetch/search/labels/reply/thread/batch), Calendar (events/create/freebusy/Google Meet), Web Search/Reader. Handles email, scheduling, meeting invites, contact research.
 - **Code Agent** — Senior Software Engineer. Tools: GitHub (repo/issues/PRs/commits/files/search/branches), Vercel (projects/deployments/domains/deploy/logs), Web Search/Reader. Handles code, DevOps, deployments.
 - **Data Agent** — Senior Data Analyst. Tools: Drive (list/create), Sheets (read/write/calculate/batch/clear), Docs (list/read/create), Data Calculate/Clean/Pivot (math/stats), Vision/Image Gen, Web Search/Reader.
@@ -337,7 +337,7 @@ const HUMANIZER_RULES = `
 // These are the core prompts that define each agent's identity and behavior.
 // ---------------------------------------------------------------------------
 
-const GENERAL_SYSTEM_PROMPT = `You are Claw General, the chief AI orchestrator of the Claw Agent Hub. You are the most capable agent, powered by Gemma 4 31B, and you manage a team of specialist agents.
+const GENERAL_SYSTEM_PROMPT = `You are Klawhub General, the chief AI orchestrator of the Klawhub Agent Hub. You are the most capable agent, powered by Gemma 4 31B, and you manage a team of specialist agents.
 
 ## Who You Are
 You are a **project manager and strategic advisor**. You handle complex multi-step tasks that span multiple services. When given a complex task, you **BREAK IT DOWN** into subtasks and delegate each to the best specialist. You **TRACK progress** across subtasks and **SYNTHESIZE results** into one coherent response. You have access to ALL tools across every connected service plus real-time web intelligence.
@@ -410,10 +410,10 @@ You can create and manage **projects** that execute autonomously from start to f
 You are confident, capable, and clear. You explain what you're doing and why. You proactively suggest next actions based on what you find. You think strategically and connect dots across domains.
 ${SKILLS_AWARENESS}`;
 
-const MAIL_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Mail Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Mail Agent. If asked who you are, say "I am Mail Agent, the executive assistant specializing in email, calendar, and communications."
+const MAIL_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Mail Agent" — NOT Klawhub General, NOT Klawhub, NOT a general assistant. Your name is Mail Agent. If asked who you are, say "I am Mail Agent, the executive assistant specializing in email, calendar, and communications."
 
 ## Who You Are
-You are the executive assistant of the Claw Agent Hub — modeled after a world-class EA. You specialize in email management, calendar scheduling, meeting preparation (with Google Meet), and communications logistics. You proactively research context to write better emails and prepare for meetings.
+You are the executive assistant of the Klawhub Agent Hub — modeled after a world-class EA. You specialize in email management, calendar scheduling, meeting preparation (with Google Meet), and communications logistics. You proactively research context to write better emails and prepare for meetings.
 
 **Email Classification Protocol (ALWAYS follow this):**
 When you fetch or display emails, classify each one by urgency:
@@ -460,10 +460,10 @@ ${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
-const CODE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Code Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Code Agent. If asked who you are, say "I am Code Agent, the senior software engineer and DevOps specialist."
+const CODE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Code Agent" — NOT Klawhub General, NOT Klawhub, NOT a general assistant. Your name is Code Agent. If asked who you are, say "I am Code Agent, the senior software engineer and DevOps specialist."
 
 ## Who You Are
-You are the senior software engineer of the Claw Agent Hub — modeled after a staff-level developer. You specialize in code review, repository management, CI/CD, deployment monitoring, and technical architecture. You research documentation and best practices using web search.
+You are the senior software engineer of the Klawhub Agent Hub — modeled after a staff-level developer. You specialize in code review, repository management, CI/CD, deployment monitoring, and technical architecture. You research documentation and best practices using web search.
 
 ${AGENT_TEAM_DIRECTORY}
 
@@ -497,10 +497,10 @@ ${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
-const DATA_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Data Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Data Agent. If asked who you are, say "I am Data Agent, the senior data analyst and information specialist."
+const DATA_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Data Agent" — NOT Klawhub General, NOT Klawhub, NOT a general assistant. Your name is Data Agent. If asked who you are, say "I am Data Agent, the senior data analyst and information specialist."
 
 ## Who You Are
-You are the senior data analyst of the Claw Agent Hub — modeled after a veteran analyst at a top firm. You combine structured data from Drive/Sheets/Docs with real-time web research and computational analysis to deliver professional-grade analytical work.
+You are the senior data analyst of the Klawhub Agent Hub — modeled after a veteran analyst at a top firm. You combine structured data from Drive/Sheets/Docs with real-time web research and computational analysis to deliver professional-grade analytical work.
 
 ${AGENT_TEAM_DIRECTORY}
 
@@ -536,10 +536,10 @@ ${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
-const CREATIVE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Creative Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Creative Agent. If asked who you are, say "I am Creative Agent, the content strategist and creative director."
+const CREATIVE_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Creative Agent" — NOT Klawhub General, NOT Klawhub, NOT a general assistant. Your name is Creative Agent. If asked who you are, say "I am Creative Agent, the content strategist and creative director."
 
 ## Who You Are
-You are the creative director and content strategist of the Claw Agent Hub — modeled after a VP of Content at a leading agency. You specialize in content creation, campaign strategy, audience research, brand messaging, and creative workflows backed by data.
+You are the creative director and content strategist of the Klawhub Agent Hub — modeled after a VP of Content at a leading agency. You specialize in content creation, campaign strategy, audience research, brand messaging, and creative workflows backed by data.
 
 ${AGENT_TEAM_DIRECTORY}
 
@@ -574,10 +574,10 @@ ${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
-const RESEARCH_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Research Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Research Agent. If asked who you are, say "I am Research Agent, the research analyst and intelligence specialist."
+const RESEARCH_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Research Agent" — NOT Klawhub General, NOT Klawhub, NOT a general assistant. Your name is Research Agent. If asked who you are, say "I am Research Agent, the research analyst and intelligence specialist."
 
 ## Who You Are
-You are the research analyst of the Claw Agent Hub — modeled after a senior analyst at a top research firm. You specialize in deep multi-source research, cross-referencing, synthesis, and producing professional research briefs.
+You are the research analyst of the Klawhub Agent Hub — modeled after a senior analyst at a top research firm. You specialize in deep multi-source research, cross-referencing, synthesis, and producing professional research briefs.
 
 ${AGENT_TEAM_DIRECTORY}
 
@@ -621,10 +621,10 @@ ${SKILLS_AWARENESS}
 
 REMEMBER: After every tool call, write a clear, complete response to the user. Never leave the conversation without explanation. Your tool results are invisible to the user — you must translate them into human language.`;
 
-const OPS_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Ops Agent" — NOT Claw General, NOT Claw, NOT a general assistant. Your name is Ops Agent. If asked who you are, say "I am Ops Agent, the operations engineer and system monitor."
+const OPS_SYSTEM_PROMPT = `CRITICAL IDENTITY: You are "Ops Agent" — NOT Klawhub General, NOT Klawhub, NOT a general assistant. Your name is Ops Agent. If asked who you are, say "I am Ops Agent, the operations engineer and system monitor."
 
 ## Who You Are
-You are the operations engineer of the Claw Agent Hub — modeled after a senior SRE/DevOps engineer. You specialize in system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics. You proactively identify anomalies and escalating issues.
+You are the operations engineer of the Klawhub Agent Hub — modeled after a senior SRE/DevOps engineer. You specialize in system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics. You proactively identify anomalies and escalating issues.
 
 **Incident Response Protocol (ALWAYS follow when you detect an issue):**
 1. **What's wrong** — Clear description of the issue, affected component(s), and scope
@@ -932,7 +932,7 @@ async function webSearchFallback(query, numResults = 10, mode = "basic") {
 // --- Web Reader ---
 async function readWebPage(url) {
   const res = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; ClawBot/1.0)" },
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; KlawhubBot/1.0)" },
     signal: AbortSignal.timeout(20000),
   });
   if (!res.ok) throw new Error(`Failed to fetch URL (${res.status})`);
@@ -1035,7 +1035,7 @@ function wrapHtmlEmail(body, subject) {
           </tr>
           <tr>
             <td style="padding:16px 32px;border-top:1px solid #e8e8ee;text-align:center;">
-              <p style="margin:0;font-size:12px;color:#999999;">This email was sent by your OpenClaw Mail Agent.</p>
+              <p style="margin:0;font-size:12px;color:#999999;">This email was sent by your Klawhub Mail Agent.</p>
             </td>
           </tr>
         </table>
@@ -1332,7 +1332,7 @@ function buildToolMap(agentId) {
           start: isDateTime ? { dateTime: start, timeZone: tz } : { date: start },
           end: isDateTime ? { dateTime: end, timeZone: tz } : { date: end },
           location, description, attendees,
-          conferenceData: addMeetLink ? { createRequest: { requestId: `claw-meet-${Date.now()}` } } : undefined,
+          conferenceData: addMeetLink ? { createRequest: { requestId: `klaw-meet-${Date.now()}` } } : undefined,
         });
       }),
     }),
@@ -3624,11 +3624,11 @@ You are processing unread messages in your A2A inbox. Follow this protocol:
     // Specialist agents: identity override + their full prompt
     systemPrompt = `${dateTimeBlock}
 
-[IDENTITY OVERRIDE] You are "${agentDef.name}" (${agentDef.role}). You are NOT Claw General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agentDef.name}" at all times.
+[IDENTITY OVERRIDE] You are "${agentDef.name}" (${agentDef.role}). You are NOT Klawhub General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agentDef.name}" at all times.
 
 ${basePrompt}${TASK_COMPLETION_RULES}${HUMANIZER_RULES}${autonomousBlock}${inboxDirectiveBlock}`;
   } else {
-    // Claw General: full prompt with no identity override needed
+    // Klawhub General: full prompt with no identity override needed
     systemPrompt = `${dateTimeBlock}
 
 ${basePrompt}${TASK_COMPLETION_RULES}${HUMANIZER_RULES}${autonomousBlock}${inboxDirectiveBlock}`;
@@ -4120,7 +4120,7 @@ async function main() {
                 console.log(`[Phase 3] 🎉 Project "${pt.project_name}" is now COMPLETE!`);
                 await sendNotification({
                   agentId: proj.agent_id || "general",
-                  agentName: "Claw System",
+                  agentName: "Klawhub System",
                   type: "project_complete",
                   title: `Project complete: ${pt.project_name}`,
                   body: `All ${proj.completed_tasks} tasks completed successfully in project "${pt.project_name}". The project has been marked as complete.`,
@@ -4133,7 +4133,7 @@ async function main() {
                 console.log(`[Phase 3] ⚠️ Project "${pt.project_name}" has FAILED.`);
                 await sendNotification({
                   agentId: proj.agent_id || "general",
-                  agentName: "Claw System",
+                  agentName: "Klawhub System",
                   type: "alert",
                   title: `Project failed: ${pt.project_name}`,
                   body: `Project "${pt.project_name}" has failed. ${proj.completed_tasks} of ${proj.total_tasks} tasks completed, ${proj.failed_tasks} failed. Check project_health for details.`,
@@ -4229,10 +4229,10 @@ async function main() {
         // Notify user about escalation
         await sendNotification({
           agentId: "general",
-          agentName: "Claw General",
+          agentName: "Klawhub General",
           type: "alert",
           title: `Task auto-escalated after ${row.attempts} failures`,
-          body: `Task #${row.id} ("${row.task.slice(0, 80)}...") has been escalated to Claw General for review.`,
+          body: `Task #${row.id} ("${row.task.slice(0, 80)}...") has been escalated to Klawhub General for review.`,
           priority: "medium",
           metadata: { taskId: row.id, originalAgent: row.agent_id, attempts: row.attempts },
         });

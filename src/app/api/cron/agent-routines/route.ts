@@ -56,6 +56,7 @@ export async function GET(request: Request) {
         AND next_run <= NOW()
       ORDER BY priority DESC, next_run ASC
       LIMIT 3
+      FOR UPDATE SKIP LOCKED
     `);
 
     results.routinesChecked = rows.length;
@@ -317,7 +318,7 @@ async function executeRoutine(
         { role: "user", content: `${task}\n\n${context ? `Context: ${context}` : ""}` },
       ],
       tools: agentTools,
-      maxOutputTokens: 262144,
+      maxOutputTokens: 4096,
       stopWhen: stepCountIs(15),
       abortSignal: AbortSignal.timeout(120_000),
     });

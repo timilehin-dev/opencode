@@ -1,5 +1,5 @@
 -- ============================================================================
--- Claw pg_cron + pg_net Backup Triggers (FIXED)
+-- Klawhub pg_cron + pg_net Backup Triggers (FIXED)
 -- ============================================================================
 --
 -- This SQL sets up Supabase pg_cron + pg_net to trigger GitHub Actions
@@ -78,7 +78,7 @@ BEGIN
   WHERE key = 'github_pat';
 
   IF v_github_token IS NULL OR v_github_token = '' THEN
-    RAISE LOG '[claw:cron] No github_pat configured, skipping dispatch';
+    RAISE LOG '[klawhub:cron] No github_pat configured, skipping dispatch';
     RETURN;
   END IF;
 
@@ -93,18 +93,18 @@ BEGIN
       'Authorization',  'token ' || v_github_token,
       'Accept',         'application/vnd.github.v3+json',
       'Content-Type',   'application/json',
-      'User-Agent',     'Claw-pg_cron'
+      'User-Agent',     'klawhub-pg_cron'
     ),
     body    := jsonb_build_object('event_type', p_event_type)::text
   ) INTO v_result;
 
-  RAISE LOG '[claw:cron] Dispatched "%" → % (net.%: %)',
+  RAISE LOG '[klawhub:cron] Dispatched "%" → % (net.%: %)',
     p_event_type, v_repo,
     (v_result->>'method')::text,
     (v_result->>'status')::text;
 
 EXCEPTION WHEN OTHERS THEN
-  RAISE LOG '[claw:cron] Dispatch failed for "%": %', p_event_type, SQLERRM;
+  RAISE LOG '[klawhub:cron] Dispatch failed for "%": %', p_event_type, SQLERRM;
 END;
 $func$;
 
@@ -118,28 +118,28 @@ $func$;
 
 -- Task Executor: every 3 min (GitHub Actions: every 2 min) — offset by 1 min
 SELECT cron.schedule(
-  'claw-task-executor',
+  'klawhub-task-executor',
   '1,4,7,10,13,16,19,22,25,28,31,34,37,40,43,46,49,52,55,58 * * * *',
   $$SELECT trigger_github_dispatch('task-executor');$$
 );
 
 -- Routine Runner: every 15 min (GitHub Actions: every 10 min) — offset by 5 min
 SELECT cron.schedule(
-  'claw-routine-runner',
+  'klawhub-routine-runner',
   '5,20,35,50 * * * *',
   $$SELECT trigger_github_dispatch('routine-runner');$$
 );
 
 -- Reminder Processor: every 8 min (GitHub Actions: every 5 min) — offset by 3 min
 SELECT cron.schedule(
-  'claw-reminder-processor',
+  'klawhub-reminder-processor',
   '3,11,19,27,35,43,51,59 * * * *',
   $$SELECT trigger_github_dispatch('reminder-processor');$$
 );
 
 -- Health Check: hourly at :30 (GitHub Actions: every hour at :00)
 SELECT cron.schedule(
-  'claw-health-check',
+  'klawhub-health-check',
   '30 * * * *',
   $$SELECT trigger_github_dispatch('health-check');$$
 );
@@ -165,7 +165,7 @@ ORDER BY jobid;
 -- View all scheduled jobs:
 --   SELECT jobid, schedule, command FROM cron.job ORDER BY jobid;
 
--- Remove all Claw backup triggers:
+-- Remove all Klawhub backup triggers:
 --   SELECT cron.unschedule(jobid) FROM cron.job WHERE command LIKE '%trigger_github_dispatch%';
 
 -- Check pg_net HTTP call history:

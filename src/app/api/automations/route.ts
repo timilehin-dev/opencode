@@ -32,7 +32,7 @@ async function ensureTable() {
       agent_id TEXT DEFAULT '',
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
       last_run_at TIMESTAMPTZ,
-      last_status TEXT CHECK (last_status IN ('success', 'error')),
+      last_status TEXT CHECK (last_status IN ('success', 'error', 'queued')),
       run_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -40,13 +40,25 @@ async function ensureTable() {
     CREATE TABLE IF NOT EXISTS automation_logs (
       id BIGSERIAL PRIMARY KEY,
       automation_id BIGINT NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
-      status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'success', 'error')),
+      status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'success', 'error', 'queued')),
       result JSONB DEFAULT '{}'::jsonb,
       duration_ms INTEGER DEFAULT 0,
       error_message TEXT DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  // Migrate existing tables: add 'queued' to CHECK constraints if missing
+  // (Postgres doesn't support ALTER CONSTRAINT, so we drop and re-add)
+  try {
+    await query(`ALTER TABLE automations DROP CONSTRAINT IF EXISTS automations_last_status_check`);
+    await query(`ALTER TABLE automations ADD CONSTRAINT automations_last_status_check CHECK (last_status IN ('success', 'error', 'queued'))`);
+  } catch { /* constraint may not exist or table may be new */ }
+
+  try {
+    await query(`ALTER TABLE automation_logs DROP CONSTRAINT IF EXISTS automation_logs_status_check`);
+    await query(`ALTER TABLE automation_logs ADD CONSTRAINT automation_logs_status_check CHECK (status IN ('running', 'success', 'error', 'queued'))`);
+  } catch { /* constraint may not exist or table may be new */ }
 }
 
 // ---------------------------------------------------------------------------

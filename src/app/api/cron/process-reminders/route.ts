@@ -51,22 +51,21 @@ export async function GET(request: Request) {
       );
       fired.push(updateResult.rows[0]);
 
-      // 3. Log to automation_logs (fire-and-forget — existing table)
+      // 3. Log reminder fired (non-critical)
       try {
         await query(
-          `INSERT INTO automation_logs (automation_id, status, result, created_at)
-           VALUES (0, 'success', $1, NOW())`,
-          [JSON.stringify({
-            type: "reminder_fired",
-            reminder_id: reminder.id,
-            title: reminder.title,
-            priority: reminder.priority,
-            assigned_agent: reminder.assigned_agent,
-            fired_at: new Date().toISOString(),
-          })],
+          `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, metadata)
+           VALUES ($1, 'System', 'reminder_log', $2, $3, $4, $5)`,
+          [
+            reminder.assigned_agent || "general",
+            `Reminder fired: ${reminder.title}`,
+            reminder.description || reminder.title,
+            reminder.priority === "high" || reminder.priority === "urgent" ? "high" : "low",
+            JSON.stringify({ reminder_id: reminder.id, fired_at: new Date().toISOString() }),
+          ],
         );
       } catch {
-        // automation_logs insert is non-critical
+        // notification logging is non-critical
       }
     }
 
