@@ -1109,7 +1109,7 @@ function ParametersTab({
                 { id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openrouter" },
                 { id: "claude-sonnet-4-20250514", label: "Claude 4 Sonnet", provider: "openrouter" },
                 { id: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", provider: "openrouter" },
-                { id: "deepseek-v4-flash:cloud", label: "DeepSeek V4 Flash", provider: "ollama" },
+                { id: "gemma4:31b-cloud", label: "Gemma 4 31B", provider: "ollama" },
                 { id: "llama3.1:8b", label: "Llama 3.1 8B", provider: "ollama" },
                 { id: "deepseek-r1", label: "DeepSeek R1", provider: "ollama" },
               ].map((m) => (

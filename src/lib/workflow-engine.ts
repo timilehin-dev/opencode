@@ -105,7 +105,7 @@ async function callLLM(prompt: string, temperature = 0.3, systemPrompt?: string)
     apiKey: process.env.OLLAMA_CLOUD_KEY_1 || "ollama",
     baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
   });
-  const model = provider.chat("deepseek-v4-flash:cloud");
+  const model = provider.chat("gemma4:31b-cloud");
 
   const result = await generateText({
     model,
