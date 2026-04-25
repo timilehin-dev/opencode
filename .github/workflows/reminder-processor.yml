@@ -1,5 +1,5 @@
 # Claw Reminder Processor — Fires due reminders
-# Runs every 5 minutes. Also triggerable via repository_dispatch from pg_cron.
+# Runs every 5 minutes. Triggerable via repository_dispatch from pg_cron.
 #
 # Checks the reminders table for pending reminders whose reminder_time <= NOW()
 # Marks them as fired and sends push notifications.
@@ -32,21 +32,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm install pg --no-save 2>/dev/null || npm install pg
 
       - name: Run reminder processor
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          OLLAMA_CLOUD_KEY_1: ${{ secrets.OLLAMA_CLOUD_KEY_1 }}
-          OLLAMA_CLOUD_KEY_2: ${{ secrets.OLLAMA_CLOUD_KEY_2 }}
-          OLLAMA_CLOUD_KEY_3: ${{ secrets.OLLAMA_CLOUD_KEY_3 }}
-          OLLAMA_CLOUD_KEY_4: ${{ secrets.OLLAMA_CLOUD_KEY_4 }}
-          OLLAMA_CLOUD_KEY_5: ${{ secrets.OLLAMA_CLOUD_KEY_5 }}
-          OLLAMA_CLOUD_KEY_6: ${{ secrets.OLLAMA_CLOUD_KEY_6 }}
-          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
         run: node scripts/cron-runner.mjs --job process-reminders --max-reminders 20
 
       - name: Log completion

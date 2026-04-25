@@ -3803,6 +3803,72 @@ async function main() {
       console.warn(`[Phase 0] Error:`, e.message);
     }
 
+    // Phase 0.5: Execute due agent routines with FULL tool support
+    // Converts due agent_routines into agent_tasks so Phase 2 executes them
+    // with the complete tool set (Gmail, GitHub, etc.) instead of the
+    // lightweight cron-runner.mjs which runs without tools.
+    console.log("\n[Phase 0.5] Checking for due agent routines (with tool support)...");
+    try {
+      const dueRoutines = await pool.query(
+        `SELECT * FROM agent_routines
+         WHERE is_active = true AND next_run <= NOW()
+         ORDER BY priority DESC, next_run ASC
+         LIMIT 3
+         FOR UPDATE SKIP LOCKED`
+      );
+
+      for (const routine of dueRoutines.rows) {
+        const agentId = routine.agent_id;
+        const agentDef = AGENTS[agentId];
+        if (!agentDef) {
+          console.log(`  [Phase 0.5] Skipping routine "${routine.name}" — unknown agent: ${agentId}`);
+          // Still bump next_run to avoid infinite retries
+          const nextRun = new Date(Date.now() + (routine.interval_minutes || 60) * 60 * 1000);
+          await pool.query("UPDATE agent_routines SET last_run = NOW(), next_run = $1, last_result = $2 WHERE id = $3", [nextRun.toISOString(), 'ERROR: Unknown agent ' + agentId, routine.id]);
+          continue;
+        }
+
+        // Check if there's already a pending task for this routine
+        const existingTask = await pool.query(
+          "SELECT id FROM agent_tasks WHERE agent_id = $1 AND status IN ('pending', 'running') AND trigger_source LIKE $2 LIMIT 1",
+          [agentId, `routine:${routine.id}%`]
+        );
+
+        if (existingTask.rows.length > 0) {
+          console.log(`  [Phase 0.5] Skipping routine "${routine.name}" — task #${existingTask.rows[0].id} already pending`);
+          continue;
+        }
+
+        // Create an agent_task for this routine — Phase 2 will execute it with full tools
+        const taskPrompt = `[ROUTINE: ${routine.name}]\n\n${routine.task}${routine.context ? '\n\nContext: ' + routine.context : ''}`;
+
+        const taskResult = await pool.query(
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+           VALUES ($1, $2, $3, 'routine', $4, 'high') RETURNING id`,
+          [
+            agentId,
+            taskPrompt,
+            `Automated routine execution. Routine: ${routine.name}. Interval: every ${routine.interval_minutes} min.`,
+            `routine:${routine.id}:${Date.now()}`,
+          ],
+        );
+
+        const taskId = taskResult.rows[0]?.id;
+        console.log(`  [Phase 0.5] Created task #${taskId} for routine "${routine.name}" (${agentDef.name})`);
+
+        // Update the routine's last_run and next_run immediately
+        const nextRun = new Date(Date.now() + (routine.interval_minutes || 60) * 60 * 1000);
+        await pool.query(
+          "UPDATE agent_routines SET last_run = NOW(), next_run = $1, last_status = 'queued', last_result = 'Executing as agent_task #' || $2 WHERE id = $3",
+          [nextRun.toISOString(), taskId, routine.id]
+        );
+      }
+
+      console.log(`[Phase 0.5] Done: ${dueRoutines.rows.length} due routines checked`);
+    } catch (e) {
+      console.warn(`[Phase 0.5] Error:`, e.message);
+    }
+
     // Phase 1: Evaluate automations
     console.log("\n[Phase 1] Evaluating automations...");
     const autoResult = await evaluateAutomations();

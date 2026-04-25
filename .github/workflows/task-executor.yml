@@ -1,8 +1,17 @@
-# Claw Task Executor — Picks up pending tasks & project tasks from Supabase
-# Runs every 2 minutes. Also triggerable via repository_dispatch from pg_cron.
+# Claw Task Executor — PRIMARY execution engine for the proactive agent system
+# Runs every 2 minutes. Triggerable via repository_dispatch from pg_cron.
 #
-# This is the PRIMARY execution engine — it runs outside Vercel (no timeout limits).
-# It evaluates automations, executes pending agent_tasks, and processes project task graphs.
+# This is the HEARTBEAT of the autonomous multi-agent system. Every 2 minutes it:
+#   Phase 0:   Auto-respond to unread A2A inter-agent messages
+#   Phase 0.5: Convert due agent_routines into tool-capable agent_tasks
+#   Phase 1:   Evaluate automations & queue triggered tasks
+#   Phase 2:   Execute pending agent_tasks with FULL tool support
+#   Phase 3:   Execute project task graphs (dependency-resolved)
+#   Phase 4:   Escalate/retry failed tasks
+#   Phase 5:   Proactive agent self-assessment (every 30 min)
+#
+# Runs outside Vercel (no timeout limits). GitHub Actions gives up to 10 min/job.
+# Agents get their full tool set: Gmail, GitHub, Sheets, Drive, Calendar, Web, etc.
 
 name: Task Executor
 on:
@@ -12,7 +21,7 @@ on:
   repository_dispatch:        # trigger from Supabase pg_cron via pg_net
     types: [task-executor]
 
-# Prevent concurrent executions — if one run is still going, skip the next
+# Prevent concurrent executions
 concurrency:
   group: task-executor
   cancel-in-progress: false
@@ -24,7 +33,7 @@ jobs:
   execute:
     name: Run Task Executor
     runs-on: ubuntu-latest
-    timeout-minutes: 10       # hard cap per job (most runs finish in 2-3 min)
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,10 +42,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm install pg @ai-sdk/openai ai zod --no-save
 
       - name: Run executor
         env:
@@ -44,16 +52,12 @@ jobs:
           OLLAMA_CLOUD_KEY_1: ${{ secrets.OLLAMA_CLOUD_KEY_1 }}
           OLLAMA_CLOUD_KEY_2: ${{ secrets.OLLAMA_CLOUD_KEY_2 }}
           OLLAMA_CLOUD_KEY_3: ${{ secrets.OLLAMA_CLOUD_KEY_3 }}
-          OLLAMA_CLOUD_KEY_4: ${{ secrets.OLLAMA_CLOUD_KEY_4 }}
-          OLLAMA_CLOUD_KEY_5: ${{ secrets.OLLAMA_CLOUD_KEY_5 }}
-          OLLAMA_CLOUD_KEY_6: ${{ secrets.OLLAMA_CLOUD_KEY_6 }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           TAVILY_API_KEY_1: ${{ secrets.TAVILY_API_KEY_1 }}
           TAVILY_API_KEY_2: ${{ secrets.TAVILY_API_KEY_2 }}
-          TAVILY_API_KEY_3: ${{ secrets.TAVILY_API_KEY_3 }}
           CLAW_GITHUB_PAT: ${{ secrets.CLAW_GITHUB_PAT }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 

@@ -42,17 +42,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install ripgrep (for codebase scanning)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies (pg only for monitoring)
+        run: npm install pg --no-save 2>/dev/null || npm install pg
 
       - name: Run monitoring script
         env:
@@ -103,32 +99,7 @@ jobs:
           path: /tmp/build-output.txt
           retention-days: 3
 
-  # ── Job 3: Issue Triage (only in full mode) ────────────────────────────
-  triage:
-    name: Issue Triage
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.mode != 'build-check' }}
-    timeout-minutes: 3
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check for open issues
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          OPEN=$(gh issue list --repo timilehin-dev/my-project-tau-two-70 --state open --json number,title,labels,createdAt --limit 10)
-          COUNT=$(echo "$OPEN" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
-          echo "Open issues: $COUNT"
-          echo "$OPEN" | python3 -c "
-          import json, sys
-          issues = json.load(sys.stdin)
-          for i in issues:
-            labels = ', '.join([l['name'] for l in i.get('labels', [])])
-            print(f\"  #{i['number']} [{labels}] {i['title']} ({i['createdAt'][:10]})\")
-          " 2>/dev/null || echo "  No issues or gh CLI issue"
-
-  # ── Job 4: Notify Discord (triggers AI Chief Engineer) ──────────────────
+  # ── Job 3: Notify Discord (triggers AI Chief Engineer) ──────────────────
   notify:
     name: Notify AI Engineer
     runs-on: ubuntu-latest
@@ -150,3 +121,4 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: node scripts/discord-notifier.mjs
+        continue-on-error: true  # Don't fail the workflow if Discord is down

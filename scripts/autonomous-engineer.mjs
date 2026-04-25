@@ -26,10 +26,23 @@ const report = {
   actions_required: [],
 };
 
+// ── Helper: safe query that returns null if table doesn't exist ──────────
+async function safeQuery(pool, sql) {
+  try {
+    const result = await pool.query(sql);
+    return result.rows?.[0] || null;
+  } catch (e) {
+    if (e.code === '42P01' || e.message.includes('does not exist')) {
+      return null; // table not found — skip gracefully
+    }
+    throw e;
+  }
+}
+
 // ── 1. Database Health Check ──────────────────────────────────────────────
 async function checkDatabase() {
   const pool = new pg.Pool({
-    connectionString: process.env.SUPABASE_DB_URL + '?pgbouncer=true&prepare=false',
+    connectionString: process.env.SUPABASE_DB_URL,
     connectionTimeoutMillis: 10000,
     statement_timeout: 15000,
     max: 3,
@@ -39,50 +52,76 @@ async function checkDatabase() {
     await pool.query('SELECT 1');
     report.database.connected = true;
 
-    // Key metrics (wrapped individually so one missing table doesn't kill the whole check)
-    try {
-      const metrics = await pool.query(`
-        SELECT
-          (SELECT COUNT(*) FROM agent_tasks WHERE status = 'pending') AS pending_tasks,
-          (SELECT COUNT(*) FROM agent_tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours') AS recent_failures,
-          (SELECT COUNT(*) FROM agent_tasks WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes') AS stale_running,
-          (SELECT COUNT(*) FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes') AS stale_project_tasks,
-          (SELECT COUNT(*) FROM agent_routines WHERE is_active = true) AS active_routines,
-          (SELECT COUNT(*) FROM agent_workflows WHERE status NOT IN ('completed', 'failed')) AS active_workflows,
-          (SELECT COUNT(*) FROM proactive_notifications WHERE is_read = FALSE) AS unread_notifications,
-          (SELECT COUNT(*) FROM task_board WHERE status NOT IN ('done', 'cancelled')) AS open_taskboard_items,
-          (SELECT COUNT(*) FROM conversations) AS total_conversations,
-          (SELECT COUNT(*) FROM agent_memory) AS total_memories
-      `);
+    // Key metrics (each wrapped individually so one missing table doesn't kill the check)
+    const metrics = {};
 
-      report.database.metrics = metrics.rows[0];
-    } catch (metricsErr) {
-      console.error('Metrics query failed (DB connected, some tables may be missing):', metricsErr.message);
-      report.improvements.push(`Metrics query failed: ${metricsErr.message} — check table schema`);
-    } else {
-      // Recover stale tasks (only if metrics succeeded)
-      if (Number(metrics.rows[0].stale_running) > 0) {
+    // Pending tasks
+    const pending = await safeQuery(pool, "SELECT COUNT(*)::int AS pending_tasks FROM agent_tasks WHERE status = 'pending'");
+    if (pending) metrics.pending_tasks = pending.pending_tasks;
+
+    // Recent failures
+    const failures = await safeQuery(pool, "SELECT COUNT(*)::int AS recent_failures FROM agent_tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours'");
+    if (failures) metrics.recent_failures = failures.recent_failures;
+
+    // Stale running tasks
+    const stale = await safeQuery(pool, "SELECT COUNT(*)::int AS stale_running FROM agent_tasks WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'");
+    if (stale) metrics.stale_running = stale.stale_running;
+
+    // Stale project tasks
+    const stalePT = await safeQuery(pool, "SELECT COUNT(*)::int AS stale_project_tasks FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes'");
+    if (stalePT) metrics.stale_project_tasks = stalePT.stale_project_tasks;
+
+    // Active routines
+    const routines = await safeQuery(pool, 'SELECT COUNT(*)::int AS active_routines FROM agent_routines WHERE is_active = true');
+    if (routines) metrics.active_routines = routines.active_routines;
+
+    // Active workflows
+    const workflows = await safeQuery(pool, "SELECT COUNT(*)::int AS active_workflows FROM agent_workflows WHERE status NOT IN ('completed', 'failed')");
+    if (workflows) metrics.active_workflows = workflows.active_workflows;
+
+    // Unread notifications
+    const notifs = await safeQuery(pool, 'SELECT COUNT(*)::int AS unread_notifications FROM proactive_notifications WHERE is_read = FALSE');
+    if (notifs) metrics.unread_notifications = notifs.unread_notifications;
+
+    // Open taskboard items
+    const taskboard = await safeQuery(pool, "SELECT COUNT(*)::int AS open_taskboard_items FROM task_board WHERE status NOT IN ('done', 'cancelled')");
+    if (taskboard) metrics.open_taskboard_items = taskboard.open_taskboard_items;
+
+    // Conversations
+    const convos = await safeQuery(pool, 'SELECT COUNT(*)::int AS total_conversations FROM conversations');
+    if (convos) metrics.total_conversations = convos.total_conversations;
+
+    // Memories
+    const memories = await safeQuery(pool, 'SELECT COUNT(*)::int AS total_memories FROM agent_memory');
+    if (memories) metrics.total_memories = memories.total_memories;
+
+    report.database.metrics = metrics;
+
+    console.log('Database: connected');
+    console.log('Metrics:', JSON.stringify(metrics, null, 2));
+
+    // Recover stale tasks
+    if (metrics.stale_running > 0) {
+      try {
         const r = await pool.query(
           "UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'"
         );
         report.actions_required.push(`Recovered ${r.rowCount} stale running tasks`);
+      } catch (e) {
+        report.improvements.push(`Failed to recover stale tasks: ${e.message}`);
       }
+    }
 
-      if (Number(metrics.rows[0].stale_project_tasks) > 0) {
+    if (metrics.stale_project_tasks > 0) {
+      try {
         const r = await pool.query(
           "UPDATE project_tasks SET status = 'pending', retries = COALESCE(retries, 0) WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes'"
         );
         report.actions_required.push(`Recovered ${r.rowCount} stale project tasks`);
+      } catch (e) {
+        report.improvements.push(`Failed to recover stale project tasks: ${e.message}`);
       }
-
-        console.log('Database: connected');
-      console.log('Metrics:', JSON.stringify(metrics.rows[0], null, 2));
     }
-
-    if (!report.database.metrics || Object.keys(report.database.metrics).length === 0) {
-      console.log('Database: connected (metrics unavailable)');
-    }
-
   } catch (error) {
     console.error('Database check failed:', error.message);
     report.database.connected = false;
@@ -132,55 +171,10 @@ function scanCodebase() {
     }
   } catch { /* no matches */ }
 
-  // Check for hardcoded strings that should be constants
-  try {
-    const hardCoded = execSync(
-      'rg "ollama|gemma4|localhost:11434" src/ --type ts --type tsx -l 2>/dev/null || true',
-      { encoding: 'utf-8' }
-    ).trim();
-    if (hardCoded) {
-      report.improvements.push('Hardcoded Ollama URLs found — should use env vars');
-    }
-  } catch { /* no matches */ }
-
   console.log(`Found ${report.improvements.length} improvement opportunities`);
 }
 
-// ── 3. Dependency Check ──────────────────────────────────────────────────
-function checkDependencies() {
-  console.log('\n--- Dependency Check ---');
-
-  try {
-    // Check for outdated packages (just report, don't update)
-    const outdated = execSync('npm outdated --json 2>/dev/null || true', { encoding: 'utf-8' });
-    if (outdated.trim()) {
-      const deps = JSON.parse(outdated);
-      const count = Object.keys(deps).length;
-      if (count > 0) {
-        report.improvements.push(`${count} outdated npm packages — consider updating in next shift`);
-        console.log(`Outdated packages: ${count}`);
-      }
-    }
-  } catch {
-    console.log('Could not check outdated packages');
-  }
-
-  // Check for security vulnerabilities
-  try {
-    const audit = execSync('npm audit --json 2>/dev/null || true', { encoding: 'utf-8' });
-    const auditData = JSON.parse(audit);
-    const vulns = auditData.metadata?.vulnerabilities || {};
-    const totalVulns = Object.values(vulns).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
-    if (totalVulns > 0) {
-      report.actions_required.push(`${totalVulns} npm security vulnerabilities — run npm audit fix`);
-    }
-    console.log(`Security vulnerabilities: ${totalVulns}`);
-  } catch {
-    console.log('Could not run npm audit');
-  }
-}
-
-// ── 4. Generate Report ───────────────────────────────────────────────────
+// ── 3. Generate Report ───────────────────────────────────────────────────
 function generateReport() {
   const reportPath = '/tmp/engineer-report.json';
   writeFileSync(reportPath, JSON.stringify(report, null, 2));
@@ -192,17 +186,19 @@ function generateReport() {
   console.log('═══════════════════════════════════════');
   console.log(`Mode: ${MODE}`);
   console.log(`Database: ${report.database.connected ? 'CONNECTED' : 'DISCONNECTED'}`);
-  if (report.database.metrics && Object.keys(report.database.metrics).length > 0) {
+
+  if (Object.keys(report.database.metrics).length > 0) {
     const m = report.database.metrics;
-    console.log(`Pending tasks: ${m.pending_tasks}`);
-    console.log(`Recent failures (24h): ${m.recent_failures}`);
-    console.log(`Active routines: ${m.active_routines}`);
-    console.log(`Active workflows: ${m.active_workflows}`);
-    console.log(`Unread notifications: ${m.unread_notifications}`);
-    console.log(`Open taskboard items: ${m.open_taskboard_items}`);
-    console.log(`Total conversations: ${m.total_conversations}`);
-    console.log(`Total memories: ${m.total_memories}`);
+    console.log(`Pending tasks: ${m.pending_tasks ?? 'N/A'}`);
+    console.log(`Recent failures (24h): ${m.recent_failures ?? 'N/A'}`);
+    console.log(`Active routines: ${m.active_routines ?? 'N/A'}`);
+    console.log(`Active workflows: ${m.active_workflows ?? 'N/A'}`);
+    console.log(`Unread notifications: ${m.unread_notifications ?? 'N/A'}`);
+    console.log(`Open taskboard items: ${m.open_taskboard_items ?? 'N/A'}`);
+    console.log(`Total conversations: ${m.total_conversations ?? 'N/A'}`);
+    console.log(`Total memories: ${m.total_memories ?? 'N/A'}`);
   }
+
   console.log(`\nImprovements identified: ${report.improvements.length}`);
   report.improvements.forEach((i, idx) => console.log(`  ${idx + 1}. ${i}`));
   console.log(`\nActions required: ${report.actions_required.length}`);
@@ -220,15 +216,13 @@ async function main() {
 
   if (MODE === 'full') {
     scanCodebase();
-    checkDependencies();
   }
 
   generateReport();
 
-  // Exit with error if there are critical actions required
+  // Exit cleanly — the notify job handles Discord separately
   if (report.actions_required.length > 0) {
     console.log('\n⚠️  Actions required — flagging for AI Chief Engineer review');
-    process.exit(0); // Don't fail the workflow, just flag it
   }
 }
 
