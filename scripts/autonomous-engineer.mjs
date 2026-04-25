@@ -39,40 +39,49 @@ async function checkDatabase() {
     await pool.query('SELECT 1');
     report.database.connected = true;
 
-    // Key metrics
-    const metrics = await pool.query(`
-      SELECT
-        (SELECT COUNT(*) FROM agent_tasks WHERE status = 'pending') AS pending_tasks,
-        (SELECT COUNT(*) FROM agent_tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours') AS recent_failures,
-        (SELECT COUNT(*) FROM agent_tasks WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes') AS stale_running,
-        (SELECT COUNT(*) FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes') AS stale_project_tasks,
-        (SELECT COUNT(*) FROM agent_routines WHERE is_active = true) AS active_routines,
-        (SELECT COUNT(*) FROM agent_workflows WHERE status NOT IN ('completed', 'failed')) AS active_workflows,
-        (SELECT COUNT(*) FROM proactive_notifications WHERE is_read = FALSE) AS unread_notifications,
-        (SELECT COUNT(*) FROM task_board WHERE status NOT IN ('done', 'cancelled')) AS open_taskboard_items,
-        (SELECT COUNT(*) FROM conversations) AS total_conversations,
-        (SELECT COUNT(*) FROM memory_entries) AS total_memories
-    `);
+    // Key metrics (wrapped individually so one missing table doesn't kill the whole check)
+    try {
+      const metrics = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM agent_tasks WHERE status = 'pending') AS pending_tasks,
+          (SELECT COUNT(*) FROM agent_tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours') AS recent_failures,
+          (SELECT COUNT(*) FROM agent_tasks WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes') AS stale_running,
+          (SELECT COUNT(*) FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes') AS stale_project_tasks,
+          (SELECT COUNT(*) FROM agent_routines WHERE is_active = true) AS active_routines,
+          (SELECT COUNT(*) FROM agent_workflows WHERE status NOT IN ('completed', 'failed')) AS active_workflows,
+          (SELECT COUNT(*) FROM proactive_notifications WHERE is_read = FALSE) AS unread_notifications,
+          (SELECT COUNT(*) FROM task_board WHERE status NOT IN ('done', 'cancelled')) AS open_taskboard_items,
+          (SELECT COUNT(*) FROM conversations) AS total_conversations,
+          (SELECT COUNT(*) FROM agent_memory) AS total_memories
+      `);
 
-    report.database.metrics = metrics.rows[0];
+      report.database.metrics = metrics.rows[0];
+    } catch (metricsErr) {
+      console.error('Metrics query failed (DB connected, some tables may be missing):', metricsErr.message);
+      report.improvements.push(`Metrics query failed: ${metricsErr.message} — check table schema`);
+    } else {
+      // Recover stale tasks (only if metrics succeeded)
+      if (Number(metrics.rows[0].stale_running) > 0) {
+        const r = await pool.query(
+          "UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'"
+        );
+        report.actions_required.push(`Recovered ${r.rowCount} stale running tasks`);
+      }
 
-    // Recover stale tasks
-    if (Number(metrics.rows[0].stale_running) > 0) {
-      const r = await pool.query(
-        "UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'"
-      );
-      report.actions_required.push(`Recovered ${r.rowCount} stale running tasks`);
+      if (Number(metrics.rows[0].stale_project_tasks) > 0) {
+        const r = await pool.query(
+          "UPDATE project_tasks SET status = 'pending', retries = COALESCE(retries, 0) WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes'"
+        );
+        report.actions_required.push(`Recovered ${r.rowCount} stale project tasks`);
+      }
+
+        console.log('Database: connected');
+      console.log('Metrics:', JSON.stringify(metrics.rows[0], null, 2));
     }
 
-    if (Number(metrics.rows[0].stale_project_tasks) > 0) {
-      const r = await pool.query(
-        "UPDATE project_tasks SET status = 'pending', retries = COALESCE(retries, 0) WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '30 minutes'"
-      );
-      report.actions_required.push(`Recovered ${r.rowCount} stale project tasks`);
+    if (!report.database.metrics || Object.keys(report.database.metrics).length === 0) {
+      console.log('Database: connected (metrics unavailable)');
     }
-
-    console.log('Database: connected');
-    console.log('Metrics:', JSON.stringify(metrics.rows[0], null, 2));
 
   } catch (error) {
     console.error('Database check failed:', error.message);
