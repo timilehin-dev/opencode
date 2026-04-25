@@ -42,7 +42,7 @@ const BUILTIN_SKILLS: BuiltinSkill[] = [
     slug: "docx-document-creation",
     description:
       "Create, edit, and format Word documents (.docx). Use when user wants to produce reports, proposals, contracts, letters, memos, or any formal document.",
-    category: "document",
+    category: "content",
     difficulty: "intermediate",
     tags: ["docx", "word", "document", "report", "proposal", "contract"],
     required_tools: [],
@@ -270,7 +270,7 @@ After preparing all data, call \`create_xlsx_spreadsheet\` with the title and sh
     slug: "pdf-document-generation",
     description:
       "Generate professional PDF documents with design system. Use when visual quality matters: reports, proposals, resumes, portfolios, academic papers, posters.",
-    category: "document",
+    category: "content",
     difficulty: "advanced",
     tags: ["pdf", "report", "proposal", "resume", "portfolio", "poster", "design"],
     required_tools: [],
@@ -373,7 +373,7 @@ After writing your complete markdown content, call \`create_pdf_report\` with th
     slug: "pptx-presentation-creation",
     description:
       "Generate, edit, and read PowerPoint presentations. Create professional decks with PptxGenJS, design system, and multiple slide types.",
-    category: "document",
+    category: "content",
     difficulty: "intermediate",
     tags: ["pptx", "powerpoint", "presentation", "slides", "deck"],
     required_tools: [],
@@ -493,7 +493,7 @@ After planning all slides, call \`create_pptx_presentation\` with the title and 
   // =========================================================================
   {
     id: "a1b2c3d4-0005-4000-8000-000000000005",
-    name: "fullstack_dev",
+    name: "fullstack-dev",
     display_name: "Full-Stack Development",
     slug: "fullstack-development",
     description:
@@ -911,7 +911,7 @@ After rewriting, ask yourself:
     slug: "deep-research",
     description:
       "Conduct comprehensive multi-source research with structured synthesis. Covers competitive analysis, market research, literature reviews, and investigative research with proper source attribution.",
-    category: "productivity",
+    category: "research",
     difficulty: "advanced",
     tags: ["research", "analysis", "competitive", "market", "productivity"],
     required_tools: [],
@@ -963,7 +963,7 @@ You are a senior research analyst. Your methodology produces rigorous, well-sour
     slug: "code-review",
     description:
       "Systematic code review covering correctness, security, performance, maintainability, and architecture. Produces severity-ranked findings with specific fix recommendations.",
-    category: "development",
+    category: "code",
     difficulty: "advanced",
     tags: ["code-review", "quality", "security", "performance", "maintainability"],
     required_tools: [],
@@ -1015,7 +1015,7 @@ Summary → Critical/High Findings (with code examples) → Medium → Low/Info 
     slug: "data-analysis",
     description:
       "End-to-end data analysis covering collection, cleaning, EDA, statistical testing, and visualization. Supports hypothesis testing, regression, clustering, and time series.",
-    category: "data-science",
+    category: "data",
     difficulty: "advanced",
     tags: ["data-analysis", "statistics", "machine-learning", "analytics", "science"],
     required_tools: [],
@@ -1060,7 +1060,7 @@ You are a senior data analyst. Provide rigorous analysis from raw data to action
     slug: "project-planner",
     description:
       "Structured project planning with requirement decomposition, task estimation, dependency mapping, risk assessment, and milestone planning. Produces actionable plans with ownership and timelines.",
-    category: "productivity",
+    category: "planning",
     difficulty: "intermediate",
     tags: ["project-management", "planning", "productivity", "estimation", "agile"],
     required_tools: [],
@@ -1355,11 +1355,11 @@ export async function POST() {
       const fsAgentMap: Record<string, string[]> = {
         general: ["*"],
         mail: ["docx", "pdf", "xlsx", "pptx", "ppt", "web-search", "web-reader", "humanizer", "deep-research"],
-        code: ["fullstack-dev", "fullstack_dev", "code-review", "pdf", "docx", "xlsx", "charts", "web-search", "web-reader", "skill-creator", "project-planner"],
+        code: ["fullstack-dev", "code-review", "pdf", "docx", "xlsx", "charts", "web-search", "web-reader", "skill-creator", "project-planner"],
         data: ["xlsx", "charts", "finance", "data-analysis", "pdf", "docx", "web-search", "web-reader", "project-planner"],
         creative: ["pdf", "docx", "xlsx", "pptx", "ppt", "charts", "humanizer", "deep-research", "web-search", "web-reader"],
         research: ["deep-research", "web-search", "web-reader", "pdf", "docx", "xlsx", "charts", "data-analysis", "humanizer", "project-planner"],
-        ops: ["code-review", "data-analysis", "pdf", "charts", "web-search", "web-reader", "fullstack-dev", "fullstack_dev", "project-planner"],
+        ops: ["code-review", "data-analysis", "pdf", "charts", "web-search", "web-reader", "fullstack-dev", "project-planner"],
       };
 
       for (const dirName of skillDirs) {
@@ -1380,16 +1380,15 @@ export async function POST() {
             }
           }
 
-          // Auto-detect category
+          // Auto-detect category — aligned with skills page filter tabs
           const lowerDir = dirName.toLowerCase();
-          let category = "general";
-          if (/docx|pdf|pptx|ppt|document/.test(lowerDir)) category = "document";
+          let category = "content";
+          if (/research|search|aminer|academic/.test(lowerDir)) category = "research";
           else if (/code|dev|frontend|fullstack|backend|shader|browser/.test(lowerDir)) category = "code";
+          else if (/humaniz/.test(lowerDir)) category = "communication";
           else if (/xlsx|data|finance|stock|analy/.test(lowerDir)) category = "data";
-          else if (/research|search|aminer|academic/.test(lowerDir)) category = "research";
-          else if (/blog|content|seo|writing|creative|podcast|storyboard/.test(lowerDir)) category = "content";
-          else if (/image|video|vision|tts|asr|design|ui-ux/.test(lowerDir)) category = "media";
-          else if (/humaniz|project|plan/.test(lowerDir)) category = "productivity";
+          else if (/project|plan/.test(lowerDir)) category = "planning";
+          else if (/docx|pdf|pptx|ppt|charts/.test(lowerDir)) category = "content";
 
           const id = `skill-${dirName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
           const name = dirName.toLowerCase().replace(/\s+/g, "_");

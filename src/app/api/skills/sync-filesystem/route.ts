@@ -17,6 +17,30 @@ import { query } from "@/lib/db";
 // Agent → Skill category mapping (which agents get which skill categories)
 // ---------------------------------------------------------------------------
 
+// Explicit skill → category mapping (aligned with skills page filter tabs)
+const SKILL_CATEGORY_MAP: Record<string, { category: string; difficulty: string }> = {
+  // Content / Document Creation
+  "pdf":            { category: "content",        difficulty: "advanced" },
+  "docx":           { category: "content",        difficulty: "intermediate" },
+  "pptx":           { category: "content",        difficulty: "intermediate" },
+  "charts":         { category: "content",        difficulty: "intermediate" },
+  "humanizer":      { category: "communication",  difficulty: "intermediate" },
+  // Code / Development
+  "fullstack-dev":  { category: "code",           difficulty: "advanced" },
+  "code-review":    { category: "code",           difficulty: "advanced" },
+  "skill-creator":  { category: "code",           difficulty: "advanced" },
+  // Data / Analysis / Finance
+  "xlsx":           { category: "data",           difficulty: "intermediate" },
+  "finance":        { category: "data",           difficulty: "intermediate" },
+  "data-analysis":  { category: "data",           difficulty: "advanced" },
+  // Research
+  "deep-research":  { category: "research",       difficulty: "advanced" },
+  "web-search":     { category: "research",       difficulty: "beginner" },
+  "web-reader":     { category: "research",       difficulty: "beginner" },
+  // Planning
+  "project-planner":{ category: "planning",       difficulty: "intermediate" },
+};
+
 const AGENT_SKILL_MAP: Record<string, string[]> = {
   // General gets ALL skills
   general: ["*"],
@@ -30,7 +54,7 @@ const AGENT_SKILL_MAP: Record<string, string[]> = {
 
   // Code: development + review + project planning
   code: [
-    "fullstack-dev", "fullstack_dev", "code-review",
+    "fullstack-dev", "code-review",
     "pdf", "docx", "xlsx", "charts",
     "web-search", "web-reader",
     "skill-creator", "project-planner",
@@ -64,7 +88,7 @@ const AGENT_SKILL_MAP: Record<string, string[]> = {
     "code-review", "data-analysis",
     "pdf", "charts",
     "web-search", "web-reader",
-    "fullstack-dev", "fullstack_dev", "project-planner",
+    "fullstack-dev", "project-planner",
   ],
 };
 
@@ -79,19 +103,22 @@ function extractMetadata(content: string, dirName: string): {
   difficulty: string;
   tags: string[];
 } {
-  // Try to extract from frontmatter-like patterns
   const lines = content.split("\n").slice(0, 30);
   let display_name = dirName.replace(/[-_]/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   let description = "";
-  let category = "general";
-  let difficulty = "intermediate";
   const tags: string[] = [];
+
+  // Use the explicit SKILL_CATEGORY_MAP for category & difficulty
+  const key = dirName.toLowerCase();
+  const mapped = SKILL_CATEGORY_MAP[key];
+  const category = mapped?.category ?? "content";
+  const difficulty = mapped?.difficulty ?? "intermediate";
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
     // Look for title/header patterns
-    if (line.startsWith("# ") && !display_name) {
+    if (line.startsWith("# ") && display_name === dirName.replace(/[-_]/g, " ").replace(/\b\w/g, l => l.toUpperCase())) {
       display_name = line.slice(2).trim();
     }
     if ((line.startsWith("## Description") || line.startsWith("### Description")) && lines[i + 1]) {
@@ -99,26 +126,6 @@ function extractMetadata(content: string, dirName: string): {
     }
     if (line.startsWith("> ") && !description) {
       description = line.slice(2).trim().slice(0, 500);
-    }
-
-    // Category detection
-    const catMap: Record<string, string[]> = {
-      document: ["docx", "pdf", "pptx", "ppt", "document", "report"],
-      code: ["code", "coding", "dev", "frontend", "fullstack", "backend", "shader", "browser", "react"],
-      data: ["data", "xlsx", "spreadsheet", "analy", "finance", "stock"],
-      research: ["research", "search", "aminer", "academic"],
-      content: ["blog", "content", "seo", "writing", "creative", "copy", "market", "podcast", "storyboard", "interview"],
-      media: ["image", "video", "vision", "tts", "asr", "audio", "design", "ui-ux"],
-      ai: ["llm", "vlm", "ai-", "agent"],
-      general: ["skill", "plan", "ops", "track", "news", "fortune", "dream", "meditation", "gift", "mindful"],
-    };
-
-    const lowerContent = (content + " " + dirName).toLowerCase();
-    for (const [cat, keywords] of Object.entries(catMap)) {
-      if (keywords.some(kw => dirName.toLowerCase().includes(kw))) {
-        category = cat;
-        break;
-      }
     }
 
     // Tags from the directory name and content keywords
