@@ -4129,8 +4129,10 @@ export const createPdfReportTool = tool({
       });
 
       // ── Post-process: remove blank/phantom pages using pdf-lib ──
-      // PDFKit's switchToPage() can create phantom pages with only headers.
-      // We detect these by checking text content length per page and strip them.
+      // PDFKit can create phantom pages with only headers/footers.
+      // We detect these by measuring the raw content stream size per page —
+      // blank pages have tiny content streams (< 500 bytes), while real
+      // content pages are typically 2KB+. This avoids needing pdf-parse.
       let fileBuffer = readFileSync(filePath);
       try {
         const { PDFDocument: PdfLibDoc } = await import("pdf-lib");
@@ -4140,16 +4142,32 @@ export const createPdfReportTool = tool({
 
         for (let i = 0; i < pageCount; i++) {
           const page = srcDoc.getPage(i);
-          const textContent = page.getText();
-          const textLen = textContent.trim().length;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rawContent: any = page.node.Contents();
+          // Contents may be a stream ref or an array of stream refs
+          let streamSize = 0;
+          try {
+            if (rawContent && typeof rawContent === "object" && "length" in (rawContent as object)) {
+              // Array of content streams
+              for (const entry of rawContent as Array<{ toString: () => string }>) {
+                const str = entry.toString();
+                streamSize += str.length;
+              }
+            } else if (rawContent && typeof rawContent === "object" && "str" in (rawContent as object)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              streamSize = (rawContent as any).str.length || 0;
+            }
+          } catch {
+            streamSize = 0;
+          }
 
           // Page 0 = cover (always keep), page 1 = TOC (always keep)
-          // For other pages: keep if text content > 80 chars
-          // (a header-only phantom page has ~40-50 chars of text)
-          if (i <= 1 || textLen > 80) {
+          // For other pages: keep if content stream > 400 bytes
+          // (phantom pages with just headers/footers are ~100-300 bytes)
+          if (i <= 1 || streamSize > 400) {
             pagesToKeep.push(i);
           } else {
-            console.log(`[PDF] Removing blank/phantom page ${i + 1} (${textLen} chars)`);
+            console.log(`[PDF] Removing blank/phantom page ${i + 1} (stream: ${streamSize} bytes)`);
           }
         }
 
