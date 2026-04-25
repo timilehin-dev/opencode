@@ -1,7 +1,13 @@
 ---
 name: pptx
-description: "Presentation creation, editing, and analysis. When Claude needs to work with presentations (.pptx files) for: (1) Creating new presentations, (2) Modifying or editing content, (3) Working with layouts, (4) Adding comments or speaker notes, or any other presentation tasks"
-license: Proprietary. LICENSE.txt has complete terms
+description: "Presentation creation, editing, and analysis. Use for: (1) Creating new presentations, (2) Modifying or editing content, (3) Working with layouts, (4) Adding comments or speaker notes, or any other presentation tasks."
+tags: [pptx, presentation, slides, powerpoint, deck]
+metadata:
+  author: Z.AI
+  version: "1.0"
+  category: document
+  difficulty: intermediate
+license: Proprietary
 ---
 
 # PPTX creation, editing, and analysis

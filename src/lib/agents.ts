@@ -78,13 +78,13 @@ When a user asks you to do something that requires tools you DON'T have, you MUS
 // ---------------------------------------------------------------------------
 
 const AGENT_SKILL_LIST: Record<string, string> = {
-  general: `docx, xlsx, pdf, pptx, ppt, charts, fullstack-dev, coding-agent, web-search, web-reader, agent-browser, LLM, finance, skill-creator, skill-vetter, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis, content-strategy, blog-writer, seo-content-writer, ui-ux-pro-max, visual-design-foundations, storyboard-manager, podcast-generate, interview-designer, market-research-reports, stock-analysis-skill, multi-search-engine, web-shader-extractor`,
-  mail: `docx, pdf, xlsx, pptx, ppt, web-search, web-reader, LLM, contentanalysis, content-strategy`,
-  code: `fullstack-dev, coding-agent, web-search, web-reader, agent-browser, charts, skill-creator, skill-vetter`,
-  data: `xlsx, charts, finance, stock-analysis-skill, web-search, web-reader, LLM, contentanalysis`,
-  creative: `docx, pdf, xlsx, pptx, ppt, charts, visual-design-foundations, ui-ux-pro-max, blog-writer, seo-content-writer, content-strategy, contentanalysis, storyboard-manager, podcast-generate, web-search, web-reader`,
-  research: `web-search, web-reader, multi-search-engine, aminer-academic-search, aminer-daily-paper, aminer-open-academic, contentanalysis`,
-  ops: `web-search, web-reader, agent-browser, charts`,
+  general: `pdf, docx, xlsx, pptx, charts, fullstack-dev, web-search, web-reader, finance, skill-creator, humanizer, deep-research, code-review, data-analysis, project-planner`,
+  mail: `pdf, docx, xlsx, pptx, charts, web-search, web-reader, humanizer, deep-research`,
+  code: `fullstack-dev, code-review, pdf, docx, xlsx, charts, web-search, web-reader, skill-creator, project-planner`,
+  data: `xlsx, charts, finance, data-analysis, pdf, docx, web-search, web-reader, project-planner`,
+  creative: `pdf, docx, xlsx, pptx, charts, humanizer, deep-research, web-search, web-reader`,
+  research: `deep-research, web-search, web-reader, pdf, docx, xlsx, charts, data-analysis, humanizer, project-planner`,
+  ops: `code-review, data-analysis, pdf, charts, web-search, web-reader, fullstack-dev, project-planner`,
 };
 
 // ---------------------------------------------------------------------------

@@ -21,50 +21,50 @@ const AGENT_SKILL_MAP: Record<string, string[]> = {
   // General gets ALL skills
   general: ["*"],
 
-  // Mail: document creation + communication + content
+  // Mail: documents + communication + research + humanizer
   mail: [
-    "docx", "pdf", "xlsx", "pptx", "ppt",
-    "web-search", "web-reader", "LLM",
-    "contentanalysis", "content-strategy",
-    "creative_writing", // alias handled below
+    "pdf", "docx", "xlsx", "pptx", "charts",
+    "web-search", "web-reader",
+    "humanizer", "deep-research",
   ],
 
-  // Code: development + debugging + automation
+  // Code: development + review + project planning
   code: [
-    "fullstack-dev", "fullstack_dev", "coding-agent",
-    "web-search", "web-reader", "agent-browser",
-    "charts", "skill-creator", "skill-vetter",
+    "fullstack-dev", "fullstack_dev", "code-review",
+    "pdf", "docx", "xlsx", "charts",
+    "web-search", "web-reader",
+    "skill-creator", "project-planner",
   ],
 
-  // Data: analysis + spreadsheets + finance + visualization
+  // Data: analysis + finance + visualization
   data: [
-    "xlsx", "charts", "finance", "stock-analysis-skill",
-    "web-search", "web-reader", "LLM", "VLM",
-    "contentanalysis",
+    "xlsx", "charts", "finance", "data-analysis",
+    "pdf", "docx",
+    "web-search", "web-reader",
+    "project-planner",
   ],
 
-  // Creative: content creation + design + media
+  // Creative: content creation + humanizer + research
   creative: [
-    "docx", "pdf", "xlsx", "pptx", "ppt", "charts",
-    "image-generation", "image-understand", "image-edit",
-    "visual-design-foundations", "ui-ux-pro-max",
-    "blog-writer", "seo-content-writer", "content-strategy",
-    "contentanalysis", "storyboard-manager",
-    "podcast-generate", "web-search", "web-reader",
-    "TTS", "video-generation",
+    "pdf", "docx", "xlsx", "pptx", "charts",
+    "humanizer", "deep-research",
+    "web-search", "web-reader",
   ],
 
-  // Research: deep search + academic + intelligence
+  // Research: deep research + analysis + documents
   research: [
-    "web-search", "web-reader", "multi-search-engine",
-    "aminer-academic-search", "aminer-daily-paper", "aminer-open-academic",
-    "contentanalysis",
+    "deep-research",
+    "web-search", "web-reader",
+    "pdf", "docx", "xlsx", "charts",
+    "data-analysis", "humanizer", "project-planner",
   ],
 
-  // Ops: monitoring + automation + browser
+  // Ops: monitoring + review + diagnostics
   ops: [
-    "web-search", "web-reader", "agent-browser",
-    "charts",
+    "code-review", "data-analysis",
+    "pdf", "charts",
+    "web-search", "web-reader",
+    "fullstack-dev", "fullstack_dev", "project-planner",
   ],
 };
 

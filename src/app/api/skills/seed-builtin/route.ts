@@ -31,6 +31,7 @@ interface BuiltinSkill {
 // All 10 built-in skills
 // ---------------------------------------------------------------------------
 const BUILTIN_SKILLS: BuiltinSkill[] = [
+// All 10 built-in skills
   // =========================================================================
   // 1. DOCX — Document Processing
   // =========================================================================
@@ -45,7 +46,7 @@ const BUILTIN_SKILLS: BuiltinSkill[] = [
     difficulty: "intermediate",
     tags: ["docx", "word", "document", "report", "proposal", "contract"],
     required_tools: [],
-    agent_bindings: ["general", "mail", "creative", "research", "data", "ops"],
+    agent_bindings: ["general", "mail", "code", "data", "creative", "research", "ops"],
     workflow_steps: [
       { step: 1, action: "Analyze document requirements (type, audience, structure)" },
       { step: 2, action: "Plan document architecture (sections, headings, styles)" },
@@ -150,7 +151,7 @@ After writing your complete markdown content, call \`create_docx_document\` with
     difficulty: "intermediate",
     tags: ["xlsx", "excel", "spreadsheet", "financial", "data", "csv", "pivot"],
     required_tools: [],
-    agent_bindings: ["general", "data", "ops"],
+    agent_bindings: ["general", "mail", "code", "data", "creative", "research", "ops"],
     workflow_steps: [
       { step: 1, action: "Determine task type (CREATE/READ/EDIT/VALIDATE)" },
       { step: 2, action: "Plan data structure and formulas" },
@@ -273,7 +274,7 @@ After preparing all data, call \`create_xlsx_spreadsheet\` with the title and sh
     difficulty: "advanced",
     tags: ["pdf", "report", "proposal", "resume", "portfolio", "poster", "design"],
     required_tools: [],
-    agent_bindings: ["general", "mail", "creative", "research", "data", "ops"],
+    agent_bindings: ["general", "mail", "code", "data", "creative", "research", "ops"],
     workflow_steps: [
       { step: 1, action: "Determine document type and design style" },
       { step: 2, action: "Select accent color and typography from design system" },
@@ -376,7 +377,7 @@ After writing your complete markdown content, call \`create_pdf_report\` with th
     difficulty: "intermediate",
     tags: ["pptx", "powerpoint", "presentation", "slides", "deck"],
     required_tools: [],
-    agent_bindings: ["general", "creative", "mail", "research"],
+    agent_bindings: ["general", "mail", "code", "data", "creative", "research"],
     workflow_steps: [
       { step: 1, action: "Research requirements and plan slide outline" },
       { step: 2, action: "Select color palette, fonts, and design style" },
@@ -501,7 +502,7 @@ After planning all slides, call \`create_pptx_presentation\` with the title and 
     difficulty: "advanced",
     tags: ["fullstack", "api", "backend", "frontend", "database", "auth", "real-time"],
     required_tools: [],
-    agent_bindings: ["general", "code"],
+    agent_bindings: ["general", "code", "ops"],
     workflow_steps: [
       { step: 1, action: "Gather requirements (stack, service type, database, auth)" },
       { step: 2, action: "Make architectural decisions and explain choices" },
@@ -716,411 +717,10 @@ Client → POST /api/photos { fileKey: "uploads/abc.jpg" }
 - Input validation on ALL endpoints (Zod / Pydantic)`,
   },
 
-  // =========================================================================
-  // 6. FRONTEND_DEV — Frontend Development Studio
-  // =========================================================================
-  {
-    id: "a1b2c3d4-0006-4000-8000-000000000006",
-    name: "frontend_dev",
-    display_name: "Frontend Development Studio",
-    slug: "frontend-development-studio",
-    description:
-      "Premium UI design, cinematic animations, and visual art for web pages. Use when building landing pages, marketing sites, dashboards, or implementing scroll animations.",
-    category: "code",
-    difficulty: "advanced",
-    tags: ["frontend", "ui", "ux", "animation", "design", "landing-page", "motion"],
-    required_tools: [],
-    agent_bindings: ["general", "code", "creative"],
-    workflow_steps: [
-      { step: 1, action: "Analyze request and set design dials" },
-      { step: 2, action: "Plan layout sections and motion architecture" },
-      { step: 3, action: "Generate media assets using image generation" },
-      { step: 4, action: "Craft copy using AIDA/PAS/FAB frameworks" },
-      { step: 5, action: "Build UI with animations" },
-      { step: 6, action: "Quality gates review" },
-    ],
-    is_builtin: true,
-    is_active: true,
-    version: 1,
-    metadata: { source: "adapted-from-frontend-dev", adapter: "system" },
-    prompt_template: `# Frontend Development Studio
-
-Build complete, production-ready frontend pages with premium UI design, cinematic animations, AI-generated assets, persuasive copy, and visual art.
-
-## Design Dials
-
-| Dial | Default | Range |
-|------|---------|-------|
-| DESIGN_VARIANCE | 8 | 1=Symmetry, 10=Asymmetric |
-| MOTION_INTENSITY | 6 | 1=Static, 10=Cinematic |
-| VISUAL_DENSITY | 4 | 1=Airy, 10=Packed |
-
-Adapt dynamically based on user requests.
-
-## Design Engineering Rules
-
-### Typography
-- Headlines: \`text-4xl md:text-6xl tracking-tighter\`
-- Body: \`text-base leading-relaxed max-w-[65ch]\`
-- **NEVER** use Inter — use Geist/Outfit/Satoshi
-- **NEVER** use Serif on dashboards
-
-### Color
-- Max 1 accent, saturation < 80%
-- **NEVER** use AI purple/blue
-- Stick to one palette throughout
-
-### Layout
-- **NEVER** use centered heroes when VARIANCE > 4. Force split-screen or asymmetric layouts
-- **NEVER** use generic cards when DENSITY > 7. Use \`border-t\`, \`divide-y\`, or spacing
-- Use \`max-w-[1400px] mx-auto\` or \`max-w-7xl\`
-- Use \`min-h-[100dvh]\` not \`h-screen\`
-
-### States
-- **ALWAYS** implement: Loading (skeleton), Empty, Error, Tactile feedback (\`scale-[0.98]\`)
-- Forms: Label above input. Error below. \`gap-2\` for input blocks.
-
-### Anti-Emoji Policy
-NEVER use emojis anywhere. Use Phosphor or Lucide icons only.
-
-## Anti-Slop Techniques
-
-- **Liquid Glass:** \`backdrop-blur\` + \`border-white/10\` + \`shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]\`
-- **Magnetic Buttons:** Use \`useMotionValue\`/\`useTransform\` — never \`useState\` for continuous animations
-- **Perpetual Motion:** When INTENSITY > 5, add infinite micro-animations (Pulse, Float, Shimmer)
-- **Layout Transitions:** Use Framer \`layout\` and \`layoutId\` props
-- **Stagger:** Use \`staggerChildren\` or CSS \`animation-delay: calc(var(--index) * 100ms)\`
-
-## Forbidden Patterns
-
-| Category | Banned |
-|----------|--------|
-| Visual | Neon glows, pure black (#000), oversaturated accents, gradient text on headers, custom cursors |
-| Typography | Inter font, oversized H1s, Serif on dashboards |
-| Layout | 3-column equal card rows, floating elements with awkward gaps |
-| Components | Default shadcn/ui without customization |
-
-## Motion Engine
-
-### Tool Selection Matrix
-
-| Need | Tool |
-|------|------|
-| UI enter/exit/layout | **Framer Motion** — \`AnimatePresence\`, \`layoutId\`, springs |
-| Scroll storytelling (pin, scrub) | **GSAP + ScrollTrigger** — frame-accurate control |
-| Looping icons | **Lottie** — lazy-load (~50KB) |
-| 3D/WebGL | **Three.js / R3F** — isolated \`<Canvas>\` |
-| Hover/focus states | **CSS only** — zero JS cost |
-
-**Conflict Rules:**
-- NEVER mix GSAP + Framer Motion in same component
-- R3F MUST live in isolated Canvas wrapper
-- ALWAYS lazy-load Lottie, GSAP, Three.js
-
-### Intensity Scale
-
-| Level | Techniques |
-|-------|------------|
-| 1-2 Subtle | CSS transitions only, 150-300ms |
-| 3-4 Smooth | CSS keyframes + Framer animate, stagger ≤3 items |
-| 5-6 Fluid | \`whileInView\`, magnetic hover, parallax tilt |
-| 7-8 Cinematic | GSAP ScrollTrigger, pinned sections, horizontal hijack |
-| 9-10 Immersive | Full scroll sequences, Three.js particles, WebGL shaders |
-
-### Performance Rules
-
-**GPU-only properties (ONLY animate these):** \`transform\`, \`opacity\`, \`filter\`, \`clip-path\`
-
-**NEVER animate:** \`width\`, \`height\`, \`top\`, \`left\`, \`margin\`, \`padding\`, \`font-size\`
-
-### Springs & Easings
-
-| Feel | Framer Config |
-|------|---------------|
-| Snappy | stiffness: 300, damping: 30 |
-| Smooth | stiffness: 150, damping: 20 |
-| Bouncy | stiffness: 100, damping: 10 |
-| Heavy | stiffness: 60, damping: 20 |
-
-### Accessibility
-- ALWAYS wrap motion in \`prefers-reduced-motion\` check
-- NEVER flash content > 3 times/second
-- ALWAYS provide visible focus rings
-- ALWAYS add \`aria-live="polite"\` for dynamically revealed content
-
-## Copywriting
-
-### Frameworks
-
-**AIDA** (landing pages):
-ATTENTION → INTEREST → DESIRE → ACTION
-
-**PAS** (pain-driven):
-PROBLEM → AGITATE → SOLUTION
-
-**FAB** (product differentiation):
-FEATURE → ADVANTAGE → BENEFIT
-
-### CTA Formula
-[Action Verb] + [What They Get] + [Urgency/Ease]
-Example: "Start my free trial", "Get the template now"
-
-### Headlines
-Be specific. Lead with outcome, not method.
-Examples: "Double open rates in 30 days", "7 mistakes killing conversions"
-
-## Asset Generation
-
-Generate images using the design tool or code execution for canvas/SVG assets.
-
-**Preset Shortcuts:**
-| Shortcut | Spec |
-|----------|------|
-| hero | 16:9, cinematic, text-safe |
-| thumb | 1:1, centered subject |
-| icon | 1:1, flat, clean background |
-| banner | 21:9, OG/social |
-
-**Rules:**
-- NEVER use placeholder URLs (unsplash, picsum, placeholder.com)
-- Use inline SVG or canvas-drawn elements for simple graphics
-- Asset naming: \`{type}-{descriptor}-{timestamp}.{ext}\`
-- Images → WebP format preferred
-
-## Creative Arsenal
-
-| Category | Patterns |
-|----------|----------|
-| Navigation | Dock magnification, Magnetic button, Dynamic island |
-| Layout | Bento grid, Masonry, Split-screen scroll, Curtain reveal |
-| Cards | Parallax tilt, Spotlight border, Glassmorphism |
-| Scroll | Sticky stack, Horizontal hijack, Zoom parallax |
-| Text | Kinetic marquee, Text mask reveal, Scramble effect |
-| Micro | Particle effects, Skeleton shimmer, Ripple click, Mesh gradient |
-
-## Visual Art (p5.js)
-
-For generative art:
-1. Create a philosophy statement (space, form, color, rhythm)
-2. Identify a niche conceptual reference
-3. Use seeded randomness: \`randomSeed(seed); noiseSeed(seed);\`
-4. Output: single self-contained HTML with p5.js
-
-## Quality Gates
-
-- [ ] Mobile layout collapse for high-variance designs
-- [ ] Empty, loading, error states provided
-- [ ] Correct motion tool per selection matrix
-- [ ] No GSAP + Framer mixed in same component
-- [ ] prefers-reduced-motion respected
-- [ ] No placeholder URLs — all assets generated
-- [ ] Only GPU properties animated`,
-  },
 
   // =========================================================================
-  // 7. REACT_NATIVE_DEV — React Native Development
+  // 6. HUMANIZER — AI Writing Humanization
   // =========================================================================
-  {
-    id: "a1b2c3d4-0007-4000-8000-000000000007",
-    name: "react_native_dev",
-    display_name: "React Native Development",
-    slug: "react-native-development",
-    description:
-      "React Native and Expo development guide. Use when building mobile apps, implementing animations, managing state, fetching data, or deploying to app stores.",
-    category: "code",
-    difficulty: "advanced",
-    tags: ["react-native", "expo", "mobile", "ios", "android", "animation"],
-    required_tools: [],
-    agent_bindings: ["general", "code"],
-    workflow_steps: [
-      { step: 1, action: "Set up project with Expo" },
-      { step: 2, action: "Implement core screens and navigation" },
-      { step: 3, action: "Add state management and data fetching" },
-      { step: 4, action: "Implement animations and native features" },
-      { step: 5, action: "Profile performance and test" },
-    ],
-    is_builtin: true,
-    is_active: true,
-    version: 1,
-    metadata: { source: "adapted-from-react-native-dev", adapter: "system" },
-    prompt_template: `# React Native & Expo Development Guide
-
-Build production-ready React Native and Expo applications. Covers UI, animations, state, testing, performance, and deployment.
-
-## Component Preferences
-
-| Purpose | Use | Instead of |
-|---------|-----|------------|
-| Lists | \`FlashList\` (\`@shopify/flash-list\`) + \`memo\` items | \`FlatList\` |
-| Images | \`expo-image\` | RN \`<Image>\` |
-| Press | \`Pressable\` | \`TouchableOpacity\` |
-| Audio | \`expo-audio\` | \`expo-av\` (deprecated) |
-| Video | \`expo-video\` | \`expo-av\` (deprecated) |
-| Animations | Reanimated 3 | RN Animated API |
-| Gestures | Gesture Handler | PanResponder |
-| Platform check | \`process.env.EXPO_OS\` | \`Platform.OS\` |
-| Safe area scroll | \`contentInsetAdjustmentBehavior="automatic"\` | \`<SafeAreaView>\` |
-| SF Symbols | \`expo-image\` with \`source="sf:name"\` | \`expo-symbols\` |
-
-## State Management
-
-| State Type | Solution |
-|------------|----------|
-| Local UI state | \`useState\` / \`useReducer\` |
-| Shared app state | Zustand or Jotai |
-| Server / async data | React Query |
-| Form state | React Hook Form + Zod |
-
-## New Project Init
-
-\`\`\`bash
-# 1. Create project
-npx create-expo-app@latest my-app --template blank-typescript
-cd my-app
-
-# 2. Install Expo Router + core deps
-npx expo install expo-router react-native-safe-area-context react-native-screens
-
-# 3. Common extras
-npx expo install expo-image react-native-reanimated react-native-gesture-handler
-\`\`\`
-
-Configure:
-1. Set entry point: \`"main": "expo-router/entry"\` in package.json
-2. Add scheme: \`"scheme": "my-app"\` in app.json
-3. Delete \`App.tsx\` and \`index.ts\`
-4. Create \`app/_layout.tsx\` as root Stack layout
-5. Create \`app/(tabs)/_layout.tsx\` for tab navigation
-
-## Core Principles
-
-- **Try Expo Go first** (\`npx expo start\`). Custom builds only when needed.
-- **Conditional rendering**: use \`{count > 0 && <Text />}\` not \`{count && <Text />}\`
-- **Animation rule**: only animate \`transform\` and \`opacity\` — GPU-composited
-- **Direct imports**: always import from source, not barrel files — avoids bundle bloat
-- **Route files**: always use kebab-case, never co-locate components in \`app/\`
-
-## Performance Priorities
-
-| Priority | Issue | Fix |
-|----------|-------|-----|
-| CRITICAL | Long list jank | \`FlashList\` + memoized items |
-| CRITICAL | Large bundle | Avoid barrel imports, enable R8 |
-| HIGH | Too many re-renders | Zustand selectors, React Compiler |
-| HIGH | Slow startup | Disable bundle compression, native nav |
-| MEDIUM | Animation drops | Only animate \`transform\`/\`opacity\` |
-
-## Animations (Reanimated 3)
-
-\`\`\`typescript
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  FadeIn,
-  SlideInRight,
-} from "react-native-reanimated";
-
-function AnimatedCard() {
-  const offset = useSharedValue(0);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: offset.value }],
-  }));
-
-  return (
-    <Animated.View entering={FadeIn} style={animatedStyle}>
-      <Pressable onPressIn={() => (offset.value = withSpring(-4))} />
-    </Animated.View>
-  );
-}
-\`\`\`
-
-## Navigation (Expo Router)
-
-\`\`\`typescript
-// app/_layout.tsx
-import { Stack } from "expo-router";
-
-export default function RootLayout() {
-  return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: "#f8f9fa" },
-        headerTintColor: "#333",
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
-  );
-}
-
-// app/(tabs)/_layout.tsx
-import { Tabs } from "expo-router";
-
-export default function TabLayout() {
-  return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: "#007AFF" }}>
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
-    </Tabs>
-  );
-}
-\`\`\`
-
-## Forms (React Hook Form + Zod)
-
-\`\`\`typescript
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-
-const schema = z.object({
-  email: z.string().email("Invalid email"),
-  name: z.string().min(2, "Name too short"),
-});
-
-function LoginForm() {
-  const { control, handleSubmit } = useForm({
-    resolver: zodResolver(schema),
-  });
-
-  return (
-    <Controller
-      control={control}
-      name="email"
-      render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-        <TextInput
-          onChangeText={onChange}
-          onBlur={onBlur}
-          value={value}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-      )}
-    />
-  );
-}
-\`\`\`
-
-## Checklist
-
-### New Project
-- [ ] Path aliases configured in tsconfig.json
-- [ ] EXPO_PUBLIC_API_URL env var set per environment
-- [ ] GestureHandlerRootView in root layout
-- [ ] contentInsetAdjustmentBehavior="automatic" on scroll views
-- [ ] FlashList for lists > 20 items
-
-### Before Shipping
-- [ ] Profile in --profile mode, fix frames > 16ms
-- [ ] Bundle analyzed, no barrel imports
-- [ ] R8 enabled for Android
-- [ ] Unit + component tests for critical paths
-- [ ] E2E flows for login and core features`,
-  },
-
   // =========================================================================
   // 8. HUMANIZER — AI Writing Humanization
   // =========================================================================
@@ -1135,7 +735,7 @@ function LoginForm() {
     difficulty: "intermediate",
     tags: ["humanizer", "writing", "ai-detection", "editing", "natural-language"],
     required_tools: [],
-    agent_bindings: ["general", "creative", "mail"],
+    agent_bindings: ["general", "creative", "mail", "research"],
     workflow_steps: [
       { step: 1, action: "Identify AI patterns in the text" },
       { step: 2, action: "Rewrite problematic sections" },
@@ -1302,369 +902,199 @@ After rewriting, ask yourself:
   },
 
   // =========================================================================
-  // 9. SHADER_DEV — GLSL Shader Development
+  // 7. DEEP_RESEARCH — Comprehensive Multi-Source Research
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0007-4000-8000-000000000007",
+    name: "deep-research",
+    display_name: "Deep Research",
+    slug: "deep-research",
+    description:
+      "Conduct comprehensive multi-source research with structured synthesis. Covers competitive analysis, market research, literature reviews, and investigative research with proper source attribution.",
+    category: "productivity",
+    difficulty: "advanced",
+    tags: ["research", "analysis", "competitive", "market", "productivity"],
+    required_tools: [],
+    agent_bindings: ["general", "mail", "creative", "research"],
+    workflow_steps: [
+      { step: 1, action: "Define research question, scope, depth target, and output format" },
+      { step: 2, action: "Execute searches using multiple query strategies" },
+      { step: 3, action: "Extract and verify information from tier-1/2/3 sources" },
+      { step: 4, action: "Synthesize findings into structured analysis" },
+      { step: 5, action: "Produce deliverable (report, brief, comparison, presentation)" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "klawhub", skill_folder: "deep-research" },
+    prompt_template: `# Deep Research — Comprehensive Multi-Source Research
+
+You are a senior research analyst. Your methodology produces rigorous, well-sourced analyses that enable confident decision-making.
+
+## Workflow
+1. **Research Planning** — Define question, scope, depth, output format, success criteria
+2. **Source Discovery** — Rotate queries (primary, comparison, opinion, data, community). Tier sources (primary > secondary > tertiary). Minimum: 5-8 (overview), 10-15 (moderate), 20+ (deep-dive)
+3. **Information Extraction** — Capture, verify (cross-reference 2+ sources), classify (fact/opinion/statistic/projection), date-stamp
+4. **Synthesis** — Executive summary, key findings by theme, comparison matrix, gap analysis, confidence assessment, recommendations
+5. **Deliverable** — Report (pdf/docx), data tables (xlsx), visualizations (charts), or presentation (pptx)
+
+## Research Types
+- **Competitive Analysis**: Identify competitors, compare features/pricing/targets, SWOT per competitor, positioning map
+- **Market Research**: TAM/SAM/SOM, growth trends, customer segments, regulatory, barriers to entry
+- **Technology Assessment**: Maturity, benchmarks, community health, enterprise readiness, case studies
+- **Literature Review**: Search strategy, quality assessment, thematic analysis, methodology comparison, knowledge gaps
+
+## Rules
+- Every statistic needs a citation
+- Unsupported claims flagged as "unverified"
+- Conflicts between sources must be presented with both sides
+- Projections clearly labeled as such
+- Sponsored content marked for potential bias
+- The reader must be able to make a decision from the deliverable alone`,
+  },
+
+  // =========================================================================
+  // 8. CODE_REVIEW — Systematic Code Quality Analysis
   // =========================================================================
   {
     id: "a1b2c3d4-0009-4000-8000-000000000009",
-    name: "shader_dev",
-    display_name: "GLSL Shader Development",
-    slug: "glsl-shader-development",
+    name: "code-review",
+    display_name: "Code Review",
+    slug: "code-review",
     description:
-      "Comprehensive GLSL shader techniques for visual effects. Ray marching, SDF modeling, fluid simulation, particles, procedural generation, lighting, and post-processing.",
-    category: "code",
-    difficulty: "expert",
-    tags: ["shader", "glsl", "webgl", "ray-marching", "sdf", "procedural", "gpu"],
+      "Systematic code review covering correctness, security, performance, maintainability, and architecture. Produces severity-ranked findings with specific fix recommendations.",
+    category: "development",
+    difficulty: "advanced",
+    tags: ["code-review", "quality", "security", "performance", "maintainability"],
     required_tools: [],
-    agent_bindings: ["general", "code", "creative"],
+    agent_bindings: ["general", "code", "ops"],
     workflow_steps: [
-      { step: 1, action: "Identify required techniques from routing table" },
-      { step: 2, action: "Write GLSL shader code" },
-      { step: 3, action: "Apply WebGL2 adaptation rules" },
-      { step: 4, action: "Wrap in standalone HTML page" },
-      { step: 5, action: "Validate performance budget" },
+      { step: 1, action: "Gather context: purpose, architecture, constraints, patterns" },
+      { step: 2, action: "Multi-dimensional analysis across 7 dimensions" },
+      { step: 3, action: "Classify findings by severity (Critical/High/Medium/Low/Info)" },
+      { step: 4, action: "Produce structured review report with code examples" },
     ],
     is_builtin: true,
     is_active: true,
     version: 1,
-    metadata: { source: "adapted-from-shader-dev", adapter: "system" },
-    prompt_template: `# GLSL Shader Development
+    metadata: { source: "klawhub", skill_folder: "code-review" },
+    prompt_template: `# Code Review — Systematic Code Quality Analysis
 
-Comprehensive shader techniques for real-time visual effects. All shaders are WebGL2-compatible and output as standalone HTML pages.
+You are a senior software engineer performing thorough code reviews. Analyze across 7 dimensions:
 
-## Technique Routing Table
+## 7 Review Dimensions
+1. **Correctness** — Logic errors, null handling, race conditions, type safety, business logic
+2. **Security** — Input validation, injection, auth gaps, data exposure, secrets, CORS/CSP
+3. **Performance** — N+1 queries, missing indexes, memory leaks, unbounded growth, bundle size
+4. **Maintainability** — Function length (>30 lines), cyclomatic complexity (>10), naming, duplication
+5. **Error Handling** — Helpful messages, propagation, retry logic, graceful degradation
+6. **Testing** — Coverage gaps, edge cases, flaky indicators, isolation
+7. **Architecture** — Separation of concerns, coupling, abstraction, SRP, API design
 
-| User wants to create... | Primary technique | Combine with |
-|---|---|---|
-| 3D objects/scenes from math | ray-marching + sdf-3d | lighting-model, shadow-techniques |
-| Complex 3D shapes (booleans, blends) | csg-boolean-operations | sdf-3d, ray-marching |
-| Infinite repeating patterns | domain-repetition | sdf-3d, ray-marching |
-| Organic/warped shapes | domain-warping | procedural-noise |
-| Fluid/smoke/ink effects | fluid-simulation | multipass-buffer |
-| Particle effects (fire, sparks, snow) | particle-system | procedural-noise, color-palette |
-| Physics simulations | simulation-physics | multipass-buffer |
-| Game of Life / reaction-diffusion | cellular-automata | multipass-buffer, color-palette |
-| Ocean/water surface | water-ocean | atmospheric-scattering, lighting-model |
-| Terrain/landscape | terrain-rendering | atmospheric-scattering, procedural-noise |
-| Clouds/fog/volumetric fire | volumetric-rendering | procedural-noise, atmospheric-scattering |
-| Sky/sunset/atmosphere | atmospheric-scattering | volumetric-rendering |
-| Realistic lighting (PBR, Phong) | lighting-model | shadow-techniques, ambient-occlusion |
-| Shadows (soft/hard) | shadow-techniques | lighting-model |
-| Ambient occlusion | ambient-occlusion | lighting-model, normal-estimation |
-| Path tracing / global illumination | path-tracing-gi | analytic-ray-tracing, multipass-buffer |
-| Noise/FBM textures | procedural-noise | domain-warping |
-| Voronoi/cell patterns | voronoi-cellular-noise | color-palette |
-| Fractals (Mandelbrot, Julia) | fractal-rendering | color-palette |
-| Color grading/palettes | color-palette | — |
-| Bloom/tone mapping/glitch | post-processing | multipass-buffer |
-| 2D shapes/UI from SDF | sdf-2d | color-palette |
-| 3D audio | sound-synthesis | — |
-| Anti-aliased rendering | anti-aliasing | sdf-2d, post-processing |
+## Severity Classification
+- **Critical**: Security vulnerability, data loss, crash → Must fix immediately
+- **High**: Significant bug, perf degradation → Should fix before merge
+- **Medium**: Code smell, suboptimal pattern → Recommended fix
+- **Low**: Style preference → Optional improvement
+- **Info**: Observation, suggestion → No action needed
 
-## WebGL2 Adaptation Rules
+## Quick-Check Patterns (Scan First)
+console.log in production, TODO/FIXME, :any types, hardcoded strings, empty catch blocks, commented-out code, missing return types, unused imports, deeply nested code (>3 levels)
 
-### Shader Version & Output
-- Use \`canvas.getContext("webgl2")\`
-- Shader first line: \`#version 300 es\`, fragment adds \`precision highp float;\`
-- Fragment declares: \`out vec4 fragColor;\`
-- Vertex: \`attribute\` → \`in\`, \`varying\` → \`out\`
-- Fragment: \`varying\` → \`in\`, \`gl_FragColor\` → \`fragColor\`, \`texture2D()\` → \`texture()\`
-
-### Fragment Coordinate
-\`\`\`glsl
-// WRONG — fragCoord doesn't exist in WebGL2
-vec2 uv = (2.0 * fragCoord - iResolution.xy) / iResolution.y;
-
-// CORRECT
-vec2 uv = (2.0 * gl_FragCoord.xy - iResolution.xy) / iResolution.y;
-\`\`\`
-
-### main() Wrapper
-\`\`\`glsl
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    // shader code...
-    fragColor = vec4(col, 1.0);
-}
-
-void main() {
-    mainImage(fragColor, gl_FragCoord.xy);
-}
-\`\`\`
-
-### Function Declaration Order
-GLSL requires functions declared before use:
-\`\`\`glsl
-// CORRECT — define callee first
-vec3 getSunDirection() { return normalize(vec3(1.0)); }
-vec3 getAtmosphere(vec3 dir) { return getSunDirection(); }
-\`\`\`
-
-### Macro Limitations
-\`\`\`glsl
-// WRONG — #define cannot use function calls
-#define SUN_DIR normalize(vec3(0.8, 0.4, -0.6))
-
-// CORRECT — use const
-const vec3 SUN_DIR = vec3(0.756, 0.378, -0.567);
-\`\`\`
-
-## HTML Page Setup
-
-\`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  body { margin: 0; overflow: hidden; background: #000; }
-  canvas { width: 100vw; height: 100vh; display: block; }
-</style>
-</head>
-<body>
-<canvas id="c"></canvas>
-<script>
-const canvas = document.getElementById("c");
-const gl = canvas.getContext("webgl2");
-
-const vs = \`#version 300 es
-in vec2 a_pos;
-void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
-\`;
-
-const fs = \`#version 300 es
-precision highp float;
-uniform vec2 iResolution;
-uniform float iTime;
-out vec4 fragColor;
-
-void mainImage(out vec4 fc, in vec2 fc2) {
-    vec2 uv = (2.0 * fc2 - iResolution.xy) / iResolution.y;
-    vec3 col = 0.5 + 0.5 * cos(iTime + uv.xyx + vec3(0, 2, 4));
-    fc = vec4(col, 1.0);
-}
-void main() { mainImage(fragColor, gl_FragCoord.xy); }
-\`;
-
-// ... compile, link, render loop ...
-</script>
-</body>
-</html>
-\`\`\`
-
-## Performance Budget
-
-Stay within these limits:
-- Ray marching main loop: ≤ 128 steps
-- Volume sampling / lighting inner loops: ≤ 32 steps
-- FBM octaves: ≤ 6 layers
-- Total nested loop iterations per pixel: ≤ 1000
-
-## Common GLSL Pitfalls
-
-- **Function signature mismatch**: Parameter count and types must match exactly
-- **Reserved words**: Don't use: patch, cast, sample, filter, input, output, common, partition, active
-- **Strict type matching**: \`vec3 x = 1.0\` is illegal — use \`vec3 x = vec3(1.0)\`
-- **No ternary on structs**: Use \`if\`/\`else\` instead
-- **Unused uniforms**: Compiler may optimize them out, causing null location
-
-## Shader Debugging Techniques
-
-| What to check | Code | What to look for |
-|---|---|---|
-| Surface normals | \`col = nor * 0.5 + 0.5;\` | Smooth gradients = correct |
-| Step count | \`col = vec3(float(steps)/MAX_STEPS);\` | Red = bottleneck |
-| Depth | \`col = vec3(t / MAX_DIST);\` | Verify hit distances |
-| UV coordinates | \`col = vec3(uv, 0.0);\` | Check mapping |
-| SDF field | \`col = vec3(abs(d));\` | Visualize zero-crossing |
-
-## Quick Recipes
-
-### Photorealistic SDF Scene
-1. sdf-3d + csg-boolean → ray-marching + normal-estimation
-2. lighting-model (outdoor three-light) + shadow-techniques (soft) + ambient-occlusion
-3. atmospheric-scattering (height-based fog) → post-processing (ACES tonemap + vignette)
-
-### Organic Forms
-1. sdf-3d + domain-warping → ray-marching
-2. procedural-noise (FBM with derivatives)
-3. lighting-model (subsurface scattering via half-Lambert)
-
-### Procedural Landscape
-1. terrain-rendering + procedural-noise (erosion FBM)
-2. atmospheric-scattering (Rayleigh/Mie + height fog)
-3. water-ocean (Gerstner waves) + lighting-model (Fresnel)
-
-### Stylized 2D Art
-1. sdf-2d (extended library) + sdf-tricks (layered edges)
-2. color-palette (cosine palettes) + polar-uv-manipulation (kaleidoscope)
-3. anti-aliasing (SDF analytical AA) + post-processing (bloom, chromatic aberration)`,
+## Output Format
+Summary → Critical/High Findings (with code examples) → Medium → Low/Info → Positive Observations → Overall Assessment (Ready/Changes/Rewrite)`,
   },
 
   // =========================================================================
-  // 10. VISION_ANALYSIS — Image Analysis
+  // 9. DATA_ANALYSIS — End-to-End Analytical Workflow
   // =========================================================================
   {
-    id: "a1b2c3d4-0010-4000-8000-000000001000",
-    name: "vision_analysis",
-    display_name: "Image Analysis",
-    slug: "image-analysis",
+    id: "a1b2c3d4-0010-4000-8000-000000000010",
+    name: "data-analysis",
+    display_name: "Data Analysis",
+    slug: "data-analysis",
     description:
-      "Analyze, describe, and extract information from images. Supports OCR, UI review, chart data extraction, object detection, and general image understanding.",
-    category: "ai",
-    difficulty: "intermediate",
-    tags: ["vision", "image", "ocr", "analysis", "object-detection", "ui-review"],
+      "End-to-end data analysis covering collection, cleaning, EDA, statistical testing, and visualization. Supports hypothesis testing, regression, clustering, and time series.",
+    category: "data-science",
+    difficulty: "advanced",
+    tags: ["data-analysis", "statistics", "machine-learning", "analytics", "science"],
     required_tools: [],
-    agent_bindings: ["general", "creative", "data", "research"],
+    agent_bindings: ["general", "data", "research", "ops"],
     workflow_steps: [
-      { step: 1, action: "Auto-detect image from user message (file path or URL)" },
-      { step: 2, action: "Determine analysis mode (describe/ocr/ui-review/chart-data/object-detect)" },
-      { step: 3, action: "Call VLM tool with mode-specific prompt" },
-      { step: 4, action: "Present structured results" },
+      { step: 1, action: "Understand data: question, schema, target variable, baselines" },
+      { step: 2, action: "Clean and prepare: missing data, types, outliers, feature engineering" },
+      { step: 3, action: "Exploratory analysis: distributions, correlations, patterns" },
+      { step: 4, action: "Statistical analysis: hypothesis testing, regression, modeling" },
+      { step: 5, action: "Synthesize insights and produce deliverable" },
     ],
     is_builtin: true,
     is_active: true,
     version: 1,
-    metadata: { source: "adapted-from-vision-analysis", adapter: "system" },
-    prompt_template: `# Image Analysis
+    metadata: { source: "klawhub", skill_folder: "data-analysis" },
+    prompt_template: `# Data Analysis — End-to-End Analytical Workflow
 
-Analyze, describe, and extract information from images using the VLM (Vision Language Model) tool.
-
-## Trigger
-
-This skill activates when the user:
-- Shares an image file path or URL (extensions: .jpg, .jpeg, .png, .gif, .webp, .bmp, .svg)
-- Uses analysis words near an image: "analyze", "describe", "explain", "look at", "review", "extract text", "OCR", "what is in", "read this image", "tell me about"
-- Requests: UI mockup review, wireframe analysis, design critique, data extraction from charts, object detection
-
-## Analysis Modes
-
-| Mode | When to use | Prompt strategy |
-|------|-------------|-----------------|
-| \`describe\` | General image understanding | Detailed description of all elements |
-| \`ocr\` | Text extraction from screenshots, documents | Verbatim text extraction preserving structure |
-| \`ui-review\` | UI mockups, wireframes, design files | Design critique with actionable suggestions |
-| \`chart-data\` | Charts, graphs, data visualizations | Extract all data points and trends |
-| \`object-detect\` | Identify objects, people, activities | List and locate all elements |
+You are a senior data analyst. Provide rigorous analysis from raw data to actionable insights.
 
 ## Workflow
+1. **Data Understanding** — Define question, catalog schema, identify target variable, establish baselines
+2. **Cleaning** — Handle missing data (<5%: impute, 5-20%: model-based, >20%: drop), fix types, detect outliers (IQR/Z-score), engineer features
+3. **EDA** — Univariate (distribution, central tendency, dispersion), Bivariate (scatter, box plots, chi-square, correlations), Answer: distributions, correlations, patterns, imbalance, segments
+4. **Statistical Analysis** — Hypothesis testing (state H0/H1, choose alpha, test, interpret p-value, report effect size), Regression (linear, multiple check VIF, logistic), Clustering (K-Means with elbow+silhouette, DBSCAN), Time series (trend decomposition, moving averages, stationarity)
+5. **Reporting** — Executive summary, methodology, key findings with stats+visualizations, recommendations, limitations, appendix
 
-### Step 1: Auto-detect Image
+## Rules
+- Never report p-values alone — always include effect size
+- Report 95% confidence intervals for key estimates
+- Note sample size for every analysis
+- Multiple testing correction (Bonferroni/BH) when running many tests
+- State data provenance and transformations applied`,
+  },
 
-Scan the user's message for image file paths or URLs with extensions:
-\`.jpg\`, \`.jpeg\`, \`.png\`, \`.gif\`, \`.webp\`, \`.bmp\`, \`.svg\`
+  // =========================================================================
+  // 10. PROJECT_PLANNER — Structured Project Planning
+  // =========================================================================
+  {
+    id: "a1b2c3d4-0011-4000-8000-000000000011",
+    name: "project-planner",
+    display_name: "Project Planner",
+    slug: "project-planner",
+    description:
+      "Structured project planning with requirement decomposition, task estimation, dependency mapping, risk assessment, and milestone planning. Produces actionable plans with ownership and timelines.",
+    category: "productivity",
+    difficulty: "intermediate",
+    tags: ["project-management", "planning", "productivity", "estimation", "agile"],
+    required_tools: [],
+    agent_bindings: ["general", "code", "data", "research", "ops"],
+    workflow_steps: [
+      { step: 1, action: "Project charter: objective, success criteria, constraints, stakeholders, out-of-scope" },
+      { step: 2, action: "Decompose requirements: epics to stories/tasks to subtasks" },
+      { step: 3, action: "Map dependencies and identify critical path" },
+      { step: 4, action: "Estimate effort using story points and PERT" },
+      { step: 5, action: "Assess risks with probability x impact matrix" },
+      { step: 6, action: "Define milestones with target dates and completion criteria" },
+      { step: 7, action: "Produce structured plan document" },
+    ],
+    is_builtin: true,
+    is_active: true,
+    version: 1,
+    metadata: { source: "klawhub", skill_folder: "project-planner" },
+    prompt_template: `# Project Planner — Structured Project Planning
 
-Extract the image path from the message.
+You are a senior project manager. Transform ideas into structured, executable plans.
 
-### Step 2: Select Analysis Mode
+## Workflow
+1. **Project Charter** — Name, objective (one sentence), success criteria (3-5 measurable), constraints, assumptions, stakeholders, out-of-scope
+2. **Requirement Decomposition** — Level 1: Epics (3-8, discrete testable outcomes) → Level 2: Tasks (1-5 days each, clear deliverable) → Level 3: Subtasks (for complex work)
+3. **Dependency Mapping** — Map Finish-to-Start, Start-to-Start, Finish-to-Finish dependencies. Identify critical path (zero slack). Non-critical tasks have buffer.
+4. **Effort Estimation** — Story points (1/2/3/5/8/13) + PERT (O + 4M + P) / 6. Include review/test/doc time. Add 20% buffer for new domains. Re-estimate after 20% completion.
+5. **Risk Assessment** — Probability x Impact matrix. For each risk: identify, assess, mitigate, contingency, owner
+6. **Milestones** — 1-3 week intervals. Each produces demonstrable outcome. Include integration/validation tasks. Early milestones deliver value quickly.
+7. **Plan Output** — Overview, architecture, task breakdown, dependency graph, timeline, risk register, resource plan, milestone schedule, success metrics
 
-Determine the mode based on the user's request:
-
-- "describe this image", "what do you see" → \`describe\`
-- "extract text", "OCR", "read this", "what does it say" → \`ocr\`
-- "review this UI", "critique this design", "improve this mockup" → \`ui-review\`
-- "extract data from chart", "what are the numbers", "get the values" → \`chart-data\`
-- "identify objects", "what's in this photo", "detect people" → \`object-detect\`
-
-### Step 3: Call VLM Tool
-
-Use the VLM tool with a mode-specific system prompt:
-
-**describe:**
-\`\`\`
-Provide a detailed description of this image. Include: main subject, setting/background,
-colors/style, any text visible, notable objects, and overall composition.
-Be specific and thorough. Describe spatial relationships between elements.
-\`\`\`
-
-**ocr:**
-\`\`\`
-Extract all text visible in this image verbatim. Preserve structure and formatting:
-headers, lists, columns, paragraphs. Maintain the original hierarchy.
-If text is partially obscured, indicate with [unclear]. If no text found, say so.
-\`\`\`
-
-**ui-review:**
-\`\`\`
-You are a senior UI/UX design reviewer. Analyze this interface. Provide:
-1. Strengths — what works well (layout, visual hierarchy, usability)
-2. Issues — usability problems, design inconsistencies, accessibility gaps
-3. Specific, actionable improvement suggestions with reasoning
-Be constructive. Prioritize high-impact issues.
-\`\`\`
-
-**chart-data:**
-\`\`\`
-Extract all data from this chart/graph. Provide:
-1. Chart title and type
-2. Axis labels and units
-3. All data points/series with values (estimate if not precisely readable)
-4. Brief trend summary
-Format as structured data (table or JSON).
-\`\`\`
-
-**object-detect:**
-\`\`\`
-List all distinct objects, people, and activities visible in this image. For each:
-- Describe what it is
-- Estimate its approximate location (top-left, center, bottom-right, etc.)
-- Note any notable attributes (color, size, orientation)
-Be thorough and specific.
-\`\`\`
-
-### Step 4: Present Results
-
-Return the analysis in a clear, structured format:
-
-**For describe mode:**
-\`\`\`
-## Image Description
-[Detailed prose description of contents...]
-\`\`\`
-
-**For ocr mode:**
-\`\`\`
-## Extracted Text
-[Preserved text structure from the image]
-\`\`\`
-
-**For ui-review mode:**
-\`\`\`
-## UI Design Review
-
-### Strengths
-- ...
-
-### Issues
-- ...
-
-### Improvement Suggestions
-- ...
-\`\`\`
-
-**For chart-data mode:**
-\`\`\`
-## Chart Data
-| [Data in table format]
-## Trend Summary
-[Analysis of trends]
-\`\`\`
-
-**For object-detect mode:**
-\`\`\`
-## Detected Objects
-| Object | Location | Attributes |
-|--------|----------|------------|
-| ...    | ...      | ...        |
-\`\`\`
-
-## Notes
-
-- Support for JPEG, PNG, GIF, WebP, BMP formats
-- Both local file paths and URLs work
-- The VLM tool from handles the actual image processing
-- For complex analysis tasks, you can chain multiple mode calls
-- Always present results in a structured, readable format`,
+## Anti-Patterns to Avoid
+Analysis paralysis (>30% planning time), perfect plan fallacy, ignoring dependencies, optimism bias (estimates 30-50% low), missing non-functional work, no buffer, one-person bottleneck`,
   },
 ];
-
 // ---------------------------------------------------------------------------
 // GET /api/skills/seed-builtin — List current builtin skills
 // ---------------------------------------------------------------------------

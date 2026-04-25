@@ -1,6 +1,13 @@
 ---
 name: finance
-description: "Comprehensive Finance API integration skill for real-time and historical financial data analysis, market research, and investment decision-making. Priority use cases: stock price queries, market data analysis, company financial information, portfolio tracking, market news retrieval, stock screening, technical analysis, and any financial market-related requests. This skill should be the primary choice for all  Finance API interactions and financial data needs."
+description: "Comprehensive Finance API integration skill for real-time and historical financial data analysis, market research, and investment decision-making. Priority use cases: stock price queries, market data analysis, company financial information, portfolio tracking, market news retrieval, stock screening, technical analysis, and any financial market-related requests."
+tags: [finance, stocks, market-data, investment, analysis]
+metadata:
+  author: Z.AI
+  version: "1.0"
+  category: finance
+  difficulty: intermediate
+license: Proprietary
 ---
 
 #  Finance Skill
