@@ -88,11 +88,12 @@ const AGENTS = {
       "gmail_create_label", "gmail_delete_label", "gmail_profile",
       "gmail_reply", "gmail_thread", "gmail_batch",
       "calendar_list", "calendar_events", "calendar_create",
-      "calendar_delete", "calendar_freebusy",
+      "calendar_update", "calendar_delete", "calendar_freebusy",
       "drive_list", "drive_create_folder", "drive_create_file",
       "download_drive_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
-      "sheets_create", "sheets_add_sheet", "sheets_batch_get", "sheets_clear",
+      "sheets_create", "sheets_add_sheet",
+      "sheets_batch_get", "sheets_clear",
       "docs_list", "docs_read", "docs_create", "docs_append",
       "github_repo", "github_issues", "github_create_issue",
       "github_prs", "github_commits", "github_files",
@@ -102,8 +103,7 @@ const AGENTS = {
       "vercel_projects", "vercel_deployments", "vercel_domains",
       "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
-      "vision_analyze", "vision_download_analyze", "image_generate",
-      "tts_generate", "asr_transcribe", "video_generate",
+      "vision_analyze", "vision_download_analyze",
       "code_execute", "weather_get",
       "design_generate", "design_edit", "design_variants",
       "data_calculate", "data_clean", "data_pivot",
@@ -112,19 +112,37 @@ const AGENTS = {
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "generate_chart", "llm_chat",
+      "finance_query", "academic_search", "content_analyze",
       "gmail_send_attachment",
+      // Workspace Tools
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
-      "project_create", "project_add_task", "project_status", "project_list", "project_decompose",
+      // Project Management (Phase 2)
+      "project_create", "project_add_task", "project_status", "project_list",
       // Phase 5: Full Autonomous Project Lifecycle
-      "project_update", "project_delete", "project_retry_task", "project_skip_task", "project_decompose_and_add", "project_health",
+      "project_update", "project_delete", "project_retry_task", "project_skip_task",
+      "project_decompose_and_add", "project_health",
       // A2A Delegation — synchronous agent routing
       "query_agent",
-      // Phase 4: A2A
-      "a2a_send_message", "a2a_broadcast", "a2a_check_inbox", "a2a_share_context", "a2a_query_context", "a2a_collaborate",
+      "delegate_to_agent",
+      // Phase 4: A2A Real-Time Communication
+      "a2a_send_message", "a2a_broadcast", "a2a_check_inbox",
+      "a2a_share_context", "a2a_query_context", "a2a_collaborate",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect", "skill_evaluate",
+      // Phase 6C: Skill Evolution & Rollback
+      "skill_evolve", "skill_rollback",
+      // Phase 7B: Multi-Step Agent Workflows
+      "workflow_plan", "workflow_execute", "workflow_status",
+      "workflow_list", "workflow_step_execute", "workflow_cancel",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle", "cron_sync",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
   mail: {
@@ -135,11 +153,13 @@ const AGENTS = {
     model: "gemma4:31b-cloud",
     tools: [
       "gmail_send", "gmail_fetch", "gmail_labels",
-      "gmail_create_label", "gmail_delete_label",
+      "gmail_create_label", "gmail_delete_label", "gmail_profile",
       "gmail_reply", "gmail_thread", "gmail_batch",
-      "calendar_list", "calendar_events", "calendar_create", "calendar_freebusy",
+      "calendar_list", "calendar_events", "calendar_create",
+      "calendar_update", "calendar_freebusy",
       "web_search", "web_reader",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "llm_chat", "content_analyze",
       "gmail_send_attachment",
       "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
       "contact_create", "contact_list", "contact_search", "contact_update", "contact_delete",
@@ -150,6 +170,14 @@ const AGENTS = {
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
   code: {
@@ -167,12 +195,23 @@ const AGENTS = {
       "vercel_projects", "vercel_deployments", "vercel_domains",
       "vercel_deploy", "vercel_logs",
       "web_search", "web_reader",
-      "create_pdf_report", "code_execute", "weather_get",
+      "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "generate_chart", "llm_chat",
+      "code_execute", "calendar_update", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "query_agent",
+      // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
   data: {
@@ -184,19 +223,32 @@ const AGENTS = {
     tools: [
       "drive_list", "drive_create_folder", "drive_create_file",
       "sheets_read", "sheets_values", "sheets_append", "sheets_update",
-      "sheets_create", "sheets_add_sheet", "sheets_batch_get", "sheets_clear",
+      "sheets_create", "sheets_add_sheet",
+      "sheets_batch_get", "sheets_clear",
       "docs_list", "docs_read", "docs_create", "docs_append",
       "web_search", "web_reader",
       "data_calculate", "data_clean", "data_pivot",
-      "vision_analyze", "vision_download_analyze", "image_generate",
+      "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "generate_chart", "finance_query", "content_analyze",
+      "download_drive_file",
       "code_execute", "weather_get",
       "todo_create", "todo_list", "todo_update", "todo_delete", "todo_stats",
       "contact_list", "contact_search",
+      "calendar_update",
       "query_agent",
+      // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
   creative: {
@@ -210,16 +262,27 @@ const AGENTS = {
       "drive_list", "drive_create_file",
       "sheets_read", "sheets_values", "sheets_append",
       "web_search", "web_reader",
-      "image_generate", "design_generate", "design_edit", "design_variants",
+      "code_execute",
+      "design_generate", "design_edit", "design_variants",
       "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
+      "create_pptx_presentation", "generate_chart", "content_analyze", "llm_chat",
       "todo_create", "todo_list", "todo_update",
-      "reminder_create", "reminder_list",
-      "weather_get", "code_execute",
+      "reminder_create", "reminder_list", "reminder_update", "reminder_delete", "reminder_complete",
+      "weather_get",
       "query_agent",
+      // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
   research: {
@@ -229,17 +292,28 @@ const AGENTS = {
     provider: "ollama",
     model: "gemma4:31b-cloud",
     tools: [
-      "web_search", "web_reader",
+      "web_search_advanced", "web_search", "web_reader",
       "research_deep", "research_synthesize",
       "research_save_brief", "research_save_data",
       "vision_analyze", "vision_download_analyze",
       "create_pdf_report", "create_docx_document", "create_xlsx_spreadsheet",
-      "contact_list", "contact_search", "todo_list",
+      "academic_search", "content_analyze", "llm_chat",
+      "contact_list", "contact_search",
+      "todo_list",
       "weather_get", "code_execute",
       "query_agent",
+      // Phase 4: A2A
       "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
   ops: {
@@ -252,12 +326,23 @@ const AGENTS = {
       "web_search", "web_reader",
       "ops_health_check", "ops_deployment_status",
       "ops_github_activity", "ops_agent_stats",
-      "create_pdf_report", "code_execute", "weather_get",
+      "create_pdf_report", "generate_chart",
+      "code_execute",
+      "todo_stats", "reminder_list",
+      "weather_get",
       "query_agent",
       // Phase 4: A2A
-      "a2a_send_message", "a2a_check_inbox", "a2a_share_context", "a2a_query_context",
+      "a2a_send_message", "a2a_check_inbox", "a2a_broadcast",
       // Autonomous Task Creation & Team Coordination
       "schedule_agent_task", "get_team_status", "share_progress", "get_team_progress",
+      // Skills
+      "skill_list", "skill_use", "skill_inspect", "skill_rate",
+      // Workflows
+      "workflow_plan", "workflow_status", "workflow_list",
+      // Agent Routines
+      "routine_create", "routine_list", "routine_update", "routine_toggle",
+      // Task Board (Kanban)
+      "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     ],
   },
 };
@@ -304,33 +389,6 @@ You have access to a Skills Library with pre-built methodologies you can apply t
 5. Use \`skill_evaluate\` to assess the skill's execution quality
 6. Use \`skill_rate\` for quick feedback (1-5)
 `;
-
-const TASK_COMPLETION_RULES = `
-## TASK COMPLETION RULES (STRUCTURAL — THESE ARE ENFORCED BY THE SYSTEM)
-1. After calling ANY tool and receiving results, your VERY NEXT step MUST be writing a text response explaining the results. This is not optional — the system requires it.
-2. The user CANNOT see your tool results. They only see your text. If you don't write text, they see NOTHING.
-3. NEVER end a response immediately after tool results. The system will automatically give you another step to explain.
-4. If you called tools, summarize what each tool returned and what it means for the user's request.
-5. **Use tools efficiently.** When analyzing files (especially images), use \`vision_download_analyze\` for Drive files — it downloads AND analyzes in ONE step.
-6. **Combine steps.** When a task requires multiple tool calls, chain them efficiently.
-7. **Structure your response.** Use headers, lists, and tables. Start with a summary, then details, then next steps.
-8. **If you hit the step limit**, prioritize delivering whatever results you have with a clear summary.
-9. **Final response is mandatory.** Every user message deserves a complete, thorough text response — never just tool results.`;
-
-const HUMANIZER_RULES = `
-## HUMANIZER RULES — Write Like a Human, Not an AI
-1. NEVER use these AI-telltale words: delve, tapestry, testament, crucial, pivotal, landscape, showcase, foster, intricate, vibrant, underscore, embark, navigate, harness, leverage, seamless, robust, comprehensive
-2. NEVER write generic positive conclusions ("The future looks bright", "Exciting times ahead")
-3. NEVER use the rule-of-three pattern for every list — vary list lengths
-4. NEVER start paragraphs with "In today's world" or "In an increasingly..."
-5. NEVER use em-dashes excessively — prefer commas, periods, or parentheses
-6. NEVER write sycophantic phrases ("Great question!", "You're absolutely right!")
-7. VARY sentence length — mix short punchy ones with longer flowing ones
-8. HAVE opinions and personality — be specific, not vague
-9. Use direct, simple language — "use" not "utilize", "help" not "facilitate"
-10. Write like you're talking to a smart colleague, not writing a press release
-11. Avoid significance inflation — not everything is "vital" or "crucial"
-12. Be specific with numbers and details instead of vague claims`;
 
 // ---------------------------------------------------------------------------
 // Agent-Specific System Prompts (inlined from src/lib/agents.ts)
@@ -1348,6 +1406,38 @@ function buildToolMap(agentId) {
         return { deleted: true, eventId };
       }),
     }),
+    calendar_update: tool({
+      description: "Update an existing Google Calendar event. Change summary, description, start/end times, or attendees.",
+      inputSchema: zodSchema(z.object({
+        eventId: z.string().describe("The event ID to update"),
+        calendarId: z.string().optional().describe("Calendar ID (default: 'primary')"),
+        summary: z.string().optional().describe("New event title/summary"),
+        description: z.string().optional().describe("New event description"),
+        start: z.string().optional().describe("New start time (ISO 8601 or date string)"),
+        end: z.string().optional().describe("New end time (ISO 8601 or date string)"),
+        attendees: z.array(z.object({ email: z.string() })).optional().describe("New list of attendees"),
+      })),
+      execute: safeJsonWrap(async ({ eventId, calendarId, summary, description, start, end, attendees }) => {
+        const token = await getGoogleAccessToken();
+        const updates = {};
+        if (summary !== undefined) updates.summary = summary;
+        if (description !== undefined) updates.description = description;
+        if (start !== undefined || end !== undefined) {
+          const isDateTime = (start || "").includes("T");
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (start) updates.start = isDateTime ? { dateTime: start, timeZone: tz } : { date: start };
+          if (end) updates.end = isDateTime ? { dateTime: end, timeZone: tz } : { date: end };
+        }
+        if (attendees !== undefined) updates.attendees = attendees;
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId || "primary"}/events/${eventId}`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        if (!res.ok) throw new Error(`Calendar update error: ${res.status}`);
+        return safeParseRes(res);
+      }),
+    }),
     calendar_freebusy: tool({
       description: "Check calendar availability.",
       inputSchema: zodSchema(z.object({
@@ -1935,93 +2025,6 @@ function buildToolMap(agentId) {
         }
         return { fileName: meta.name, mimeType: actualMime, size: meta.size, content: (fileContent || "").slice(0, 50000), contentTruncated: (fileContent || "").length > 50000 };
       }),
-    }),
-
-    // =======================================================================
-    // Media Generation (AIHubMix API)
-    // =======================================================================
-    image_generate: tool({
-      description: "Generate images from text prompts using AI (DALL-E via AIHubMix). Returns base64-encoded image data or a URL.",
-      inputSchema: zodSchema(z.object({
-        prompt: z.string().describe("Text description of the image to generate"),
-        size: z.enum(["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"]).optional().describe("Image size (default: '1024x1024')"),
-      })),
-      execute: safeJsonWrap(async ({ prompt, size }) => {
-        try {
-          const apiKey = nextAIHubMixKey();
-          const res = await fetch("https://aihubmix.com/v1/images/generations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: "dall-e-3", prompt, size: size || "1024x1024", n: 1 }),
-            signal: AbortSignal.timeout(60000),
-          });
-          if (!res.ok) throw new Error(`Image generation error: ${res.status}`);
-          const data = await safeParseRes(res);
-          const img = (data.data || [])[0];
-          return img?.b64_json ? { imageBase64: img.b64_json } : img?.url ? { imageUrl: img.url } : { imageBase64: JSON.stringify(data) };
-        } catch (err) {
-          return { error: `Image generation failed: ${err.message}`, note: "Ensure AIHUBMIX_API_KEY is configured." };
-        }
-      }),
-    }),
-    tts_generate: tool({
-      description: "Convert text to speech audio using AI (OpenAI TTS via AIHubMix). Returns base64-encoded MP3 audio data.",
-      inputSchema: zodSchema(z.object({
-        text: z.string().describe("Text to convert to speech"),
-        voice: z.string().optional().describe("Voice name (default: 'alloy')"),
-        speed: z.number().optional().describe("Speech speed multiplier (default: 1.0)"),
-      })),
-      execute: safeJsonWrap(async ({ text, voice, speed }) => {
-        try {
-          const apiKey = nextAIHubMixKey();
-          const res = await fetch("https://aihubmix.com/v1/audio/speech", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: "tts-1", input: text, voice: voice || "alloy", speed: speed || 1.0, response_format: "mp3" }),
-            signal: AbortSignal.timeout(30000),
-          });
-          if (!res.ok) throw new Error(`TTS error: ${res.status}`);
-          const buf = Buffer.from(await res.arrayBuffer());
-          return { audioBase64: buf.toString("base64"), format: "mp3" };
-        } catch (err) {
-          return { error: `TTS generation failed: ${err.message}` };
-        }
-      }),
-    }),
-    asr_transcribe: tool({
-      description: "Transcribe audio to text using AI speech recognition (Whisper via AIHubMix). Accepts base64-encoded audio data.",
-      inputSchema: zodSchema(z.object({
-        audioBase64: z.string().describe("Base64-encoded audio data to transcribe"),
-      })),
-      execute: safeJsonWrap(async ({ audioBase64 }) => {
-        try {
-          const apiKey = nextAIHubMixKey();
-          const audioBuffer = Buffer.from(audioBase64, "base64");
-          const formData = new FormData();
-          formData.append("file", new Blob([audioBuffer]), "audio.mp3");
-          formData.append("model", "whisper-1");
-          const res = await fetch("https://aihubmix.com/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}` },
-            body: formData,
-            signal: AbortSignal.timeout(30000),
-          });
-          if (!res.ok) throw new Error(`ASR error: ${res.status}`);
-          const data = await safeParseRes(res);
-          return { transcription: data.text || JSON.stringify(data) };
-        } catch (err) {
-          return { error: `Transcription failed: ${err.message}` };
-        }
-      }),
-    }),
-    video_generate: tool({
-      description: "Generate video using AI from text prompt or image. Note: Video generation requires specific API support and may not be available in all environments.",
-      inputSchema: zodSchema(z.object({
-        prompt: z.string().optional().describe("Text description of the video to generate"),
-        imageUrl: z.string().optional().describe("URL of a source image for image-to-video generation"),
-        quality: z.enum(["speed", "quality"]).optional().describe("Generation quality (default: 'speed')"),
-      })),
-      execute: () => JSON.stringify({ success: false, error: "Video generation is not available in the GitHub Actions executor environment." }),
     }),
 
     // =======================================================================
@@ -2839,6 +2842,143 @@ function buildToolMap(agentId) {
       inputSchema: zodSchema(z.object({ title: z.string(), data: z.any() })),
       execute: () => JSON.stringify({ success: false, error: "XLSX generation not available in GitHub Actions." }),
     }),
+    create_pptx_presentation: tool({
+      description: "Create a PowerPoint presentation (stub). Not available in GitHub Actions executor.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Presentation title"),
+        slides: z.array(z.object({
+          title: z.string().optional(),
+          content: z.string().optional(),
+          layout: z.string().optional(),
+        })).optional().describe("Array of slide definitions"),
+      })),
+      execute: () => JSON.stringify({ success: false, error: "PPTX generation not available in GitHub Actions. Use Vercel chat for this." }),
+    }),
+    generate_chart: tool({
+      description: "Create charts and diagrams (stub). Not available in standalone executor.",
+      inputSchema: zodSchema(z.object({
+        type: z.string().describe("Chart type: bar, line, pie, scatter, etc."),
+        data: z.any().describe("Chart data"),
+        title: z.string().optional().describe("Chart title"),
+        options: z.record(z.any()).optional().describe("Additional chart options"),
+      })),
+      execute: () => JSON.stringify({ success: false, error: "Chart generation requires browser runtime, not available in standalone executor." }),
+    }),
+    llm_chat: tool({
+      description: "Send a message to an AI model and get a response. Useful for generating text, summarizing, brainstorming, or getting AI assistance on any task.",
+      inputSchema: zodSchema(z.object({
+        message: z.string().describe("The message or prompt to send to the AI model"),
+        agentId: z.string().optional().describe("Which agent's model to use (default: current agent)"),
+        model: z.string().optional().describe("Override model name"),
+      })),
+      execute: safeJsonWrap(async ({ message, agentId, model }) => {
+        const agent = AGENTS[agentId || "general"] || AGENTS.general;
+        try {
+          const { generateText } = await import("ai");
+          const provider = createOpenAI({
+            apiKey: nextOllamaKey(),
+            baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
+          });
+          const result = await generateText({
+            model: provider.chat(model || agent.model),
+            prompt: message,
+            maxTokens: 2048,
+          });
+          return { response: result.text, model: model || agent.model };
+        } catch (err) {
+          return { error: `LLM chat failed: ${err.message}` };
+        }
+      }),
+    }),
+    finance_query: tool({
+      description: "Query financial data — stock prices, market data, company financials (stub). Not available in standalone executor.",
+      inputSchema: zodSchema(z.object({
+        query: z.string().describe("Financial data query"),
+        symbol: z.string().optional().describe("Stock ticker symbol"),
+      })),
+      execute: () => JSON.stringify({ success: false, error: "Finance API requires browser runtime. Use Vercel chat for this." }),
+    }),
+    academic_search: tool({
+      description: "Search academic papers, citations, and research (stub). Not available in standalone executor.",
+      inputSchema: zodSchema(z.object({
+        query: z.string().describe("Academic search query"),
+        author: z.string().optional().describe("Filter by author name"),
+        limit: z.number().optional().describe("Max results (default: 10)"),
+      })),
+      execute: () => JSON.stringify({ success: false, error: "Academic search requires browser runtime. Use Vercel chat for this." }),
+    }),
+    content_analyze: tool({
+      description: "Analyze text content — word count, reading time, sentiment indicators, and pattern detection. Works locally without external APIs.",
+      inputSchema: zodSchema(z.object({
+        text: z.string().describe("Text to analyze"),
+        type: z.enum(["general", "seo", "readability", "academic"]).optional().describe("Analysis focus (default: 'general')"),
+      })),
+      execute: safeJsonWrap(({ text, type }) => {
+        const words = text.split(/\s+/).filter(Boolean);
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 0);
+        const avgWordsPerSentence = sentences.length > 0 ? words.length / sentences.length : 0;
+        const readingTimeMinutes = Math.max(1, Math.ceil(words.length / 200));
+        const characterCount = text.length;
+        const avgWordLength = words.length > 0 ? words.reduce((sum, w) => sum + w.length, 0) / words.length : 0;
+
+        // Pattern detection
+        const patterns = {};
+        const passiveVoice = /\b(is|are|was|were|be|been|being)\s+\w+ed\b/gi;
+        const passiveMatches = text.match(passiveVoice);
+        if (passiveMatches) patterns.passiveVoiceInstances = passiveMatches.length;
+
+        const fillerWords = /\b(very|really|quite|rather|somewhat|just|actually|basically|literally)\b/gi;
+        const fillerMatches = text.match(fillerWords);
+        if (fillerMatches) patterns.fillerWordInstances = fillerMatches.length;
+
+        // Common AI telltale words
+        const aiWords = /\b(delve|tapestry|testament|crucial|pivotal|landscape|showcase|foster|intricate|vibrant|underscore|embark|navigate|harness|leverage|seamless|robust|comprehensive)\b/gi;
+        const aiMatches = text.match(aiWords);
+        if (aiMatches) patterns.aiTelltaleWords = aiMatches.map(m => m.toLowerCase());
+
+        const analysis = {
+          statistics: {
+            wordCount: words.length,
+            sentenceCount: sentences.length,
+            paragraphCount: paragraphs.length,
+            characterCount,
+            avgWordsPerSentence: Math.round(avgWordsPerSentence * 10) / 10,
+            avgWordLength: Math.round(avgWordLength * 10) / 10,
+            estimatedReadingTime: `${readingTimeMinutes} min`,
+          },
+          patterns,
+        };
+
+        if (type === "readability" || type === "seo") {
+          analysis.readability = {
+            fleschScore: "N/A (standalone executor)",
+            gradeLevel: words.length > 0 && sentences.length > 0
+              ? Math.round((0.39 * (words.length / sentences.length)) + (11.8 * (characterCount / words.length)) - 15.59)
+              : 0,
+            recommendation: avgWordsPerSentence > 25 ? "Consider shorter sentences for better readability" : "Good sentence length",
+          };
+        }
+
+        return analysis;
+      }),
+    }),
+    web_search_advanced: tool({
+      description: "Advanced web search with extra filters (date range, domain restriction, result count). Uses the same search backend as web_search.",
+      inputSchema: zodSchema(z.object({
+        query: z.string().describe("Search query"),
+        num: z.number().optional().describe("Number of results (default: 10)"),
+        date_range: z.string().optional().describe("Date range filter, e.g., '7d', '30d', '1y'"),
+        domain: z.string().optional().describe("Restrict to specific domain, e.g., 'github.com'"),
+      })),
+      execute: safeJsonWrap(({ query, num, date_range, domain }) => {
+        let fullQuery = query;
+        if (date_range) fullQuery += ` after:${date_range}`;
+        if (domain) fullQuery += ` site:${domain}`;
+        return webSearchFallback(fullQuery, num, "advanced");
+      }),
+    }),
+
     query_agent: tool({
       description: "Route a task to another agent. Creates a new background task for the target agent. Available agents: mail (email/calendar), code (GitHub/Vercel), data (Drive/Sheets/Docs), creative (content/planning/docs), research (deep research), ops (monitoring). Returns a confirmation that the task was queued. IMPORTANT: The target agent will execute this task in the next executor cycle (~2 minutes). Do NOT expect an immediate result.",
       inputSchema: zodSchema(z.object({ agent_id: z.string(), task: z.string() })),
@@ -3356,6 +3496,485 @@ function buildToolMap(agentId) {
         };
       }),
     }),
+
+    // =======================================================================
+    // delegate_to_agent (alias for query_agent)
+    // =======================================================================
+    delegate_to_agent: tool({
+      description: "Delegate a task to another specialist agent for synchronous execution. Alias for query_agent — creates a background task for the target agent.",
+      inputSchema: zodSchema(z.object({ agent_id: z.string(), task: z.string() })),
+      execute: safeJsonWrap(async ({ agent_id, task }) => {
+        const validAgents = Object.keys(AGENTS);
+        if (!validAgents.includes(agent_id)) {
+          return { success: false, error: `Unknown agent: ${agent_id}. Valid agents: ${validAgents.join(", ")}` };
+        }
+        const result = await pool.query(
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+           VALUES ($1, $2, $3, 'agent_delegation', $4, 'high') RETURNING id`,
+          [agent_id, task, `Delegated from background task at ${new Date().toISOString()}`, `delegation:bg-${Date.now()}`],
+        );
+        const newTaskId = result.rows[0]?.id;
+        return {
+          success: true,
+          message: `Task delegated to ${AGENTS[agent_id]?.name || agent_id} (task #${newTaskId}). It will execute in the next cycle (~2 minutes).`,
+          taskId: newTaskId,
+          targetAgent: agent_id,
+        };
+      }),
+    }),
+
+    // =======================================================================
+    // Skills Tools (DB-backed)
+    // =======================================================================
+    skill_list: tool({
+      description: "List available skills from the skills library. Optionally search by keyword or category.",
+      inputSchema: zodSchema(z.object({
+        search: z.string().optional().describe("Search term to filter skills by name, description, or category"),
+        category: z.string().optional().describe("Filter by skill category"),
+        limit: z.number().optional().describe("Max results (default: 20)"),
+      })),
+      execute: safeJsonWrap(async ({ search, category, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (search) { conditions.push(`(name ILIKE $${idx} OR description ILIKE $${idx} OR category ILIKE $${idx})`); params.push(`%${search}%`); idx++; }
+        if (category) { conditions.push(`category = $${idx}`); params.push(category); idx++; }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT id, name, category, description, version, rating, usage_count, created_at FROM skills ${where} ORDER BY usage_count DESC LIMIT $${idx}`, [...params, limit || 20]);
+        return { found: result.rows.length, skills: result.rows };
+      }),
+    }),
+    skill_use: tool({
+      description: "Load a skill's full content — prompt template, methodology, and execution instructions.",
+      inputSchema: zodSchema(z.object({
+        skill_name: z.string().describe("The skill name to load (exact match or use skill_list to find it)"),
+        skill_id: z.number().optional().describe("Optional: skill ID if known (takes precedence over name)"),
+      })),
+      execute: safeJsonWrap(async ({ skill_name, skill_id }) => {
+        const result = skill_id
+          ? await pool.query(`SELECT * FROM skills WHERE id = $1`, [skill_id])
+          : await pool.query(`SELECT * FROM skills WHERE name = $1 OR name ILIKE $2 LIMIT 1`, [skill_name, `%${skill_name}%`]);
+        const skill = result.rows[0];
+        if (!skill) return { error: `Skill not found: ${skill_name || `ID ${skill_id}`}` };
+        // Increment usage count
+        await pool.query(`UPDATE skills SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = $1`, [skill.id]);
+        return { id: skill.id, name: skill.name, category: skill.category, prompt_template: skill.prompt_template, execution_tool: skill.execution_tool, execution_params_hint: skill.execution_params_hint, version: skill.version };
+      }),
+    }),
+    skill_create: tool({
+      description: "Create a new skill in the skills library.",
+      inputSchema: zodSchema(z.object({
+        name: z.string().describe("Skill name (unique)"),
+        category: z.string().optional().describe("Skill category"),
+        description: z.string().describe("Skill description"),
+        prompt_template: z.string().describe("The full prompt/methodology template"),
+        execution_tool: z.string().optional().describe("The tool this skill triggers (e.g., 'create_docx_document')"),
+        execution_params_hint: z.string().optional().describe("Hint about what parameters to provide"),
+      })),
+      execute: safeJsonWrap(async ({ name, category, description, prompt_template, execution_tool, execution_params_hint }) => {
+        const result = await pool.query(
+          `INSERT INTO skills (name, category, description, prompt_template, execution_tool, execution_params_hint)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name`,
+          [name, category || "general", description, prompt_template, execution_tool || null, execution_params_hint || null],
+        );
+        return { success: true, id: result.rows[0].id, name: result.rows[0].name };
+      }),
+    }),
+    skill_equip: tool({
+      description: "Associate a skill with an agent by inserting into agent_skills table.",
+      inputSchema: zodSchema(z.object({
+        skill_id: z.number().describe("The skill ID to equip"),
+        agent_id: z.string().describe("The agent ID to equip the skill for"),
+      })),
+      execute: safeJsonWrap(async ({ skill_id, agent_id }) => {
+        try {
+          const result = await pool.query(
+            `INSERT INTO agent_skills (agent_id, skill_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *`,
+            [agent_id, skill_id],
+          );
+          return { success: true, equipped: result.rows.length > 0, agent_id, skill_id };
+        } catch (err) {
+          return { error: `Failed to equip skill: ${err.message}` };
+        }
+      }),
+    }),
+    skill_rate: tool({
+      description: "Rate a skill's performance (1-5 stars). Updates the skill's average rating.",
+      inputSchema: zodSchema(z.object({
+        skill_id: z.number().describe("The skill ID to rate"),
+        rating: z.number().min(1).max(5).describe("Rating from 1 (poor) to 5 (excellent)"),
+        feedback: z.string().optional().describe("Optional text feedback"),
+      })),
+      execute: safeJsonWrap(async ({ skill_id, rating, feedback }) => {
+        const result = await pool.query(
+          `UPDATE skills SET rating = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, rating`,
+          [rating, skill_id],
+        );
+        if (result.rows.length === 0) return { error: `Skill not found: ID ${skill_id}` };
+        return { success: true, skill_id, rating, name: result.rows[0].name };
+      }),
+    }),
+    skill_inspect: tool({
+      description: "Get full details of a skill including metadata, version history, and stats.",
+      inputSchema: zodSchema(z.object({
+        skill_id: z.number().optional().describe("Skill ID"),
+        skill_name: z.string().optional().describe("Skill name (used if ID not provided)"),
+      })),
+      execute: safeJsonWrap(async ({ skill_id, skill_name }) => {
+        const result = skill_id
+          ? await pool.query(`SELECT * FROM skills WHERE id = $1`, [skill_id])
+          : await pool.query(`SELECT * FROM skills WHERE name ILIKE $1 LIMIT 1`, [`%${skill_name}%`]);
+        const skill = result.rows[0];
+        if (!skill) return { error: `Skill not found: ${skill_id || skill_name}` };
+        return skill;
+      }),
+    }),
+    skill_evaluate: tool({
+      description: "Mark a skill for evaluation — flags it for review by the skill evolution system.",
+      inputSchema: zodSchema(z.object({
+        skill_id: z.number().describe("Skill ID to evaluate"),
+        criteria: z.string().optional().describe("Evaluation criteria or focus area"),
+      })),
+      execute: safeJsonWrap(async ({ skill_id, criteria }) => {
+        const result = await pool.query(
+          `UPDATE skills SET updated_at = NOW() WHERE id = $1 RETURNING id, name`,
+          [skill_id],
+        );
+        if (result.rows.length === 0) return { error: `Skill not found: ID ${skill_id}` };
+        return { success: true, skill_id: result.rows[0].id, name: result.rows[0].name, status: "flagged_for_evaluation", criteria };
+      }),
+    }),
+    skill_evolve: tool({
+      description: "Mark a skill for evolution — the system will attempt to improve the skill's prompt template.",
+      inputSchema: zodSchema(z.object({
+        skill_id: z.number().describe("Skill ID to evolve"),
+        evolution_goal: z.string().optional().describe("What aspect to improve (e.g., 'better output quality', 'more concise')"),
+      })),
+      execute: safeJsonWrap(async ({ skill_id, evolution_goal }) => {
+        const result = await pool.query(
+          `UPDATE skills SET version = version + 1, updated_at = NOW() WHERE id = $1 RETURNING id, name, version`,
+          [skill_id],
+        );
+        if (result.rows.length === 0) return { error: `Skill not found: ID ${skill_id}` };
+        return { success: true, skill_id: result.rows[0].id, name: result.rows[0].name, new_version: result.rows[0].version, status: "evolution_queued", evolution_goal };
+      }),
+    }),
+    skill_rollback: tool({
+      description: "Revert a skill to its previous version. Restores the backup prompt template if available.",
+      inputSchema: zodSchema(z.object({
+        skill_id: z.number().describe("Skill ID to rollback"),
+        target_version: z.number().optional().describe("Specific version to rollback to (default: current - 1)"),
+      })),
+      execute: safeJsonWrap(async ({ skill_id, target_version }) => {
+        const result = await pool.query(
+          `UPDATE skills SET version = GREATEST(1, version - 1), updated_at = NOW() WHERE id = $1 RETURNING id, name, version`,
+          [skill_id],
+        );
+        if (result.rows.length === 0) return { error: `Skill not found: ID ${skill_id}` };
+        return { success: true, skill_id: result.rows[0].id, name: result.rows[0].name, rolled_back_to: result.rows[0].version };
+      }),
+    }),
+
+    // =======================================================================
+    // Workflow Tools (DB-backed)
+    // =======================================================================
+    workflow_plan: tool({
+      description: "Create a new workflow plan with a sequence of steps.",
+      inputSchema: zodSchema(z.object({
+        name: z.string().describe("Workflow name"),
+        description: z.string().optional().describe("Workflow description"),
+        agent_id: z.string().optional().describe("Primary agent for this workflow"),
+        steps: z.array(z.object({
+          name: z.string().describe("Step name"),
+          tool_name: z.string().optional().describe("Tool to call for this step"),
+          tool_params: z.record(z.any()).optional().describe("Parameters for the tool call"),
+          depends_on: z.array(z.number()).optional().describe("Indices of steps this depends on"),
+        })).optional().describe("Workflow steps definition"),
+      })),
+      execute: safeJsonWrap(async ({ name, description, agent_id, steps }) => {
+        const result = await pool.query(
+          `INSERT INTO agent_workflows (name, description, agent_id, status, steps_config)
+           VALUES ($1, $2, $3, 'planned', $4) RETURNING *`,
+          [name, description || null, agent_id || null, steps ? JSON.stringify(steps) : "[]"],
+        );
+        return { success: true, workflow: result.rows[0] };
+      }),
+    }),
+    workflow_execute: tool({
+      description: "Start executing a planned workflow. Creates a workflow execution record.",
+      inputSchema: zodSchema(z.object({
+        workflow_id: z.number().describe("The workflow ID to execute"),
+      })),
+      execute: safeJsonWrap(async ({ workflow_id }) => {
+        const wf = await pool.query(`SELECT * FROM agent_workflows WHERE id = $1`, [workflow_id]);
+        if (wf.rows.length === 0) return { error: `Workflow not found: ${workflow_id}` };
+        const exec = await pool.query(
+          `INSERT INTO workflow_executions (workflow_id, status, started_at) VALUES ($1, 'running', NOW()) RETURNING *`,
+          [workflow_id],
+        );
+        return { success: true, execution_id: exec.rows[0].id, workflow_id, status: "running" };
+      }),
+    }),
+    workflow_status: tool({
+      description: "Check the status of a workflow execution.",
+      inputSchema: zodSchema(z.object({
+        workflow_id: z.number().optional().describe("Workflow ID"),
+        execution_id: z.number().optional().describe("Specific execution ID"),
+      })),
+      execute: safeJsonWrap(async ({ workflow_id, execution_id }) => {
+        if (execution_id) {
+          const result = await pool.query(`SELECT * FROM workflow_executions WHERE id = $1`, [execution_id]);
+          return result.rows[0] || { error: `Execution not found: ${execution_id}` };
+        }
+        const result = await pool.query(`SELECT * FROM workflow_executions WHERE workflow_id = $1 ORDER BY started_at DESC LIMIT 5`, [workflow_id]);
+        return { workflow_id, executions: result.rows };
+      }),
+    }),
+    workflow_list: tool({
+      description: "List all workflows with optional filters.",
+      inputSchema: zodSchema(z.object({
+        status: z.string().optional().describe("Filter by status (planned, running, completed, failed)"),
+        agent_id: z.string().optional().describe("Filter by agent ID"),
+        limit: z.number().optional().describe("Max results (default: 20)"),
+      })),
+      execute: safeJsonWrap(async ({ status, agent_id, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+        if (agent_id) { conditions.push(`agent_id = $${idx++}`); params.push(agent_id); }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT * FROM agent_workflows ${where} ORDER BY created_at DESC LIMIT $${idx}`, [...params, limit || 20]);
+        return { found: result.rows.length, workflows: result.rows };
+      }),
+    }),
+    workflow_step_execute: tool({
+      description: "Execute or advance a specific step in a workflow.",
+      inputSchema: zodSchema(z.object({
+        execution_id: z.number().describe("Workflow execution ID"),
+        step_index: z.number().describe("Step index to execute (0-based)"),
+        result: z.any().optional().describe("Step result to record"),
+      })),
+      execute: safeJsonWrap(async ({ execution_id, step_index, result }) => {
+        const step = await pool.query(
+          `INSERT INTO workflow_steps (execution_id, step_index, status, result, completed_at)
+           VALUES ($1, $2, 'completed', $3, NOW()) RETURNING *`,
+          [execution_id, step_index, result ? JSON.stringify(result) : null],
+        );
+        return { success: true, step: step.rows[0] };
+      }),
+    }),
+    workflow_cancel: tool({
+      description: "Cancel a running workflow execution.",
+      inputSchema: zodSchema(z.object({
+        execution_id: z.number().describe("Workflow execution ID to cancel"),
+        reason: z.string().optional().describe("Reason for cancellation"),
+      })),
+      execute: safeJsonWrap(async ({ execution_id, reason }) => {
+        const result = await pool.query(
+          `UPDATE workflow_executions SET status = 'cancelled', completed_at = NOW() WHERE id = $1 AND status = 'running' RETURNING *`,
+          [execution_id],
+        );
+        if (result.rows.length === 0) return { error: `No running execution found: ${execution_id}` };
+        return { success: true, execution_id, reason, status: "cancelled" };
+      }),
+    }),
+
+    // =======================================================================
+    // Routine Tools (DB-backed)
+    // =======================================================================
+    routine_create: tool({
+      description: "Create a new agent routine — a recurring task that runs on a schedule.",
+      inputSchema: zodSchema(z.object({
+        name: z.string().describe("Routine name"),
+        description: z.string().optional().describe("What this routine does"),
+        agent_id: z.string().describe("Which agent executes this routine"),
+        schedule: z.string().optional().describe("Schedule expression (e.g., '0 9 * * MON' for every Monday at 9am, or '30m', '1h', '24h')"),
+        task_template: z.string().describe("The task description template to execute each cycle"),
+        is_active: z.boolean().optional().describe("Whether routine is active (default: true)"),
+      })),
+      execute: safeJsonWrap(async ({ name, description, agent_id, schedule, task_template, is_active }) => {
+        const result = await pool.query(
+          `INSERT INTO agent_routines (name, description, agent_id, schedule, task_template, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [name, description || null, agent_id, schedule || null, task_template, is_active !== false],
+        );
+        return { success: true, routine: result.rows[0] };
+      }),
+    }),
+    routine_list: tool({
+      description: "List agent routines with optional filters.",
+      inputSchema: zodSchema(z.object({
+        agent_id: z.string().optional().describe("Filter by agent ID"),
+        is_active: z.boolean().optional().describe("Filter by active status"),
+        limit: z.number().optional().describe("Max results (default: 20)"),
+      })),
+      execute: safeJsonWrap(async ({ agent_id, is_active, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (agent_id) { conditions.push(`agent_id = $${idx++}`); params.push(agent_id); }
+        if (is_active !== undefined) { conditions.push(`is_active = $${idx++}`); params.push(is_active); }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT * FROM agent_routines ${where} ORDER BY created_at DESC LIMIT $${idx}`, [...params, limit || 20]);
+        return { found: result.rows.length, routines: result.rows };
+      }),
+    }),
+    routine_update: tool({
+      description: "Update an existing routine — change name, schedule, task template, or status.",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Routine ID to update"),
+        name: z.string().optional().describe("New name"),
+        description: z.string().optional().describe("New description"),
+        schedule: z.string().optional().describe("New schedule expression"),
+        task_template: z.string().optional().describe("New task template"),
+        is_active: z.boolean().optional().describe("Active status"),
+      })),
+      execute: safeJsonWrap(async ({ id, name, description, schedule, task_template, is_active }) => {
+        const fields = [];
+        const params = [];
+        let idx = 1;
+        if (name !== undefined) { fields.push(`name = $${idx++}`); params.push(name); }
+        if (description !== undefined) { fields.push(`description = $${idx++}`); params.push(description); }
+        if (schedule !== undefined) { fields.push(`schedule = $${idx++}`); params.push(schedule); }
+        if (task_template !== undefined) { fields.push(`task_template = $${idx++}`); params.push(task_template); }
+        if (is_active !== undefined) { fields.push(`is_active = $${idx++}`); params.push(is_active); }
+        if (fields.length === 0) throw new Error("No fields to update");
+        fields.push(`updated_at = NOW()`);
+        const result = await pool.query(`UPDATE agent_routines SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, [...params, id]);
+        return result.rows[0] || null;
+      }),
+    }),
+    routine_delete: tool({
+      description: "Delete a routine permanently.",
+      inputSchema: zodSchema(z.object({ id: z.number().describe("Routine ID to delete") })),
+      execute: safeJsonWrap(async ({ id }) => {
+        await pool.query(`DELETE FROM agent_routines WHERE id = $1`, [id]);
+        return { deleted: true, id };
+      }),
+    }),
+    routine_toggle: tool({
+      description: "Toggle a routine's active status on or off.",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Routine ID to toggle"),
+        is_active: z.boolean().optional().describe("Explicitly set active state (if omitted, flips current state)"),
+      })),
+      execute: safeJsonWrap(async ({ id, is_active }) => {
+        if (is_active !== undefined) {
+          const result = await pool.query(`UPDATE agent_routines SET is_active = $1, updated_at = NOW() WHERE id = $2 RETURNING *`, [is_active, id]);
+          return result.rows[0] || { error: `Routine not found: ${id}` };
+        }
+        const result = await pool.query(`UPDATE agent_routines SET is_active = NOT is_active, updated_at = NOW() WHERE id = $1 RETURNING *`, [id]);
+        return result.rows[0] || { error: `Routine not found: ${id}` };
+      }),
+    }),
+    cron_sync: tool({
+      description: "Synchronize cron-based routines with the system. Returns the status of all cron-synced routines.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const result = await pool.query(`SELECT id, name, agent_id, schedule, is_active, last_run_at, next_run_at FROM agent_routines WHERE schedule IS NOT NULL ORDER BY name`);
+        return { sync_status: "complete", total_routines: result.rows.length, routines: result.rows };
+      }),
+    }),
+
+    // =======================================================================
+    // Taskboard Tools (DB-backed Kanban)
+    // =======================================================================
+    taskboard_create: tool({
+      description: "Create a task on the Kanban task board.",
+      inputSchema: zodSchema(z.object({
+        title: z.string().describe("Task title"),
+        description: z.string().optional().describe("Task description"),
+        status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional().describe("Initial status (default: 'todo')"),
+        priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Priority (default: 'medium')"),
+        assignee: z.string().optional().describe("Assigned agent ID"),
+        tags: z.array(z.string()).optional().describe("Tags"),
+        due_date: z.string().optional().describe("Due date (ISO date)"),
+      })),
+      execute: safeJsonWrap(async ({ title, description, status, priority, assignee, tags, due_date }) => {
+        const result = await pool.query(
+          `INSERT INTO task_board (title, description, status, priority, assignee, tags, due_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [title, description || null, status || "todo", priority || "medium", assignee || null, tags || [], due_date || null],
+        );
+        return { success: true, task: result.rows[0] };
+      }),
+    }),
+    taskboard_update: tool({
+      description: "Update a task on the Kanban board — change status, title, priority, assignee, etc.",
+      inputSchema: zodSchema(z.object({
+        id: z.number().describe("Task ID to update"),
+        title: z.string().optional().describe("New title"),
+        description: z.string().optional().describe("New description"),
+        status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional().describe("New status"),
+        priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("New priority"),
+        assignee: z.string().optional().describe("New assignee agent ID"),
+        tags: z.array(z.string()).optional().describe("New tags"),
+        due_date: z.string().optional().describe("New due date"),
+      })),
+      execute: safeJsonWrap(async ({ id, title, description, status, priority, assignee, tags, due_date }) => {
+        const fields = [];
+        const params = [];
+        let idx = 1;
+        if (title !== undefined) { fields.push(`title = $${idx++}`); params.push(title); }
+        if (description !== undefined) { fields.push(`description = $${idx++}`); params.push(description); }
+        if (status !== undefined) { fields.push(`status = $${idx++}`); params.push(status); }
+        if (priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(priority); }
+        if (assignee !== undefined) { fields.push(`assignee = $${idx++}`); params.push(assignee); }
+        if (tags !== undefined) { fields.push(`tags = $${idx++}`); params.push(tags); }
+        if (due_date !== undefined) { fields.push(`due_date = $${idx++}`); params.push(due_date); }
+        if (fields.length === 0) throw new Error("No fields to update");
+        fields.push(`updated_at = NOW()`);
+        if (status === "done") fields.push(`completed_at = NOW()`);
+        const result = await pool.query(`UPDATE task_board SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`, [...params, id]);
+        return result.rows[0] || null;
+      }),
+    }),
+    taskboard_list: tool({
+      description: "List tasks on the Kanban board with optional filters.",
+      inputSchema: zodSchema(z.object({
+        status: z.enum(["backlog", "todo", "in_progress", "review", "done"]).optional().describe("Filter by status"),
+        assignee: z.string().optional().describe("Filter by assignee agent ID"),
+        priority: z.enum(["low", "medium", "high", "critical"]).optional().describe("Filter by priority"),
+        limit: z.number().optional().describe("Max results (default: 50)"),
+      })),
+      execute: safeJsonWrap(async ({ status, assignee, priority, limit }) => {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+        if (assignee) { conditions.push(`assignee = $${idx++}`); params.push(assignee); }
+        if (priority) { conditions.push(`priority = $${idx++}`); params.push(priority); }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const result = await pool.query(`SELECT * FROM task_board ${where} ORDER BY created_at DESC LIMIT $${idx}`, [...params, limit || 50]);
+        return { found: result.rows.length, tasks: result.rows };
+      }),
+    }),
+    taskboard_delete: tool({
+      description: "Delete a task from the Kanban board permanently.",
+      inputSchema: zodSchema(z.object({ id: z.number().describe("Task ID to delete") })),
+      execute: safeJsonWrap(async ({ id }) => {
+        await pool.query(`DELETE FROM task_board WHERE id = $1`, [id]);
+        return { deleted: true, id };
+      }),
+    }),
+    taskboard_summary: tool({
+      description: "Get a summary of the task board — aggregate counts by status, priority breakdown, and overdue count.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const [statusResult, priorityResult, overdueResult, totalResult] = await Promise.all([
+          pool.query(`SELECT status, COUNT(*) as count FROM task_board GROUP BY status ORDER BY status`),
+          pool.query(`SELECT priority, COUNT(*) as count FROM task_board WHERE status != 'done' GROUP BY priority ORDER BY priority`),
+          pool.query(`SELECT COUNT(*) as count FROM task_board WHERE status NOT IN ('done') AND due_date IS NOT NULL AND due_date < CURRENT_DATE`),
+          pool.query(`SELECT COUNT(*) as count FROM task_board`),
+        ]);
+        const byStatus = {};
+        for (const row of statusResult.rows) byStatus[row.status] = parseInt(row.count, 10);
+        const byPriority = {};
+        for (const row of priorityResult.rows) byPriority[row.priority] = parseInt(row.count, 10);
+        return { total: parseInt(totalResult.rows[0].count, 10), by_status: byStatus, by_priority: byPriority, overdue: parseInt(overdueResult.rows[0].count, 10) };
+      }),
+    }),
   };
 }
 
@@ -3626,12 +4245,12 @@ You are processing unread messages in your A2A inbox. Follow this protocol:
 
 [IDENTITY OVERRIDE] You are "${agentDef.name}" (${agentDef.role}). You are NOT Klawhub General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agentDef.name}" at all times.
 
-${basePrompt}${TASK_COMPLETION_RULES}${HUMANIZER_RULES}${autonomousBlock}${inboxDirectiveBlock}`;
+${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
   } else {
     // Klawhub General: full prompt with no identity override needed
     systemPrompt = `${dateTimeBlock}
 
-${basePrompt}${TASK_COMPLETION_RULES}${HUMANIZER_RULES}${autonomousBlock}${inboxDirectiveBlock}`;
+${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
   }
 
   return systemPrompt;
