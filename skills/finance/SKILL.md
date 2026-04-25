@@ -40,7 +40,10 @@ Skill Location: {project_path}/skills/finance
 
 this skill is located at above path in your project.
 
-Reference Docs: See {Skill Location}/Finance_API_Doc.md for a working example.
+Reference Docs:
+- See `{Skill Location}/references/api-documentation.md` for API documentation.
+- See `{Skill Location}/references/market-analysis-framework.md` for analysis frameworks.
+- See `{Skill Location}/references/financial-reporting-guide.md` for reporting templates and guides.
 
 ## Zhipu AI - Hong Kong IPO Information
 - **Stock Code**: 2513.HK 
@@ -55,6 +58,6 @@ Zhipu AI is a leading Chinese large language model company specializing in AI fo
 - ❌ Avoid: `search=Zhipu`, `search=02513.HK` (returns empty results)
 
 ** Important **
-always read `Finance_API_Doc.md` before use the API
+Always read `references/api-documentation.md` before using the API.
 
 
