@@ -817,9 +817,29 @@ export default function SkillsPage() {
     }
   }, [addToast]);
 
-  // Initial fetch
+  // Initial fetch — also trigger sync if DB is out of date with filesystem
   useEffect(() => {
-    fetchSkills("", "all");
+    const init = async () => {
+      try {
+        // Check if DB matches filesystem
+        const statusRes = await fetch("/api/skills/sync-filesystem");
+        const status = await statusRes.json();
+        if (
+          status.database_skills !== undefined &&
+          status.database_active !== undefined &&
+          status.filesystem_skills !== undefined &&
+          (status.database_skills !== status.filesystem_skills ||
+           status.database_active !== status.filesystem_skills)
+        ) {
+          // DB out of sync — trigger sync to clean up stale entries
+          await fetch("/api/skills/sync-filesystem", { method: "POST" });
+        }
+      } catch {
+        // Non-critical — proceed with fetch regardless
+      }
+      fetchSkills("", "all");
+    };
+    init();
   }, [fetchSkills]);
 
   // Debounced search + category filter
