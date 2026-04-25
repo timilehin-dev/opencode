@@ -230,6 +230,7 @@ import {
   gCalListEvents,
   gCalCreateEvent,
   gCalDeleteEvent,
+  gCalUpdateEvent,
   gDriveListFiles,
   gDriveCreateFolder,
   gDriveCreateFile,
@@ -609,6 +610,40 @@ export const calendarDeleteTool = tool({
   execute: safeJson(async ({ calendarId, eventId }) => {
     await gCalDeleteEvent(calendarId || "primary", eventId);
     return { deleted: true, eventId };
+  }),
+});
+
+export const calendarUpdateTool = tool({
+  description: "Update an existing Google Calendar event. Change the title, time, location, description, or attendees. Use this to reschedule meetings, update event details, or add attendees to an existing event.",
+  inputSchema: zodSchema(z.object({
+    calendarId: z.string().optional().describe("Calendar ID (default: 'primary')"),
+    eventId: z.string().describe("The event ID to update"),
+    summary: z.string().optional().describe("New event title"),
+    start: z.string().optional().describe("New start time in ISO 8601 format (e.g., '2025-05-01T09:00:00') or all-day date (e.g., '2025-05-01')"),
+    end: z.string().optional().describe("New end time in ISO 8601 format or all-day date"),
+    location: z.string().optional().describe("New location for the event"),
+    description: z.string().optional().describe("New description for the event"),
+    addAttendees: z.array(z.string()).optional().describe("Email addresses of attendees to ADD to the event"),
+  })),
+  execute: safeJson(async ({ calendarId, eventId, summary, start, end, location, description, addAttendees }) => {
+    const event: Record<string, unknown> = {};
+    if (summary) event.summary = summary;
+    if (start) event.start = { dateTime: start, timeZone: "Africa/Lagos" };
+    if (end) event.end = { dateTime: end, timeZone: "Africa/Lagos" };
+    if (location) event.location = location;
+    if (description) event.description = description;
+    if (addAttendees?.length) event.attendees = addAttendees.map(email => ({ email }));
+
+    const updated = await gCalUpdateEvent(calendarId || "primary", eventId, event as Parameters<typeof gCalUpdateEvent>[2]);
+    return {
+      updated: true,
+      eventId,
+      summary: updated.summary,
+      start: updated.start,
+      end: updated.end,
+      location: updated.location,
+      htmlLink: updated.htmlLink,
+    };
   }),
 });
 
@@ -8424,7 +8459,7 @@ export const llmChatTool = tool({
   execute: safeJson(async ({ messages, temperature }) => {
     try {
       // Use Ollama API directly (self-hosted model)
-      const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || OLLAMA_BASE;
       const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:31b-cloud";
       const systemMsg = messages.find(m => m.role === "system")?.content || "You are a helpful assistant.";
       const userMsg = messages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n\n");
@@ -10625,6 +10660,7 @@ export const allTools: Record<string, ToolType> = {
   calendar_list: calendarListTool,
   calendar_events: calendarEventsTool,
   calendar_create: calendarCreateTool,
+  calendar_update: calendarUpdateTool,
   calendar_delete: calendarDeleteTool,
   calendar_freebusy: calendarFreebusyTool,
   // Drive
@@ -10728,7 +10764,7 @@ export const allTools: Record<string, ToolType> = {
   project_add_task: projectAddTaskTool,
   project_status: projectStatusTool,
   project_list: projectListTool,
-  project_decompose: projectDecomposeTool,
+  // project_decompose removed — project_decompose_and_add is the canonical tool (decompose + add in one step)
   // Phase 5: Full Autonomous Project Lifecycle
   project_update: projectUpdateTool,
   project_delete: projectDeleteTool,
@@ -10745,7 +10781,8 @@ export const allTools: Record<string, ToolType> = {
   a2a_collaborate: a2aCollaborateTool,
   // New Tools
   code_execute: codeExecuteTool,
-  python_data_process: pythonDataProcessTool,
+  // python_data_process: removed — redundant with code_execute (same Judge0 sandbox, 17 languages)
+  // project_decompose: removed — redundant with project_decompose_and_add (does more)
   weather_get: weatherGetTool,
   // Phase 6A: Skill Library
   skill_list: skillListTool,

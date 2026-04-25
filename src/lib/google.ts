@@ -202,6 +202,31 @@ export async function gCalCreateEvent(
   return (await safeJsonParse(res)) as GoogleCalendarEvent;
 }
 
+/** Update a calendar event */
+export async function gCalUpdateEvent(
+  calendarId: string,
+  eventId: string,
+  event: {
+    summary?: string;
+    start?: { dateTime?: string; date?: string; timeZone?: string };
+    end?: { dateTime?: string; date?: string; timeZone?: string };
+    location?: string;
+    description?: string;
+    attendees?: { email: string }[];
+    colorId?: string;
+  },
+): Promise<GoogleCalendarEvent> {
+  const params = new URLSearchParams({ conferenceDataVersion: "1", sendUpdates: "none" });
+  const res = await googleFetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}?${params}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(event),
+    },
+  );
+  return (await safeJsonParse(res)) as GoogleCalendarEvent;
+}
+
 /** Delete a calendar event */
 export async function gCalDeleteEvent(calendarId: string, eventId: string): Promise<void> {
   const res = await googleFetch(
