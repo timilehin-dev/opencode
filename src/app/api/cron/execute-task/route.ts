@@ -111,9 +111,9 @@ export async function GET(request: Request) {
             { role: "user", content: `${taskPrompt}\n\n${taskContext ? `Context: ${taskContext}` : ""}` },
           ],
           tools: agentTools,
-          maxOutputTokens: 4096,
-          stopWhen: stepCountIs(12),
-          abortSignal: AbortSignal.timeout(120_000),
+          maxOutputTokens: 16384,
+          stopWhen: stepCountIs(25),
+          abortSignal: AbortSignal.timeout(150_000),
         });
       });
 

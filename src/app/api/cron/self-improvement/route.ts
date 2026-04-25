@@ -183,9 +183,9 @@ Output your analysis as structured JSON:
         model: providerResult.model,
         system: "You are an automated code improvement system. Output ONLY valid JSON. No markdown, no explanation outside the JSON.",
         messages: [{ role: "user", content: analysisPrompt }],
-        maxOutputTokens: 4096,
-        stopWhen: stepCountIs(3),
-        abortSignal: AbortSignal.timeout(90_000),
+        maxOutputTokens: 16384,
+        stopWhen: stepCountIs(15),
+        abortSignal: AbortSignal.timeout(120_000),
       });
     });
 

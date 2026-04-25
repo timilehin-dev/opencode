@@ -33,8 +33,8 @@ async function executeTaskWithAgent(
   taskPrompt: string,
   context: string,
   source: string,
-  maxOutputTokens: number = 4096,
-  maxSteps: number = 12,
+  maxOutputTokens: number = 16384,
+  maxSteps: number = 20,
 ): Promise<{ success: boolean; text?: string; error?: string }> {
   try {
     const agent = getAgent(agentId);
@@ -328,7 +328,7 @@ export async function GET(request: Request) {
         lastActivity: new Date().toISOString(),
       }).catch(() => {});
 
-      const result = await executeTaskWithAgent(agentId, taskPrompt, taskContext, "Project Tasks", 8192, 20);
+      const result = await executeTaskWithAgent(agentId, taskPrompt, taskContext, "Project Tasks", 32768, 30);
 
       if (result.success) {
         await query("UPDATE project_tasks SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2", [

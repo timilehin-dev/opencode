@@ -343,9 +343,9 @@ async function executeRoutine(
           { role: "user", content: `${task}\n\n${context ? `Context: ${context}` : ""}` },
         ],
         tools: agentTools,
-        maxOutputTokens: 4096,
-        stopWhen: stepCountIs(15),
-        abortSignal: AbortSignal.timeout(120_000),
+        maxOutputTokens: 16384,
+        stopWhen: stepCountIs(25),
+        abortSignal: AbortSignal.timeout(150_000),
       });
     });
 

@@ -131,7 +131,7 @@ Respond ONLY in this exact JSON format (no markdown, no code blocks):
       const llmResult = await generateText({
         model,
         prompt: evaluationPrompt,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 4096,
         temperature: 0.3,
         abortSignal: AbortSignal.timeout(30000),
       });
