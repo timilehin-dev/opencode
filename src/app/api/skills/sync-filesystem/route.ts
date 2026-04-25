@@ -249,6 +249,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // -------------------------------------------------------------------
+    // Delete stale skills from DB that no longer exist on the filesystem
+    // -------------------------------------------------------------------
+    const validNames = skillDirs.map(d => d.toLowerCase().replace(/\s+/g, "_"));
+    const placeholders = validNames.map((_, i) => `$${i + 1}`).join(", ");
+
+    // First, unequip any agent_skills for skills about to be deleted
+    await query(
+      `DELETE FROM agent_skills
+       WHERE skill_id IN (SELECT id FROM skills WHERE name NOT IN (${placeholders}))`,
+      validNames
+    );
+
+    // Delete stale skill_executions
+    await query(
+      `DELETE FROM skill_executions
+       WHERE skill_id IN (SELECT id FROM skills WHERE name NOT IN (${placeholders}))`,
+      validNames
+    );
+
+    // Delete stale skill_evolution entries
+    await query(
+      `DELETE FROM skill_evolution
+       WHERE skill_id IN (SELECT id FROM skills WHERE name NOT IN (${placeholders}))`,
+      validNames
+    );
+
+    // Finally delete the stale skills themselves
+    const deleteResult = await query(
+      `DELETE FROM skills WHERE name NOT IN (${placeholders})`,
+      validNames
+    );
+    const deleted = deleteResult.rowCount || 0;
+
     // Now auto-equip all active skills to their bound agents
     const equipResult = await query(`
       INSERT INTO agent_skills (agent_id, skill_id, is_equipped)
@@ -264,6 +298,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       synced,
+      deleted,
       total: skillDirs.length,
       errors: errors.length > 0 ? errors : undefined,
       equipped_to_agents: equipResult.rowCount,
