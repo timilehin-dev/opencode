@@ -101,11 +101,11 @@ export async function GET(request: Request) {
       });
     });
 
-    // Update routine last_run and next_run
+    // Update routine last_run, last_status, next_run, and last_result
     const nextRun = new Date(Date.now() + intervalMinutes * 60 * 1000);
     await query(
-      "UPDATE agent_routines SET last_run = NOW(), next_run = $1, last_result = $2 WHERE id = $3",
-      [nextRun.toISOString(), result.text?.slice(0, 2000) || "", routineId],
+      "UPDATE agent_routines SET last_run = NOW(), last_status = $1, next_run = $2, last_result = $3 WHERE id = $4",
+      ["success", nextRun.toISOString(), result.text?.slice(0, 2000) || "", routineId],
     );
 
     const success = !!result.text;
@@ -135,12 +135,26 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Unknown error";
+    const durationMs = Date.now() - startTime;
+
+    console.error(`[CRON:execute-routine] Routine ${routineId} failed:`, errMsg);
+
     logActivity({
       agentId: "system",
       action: "routine_error",
       detail: `Routine ${routineId} failed: ${errMsg}`,
     }).catch(() => {});
 
-    return NextResponse.json({ status: "error", error: errMsg, durationMs: Date.now() - startTime });
+    // Update DB with error — prevents infinite retry loops by bumping next_run
+    try {
+      await query(
+        "UPDATE agent_routines SET last_run = NOW(), last_status = $1, next_run = NOW() + INTERVAL '30 minutes', last_result = $2 WHERE id = $3",
+        ["failed", `ERROR: ${errMsg.slice(0, 500)}`, routineId],
+      );
+    } catch (dbErr) {
+      console.error("[CRON:execute-routine] Failed to update routine error state:", dbErr);
+    }
+
+    return NextResponse.json({ status: "error", error: errMsg, durationMs });
   }
 }
