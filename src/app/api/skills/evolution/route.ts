@@ -65,7 +65,8 @@ export async function GET(req: Request) {
     );
 
     const evaluationTrends = trendsResult.rows.map((row: Record<string, unknown>) => ({
-      date: row.date,
+      // pg returns DATE() as a JS Date object — normalize to "YYYY-MM-DD" string
+      date: row.date instanceof Date ? row.date.toISOString().slice(0, 10) : String(row.date ?? "").slice(0, 10),
       eval_count: Number(row.eval_count) || 0,
       avg_score: Number(row.avg_score) || 0,
       avg_relevance: Number(row.avg_relevance) || 0,

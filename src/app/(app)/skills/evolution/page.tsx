@@ -596,7 +596,10 @@ export default function SkillEvolutionPage() {
                       {trends.slice().reverse().map((trend) => (
                         <div key={trend.date} className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground w-20 shrink-0 tabular-nums">
-                            {new Date(trend.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            {(() => {
+                              const d = new Date(trend.date + "T00:00:00");
+                              return isNaN(d.getTime()) ? trend.date : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                            })()}
                           </span>
                           <div className="flex-1">
                             <ScoreBar value={trend.avg_score} />
