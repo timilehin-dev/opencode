@@ -931,9 +931,10 @@ async function callAgentDirectly(agentId: string, taskPrompt: string, _delegatio
   const providerResult = await getProvider(agent);
 
   // Per-hop timeout and steps: reduce with each delegation level
-  // Level 0: 120s/25 steps, Level 1: 90s/20 steps, Level 2: 60s/15 steps, Level 3+: 45s/10 steps
-  const timeoutMs = _delegationDepth === 0 ? 120_000 : _delegationDepth === 1 ? 90_000 : _delegationDepth === 2 ? 60_000 : 45_000;
-  const maxSteps = _delegationDepth === 0 ? 25 : _delegationDepth === 1 ? 20 : _delegationDepth === 2 ? 15 : 10;
+  // Raised from 25/20/15/10 to 40/30/20/15 — specialists need more room to complete
+  // multi-tool tasks and still generate a text summary before hitting the limit.
+  const timeoutMs = _delegationDepth === 0 ? 150_000 : _delegationDepth === 1 ? 120_000 : _delegationDepth === 2 ? 90_000 : 60_000;
+  const maxSteps = _delegationDepth === 0 ? 40 : _delegationDepth === 1 ? 30 : _delegationDepth === 2 ? 20 : 15;
 
   const result = await generateText({
     model: providerResult.model,
@@ -943,6 +944,32 @@ async function callAgentDirectly(agentId: string, taskPrompt: string, _delegatio
     maxOutputTokens: 262144,
     stopWhen: stepCountIs(maxSteps),
     abortSignal: AbortSignal.timeout(timeoutMs),
+    // Same mid-task completion guard as main chat — prevent specialists from
+    // stopping after tool results without generating a text explanation.
+    prepareStep: ({ steps: delSteps, stepNumber: delStepNum }) => {
+      if (delStepNum <= 0) return undefined;
+      const anyText = delSteps.some(s => (s.text?.length ?? 0) > 0);
+      const lastStep = delSteps[delSteps.length - 1];
+      const lastHadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
+      const anyToolResults = delSteps.some(s => (s.toolResults?.length ?? 0) > 0);
+      const stepsToLimit = maxSteps - delStepNum;
+
+      // Near limit with no text — force summary
+      if (stepsToLimit <= 2 && !anyText && anyToolResults) {
+        return {
+          toolChoice: "none" as const,
+          system: agent.systemPrompt + "\n\n[URGENT: Step limit approaching (${delStepNum}/${maxSteps}). Stop calling tools and write a text summary of ALL tool results NOW.]",
+        };
+      }
+      // Last step had tool results but no text anywhere
+      if (lastHadToolResults && !anyText) {
+        return {
+          toolChoice: "none" as const,
+          system: agent.systemPrompt + "\n\n[CRITICAL: You received tool results but have NOT explained them. Write a text response explaining what the tools found. Do NOT call more tools.]",
+        };
+      }
+      return undefined;
+    },
   });
 
   // H10: Recovery after step exhaustion — if no text was produced, summarize what was done

@@ -25,8 +25,8 @@ export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is
 // Maximum steps per agent — tuned to prevent "stops halfway" while staying within timeout.
 // General: complex orchestration needs more steps. Specialists: fewer, more focused.
 // IMPORTANT: Each step = one LLM turn (tool call + response). A 10-tool task needs ~20 steps.
-const MAX_STEPS_GENERAL = 60;
-const MAX_STEPS_SPECIALIST = 40;
+const MAX_STEPS_GENERAL = 80;
+const MAX_STEPS_SPECIALIST = 50;
 
 // ---------------------------------------------------------------------------
 // Load user settings (temperature, maxTokens) from DB via pg Pool
@@ -337,25 +337,57 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       maxOutputTokens: Math.min(userSettings.maxTokens, 262144),
       temperature: userSettings.temperature,
       stopWhen: stepCountIs(maxSteps),
-      // prepareStep: On continuation steps where tool results exist but no text has been
-      // generated, force the model to produce text by (a) disabling further tool calls
-      // and (b) appending a clear system instruction. Some models may produce empty
-      // responses after receiving tool results; this workaround ensures text output.
+      abortSignal: AbortSignal.timeout(270_000), // 270s — 30s buffer before Vercel 300s hard limit
+      // prepareStep: Proactive mid-task completion guard.
+      // Three triggers to force text output (toolChoice: none):
+      //   1. NEAR LIMIT: Within 3 steps of maxSteps and no text generated yet
+      //   2. LAST TOOL RESULT: Last step had tool results but no text (model stopped mid-task)
+      //   3. AFTER ALL TOOLS: Steps have tool results scattered but zero text anywhere
+      // This ensures agents ALWAYS produce a final text explanation even if the model
+      // tries to stop after receiving tool results.
       prepareStep: ({ steps, stepNumber }) => {
-        if (stepNumber > 0) {
-          const anyText = steps.some(s => (s.text?.length ?? 0) > 0);
-          if (!anyText) {
-            const lastStep = steps[steps.length - 1];
-            const hadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
-            if (hadToolResults) {
-              console.log(`[Chat] prepareStep step ${stepNumber}: ${steps.length} step(s) with tool results but ZERO text — forcing text generation.`);
-              return {
-                toolChoice: "none" as const,
-                system: systemPrompt + "\n\n[CRITICAL: You have tool results from the previous step. You MUST now write a text response to the user explaining what the tools found. Do NOT call any tools. Generate your response NOW.]",
-              };
-            }
+        if (stepNumber <= 0) return undefined;
+
+        const anyText = steps.some(s => (s.text?.length ?? 0) > 0);
+        const lastStep = steps[steps.length - 1];
+        const lastHadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
+        const anyToolResults = steps.some(s => (s.toolResults?.length ?? 0) > 0);
+        const stepsToLimit = maxSteps - stepNumber;
+
+        // Trigger 1: Near step limit with no text — force summary NOW
+        if (stepsToLimit <= 3 && !anyText && anyToolResults) {
+          console.log(`[Chat] prepareStep step ${stepNumber}: ${stepsToLimit} steps to limit, no text — FORCING summary.`);
+          return {
+            toolChoice: "none" as const,
+            system: systemPrompt + "\n\n[URGENT: You are near the step limit (${stepNumber}/${maxSteps}). You MUST stop calling tools and write a comprehensive text response NOW summarizing everything you've done and found. The user is waiting for your explanation.]",
+          };
+        }
+
+        // Trigger 2: Last step had tool results but produced no text (mid-task stop)
+        // This catches the common pattern where models (especially Ollama/Gemma) stop
+        // after receiving tool results without generating any explanation.
+        if (lastHadToolResults && !anyText) {
+          console.log(`[Chat] prepareStep step ${stepNumber}: last step had tool results but ZERO text across all steps — forcing text generation.`);
+          return {
+            toolChoice: "none" as const,
+            system: systemPrompt + "\n\n[CRITICAL: You have received tool results but have NOT yet explained them to the user. You MUST now write a text response explaining what the tools found/did. Do NOT call any tools. Generate your explanation NOW.]",
+          };
+        }
+
+        // Trigger 3: Any step had tool results but this step has no text and model
+        // is trying to call more tools after already having results (tool loop)
+        if (!anyText && anyToolResults && stepNumber > 2 && lastStep?.toolCalls && lastStep.toolCalls.length > 0) {
+          // Model keeps calling tools without ever explaining — force it to stop and summarize
+          const toolCallCount = steps.reduce((c: number, s: any) => c + (s.toolCalls?.length || 0), 0);
+          if (toolCallCount >= 3) {
+            console.log(`[Chat] prepareStep step ${stepNumber}: ${toolCallCount} tool calls with ZERO text — breaking tool loop, forcing summary.`);
+            return {
+              toolChoice: "none" as const,
+              system: systemPrompt + "\n\n[CRITICAL: You have made ${toolCallCount} tool calls but haven't explained ANY results to the user yet. STOP calling tools. Write a comprehensive text response NOW explaining what you found. This is not optional.]",
+            };
           }
         }
+
         return undefined;
       },
       onStepFinish: ({ text, toolCalls, toolResults, finishReason, rawFinishReason, stepNumber }) => {

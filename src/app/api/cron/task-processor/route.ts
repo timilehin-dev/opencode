@@ -33,6 +33,8 @@ async function executeTaskWithAgent(
   taskPrompt: string,
   context: string,
   source: string,
+  maxOutputTokens: number = 4096,
+  maxSteps: number = 12,
 ): Promise<{ success: boolean; text?: string; error?: string }> {
   try {
     const agent = getAgent(agentId);
@@ -59,9 +61,33 @@ async function executeTaskWithAgent(
           { role: "user", content: `${taskPrompt}\n\n${context ? `Context: ${context}` : ""}` },
         ],
         tools: agentTools,
-        maxOutputTokens: 4096,
-        stopWhen: stepCountIs(12),
+        maxOutputTokens,
+        stopWhen: stepCountIs(maxSteps),
         abortSignal: AbortSignal.timeout(120_000),
+        // Mid-task completion guard — same as main chat, prevents agents from
+        // stopping after tool results without generating a text explanation.
+        prepareStep: ({ steps: cronSteps, stepNumber: cronStep }) => {
+          if (cronStep <= 0) return undefined;
+          const anyText = cronSteps.some(s => (s.text?.length ?? 0) > 0);
+          const lastStep = cronSteps[cronSteps.length - 1];
+          const lastHadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
+          const anyToolResults = cronSteps.some(s => (s.toolResults?.length ?? 0) > 0);
+          const stepsToLimit = maxSteps - cronStep;
+
+          if (stepsToLimit <= 2 && !anyText && anyToolResults) {
+            return {
+              toolChoice: "none" as const,
+              system: systemPrompt + "\n\n[URGENT: Step limit approaching. Stop calling tools and write a text summary of ALL tool results NOW.]",
+            };
+          }
+          if (lastHadToolResults && !anyText) {
+            return {
+              toolChoice: "none" as const,
+              system: systemPrompt + "\n\n[CRITICAL: You received tool results but have NOT explained them. Write a text response explaining what the tools found. Do NOT call more tools.]",
+            };
+          }
+          return undefined;
+        },
       });
     });
 
@@ -302,7 +328,7 @@ export async function GET(request: Request) {
         lastActivity: new Date().toISOString(),
       }).catch(() => {});
 
-      const result = await executeTaskWithAgent(agentId, taskPrompt, taskContext, "Project Tasks");
+      const result = await executeTaskWithAgent(agentId, taskPrompt, taskContext, "Project Tasks", 8192, 20);
 
       if (result.success) {
         await query("UPDATE project_tasks SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2", [
