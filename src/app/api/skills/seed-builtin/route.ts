@@ -1331,7 +1331,7 @@ export async function POST() {
     // -----------------------------------------------------------------------
     // 4. Also sync filesystem skills (from /skills/ directory)
     // -----------------------------------------------------------------------
-    let fsSyncResult = { synced: 0, total: 0 };
+    let fsSyncResult = { synced: 0, deleted: 0, total: 0 };
     try {
       const { readdir, readFile } = await import("node:fs/promises");
       const { join } = await import("node:path");
@@ -1354,12 +1354,12 @@ export async function POST() {
       // Agent → skill patterns mapping for filesystem skills
       const fsAgentMap: Record<string, string[]> = {
         general: ["*"],
-        mail: ["docx", "pdf", "xlsx", "pptx", "ppt", "web-search", "web-reader", "llm", "contentanalysis", "content-strategy"],
-        code: ["fullstack-dev", "fullstack_dev", "coding-agent", "web-search", "web-reader", "agent-browser", "charts", "skill-creator", "skill-vetter"],
-        data: ["xlsx", "charts", "finance", "stock-analysis-skill", "web-search", "web-reader", "llm", "vlm", "contentanalysis"],
-        creative: ["docx", "pdf", "xlsx", "pptx", "ppt", "charts", "image-generation", "image-understand", "image-edit", "visual-design-foundations", "ui-ux-pro-max", "blog-writer", "seo-content-writer", "content-strategy", "contentanalysis", "storyboard-manager", "podcast-generate", "web-search", "web-reader", "tts", "video-generation"],
-        research: ["web-search", "web-reader", "multi-search-engine", "aminer-academic-search", "aminer-daily-paper", "aminer-open-academic", "contentanalysis"],
-        ops: ["web-search", "web-reader", "agent-browser", "charts"],
+        mail: ["docx", "pdf", "xlsx", "pptx", "ppt", "web-search", "web-reader", "humanizer", "deep-research"],
+        code: ["fullstack-dev", "fullstack_dev", "code-review", "pdf", "docx", "xlsx", "charts", "web-search", "web-reader", "skill-creator", "project-planner"],
+        data: ["xlsx", "charts", "finance", "data-analysis", "pdf", "docx", "web-search", "web-reader", "project-planner"],
+        creative: ["pdf", "docx", "xlsx", "pptx", "ppt", "charts", "humanizer", "deep-research", "web-search", "web-reader"],
+        research: ["deep-research", "web-search", "web-reader", "pdf", "docx", "xlsx", "charts", "data-analysis", "humanizer", "project-planner"],
+        ops: ["code-review", "data-analysis", "pdf", "charts", "web-search", "web-reader", "fullstack-dev", "fullstack_dev", "project-planner"],
       };
 
       for (const dirName of skillDirs) {
@@ -1389,6 +1389,7 @@ export async function POST() {
           else if (/research|search|aminer|academic/.test(lowerDir)) category = "research";
           else if (/blog|content|seo|writing|creative|podcast|storyboard/.test(lowerDir)) category = "content";
           else if (/image|video|vision|tts|asr|design|ui-ux/.test(lowerDir)) category = "media";
+          else if (/humaniz|project|plan/.test(lowerDir)) category = "productivity";
 
           const id = `skill-${dirName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
           const name = dirName.toLowerCase().replace(/\s+/g, "_");
@@ -1426,6 +1427,28 @@ export async function POST() {
       }
       fsSyncResult.total = skillDirs.length;
 
+      // Delete stale skills from DB that no longer exist on the filesystem
+      const validNames = skillDirs.map(d => d.toLowerCase().replace(/\s+/g, "_"));
+      const placeholders = validNames.map((_, i) => `$${i + 1}`).join(", ");
+
+      await query(
+        `DELETE FROM agent_skills WHERE skill_id IN (SELECT id FROM skills WHERE name NOT IN (${placeholders}))`,
+        validNames
+      );
+      await query(
+        `DELETE FROM skill_executions WHERE skill_id IN (SELECT id FROM skills WHERE name NOT IN (${placeholders}))`,
+        validNames
+      );
+      await query(
+        `DELETE FROM skill_evolution WHERE skill_id IN (SELECT id FROM skills WHERE name NOT IN (${placeholders}))`,
+        validNames
+      );
+      const delResult = await query(
+        `DELETE FROM skills WHERE name NOT IN (${placeholders})`,
+        validNames
+      );
+      fsSyncResult.deleted = delResult.rowCount || 0;
+
       // Auto-equip all filesystem skills to their bound agents
       await query(`
         INSERT INTO agent_skills (agent_id, skill_id, is_equipped)
@@ -1440,7 +1463,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: `Seeded ${results.length} builtin skills + synced ${fsSyncResult.synced}/${fsSyncResult.total} filesystem skills, equipped ${equipCount} agent-skill bindings`,
+      message: `Seeded ${results.length} builtin skills + synced ${fsSyncResult.synced}/${fsSyncResult.total} filesystem skills (deleted ${fsSyncResult.deleted} stale), equipped ${equipCount} agent-skill bindings`,
       data: results,
       filesystem_sync: fsSyncResult,
     });
