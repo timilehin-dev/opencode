@@ -2300,7 +2300,7 @@ export const researchDeepTool = tool({
     numResults: z.number().optional().describe("Total number of results to return (default: 8, max 15). Keep low to avoid context overflow."),
   })),
   execute: safeJson(async ({ topic, aspects, numResults }) => {
-    // Cap at 15 and default to 8 (was 15 — too many for gemma4 context)
+    // Cap at 15 and default to 8 (was 15 — too many for large context models)
     const capped = Math.min(numResults || 8, 15);
     // Generate search queries from topic and aspects
     const queries = [
@@ -2376,14 +2376,14 @@ Provide a structured analysis with:
 5. **Answer** — Your synthesized answer to the research question
 6. **Gaps** — What additional research would help`;
 
-    // Use Ollama Cloud (Gemma 4 31B) for synthesis
+    // Use Ollama Cloud (DeepSeek V4 Flash) for synthesis
     try {
       const apiKey = nextOllamaKey();
       const res = await fetch(`${OLLAMA_BASE}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "gemma4:31b-cloud",
+          model: "deepseek-v4-flash:cloud",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 4096,
         }),
@@ -8396,7 +8396,7 @@ function escapeXml(str: string): string {
 // ---------------------------------------------------------------------------
 
 export const llmChatTool = tool({
-  description: "Send a message to an AI language model and get a response. Use this for text generation, summarization, translation, analysis, brainstorming, coding help, Q&A, or any task that requires AI text intelligence. NOTE: This tool uses your configured Ollama model (gemma4:31b). For simple tasks, you can generate the response directly as an LLM agent.",
+  description: "Send a message to an AI language model and get a response. Use this for text generation, summarization, translation, analysis, brainstorming, coding help, Q&A, or any task that requires AI text intelligence. NOTE: This tool uses your configured Ollama model (deepseek-v4-flash). For simple tasks, you can generate the response directly as an LLM agent.",
   inputSchema: zodSchema(z.object({
     messages: z.array(z.object({
       role: z.enum(["system", "user", "assistant"]).describe("Message role"),
@@ -8408,7 +8408,7 @@ export const llmChatTool = tool({
     try {
       // Use Ollama API directly (self-hosted model)
       const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-      const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:31b-cloud";
+      const ollamaModel = process.env.OLLAMA_MODEL || "deepseek-v4-flash:cloud";
       const systemMsg = messages.find(m => m.role === "system")?.content || "You are a helpful assistant.";
       const userMsg = messages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n\n");
 
@@ -8981,7 +8981,7 @@ Output format (EXACT JSON):
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "gemma4:31b-cloud",
+          model: "deepseek-v4-flash:cloud",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -9173,7 +9173,7 @@ export const projectDecomposeAndAddTool = tool({
 
       const resolvedProjectId = proj.rows[0].id;
 
-      // Get AI decomposition via Ollama Cloud (Gemma 4 31B)
+      // Get AI decomposition via Ollama Cloud (DeepSeek V4 Flash)
       const ollamaKey = nextOllamaKey();
 
       const systemPrompt = `You are a project planning expert. Decompose the given goal into a structured task plan.
@@ -9189,7 +9189,7 @@ Output format (EXACT JSON): { "tasks": [{ "title", "description", "task_type", "
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${ollamaKey}` },
         body: JSON.stringify({
-          model: "gemma4:31b-cloud",
+          model: "deepseek-v4-flash:cloud",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },

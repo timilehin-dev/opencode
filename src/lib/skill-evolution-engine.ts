@@ -118,7 +118,7 @@ export async function evolveSkill(skillId: string, triggerAgentId?: string): Pro
       apiKey: process.env.OLLAMA_CLOUD_KEY_1 || "ollama",
       baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
     });
-    const model = provider.chat("gemma4:31b-cloud");
+    const model = provider.chat("deepseek-v4-flash:cloud");
 
     const evolutionPrompt = `You are a skill optimization expert. Your task is to improve a skill's prompt template based on evaluation feedback.
 

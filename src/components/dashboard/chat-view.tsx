@@ -58,7 +58,7 @@ const DEFAULT_AGENT: AgentInfo = {
   emoji: "\uD83E\uDDD4",
   color: "emerald",
   provider: "ollama",
-  model: "gemma4:31b-cloud",
+  model: "deepseek-v4-flash:cloud",
 };
 
 const SUGGESTED_ACTIONS: Record<string, { label: string; prompt: string }[]> = {

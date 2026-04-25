@@ -216,7 +216,7 @@ export async function POST(req: Request) {
     }
 
     // Reinforce identity in system prompt for specialist agents.
-    // Ollama/gemma4 models sometimes ignore system prompts, so we inject
+    // Some Ollama cloud models sometimes ignore system prompts, so we inject
     // the agent identity as a strong prefix at the very top.
     // Also inject agent memory if available for persistent context.
     const memoryBlock = memoryContext
@@ -339,8 +339,8 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       stopWhen: stepCountIs(maxSteps),
       // prepareStep: On continuation steps where tool results exist but no text has been
       // generated, force the model to produce text by (a) disabling further tool calls
-      // and (b) appending a clear system instruction. Both coding-glm-5.1-free and
-      // gemma4:31b-cloud produce empty responses after receiving tool results.
+      // and (b) appending a clear system instruction. Some models may produce empty
+      // responses after receiving tool results; this workaround ensures text output.
       prepareStep: ({ steps, stepNumber }) => {
         if (stepNumber > 0) {
           const anyText = steps.some(s => (s.text?.length ?? 0) > 0);

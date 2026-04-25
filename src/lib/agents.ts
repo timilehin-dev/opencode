@@ -422,7 +422,7 @@ ${SKILLS_ROUTING_MATRIX}
 // System Prompts — Each agent has a UNIQUE identity and personality
 // ---------------------------------------------------------------------------
 
-const GENERAL_SYSTEM_PROMPT = `You are Klawhub General, the chief AI orchestrator of the Klawhub Agent Hub. You are the most capable agent, powered by Gemma 4 31B, and you manage a team of specialist agents.
+const GENERAL_SYSTEM_PROMPT = `You are Klawhub General, the chief AI orchestrator of the Klawhub Agent Hub. You are the most capable agent, powered by DeepSeek V4 Flash (284B MoE, 13B active), and you manage a team of specialist agents.
 
 ## Who You Are
 You are a **project manager and strategic advisor**. You handle complex multi-step tasks that span multiple services. When given a complex task, you **BREAK IT DOWN** into subtasks and delegate each to the best specialist. You **TRACK progress** across subtasks and **SYNTHESIZE results** into one coherent response. You have access to ALL tools across every connected service plus real-time web intelligence.
@@ -881,9 +881,9 @@ const agents: AgentConfig[] = [
     name: "Klawhub General",
     role: "Chief Orchestrator",
     emoji: "🤵",
-    description: "The most capable agent — powered by Gemma 4 31B. Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests.",
+    description: "The most capable agent — powered by DeepSeek V4 Flash (284B MoE). Orchestrates all tasks, delegates to specialists, and handles complex multi-step requests.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     color: "emerald",
     systemPrompt: GENERAL_SYSTEM_PROMPT,
     tools: [
@@ -961,7 +961,7 @@ const agents: AgentConfig[] = [
     emoji: "✉️",
     description: "Executive-grade email management, calendar scheduling, meeting preparation, Google Meet creation, and communications research. Proactively researches contacts and context.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     color: "blue",
     systemPrompt: MAIL_SYSTEM_PROMPT,
     tools: [
@@ -1007,7 +1007,7 @@ const agents: AgentConfig[] = [
     emoji: "💻",
     description: "Staff-level code review, repository management, CI/CD monitoring, and technical architecture with real-time documentation research.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     color: "purple",
     systemPrompt: CODE_SYSTEM_PROMPT,
     tools: [
@@ -1052,7 +1052,7 @@ const agents: AgentConfig[] = [
     emoji: "📊",
     description: "Veteran data analyst with statistical computation, spreadsheet mastery, web research, and data-driven insight generation.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     color: "amber",
     systemPrompt: DATA_SYSTEM_PROMPT,
     tools: [
@@ -1099,7 +1099,7 @@ const agents: AgentConfig[] = [
     emoji: "🧠",
     description: "VP-level content strategy, campaign planning, audience research, and creative direction backed by competitive intelligence.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     color: "rose",
     systemPrompt: CREATIVE_SYSTEM_PROMPT,
     tools: [
@@ -1144,7 +1144,7 @@ const agents: AgentConfig[] = [
     emoji: "🔍",
     description: "Senior research analyst with multi-query parallel search, cross-reference synthesis, and automated research brief generation to Google Docs and Sheets.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     color: "teal",
     systemPrompt: RESEARCH_SYSTEM_PROMPT,
     tools: [
@@ -1185,7 +1185,7 @@ const agents: AgentConfig[] = [
     emoji: "⚡",
     description: "Operations engineer for system health monitoring, deployment tracking, GitHub activity analysis, and agent performance statistics.",
     provider: "ollama",
-    model: "gemma4:31b-cloud",
+    model: "deepseek-v4-flash:cloud",
     keyEnvVars: ["OLLAMA_CLOUD_KEY_6", "OLLAMA_CLOUD_KEY_1", "OLLAMA_CLOUD_KEY_2"],
     color: "orange",
     systemPrompt: OPS_SYSTEM_PROMPT,

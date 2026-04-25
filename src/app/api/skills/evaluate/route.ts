@@ -69,12 +69,12 @@ export async function POST(req: Request) {
       // Non-critical: execution logging may fail if table doesn't exist yet
     });
 
-    // 3. Call LLM to evaluate execution quality (Ollama Gemma 4 31B)
+    // 3. Call LLM to evaluate execution quality (Ollama DeepSeek V4 Flash)
     const provider = createOpenAI({
       apiKey: process.env.OLLAMA_CLOUD_KEY_1 || "ollama",
       baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
     });
-    const model = provider.chat("gemma4:31b-cloud");
+    const model = provider.chat("deepseek-v4-flash:cloud");
 
     const evaluationPrompt = `You are an AI quality judge evaluating the execution of a skill. Evaluate this skill execution objectively and provide structured scores.
 

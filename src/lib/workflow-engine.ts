@@ -97,7 +97,7 @@ ABSOLUTE RULES:
 
 
 
-async function callGemma4(prompt: string, temperature = 0.3, systemPrompt?: string): Promise<string> {
+async function callLLM(prompt: string, temperature = 0.3, systemPrompt?: string): Promise<string> {
   const { generateText } = await import("ai");
   const { createOpenAI } = await import("@ai-sdk/openai");
 
@@ -105,7 +105,7 @@ async function callGemma4(prompt: string, temperature = 0.3, systemPrompt?: stri
     apiKey: process.env.OLLAMA_CLOUD_KEY_1 || "ollama",
     baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
   });
-  const model = provider.chat("gemma4:31b-cloud");
+  const model = provider.chat("deepseek-v4-flash:cloud");
 
   const result = await generateText({
     model,
@@ -185,7 +185,7 @@ export async function planWorkflow(query: string, agentId: string): Promise<{ wo
     ).join("\n");
 
     // Generate a workflow name from the query
-    const nameResult = await callGemma4(
+    const nameResult = await callLLM(
       `Generate a short, descriptive name (max 8 words) for this workflow task. Just output the name, nothing else.\n\nTask: ${query.slice(0, 300)}`,
       0.2,
     );
@@ -224,7 +224,7 @@ Respond ONLY in this JSON format (no markdown, no code blocks):
   ]
 }`;
 
-    const planText = await callGemma4(plannerPrompt, 0.3);
+    const planText = await callLLM(plannerPrompt, 0.3);
 
     // Parse the plan
     let plan: WorkflowPlan;
@@ -435,12 +435,12 @@ REQUIRED:
 
 Produce the complete output now.`;
 
-        const outputResult = await callGemma4(executorPrompt, 0.2, EXECUTOR_SYSTEM_PROMPT);
+        const outputResult = await callLLM(executorPrompt, 0.2, EXECUTOR_SYSTEM_PROMPT);
         const durationMs = Date.now() - startTime;
 
         // Generate a brief summary
         const summaryPrompt = `Summarize the following output in 1-2 concise sentences (max 200 chars):\n\n${outputResult}`;
-        const outputSummary = await callGemma4(summaryPrompt, 0.2)
+        const outputSummary = await callLLM(summaryPrompt, 0.2)
           .then((s) => s.trim().slice(0, 200))
           .catch(() => outputResult.slice(0, 200));
 
@@ -654,7 +654,7 @@ If concreteness < 40, the output MUST be rejected regardless of other scores. Se
 Respond ONLY in JSON (no markdown, no code blocks):
 {"completeness": 85, "accuracy": 90, "relevance": 95, "clarity": 80, "concreteness": 90, "overall": 87, "feedback": "Brief feedback"}`;
 
-  const validationText = await callGemma4(validatorPrompt, 0.2);
+  const validationText = await callLLM(validatorPrompt, 0.2);
 
   try {
     const cleaned = validationText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -814,11 +814,11 @@ REQUIRED:
 
 Produce the complete output now.`;
 
-      const outputResult = await callGemma4(executorPrompt, 0.2, EXECUTOR_SYSTEM_PROMPT);
+      const outputResult = await callLLM(executorPrompt, 0.2, EXECUTOR_SYSTEM_PROMPT);
       const durationMs = Date.now() - startTime;
 
       const summaryPrompt = `Summarize in 1-2 sentences (max 200 chars):\n\n${outputResult}`;
-      const outputSummary = await callGemma4(summaryPrompt, 0.2)
+      const outputSummary = await callLLM(summaryPrompt, 0.2)
         .then((s) => s.trim().slice(0, 200))
         .catch(() => outputResult.slice(0, 200));
 
