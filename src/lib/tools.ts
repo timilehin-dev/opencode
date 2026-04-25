@@ -3114,6 +3114,77 @@ export const createPdfReportTool = tool({
         }
       };
 
+      // ── Helper: strip markdown bold/italic markers from plain text ──
+      // Used for table cells and other contexts where rich formatting
+      // isn't supported but ** markers should not appear literally.
+      const stripMd = (text: string): string =>
+        text.replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+            .replace(/\*\*(.+?)\*\*/g, "$1")
+            .replace(/\*(.+?)\*/g, "$1")
+            .replace(/`(.+?)`/g, "$1");
+
+      // ── Helper: render inline-formatted text (bold, italic, code, links) ──
+      // Strips markdown markers and applies PDFKit font/color styling.
+      // Used by paragraph blocks, bullet lists, numbered lists.
+      const renderInlineFormatted = (
+        d: typeof doc,
+        text: string,
+        opts: { lineGap?: number } = {},
+      ) => {
+        const regex =
+          /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|[^*`\[]+)/g;
+        let seg: RegExpExecArray | null;
+        const segments: Array<{
+          text: string;
+          bold: boolean;
+          italic: boolean;
+          mono: boolean;
+          link?: string;
+        }> = [];
+        while ((seg = regex.exec(text)) !== null) {
+          const s = seg[1];
+          if (s.startsWith("***") && s.endsWith("***")) {
+            segments.push({ text: s.slice(3, -3), bold: true, italic: true, mono: false });
+          } else if (s.startsWith("**") && s.endsWith("**")) {
+            segments.push({ text: s.slice(2, -2), bold: true, italic: false, mono: false });
+          } else if (s.startsWith("*") && s.endsWith("*")) {
+            segments.push({ text: s.slice(1, -1), bold: false, italic: true, mono: false });
+          } else if (s.startsWith("`") && s.endsWith("`")) {
+            segments.push({ text: s.slice(1, -1), bold: false, italic: false, mono: true });
+          } else if (s.startsWith("[") && s.includes("](")) {
+            const linkMatch = s.match(/\[([^\]]+)\]\(([^)]+)\)/);
+            if (linkMatch) {
+              segments.push({ text: linkMatch[1], bold: false, italic: false, mono: false, link: linkMatch[2] });
+            } else if (s) {
+              segments.push({ text: s, bold: false, italic: false, mono: false });
+            }
+          } else if (s) {
+            segments.push({ text: s, bold: false, italic: false, mono: false });
+          }
+        }
+
+        const lg = opts.lineGap ?? 3;
+        for (let si = 0; si < segments.length; si++) {
+          const s = segments[si];
+          const isLast = si === segments.length - 1;
+          if (s.mono) {
+            const fontName = "Courier";
+            const textW = d.font(fontName).fontSize(9).widthOfString(s.text);
+            d.rect(d.x, d.y - 1, textW + 6, 14).fill(C.codeBg);
+            d.font(fontName).fontSize(9).fillColor("#DC2626")
+              .text(s.text, d.x + 3, d.y, { continued: !isLast, lineGap: lg });
+          } else if (s.link) {
+            const linkFont = s.bold && s.italic ? "Helvetica-BoldOblique" : s.bold ? "Helvetica-Bold" : s.italic ? "Helvetica-Oblique" : "Helvetica";
+            d.font(linkFont).fontSize(10).fillColor("#2563EB")
+              .text(s.text, undefined, undefined, { continued: !isLast, lineGap: lg, link: s.link, underline: true });
+          } else {
+            const fontName = s.bold && s.italic ? "Helvetica-BoldOblique" : s.bold ? "Helvetica-Bold" : s.italic ? "Helvetica-Oblique" : "Helvetica";
+            d.font(fontName).fontSize(10).fillColor(C.text)
+              .text(s.text, undefined, undefined, { continued: !isLast, lineGap: lg });
+          }
+        }
+      };
+
       // ═══════════════════════════════════════════════════════════════════
       // FIRST PASS: parse headings from markdown
       // ═══════════════════════════════════════════════════════════════════
@@ -3274,60 +3345,8 @@ export const createPdfReportTool = tool({
           const hasFormatting = /\*\*\*|\*\*(?!\*)|\*(?!\*)|`|\[.+\]\(.+\)/.test(mergedText);
 
           if (hasFormatting) {
-            const segments: Array<{
-              text: string;
-              bold: boolean;
-              italic: boolean;
-              mono: boolean;
-              link?: string;
-            }> = [];
-            const regex =
-              /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|[^*`\[]+)/g;
-            let seg;
-            while ((seg = regex.exec(mergedText)) !== null) {
-              const s = seg[1];
-              if (s.startsWith("***") && s.endsWith("***")) {
-                segments.push({ text: s.slice(3, -3), bold: true, italic: true, mono: false });
-              } else if (s.startsWith("**") && s.endsWith("**")) {
-                segments.push({ text: s.slice(2, -2), bold: true, italic: false, mono: false });
-              } else if (s.startsWith("*") && s.endsWith("*")) {
-                segments.push({ text: s.slice(1, -1), bold: false, italic: true, mono: false });
-              } else if (s.startsWith("`") && s.endsWith("`")) {
-                segments.push({ text: s.slice(1, -1), bold: false, italic: false, mono: true });
-              } else if (s.startsWith("[") && s.includes("](")) {
-                const linkMatch = s.match(/\[([^\]]+)\]\(([^)]+)\)/);
-                if (linkMatch) {
-                  segments.push({ text: linkMatch[1], bold: false, italic: false, mono: false, link: linkMatch[2] });
-                } else {
-                  segments.push({ text: s, bold: false, italic: false, mono: false });
-                }
-              } else if (s) {
-                segments.push({ text: s, bold: false, italic: false, mono: false });
-              }
-            }
-
-            if (segments.length > 0) {
-              doc.fontSize(10).fillColor(C.text);
-              for (let si = 0; si < segments.length; si++) {
-                const s = segments[si];
-                const isLast = si === segments.length - 1;
-                if (s.mono) {
-                  const fontName = "Courier";
-                  const textW = doc.font(fontName).fontSize(9).widthOfString(s.text);
-                  doc.rect(doc.x, doc.y - 1, textW + 6, 14).fill(C.codeBg);
-                  doc.font(fontName).fontSize(9).fillColor("#DC2626")
-                    .text(s.text, doc.x + 3, doc.y, { continued: !isLast, lineGap: 2 });
-                } else if (s.link) {
-                  const linkFont = s.bold && s.italic ? "Helvetica-BoldOblique" : s.bold ? "Helvetica-Bold" : s.italic ? "Helvetica-Oblique" : "Helvetica";
-                  doc.font(linkFont).fontSize(10).fillColor("#2563EB")
-                    .text(s.text, undefined, undefined, { continued: !isLast, lineGap: 3, link: s.link, underline: true });
-                } else {
-                  const fontName = s.bold && s.italic ? "Helvetica-BoldOblique" : s.bold ? "Helvetica-Bold" : s.italic ? "Helvetica-Oblique" : "Helvetica";
-                  doc.font(fontName).fontSize(10).fillColor(C.text)
-                    .text(s.text, undefined, undefined, { continued: !isLast, lineGap: 3 });
-                }
-              }
-            }
+            doc.fontSize(10).fillColor(C.text);
+            renderInlineFormatted(doc, mergedText, { lineGap: 3 });
           } else {
             // Plain paragraph — rendered as continuous justified text
             doc.fontSize(10).font("Helvetica").fillColor(C.text)
@@ -3546,7 +3565,7 @@ export const createPdfReportTool = tool({
             doc.fontSize(9).font("Helvetica-Bold").fillColor(C.white);
             for (let c = 0; c < colCount; c++) {
               doc.text(
-                (tableRows[0][c] || "").slice(0, 40),
+                stripMd((tableRows[0][c] || "")).slice(0, 40),
                 ML + c * colWidth + 8,
                 doc.y - 20,
                 { width: colWidth - 16, height: 22 },
@@ -3572,7 +3591,7 @@ export const createPdfReportTool = tool({
                   .fillColor(C.white);
                 for (let c = 0; c < colCount; c++) {
                   doc.text(
-                    (tableRows[0][c] || "").slice(0, 40),
+                    stripMd((tableRows[0][c] || "")).slice(0, 40),
                     ML + c * colWidth + 8,
                     doc.y - 20,
                     { width: colWidth - 16 },
@@ -3592,7 +3611,7 @@ export const createPdfReportTool = tool({
                   .fontSize(8.5)
                   .font(c === 0 ? "Helvetica-Bold" : "Helvetica")
                   .heightOfString(
-                    (tableRows[r][c] || "").slice(0, 60),
+                    stripMd((tableRows[r][c] || "")).slice(0, 60),
                     { width: colWidth - 16 },
                   );
                 maxH = Math.max(maxH, h + 14);
@@ -3615,7 +3634,7 @@ export const createPdfReportTool = tool({
                   )
                   .fillColor(isFirstCol ? C.primary : C.text)
                   .text(
-                    (tableRows[r][c] || "").slice(0, 60),
+                    stripMd((tableRows[r][c] || "")).slice(0, 60),
                     ML + c * colWidth + 8,
                     doc.y + 7,
                     { width: colWidth - 16 },
@@ -3816,28 +3835,45 @@ export const createPdfReportTool = tool({
           const indent = Math.min(bulletMatch[1].length / 2, 3);
           const bulletX = ML + 16 + indent * 16;
           const bulletChar = indent === 0 ? "\u2022" : indent === 1 ? "\u25E6" : "\u25AA";
-          doc
-            .fontSize(10)
-            .font("Helvetica")
-            .fillColor(C.text)
-            .text(`${bulletChar} ${bulletMatch[3]}`, bulletX, doc.y, {
+          const bulletText = bulletMatch[3];
+
+          // Check for inline bold/italic formatting inside bullet
+          const hasBold = /\*\*[^*]+\*\*/.test(bulletText);
+          if (hasBold) {
+            // Render bullet with rich formatting
+            doc.fontSize(10).fillColor(C.text);
+            doc.text(`${bulletChar} `, bulletX, doc.y, {
+              continued: true,
               lineGap: 2,
             });
+            renderInlineFormatted(doc, bulletText, { lineGap: 2 });
+          } else {
+            doc
+              .fontSize(10)
+              .font("Helvetica")
+              .fillColor(C.text)
+              .text(`${bulletChar} ${bulletText}`, bulletX, doc.y, {
+                lineGap: 2,
+              });
+          }
           continue;
         }
 
         // ── Numbered lists ─────────────────────────────────────────
         const olMatch = line.trim().match(/^(\d+)\.\s(.+)/);
         if (olMatch) {
-          doc
-            .fontSize(10)
-            .font("Helvetica")
-            .fillColor(C.text)
-            .text(`${olMatch[1]}.`, ML + 16, doc.y, {
-              continued: true,
-              width: 18,
-            })
-            .text(` ${olMatch[2]}`, { lineGap: 2 });
+          const olText = olMatch[2];
+          const olHasBold = /\*\*[^*]+\*\*/.test(olText);
+          doc.fontSize(10).fillColor(C.text);
+          doc.text(`${olMatch[1]}.`, ML + 16, doc.y, {
+            continued: true,
+            width: 18,
+          });
+          if (olHasBold) {
+            renderInlineFormatted(doc, ` ${olText}`, { lineGap: 2 });
+          } else {
+            doc.text(` ${olText}`, { lineGap: 2 });
+          }
           continue;
         }
 
@@ -4092,67 +4128,46 @@ export const createPdfReportTool = tool({
         stream.on("error", reject);
       });
 
-      // ── Post-process: remove blank pages ──
-      // Uses pdf-parse for text extraction + raw PDF manipulation to strip
-      // pages that have no meaningful text content (phantom pages from
-      // PDFKit rendering artifacts).
+      // ── Post-process: remove blank/phantom pages using pdf-lib ──
+      // PDFKit's switchToPage() can create phantom pages with only headers.
+      // We detect these by checking text content length per page and strip them.
       let fileBuffer = readFileSync(filePath);
       try {
-        const pdfParseMod = await import("pdf-parse") as any;
-        const pdfParse = pdfParseMod.default || pdfParseMod;
-        const parsed = await pdfParse(fileBuffer);
-        const fullText = (parsed.text || "").trim();
-        // pdf-parse gives us the total page count
-        const pageCount = parsed.numpages || 0;
+        const { PDFDocument: PdfLibDoc } = await import("pdf-lib");
+        const srcDoc = await PdfLibDoc.load(fileBuffer);
+        const pageCount = srcDoc.getPageCount();
+        const pagesToKeep: number[] = [];
 
-        if (pageCount > 3) {
-          // Analyze each page by re-parsing with page-level text extraction
-          // pdf-parse doesn't do per-page, so we use a raw PDF approach:
-          // Split the file at page boundary markers and check content density
-          const pdfStr = fileBuffer.toString("latin1");
+        for (let i = 0; i < pageCount; i++) {
+          const page = srcDoc.getPage(i);
+          const textContent = page.getText();
+          const textLen = textContent.trim().length;
 
-          // Find content stream lengths per page by parsing /Length fields
-          // within page content objects. Pages with only tiny streams are blank.
-          const contentLengths: number[] = [];
-          const lengthRegex = /\/Length\s+(\d+)/g;
-          let lenMatch;
-          while ((lenMatch = lengthRegex.exec(pdfStr)) !== null) {
-            contentLengths.push(parseInt(lenMatch[1], 10));
-          }
-
-          // Heuristic: if we have N pages and N+ content streams,
-          // each page roughly corresponds to a content stream.
-          // A page is likely blank if its content stream < 200 bytes
-          // (just font setup, no actual text commands).
-          const pagesToKeep: number[] = [];
-          for (let i = 0; i < pageCount; i++) {
-            // Always keep cover and TOC
-            if (i <= 1) {
-              pagesToKeep.push(i);
-              continue;
-            }
-            // Check corresponding content stream length (approximate mapping)
-            const streamIdx = i - 2; // offset: first 2 pages are cover+TOC
-            const streamLen = contentLengths[streamIdx] || 0;
-            // Pages with substantial content have streams > 200 bytes typically
-            if (streamLen >= 150) {
-              pagesToKeep.push(i);
-            }
-          }
-
-          if (pagesToKeep.length < pageCount && pagesToKeep.length > 2) {
-            // Rebuild PDF without blank pages using raw byte manipulation
-            // This is a conservative approach: we just note it for the user
-            // since robust page removal requires a full PDF library.
-            // The primary fix is the removal of switchToPage() watermark loop.
-            console.log(
-              `[PDF] Detected ${pageCount - pagesToKeep.length} potential blank pages. ` +
-              `Primary fix (removing switchToPage watermark) should prevent these.`,
-            );
+          // Page 0 = cover (always keep), page 1 = TOC (always keep)
+          // For other pages: keep if text content > 80 chars
+          // (a header-only phantom page has ~40-50 chars of text)
+          if (i <= 1 || textLen > 80) {
+            pagesToKeep.push(i);
+          } else {
+            console.log(`[PDF] Removing blank/phantom page ${i + 1} (${textLen} chars)`);
           }
         }
+
+        if (pagesToKeep.length < pageCount && pagesToKeep.length >= 2) {
+          const newDoc = await PdfLibDoc.create();
+          const copiedPages = await newDoc.copyPages(srcDoc, pagesToKeep);
+          for (const pg of copiedPages) {
+            newDoc.addPage(pg);
+          }
+          fileBuffer = Buffer.from(await newDoc.save());
+          totalPages = pagesToKeep.length;
+          console.log(
+            `[PDF] Removed ${pageCount - pagesToKeep.length} blank page(s). ` +
+            `Final: ${totalPages} pages.`,
+          );
+        }
       } catch (e) {
-        console.warn("[PDF] Post-processing check skipped:", e);
+        console.warn("[PDF] Blank-page removal skipped:", e);
       }
 
       const basename = filePath.split("/").pop() || "report.pdf";
