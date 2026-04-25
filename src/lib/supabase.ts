@@ -423,7 +423,7 @@ BEGIN
       'user_preferences','agent_memory','reminders','agent_tasks',
       'delegations','key_usage','agent_activity','agent_status',
       'todos','contacts','learning_insights','skill_executions',
-      'skill_evaluations','skill_evolution_records','skills',
+      'skill_evaluations','skill_evolution','skills',
       'agent_skills','workflows','workflow_steps','workflow_step_validations',
       'a2a_messages','a2a_shared_context','a2a_channels',
       'a2a_channel_messages','a2a_tasks','agent_routines',
