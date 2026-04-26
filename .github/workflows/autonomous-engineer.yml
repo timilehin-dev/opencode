@@ -1,10 +1,11 @@
-# KlawHub Autonomous Engineer — Twice-daily self-improvement cycle
+# KlawHub Autonomous Engineer — Chief Intelligence Loop
 # Runs at 9:00 AM and 9:00 PM WAT (Africa/Lagos).
-# Checks build health, monitors deploys, scans for issues, and can auto-apply fixes.
 #
-# This workflow monitors the live system and creates actionable reports.
-# It does NOT auto-push code changes — that's done by the AI Chief Engineer
-# who reviews these reports and ships improvements.
+# Phase 2: Full autonomous action capability.
+# The engineer monitors the system, uses LLM to plan actions, creates tasks
+# for specialist agents, sends A2A messages, and notifies the user.
+#
+# Modes: full (default), monitor, llm-plan (dry-run), act (no LLM), report
 
 name: Autonomous Engineer
 on:
@@ -20,8 +21,10 @@ on:
         type: choice
         options:
           - full
-          - monitor-only
-          - build-check
+          - monitor
+          - llm-plan
+          - act
+          - report
 
 concurrency:
   group: autonomous-engineer
@@ -33,11 +36,11 @@ permissions:
   actions: read
 
 jobs:
-  # ── Job 1: Health & Deploy Monitor ──────────────────────────────────────
-  monitor:
-    name: System Monitor
+  # ── Job 1: Chief Intelligence Loop ──────────────────────────────────────
+  engineer:
+    name: Chief Intelligence Loop
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,13 +49,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
-      - name: Install dependencies (pg only for monitoring)
-        run: npm install pg --no-save 2>/dev/null || npm install pg
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
 
-      - name: Run monitoring script
+      - name: Run Autonomous Engineer
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          OLLAMA_CLOUD_KEY_1: ${{ secrets.OLLAMA_CLOUD_KEY_1 }}
+          OLLAMA_CLOUD_KEY_2: ${{ secrets.OLLAMA_CLOUD_KEY_2 }}
+          OLLAMA_CLOUD_KEY_3: ${{ secrets.OLLAMA_CLOUD_KEY_3 }}
+          OLLAMA_CLOUD_KEY_4: ${{ secrets.OLLAMA_CLOUD_KEY_4 }}
+          OLLAMA_CLOUD_KEY_5: ${{ secrets.OLLAMA_CLOUD_KEY_5 }}
+          OLLAMA_CLOUD_KEY_6: ${{ secrets.OLLAMA_CLOUD_KEY_6 }}
+          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MODE: ${{ github.event.inputs.mode || 'full' }}
         run: node scripts/autonomous-engineer.mjs
@@ -98,27 +109,3 @@ jobs:
           name: build-output-${{ github.run_number }}
           path: /tmp/build-output.txt
           retention-days: 3
-
-  # ── Job 3: Notify Discord (triggers AI Chief Engineer) ──────────────────
-  notify:
-    name: Notify AI Engineer
-    runs-on: ubuntu-latest
-    needs: [monitor, build-check]
-    if: always()
-    timeout-minutes: 2
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download report artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: engineer-report-${{ github.run_number }}
-          path: /tmp/
-        continue-on-error: true
-
-      - name: Send Discord notification
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: node scripts/discord-notifier.mjs
-        continue-on-error: true  # Don't fail the workflow if Discord is down
