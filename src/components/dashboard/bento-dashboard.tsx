@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense, lazy, useCallback } from "react";
+import { useState, useEffect, useMemo, Suspense, lazy, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useDashboardStream } from "@/hooks/use-dashboard-stream";
 import { AGENT_MAP, AGENT_LIST, getAgentMeta } from "@/lib/agent-map";
@@ -125,6 +125,7 @@ function AgentCrewCard({
   const { success, error } = useToast();
   const [quickTask, setQuickTask] = useState("");
   const [dispatching, setDispatching] = useState(false);
+  const dispatchingRef = useRef(false);
 
   const agentStats = useMemo(() => {
     const stats: Record<
@@ -156,7 +157,8 @@ function AgentCrewCard({
   }, [agentStatuses]);
 
   const handleQuickDispatch = async () => {
-    if (!selectedAgent || !quickTask.trim() || dispatching) return;
+    if (!selectedAgent || !quickTask.trim() || dispatchingRef.current) return;
+    dispatchingRef.current = true;
     setDispatching(true);
     try {
       const res = await fetch("/api/agents", {
@@ -175,6 +177,7 @@ function AgentCrewCard({
       error("Network error — could not dispatch task");
     }
     setDispatching(false);
+    dispatchingRef.current = false;
   };
 
   const expandedAgent = selectedAgent ? getAgentMeta(selectedAgent) : null;

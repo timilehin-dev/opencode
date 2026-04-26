@@ -162,18 +162,20 @@ export function updateAgentStatus(
   agentStatuses.set(id, updated);
 
   // Also persist to database (fire-and-forget — non-async context)
+  // Uses INCREMENT semantics for counters (matches activity.ts persistAgentStatus)
+  // to avoid overwriting accumulated totals from other serverless instances.
   import("@/lib/db").then(({ query }) =>
     query(
       `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed)
-       VALUES ($1, $2, $3, NOW(), $4, $5)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (agent_id) DO UPDATE SET
          status = EXCLUDED.status,
          current_task = EXCLUDED.current_task,
          last_activity = EXCLUDED.last_activity,
-         tasks_completed = EXCLUDED.tasks_completed,
-         messages_processed = EXCLUDED.messages_processed,
+         tasks_completed = agent_status.tasks_completed + EXCLUDED.tasks_completed,
+         messages_processed = agent_status.messages_processed + EXCLUDED.messages_processed,
          updated_at = NOW()`,
-      [id, updated.status || "idle", updated.currentTask || null, updated.tasksCompleted || 0, updated.messagesProcessed || 0]
+      [id, updated.status ?? "idle", updated.currentTask ?? null, updated.lastActivity ?? new Date().toISOString(), updated.tasksCompleted ?? 0, updated.messagesProcessed ?? 0]
     ).catch(() => { /* non-critical */ })
   ).catch(() => { /* non-critical */ });
 

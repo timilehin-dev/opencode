@@ -72,6 +72,9 @@ export async function GET(req: Request) {
   const lastTaskIds = new Set(recentTasks.map((t) => t.id));
   const lastDelegationIds = new Set(recentDelegations.map((d) => d.id));
 
+  // Mutable reference for metrics comparison (updated after each poll)
+  let lastMetrics = metrics;
+
   const stream = new ReadableStream({
     async start(controller) {
       // Send initial snapshot
@@ -143,7 +146,8 @@ export async function GET(req: Request) {
           }
 
           // Send metrics update periodically (every 3rd poll = ~9s)
-          if (JSON.stringify(currentMetrics) !== JSON.stringify(metrics)) {
+          if (JSON.stringify(currentMetrics) !== JSON.stringify(lastMetrics)) {
+            lastMetrics = currentMetrics;
             controller.enqueue(encoder.encode(formatSSE("metrics", currentMetrics)));
           }
         } catch {
