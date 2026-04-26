@@ -51,7 +51,8 @@ export async function POST() {
     });
   } catch (err) {
     console.error('[setup:phase3b] Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

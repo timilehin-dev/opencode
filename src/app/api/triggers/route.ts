@@ -19,7 +19,7 @@ async function getSupabase() {
 }
 
 // GET /api/triggers — List all triggers
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await getSupabase();
     const { searchParams } = new URL(request.url);
@@ -40,12 +40,13 @@ export async function GET(request) {
     return NextResponse.json({ ok: true, triggers: data, count: data?.length || 0 });
   } catch (err) {
     console.error('[triggers] GET error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 // POST /api/triggers — Create a new trigger
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, description, source, event_type, filter_config, action_type, action_config, agent_id, cooldown_seconds, enabled } = body;
@@ -73,12 +74,13 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, trigger: data }, { status: 201 });
   } catch (err) {
     console.error('[triggers] POST error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 // PATCH /api/triggers — Update a trigger
-export async function PATCH(request) {
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -98,12 +100,13 @@ export async function PATCH(request) {
     return NextResponse.json({ ok: true, trigger: data });
   } catch (err) {
     console.error('[triggers] PATCH error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 // DELETE /api/triggers — Delete a trigger
-export async function DELETE(request) {
+export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -119,6 +122,7 @@ export async function DELETE(request) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[triggers] DELETE error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

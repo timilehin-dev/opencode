@@ -14,8 +14,7 @@
 //   - memory_summary:   Get a formatted summary of all memories (for context)
 // ---------------------------------------------------------------------------
 
-import { tool } from 'ai';
-import { z } from 'zod';
+import { tool, zodSchema, z, getCurrentAgentId } from './shared';
 import { getSupabase } from '@/lib/supabase';
 
 // ─── Memory Save ─────────────────────────────────────────────────────────────
@@ -30,12 +29,12 @@ Categories:
 - "preference" — User preferences, style choices (importance 6)
 - "context" — Project context, current situation (importance 5)
 - "instruction" — Standing instructions, rules (importance 8)`,
-  parameters: z.object({
+  inputSchema: zodSchema(z.object({
     content: z.string().describe('The memory content to save. Be specific and concise — future-you will read this.'),
     category: z.enum(['episodic', 'semantic', 'procedural', 'preference', 'context', 'instruction']).describe('Memory category — episodic=events, semantic=facts, procedural=workflows, preference=user likes, context=project state, instruction=rules'),
     importance: z.number().min(1).max(10).optional().describe('Importance 1-10 (default varies by category). Higher = more likely to be loaded into context.'),
     tags: z.array(z.string()).optional().describe('Optional tags for organization (e.g., ["gmail", "urgent", "github-bug"])'),
-  }),
+  })),
   execute: async ({ content, category, importance, tags }) => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available — cannot save memory.';
@@ -94,11 +93,11 @@ Categories:
 
 export const memorySearch = tool({
   description: `Search your persistent memories by keyword. Returns memories matching your query across all categories. Use this to find specific facts, past events, or preferences you've saved before.`,
-  parameters: z.object({
+  inputSchema: zodSchema(z.object({
     query: z.string().describe('Search query — keywords to find in memory content'),
     category: z.enum(['episodic', 'semantic', 'procedural', 'preference', 'context', 'instruction', 'all']).optional().describe('Filter by category (default: all)'),
     limit: z.number().min(1).max(20).optional().describe('Max results to return (default: 10)'),
-  }),
+  })),
   execute: async ({ query, category, limit }) => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available.';
@@ -144,11 +143,11 @@ export const memorySearch = tool({
 
 export const memoryRecall = tool({
   description: `Recall your most recent memories. Returns recent memories ordered by recency. Use this to quickly catch up on context from previous sessions or recent task executions.`,
-  parameters: z.object({
+  inputSchema: zodSchema(z.object({
     category: z.enum(['episodic', 'semantic', 'procedural', 'preference', 'context', 'instruction', 'all']).optional().describe('Filter by category (default: all)'),
     limit: z.number().min(1).max(30).optional().describe('Max memories to recall (default: 10)'),
     min_importance: z.number().min(1).max(10).optional().describe('Minimum importance threshold (default: 1)'),
-  }),
+  })),
   execute: async ({ category, limit, min_importance }) => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available.';
@@ -193,9 +192,9 @@ export const memoryRecall = tool({
 
 export const memoryForget = tool({
   description: `Delete a specific memory by ID. Use this to remove outdated, incorrect, or no-longer-relevant memories. Always confirm you have the right ID before deleting.`,
-  parameters: z.object({
+  inputSchema: zodSchema(z.object({
     id: z.union([z.string(), z.number()]).describe('The memory ID to delete (from memory_list or memory_search results)'),
-  }),
+  })),
   execute: async ({ id }) => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available.';
@@ -235,9 +234,9 @@ export const memoryForget = tool({
 
 export const memoryList = tool({
   description: `List all your memories with optional filtering. Returns a summary of all stored memories grouped by category. Use this to see what you remember and identify gaps.`,
-  parameters: z.object({
+  inputSchema: zodSchema(z.object({
     category: z.enum(['episodic', 'semantic', 'procedural', 'preference', 'context', 'instruction', 'all']).optional().describe('Filter by category (default: all)'),
-  }),
+  })),
   execute: async ({ category }) => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available.';
@@ -302,7 +301,7 @@ export const memoryList = tool({
 
 export const memorySummary = tool({
   description: `Get a formatted summary of all your high-importance memories. This is the same content that gets injected into your system prompt. Use this to see what context you're starting with.`,
-  parameters: z.object({}),
+  inputSchema: zodSchema(z.object({})),
   execute: async () => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available.';
@@ -341,6 +340,3 @@ export const memorySummary = tool({
   },
 });
 
-// ─── Helper ──────────────────────────────────────────────────────────────────
-
-import { getCurrentAgentId } from '@/lib/tools/shared';

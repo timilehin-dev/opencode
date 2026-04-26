@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-function getEventInfo(body) {
+function getEventInfo(body: any) {
   const eventType = body.type || body.event || 'unknown';
   const name = body.name || body.project || 'unknown';
   const target = body.target || 'production';
@@ -71,7 +71,7 @@ function getEventInfo(body) {
   };
 }
 
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const eventInfo = getEventInfo(body);
@@ -118,7 +118,8 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, event: eventInfo.event_type });
   } catch (err) {
     console.error('[webhook:vercel] Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

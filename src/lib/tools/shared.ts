@@ -360,7 +360,7 @@ export function truncateToFit(value: unknown, maxLen: number, depth = 0): unknow
 // Tool type
 // ---------------------------------------------------------------------------
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ToolType = ReturnType<typeof tool<any, string>>;
+export type ToolType = ReturnType<typeof tool<any, any>>;
 
 // ---------------------------------------------------------------------------
 // Tavily Search (configurable depth — basic vs advanced)

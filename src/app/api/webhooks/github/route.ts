@@ -21,7 +21,7 @@ import crypto from 'crypto';
 
 const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
 
-function verifySignature(payload, signature) {
+function verifySignature(payload: string, signature: string | null) {
   if (!WEBHOOK_SECRET) {
     // No secret configured — accept all (dev mode)
     console.warn('[webhook:github] No GITHUB_WEBHOOK_SECRET set — skipping signature verification');
@@ -41,7 +41,7 @@ function verifySignature(payload, signature) {
   }
 }
 
-function getEventInfo(body, eventType) {
+function getEventInfo(body: any, eventType: string | null) {
   const repo = body.repository?.full_name || 'unknown';
   const action = body.action || '';
   const sender = body.sender?.login || 'unknown';
@@ -53,18 +53,18 @@ function getEventInfo(body, eventType) {
         event_type: `issue_${action || 'updated'}`,
         external_id: `github:issue:${issue.number}`,
         title: `Issue ${action}: #${issue.number} — ${issue.title}`,
-        severity: issue.labels?.some(l => l.name === 'bug') ? 'high' :
-                  issue.labels?.some(l => l.name === 'urgent') ? 'critical' : 'normal',
+        severity: issue.labels?.some((l: any) => l.name === 'bug') ? 'high' :
+                  issue.labels?.some((l: any) => l.name === 'urgent') ? 'critical' : 'normal',
         payload: {
           issue_number: issue.number,
           title: issue.title,
           state: issue.state,
           action,
-          labels: issue.labels?.map(l => l.name) || [],
+          labels: issue.labels?.map((l: any) => l.name) || [],
           author: issue.user?.login,
           url: issue.html_url,
           body_preview: (issue.body || '').substring(0, 500),
-          assignees: issue.assignees?.map(a => a.login) || [],
+          assignees: issue.assignees?.map((a: any) => a.login) || [],
           repository: repo,
           sender,
         },
@@ -112,7 +112,7 @@ function getEventInfo(body, eventType) {
           ref,
           before: body.before,
           after: body.after,
-          commits: commits.map(c => ({ message: c.message, author: c.author?.username, url: c.url })),
+          commits: commits.map((c: any) => ({ message: c.message, author: c.author?.username, url: c.url })),
           forced: body.forced,
           repository: repo,
           sender,
@@ -201,7 +201,7 @@ function getEventInfo(body, eventType) {
   }
 }
 
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const bodyText = await request.text();
     const signature = request.headers.get('x-hub-signature-256');
@@ -267,12 +267,13 @@ export async function POST(request) {
     });
   } catch (err) {
     console.error('[webhook:github] Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 // Handle GET for webhook verification (GitHub sends this when setting up the webhook)
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   return NextResponse.json({
     name: 'KlawHub GitHub Webhook Receiver',
     supported_events: [

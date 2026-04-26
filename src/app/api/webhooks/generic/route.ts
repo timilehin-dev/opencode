@@ -26,7 +26,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const GENERIC_WEBHOOK_SECRET = process.env.GENERIC_WEBHOOK_SECRET || '';
 
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
@@ -90,7 +90,8 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, event: event.event_type, title: event.title });
   } catch (err) {
     console.error('[webhook:generic] Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
