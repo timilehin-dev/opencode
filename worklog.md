@@ -70,3 +70,33 @@ Stage Summary:
 - RLS policies on all tables ✅
 - 3 pg_cron jobs registered (#31, #32, #33) ✅
 - Cron secret: klawhub-cron-secret (should be set in Vercel env as CRON_SECRET)
+
+---
+Task ID: 3
+Agent: Main Agent (Super Z)
+Task: Phase 6 — Self-Improvement Loop
+
+Work Log:
+- Analyzed existing Phase 6 infrastructure (self-learning.ts, skill-evolution-engine.ts, cron/self-improvement/route.ts)
+- Identified gap: agents had no callable tools for self-improvement
+- Created src/lib/tools/self-improvement.ts with 5 tools: reflect_on_performance, benchmark_self, learn_from_mistakes, share_knowledge, improve_strategy
+- Created agent_metrics table in Supabase (id, agent_id, metric_type, metric_value, metadata, created_at)
+- Registered all 5 tools in tools/index.ts
+- Added Phase 6 tool names to all 7 agents' tool lists in agent-config.ts
+- Added SELF_IMPROVEMENT_PROTOCOL constant to agent-config.ts
+- Injected SELF_IMPROVEMENT_PROTOCOL into all 7 agent system prompts (general + 6 specialists)
+- Created /api/self-improvement route (GET: stats/history/leaderboard/team_insights, POST: decay/cleanup_metrics)
+- Added 5 standalone tool implementations to execute-tasks.mjs
+- Added Phase 6 tool names to all 7 agent tool lists in execute-tasks.mjs
+- Verified: TypeScript compiles clean (no errors from Phase 6 code)
+- Verified: Next.js build passes
+- Committed and pushed: 8b37d9e (5 files, 995 insertions)
+
+Stage Summary:
+- Phase 6 is complete: all 6 phases of the Klawhub roadmap are now implemented
+- 5 new agent-callable self-improvement tools available to all 7 agents
+- Self-improvement protocol wired into all agent system prompts
+- agent_metrics table tracks benchmarks, strategy updates, knowledge sharing
+- REST API for self-improvement stats and management
+- Total agent tools: ~140+ per agent (general has the most)
+- All 6 phases complete: Foundation → Chief Intelligence → Proactive Scanning → Persistent Memory → Inter-Agent Initiation → Self-Improvement Loop
