@@ -4765,11 +4765,16 @@ async function executeTask(task) {
   try {
     const model = getProvider(agentDef);
 
-    // Build tool subset for this agent
+    // Build tool subset for this agent (filter out broken tools)
     const allTools = buildToolMap(task.agent_id);
     const agentTools = {};
     for (const toolId of agentDef.tools) {
-      if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
+      const toolDef = allTools[toolId];
+      if (toolDef && toolDef.inputSchema) {
+        agentTools[toolId] = toolDef;
+      } else if (toolDef) {
+        console.warn(`[Task #${task.id}] Skipping tool '${toolId}': missing inputSchema`);
+      }
     }
 
     // Build rich system prompt using the full agent prompt (mirrors chat route quality)

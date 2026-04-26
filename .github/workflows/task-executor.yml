@@ -45,7 +45,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install pg @ai-sdk/openai ai zod --no-save
+        run: npm install pg @ai-sdk/openai ai@^6.0.0 zod@^3.23.0 --no-save
 
       - name: Run executor
         env:
