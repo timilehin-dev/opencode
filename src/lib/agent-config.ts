@@ -572,6 +572,7 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
   mail: [
     "gmail_send", "gmail_fetch", "gmail_labels",
@@ -604,6 +605,7 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
   code: [
     "github_repo", "github_issues", "github_create_issue",
@@ -635,6 +637,7 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
   data: [
     "drive_list", "drive_create_folder", "drive_create_file",
@@ -669,6 +672,7 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
   creative: [
     "docs_list", "docs_read", "docs_create", "docs_append",
@@ -700,6 +704,7 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
   research: [
     "web_search_advanced", "web_search", "web_reader",
@@ -728,6 +733,7 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
   ops: [
     "web_search", "web_reader",
@@ -752,6 +758,11 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
     // Persistent Memory (Phase 4)
     "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
+    // A2A Context Sharing
+    "a2a_share_context", "a2a_query_context",
+    // Phase 5: Inter-Agent Initiation
+    "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+    "respond_to_initiation", "check_initiation_inbox",
   ],
 };
 

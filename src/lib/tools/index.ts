@@ -151,6 +151,7 @@ import {
 import {
   initiateContactTool, requestHelpTool, offerAssistanceTool,
   observeAgentTool, escalateToChiefTool,
+  respondToInitiationTool, checkInitiationInboxTool,
 } from "./initiation";
 
 // ---------------------------------------------------------------------------
@@ -344,6 +345,8 @@ export const allTools: Record<string, ToolType> = {
   offer_assistance: offerAssistanceTool,
   observe_agent: observeAgentTool,
   escalate_to_chief: escalateToChiefTool,
+  respond_to_initiation: respondToInitiationTool,
+  check_initiation_inbox: checkInitiationInboxTool,
 };
 
 // ---------------------------------------------------------------------------

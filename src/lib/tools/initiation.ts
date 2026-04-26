@@ -250,8 +250,9 @@ Returns:
     hours_back: z.number().optional().describe("How many hours back to look (default: 24)"),
   })),
   execute: safeJson(async ({ agent_id, include_tasks, include_messages, include_activity, hours_back }) => {
-    const hours = hours_back || 24;
-    const since = `NOW() - INTERVAL '${hours} hours'`;
+    const hours = Math.max(1, Math.min(hours_back || 24, 720));
+    // Use parameterized interval to avoid SQL injection
+    const sinceParam = `$${2}`;
     const result: Record<string, unknown> = { agent: agent_id, observedAt: new Date().toISOString(), hoursBack: hours };
 
     // Current status
@@ -282,9 +283,9 @@ Returns:
       const tasksResult = await query(
         `SELECT id, task, status, priority, trigger_type, result, error, completed_at, started_at, duration_ms
          FROM agent_tasks
-         WHERE agent_id = $1 AND completed_at > ${since}
+         WHERE agent_id = $1 AND completed_at > NOW() - ($2 || ' hours')::INTERVAL
          ORDER BY completed_at DESC LIMIT 20`,
-        [agent_id]
+        [agent_id, String(hours)]
       );
       result.recentTasks = tasksResult.rows.map((r: Record<string, unknown>) => ({
         id: r.id, task: String(r.task || "").slice(0, 150),
@@ -301,9 +302,9 @@ Returns:
         `SELECT id, from_agent, to_agent, type, topic, priority, is_read, created_at,
                 payload->>'content' as content_preview
          FROM a2a_messages
-         WHERE (from_agent = $1 OR to_agent = $1) AND created_at > ${since}
+         WHERE (from_agent = $1 OR to_agent = $1) AND created_at > NOW() - ($2 || ' hours')::INTERVAL
          ORDER BY created_at DESC LIMIT 20`,
-        [agent_id]
+        [agent_id, String(hours)]
       );
       result.recentMessages = msgResult.rows.map((r: Record<string, unknown>) => ({
         id: r.id, from: r.from_agent, to: r.to_agent,
@@ -316,15 +317,15 @@ Returns:
     // Activity log
     if (include_activity !== false) {
       const actResult = await query(
-        `SELECT action, details, tool_used, created_at
+        `SELECT action, detail, tool_name, created_at
          FROM agent_activity
-         WHERE agent_id = $1 AND created_at > ${since}
+         WHERE agent_id = $1 AND created_at > NOW() - ($2 || ' hours')::INTERVAL
          ORDER BY created_at DESC LIMIT 15`,
-        [agent_id]
+        [agent_id, String(hours)]
       );
       result.recentActivity = actResult.rows.map((r: Record<string, unknown>) => ({
-        action: r.action, tool: r.tool_used,
-        details: r.details ? String(r.details).slice(0, 150) : null,
+        action: r.action, tool: r.tool_name,
+        details: r.detail ? String(r.detail).slice(0, 150) : null,
         createdAt: r.created_at,
       }));
     }
@@ -399,15 +400,16 @@ The General agent will assess the escalation and either: take action directly, d
     if (shouldNotifyUser) {
       try {
         await query(
-          `INSERT INTO proactive_notifications (type, title, message, severity, source_agent, related_task_id)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+          `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
-            "escalation",
+            fromAgent,
+            fromAgent.charAt(0).toUpperCase() + fromAgent.slice(1),
+            "alert",
             `Escalation from ${fromAgent}: ${issue.slice(0, 80)}`,
             `**Agent:** ${fromAgent}\n**Severity:** ${severity.toUpperCase()}\n**Issue:** ${issue}\n**Impact:** ${impact}${triedSection}${recommendationSection}`,
-            severity,
-            fromAgent,
-            related_task_id ?? null,
+            severity === "critical" ? "urgent" : severity === "high" ? "high" : "normal",
+            JSON.stringify({ source: "escalate_to_chief", severity, related_task_id }),
           ]
         );
       } catch {
@@ -423,6 +425,146 @@ The General agent will assess the escalation and either: take action directly, d
       escalatedTo: "general",
       userNotified: shouldNotifyUser,
       message: `Issue escalated to General with ${severity.toUpperCase()} severity.${shouldNotifyUser ? " User has been notified." : ""} The chief will assess and respond in the next execution cycle.`,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// 6. respond_to_initiation — Accept or decline an initiation
+// ---------------------------------------------------------------------------
+export const respondToInitiationTool = tool({
+  description: `Respond to an initiation you received from another agent. When another agent contacts you, offers help, or requests collaboration, use this tool to formally accept or decline. Your response is tracked and the initiating agent is notified.
+
+Use this when:
+- Another agent offered assistance and you want to accept or decline
+- You received a collaboration proposal and want to respond
+- A help request came in and you're ready to accept it or suggest an alternative`,
+  inputSchema: zodSchema(z.object({
+    initiation_id: z.number().describe("The ID of the initiation to respond to"),
+    action: z.enum(["accept", "decline"]).describe("Whether to accept or decline"),
+    response_message: z.string().describe("Your response — why you're accepting/declining, what you'll do next, etc."),
+    counter_proposal: z.string().optional().describe("If declining, optionally suggest an alternative approach"),
+  })),
+  execute: safeJson(async ({ initiation_id, action, response_message, counter_proposal }) => {
+    const myAgent = getCurrentAgentId();
+
+    // Fetch the initiation
+    const { rows: inits } = await query(
+      `SELECT * FROM a2a_initiations WHERE id = $1 AND target_agent = $2`,
+      [initiation_id, myAgent]
+    );
+    if (inits.length === 0) {
+      return { success: false, error: `Initiation #${initiation_id} not found or not addressed to you.` };
+    }
+
+    const init = inits[0] as Record<string, unknown>;
+
+    // Update status
+    const newStatus = action === "accept" ? "accepted" : "declined";
+    await query(
+      `UPDATE a2a_initiations
+       SET status = $1, response = $2, responded_at = NOW(),
+           completed_at = CASE WHEN $1 = 'declined' THEN NOW() ELSE NULL END
+       WHERE id = $3`,
+      [
+        newStatus,
+        JSON.stringify({ action, response_message, counter_proposal, responded_by: myAgent, responded_at: new Date().toISOString() }),
+        initiation_id,
+      ]
+    );
+
+    // Send A2A response back to the initiator
+    const { sendA2AMessage } = await import("@/lib/a2a");
+    const counterSection = counter_proposal ? `\n\n**Alternative Proposal:** ${counter_proposal}` : "";
+    await sendA2AMessage({
+      fromAgent: myAgent,
+      toAgent: init.initiator_agent as string,
+      type: action === "accept" ? "response" : "broadcast",
+      topic: `[${action.toUpperCase()}] Re: ${init.subject}`,
+      payload: {
+        content: `${myAgent} has ${action === "accept" ? "ACCEPTED" : "DECLINED"} your initiation:\n\n**Original Subject:** ${init.subject}\n\n**Response:** ${response_message}${counterSection}`,
+        source: "respond_to_initiation",
+        initiation_id,
+        action,
+      },
+      priority: (["low", "normal", "high", "urgent"].includes(init.urgency as string) ? init.urgency as "low" | "normal" | "high" | "urgent" : "normal"),
+    });
+
+    // If accepted and it's a help_request, create a task for yourself
+    if (action === "accept" && init.initiation_type === "help_request") {
+      const ctx = init.context as Record<string, unknown>;
+      try {
+        await query(
+          `INSERT INTO agent_tasks (agent_id, task, context, priority, trigger_type, trigger_source, status)
+           VALUES ($1, $2, $3, $4, 'a2a_inbox', $5, 'pending')`,
+          [
+            myAgent,
+            `Help ${init.initiator_agent}: ${ctx.problem || init.subject}`,
+            `Initiated by ${init.initiator_agent}. ${ctx.what_needed || ""}`,
+            (init.urgency === "critical" || init.urgency === "high") ? "high" : "normal",
+            `initiation:${initiation_id}`,
+          ]
+        );
+      } catch { /* non-critical */ }
+    }
+
+    return {
+      success: true,
+      initiationId: initiation_id,
+      action: newStatus,
+      respondedTo: init.initiator_agent,
+      originalSubject: init.subject,
+      message: `${action === "accept" ? "Accepted" : "Declined"} initiation from ${init.initiator_agent}. They have been notified.`,
+    };
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// 7. check_initiation_inbox — Check pending initiations addressed to you
+// ---------------------------------------------------------------------------
+export const checkInitiationInboxTool = tool({
+  description: `Check your initiation inbox — shows all pending inter-agent initiations addressed to you that need a response. Use this at the start of your execution cycle to see if any agents have reached out to you.`,
+  inputSchema: zodSchema(z.object({
+    include_responded: z.boolean().optional().describe("Also show recently accepted/declined (default: false)"),
+    limit: z.number().optional().describe("Max results (default: 20)"),
+  })),
+  execute: safeJson(async ({ include_responded, limit }) => {
+    const myAgent = getCurrentAgentId();
+    const maxLimit = Math.min(limit || 20, 50);
+
+    const { rows } = await query(
+      `SELECT id, initiator_agent, initiation_type, subject, urgency, status,
+              context, created_at, responded_at
+       FROM a2a_initiations
+       WHERE target_agent = $1
+         AND (status NOT IN ('completed', 'expired') OR ($2 = true AND responded_at > NOW() - INTERVAL '24 hours'))
+       ORDER BY
+         CASE urgency WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
+         created_at DESC
+       LIMIT $3`,
+      [myAgent, include_responded ? true : false, maxLimit]
+    );
+
+    const pending = rows.filter((r: Record<string, unknown>) => r.status === "delivered" || r.status === "pending");
+    const responded = rows.filter((r: Record<string, unknown>) => r.status === "accepted" || r.status === "declined");
+
+    return {
+      agent: myAgent,
+      pending: pending.length,
+      recentlyResponded: responded.length,
+      initiations: rows.map((r: Record<string, unknown>) => ({
+        id: r.id,
+        from: r.initiator_agent,
+        type: r.initiation_type,
+        subject: r.subject,
+        urgency: r.urgency,
+        status: r.status,
+        createdAt: r.created_at,
+        context: r.context,
+      })),
+      summary: pending.length > 0
+        ? `You have ${pending.length} pending initiation(s) requiring your attention.`
+        : "No pending initiations. Your inbox is clear.",
     };
   }),
 });
