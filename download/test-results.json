@@ -1,0 +1,161 @@
+[
+  {
+    "page": "Task Board",
+    "url": "https://my-project-tau-two-70.vercel.app/taskboard",
+    "http_status": 200,
+    "title": "Klawhub",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "Klawhub"
+      },
+      {
+        "tag": "H1",
+        "text": "Task Board"
+      },
+      {
+        "tag": "H2",
+        "text": "Backlog"
+      },
+      {
+        "tag": "H3",
+        "text": "Test Task from Z-Agent"
+      },
+      {
+        "tag": "H3",
+        "text": "Verify Full-Stack Tool Integration (Project/Workflow/Routine/A2A)"
+      },
+      {
+        "tag": "H2",
+        "text": "In Progress"
+      },
+      {
+        "tag": "H2",
+        "text": "Waiting"
+      },
+      {
+        "tag": "H2",
+        "text": "Done"
+      }
+    ],
+    "buttons": [
+      "Services",
+      "New Task",
+      "All Agents",
+      "general",
+      "All Priority",
+      "High",
+      "Medium",
+      "Low"
+    ],
+    "cards": [],
+    "empty_states": [
+      "no tasks"
+    ],
+    "console_errors": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 ()"
+      }
+    ],
+    "console_error_count": 2,
+    "network_errors": [],
+    "body_text_preview": "Skip to main content\nK\nKlawhub\n\nAgent Hub\n\nDashboard\nChat\nAgents\nWorkflows\nTask Board\nRoutines\nInsights\nMemory\nSkills\nSkill Evolution\nAnalytics\nSettings\nServices\nGitHub\nGmail\nCalendar\nDrive\nSheets\nDocs\nVercel\nNotifications\nTask Board\n\nManage and track tasks across your agent workspace\n\nNew Task\nTOTAL\n\n2\n\nBACKLOG\n\n2\n\nIN PROGRESS\n\n0\n\nWAITING\n\n0\n\nDONE\n\n0\n\nFILTERS:\nAll Agents\ngeneral\nAll Priority\nHigh\nMedium\nLow\nBacklog\n2\nTest Task from Z-Agent\n\nTesting task creation\n\nHigh\ngeneral\nVerify Full-Stack "
+  },
+  {
+    "page": "Agent Routines",
+    "url": "https://my-project-tau-two-70.vercel.app/routines",
+    "http_status": 200,
+    "title": "Klawhub",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "Klawhub"
+      },
+      {
+        "tag": "H1",
+        "text": "Agent Routines"
+      },
+      {
+        "tag": "H3",
+        "text": "Daily Intel Health Check"
+      },
+      {
+        "tag": "H3",
+        "text": "Hourly Unread Email Summary"
+      }
+    ],
+    "buttons": [
+      "Services",
+      "Refresh",
+      "New Routine",
+      "All (2)",
+      "Mail Agent (1)",
+      "Ops Agent (1)"
+    ],
+    "cards": [],
+    "empty_states": [],
+    "console_errors": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 ()"
+      }
+    ],
+    "console_error_count": 2,
+    "network_errors": [],
+    "body_text_preview": "Skip to main content\nK\nKlawhub\n\nAgent Hub\n\nDashboard\nChat\nAgents\nWorkflows\nTask Board\nRoutines\nInsights\nMemory\nSkills\nSkill Evolution\nAnalytics\nSettings\nServices\nGitHub\nGmail\nCalendar\nDrive\nSheets\nDocs\nVercel\nNotifications\nAgent Routines\n\nSchedule automated tasks for your agents\n\nRefresh\nNew Routine\nTOTAL\n\n2\n\nACTIVE\n\n2\n\nPAUSED\n\n0\n\nAGENT:\nAll (2)\nMail Agent (1)\nOps Agent (1)\nDaily Intel Health Check\nMedium\n\nCheck the status of the Market Intelligence Engine project and the Research-to-Report work"
+  },
+  {
+    "page": "Agent Workflows",
+    "url": "https://my-project-tau-two-70.vercel.app/workflows",
+    "http_status": 200,
+    "title": "Klawhub",
+    "headings": [
+      {
+        "tag": "H1",
+        "text": "Klawhub"
+      },
+      {
+        "tag": "H1",
+        "text": "Agent Workflows"
+      },
+      {
+        "tag": "H3",
+        "text": "Solid State Battery Competitive Patent Analysis Pipeline"
+      }
+    ],
+    "buttons": [
+      "Services",
+      "New Workflow",
+      "All",
+      "Running",
+      "Completed",
+      "Failed",
+      "Paused",
+      "Planning"
+    ],
+    "cards": [],
+    "empty_states": [],
+    "console_errors": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 ()"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 ()"
+      }
+    ],
+    "console_error_count": 2,
+    "network_errors": [],
+    "body_text_preview": "Skip to main content\nK\nKlawhub\n\nAgent Hub\n\nDashboard\nChat\nAgents\nWorkflows\nTask Board\nRoutines\nInsights\nMemory\nSkills\nSkill Evolution\nAnalytics\nSettings\nServices\nGitHub\nGmail\nCalendar\nDrive\nSheets\nDocs\nVercel\nNotifications\nAgent Workflows\n\nMulti-step AI workflows with planning, execution, and validation\n\nNew Workflow\nTotal\n1\nRunning\n0\nCompleted\n0\nFailed\n0\nAll\nRunning\nCompleted\nFailed\nPaused\nPlanning\nSolid State Battery Competitive Patent Analysis Pipeline\n\nCreate a pipeline that: 1. Researches t"
+  }
+]
