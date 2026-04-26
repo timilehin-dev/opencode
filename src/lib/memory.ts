@@ -506,12 +506,16 @@ export async function addMemory(memory: {
   // Save to Supabase
   const supabase = getSupabase();
   if (supabase) {
-    await supabase.from("agent_memory").insert({
+    const insertData: Record<string, unknown> = {
       agent_id: mem.agentId,
       category: mem.category,
       content: mem.content,
       importance: mem.importance,
-    });
+    };
+    if (mem.metadata) {
+      insertData.metadata = mem.metadata;
+    }
+    await supabase.from("agent_memory").insert(insertData);
   }
 
   return mem;

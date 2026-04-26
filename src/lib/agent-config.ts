@@ -554,6 +554,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle", "cron_sync",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
   mail: [
     "gmail_send", "gmail_fetch", "gmail_labels",
@@ -582,6 +584,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_toggle",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
   code: [
     "github_repo", "github_issues", "github_create_issue",
@@ -609,6 +613,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_toggle",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
   data: [
     "drive_list", "drive_create_folder", "drive_create_file",
@@ -639,6 +645,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_toggle",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
   creative: [
     "docs_list", "docs_read", "docs_create", "docs_append",
@@ -666,6 +674,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_toggle",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
   research: [
     "web_search_advanced", "web_search", "web_reader",
@@ -690,6 +700,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_toggle",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
   ops: [
     "web_search", "web_reader",
@@ -712,6 +724,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "routine_create", "routine_list", "routine_update", "routine_toggle",
     // Task Board (Kanban)
     "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+    // Persistent Memory (Phase 4)
+    "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
   ],
 };
 

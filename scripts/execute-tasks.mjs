@@ -143,6 +143,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle", "cron_sync",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
   mail: {
@@ -178,6 +180,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
   code: {
@@ -212,6 +216,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
   data: {
@@ -249,6 +255,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
   creative: {
@@ -283,6 +291,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
   research: {
@@ -314,6 +324,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
   ops: {
@@ -343,6 +355,8 @@ const AGENTS = {
       "routine_create", "routine_list", "routine_update", "routine_toggle",
       // Task Board (Kanban)
       "taskboard_create", "taskboard_update", "taskboard_list", "taskboard_delete", "taskboard_summary",
+      // Persistent Memory (Phase 4)
+      "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
     ],
   },
 };
@@ -3975,6 +3989,112 @@ function buildToolMap(agentId) {
         return { total: parseInt(totalResult.rows[0].count, 10), by_status: byStatus, by_priority: byPriority, overdue: parseInt(overdueResult.rows[0].count, 10) };
       }),
     }),
+
+    // ─── Persistent Memory Tools (Phase 4) ──────────────────────────────────
+
+    memory_save: tool({
+      description: `Save a memory for future reference. Categories: episodic (events/outcomes), semantic (facts/knowledge), procedural (workflows/recipes), preference (user likes), context (project state), instruction (rules). Memories persist across sessions.`,
+      inputSchema: zodSchema(z.object({
+        content: z.string().describe("The memory content to save. Be specific — future-you will read this."),
+        category: z.enum(["episodic", "semantic", "procedural", "preference", "context", "instruction"]).describe("Memory category"),
+        importance: z.number().min(1).max(10).optional().describe("Importance 1-10 (higher = loaded into context)"),
+      })),
+      execute: safeJsonWrap(async ({ content, category, importance }) => {
+        const imp = importance ?? ({ episodic: 4, semantic: 6, procedural: 7, preference: 6, context: 5, instruction: 8, general: 5 })[category] ?? 5;
+        const agentId = currentExecutingAgentId || "general";
+        const result = await pool.query(
+          `INSERT INTO agent_memory (agent_id, category, content, importance) VALUES ($1, $2, $3, $4) RETURNING id`,
+          [agentId, category, content, imp]
+        );
+        return { saved: true, id: result.rows[0]?.id, category, importance: imp };
+      }),
+    }),
+
+    memory_search: tool({
+      description: "Search your persistent memories by keyword. Returns memories matching your query across all categories.",
+      inputSchema: zodSchema(z.object({
+        query: z.string().describe("Search query — keywords to find in memory content"),
+        category: z.enum(["episodic", "semantic", "procedural", "preference", "context", "instruction", "all"]).optional().describe("Filter by category"),
+        limit: z.number().min(1).max(20).optional().describe("Max results (default: 10)"),
+      })),
+      execute: safeJsonWrap(async ({ query, category, limit }) => {
+        const agentId = currentExecutingAgentId || "general";
+        let sql = `SELECT id, category, content, importance, created_at FROM agent_memory WHERE agent_id = $1`;
+        const params = [agentId];
+        if (category && category !== "all") { sql += ` AND category = $2`; params.push(category); }
+        const idx = params.length + 1;
+        sql += ` AND content ILIKE $${idx}`; params.push(`%${query}%`);
+        sql += ` ORDER BY importance DESC, created_at DESC LIMIT $${idx + 1}`; params.push(limit || 10);
+        const result = await pool.query(sql, params);
+        return { found: result.rows.length, memories: result.rows };
+      }),
+    }),
+
+    memory_recall: tool({
+      description: "Recall your most recent memories. Returns recent memories ordered by recency.",
+      inputSchema: zodSchema(z.object({
+        category: z.enum(["episodic", "semantic", "procedural", "preference", "context", "instruction", "all"]).optional().describe("Filter by category"),
+        limit: z.number().min(1).max(30).optional().describe("Max memories to recall (default: 10)"),
+      })),
+      execute: safeJsonWrap(async ({ category, limit }) => {
+        const agentId = currentExecutingAgentId || "general";
+        let sql = `SELECT id, category, content, importance, created_at FROM agent_memory WHERE agent_id = $1`;
+        const params = [agentId];
+        if (category && category !== "all") { sql += ` AND category = $2`; params.push(category); }
+        sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`; params.push(limit || 10);
+        const result = await pool.query(sql, params);
+        return { recalled: result.rows.length, memories: result.rows };
+      }),
+    }),
+
+    memory_forget: tool({
+      description: "Delete a specific memory by ID. Use memory_list or memory_search to find the ID first.",
+      inputSchema: zodSchema(z.object({
+        id: z.union([z.string(), z.number()]).describe("The memory ID to delete"),
+      })),
+      execute: safeJsonWrap(async ({ id }) => {
+        const agentId = currentExecutingAgentId || "general";
+        const result = await pool.query(`DELETE FROM agent_memory WHERE id = $1 AND agent_id = $2 RETURNING content`, [id, agentId]);
+        if (result.rowCount === 0) return { deleted: false, error: "Memory not found for this agent" };
+        return { deleted: true, content: result.rows[0].content.substring(0, 100) };
+      }),
+    }),
+
+    memory_list: tool({
+      description: "List all your memories with optional category filter. Shows count by category and recent items.",
+      inputSchema: zodSchema(z.object({
+        category: z.enum(["episodic", "semantic", "procedural", "preference", "context", "instruction", "all"]).optional().describe("Filter by category"),
+      })),
+      execute: safeJsonWrap(async ({ category }) => {
+        const agentId = currentExecutingAgentId || "general";
+        let sql = `SELECT id, category, content, importance, created_at FROM agent_memory WHERE agent_id = $1`;
+        const params = [agentId];
+        if (category && category !== "all") { sql += ` AND category = $2`; params.push(category); }
+        sql += ` ORDER BY importance DESC, created_at DESC LIMIT 20`;
+        const result = await pool.query(sql, params);
+        const byCategory = {};
+        for (const row of result.rows) { byCategory[row.category] = (byCategory[row.category] || 0) + 1; }
+        return { total: result.rows.length, by_category: byCategory, memories: result.rows };
+      }),
+    }),
+
+    memory_summary: tool({
+      description: "Get a formatted summary of all your high-importance memories. This shows what context you start with each session.",
+      inputSchema: zodSchema(z.object({})),
+      execute: safeJsonWrap(async () => {
+        const agentId = currentExecutingAgentId || "general";
+        const result = await pool.query(
+          `SELECT category, content, importance FROM agent_memory WHERE agent_id = $1 AND importance >= 6 ORDER BY importance DESC, created_at DESC LIMIT 20`,
+          [agentId]
+        );
+        const byCategory = {};
+        for (const row of result.rows) {
+          if (!byCategory[row.category]) byCategory[row.category] = [];
+          byCategory[row.category].push(row.content);
+        }
+        return { total: result.rows.length, by_category: byCategory, memories: result.rows };
+      }),
+    }),
   };
 }
 
@@ -4281,9 +4401,34 @@ async function executeTask(task) {
     }
 
     // Build rich system prompt using the full agent prompt (mirrors chat route quality)
-    const systemPrompt = getSystemPrompt(task.agent_id, {
+    let systemPrompt = getSystemPrompt(task.agent_id, {
       isInboxTask: task.trigger_type === "a2a_inbox",
     });
+
+    // ─── Phase 4: Inject persistent memory context ───
+    // Load high-importance memories for this agent and inject into system prompt.
+    // This gives autonomous tasks context from previous runs.
+    try {
+      const memResult = await pool.query(
+        `SELECT category, content, importance FROM agent_memory
+         WHERE agent_id = $1 AND importance >= 6
+         ORDER BY importance DESC, created_at DESC LIMIT 15`,
+        [task.agent_id]
+      );
+      if (memResult.rows.length > 0) {
+        const byCategory: Record<string, string[]> = {};
+        for (const row of memResult.rows) {
+          if (!byCategory[row.category]) byCategory[row.category] = [];
+          byCategory[row.category].push(row.content);
+        }
+        const memoryBlock = Object.entries(byCategory)
+          .map(([cat, items]) => `### ${cat.charAt(0).toUpperCase() + cat.slice(1)}\n${items.map(c => `- ${c}`).join("\n")}`)
+          .join("\n\n");
+        systemPrompt += `\n\n[PERSISTENT MEMORY — Context from previous sessions]\n${memoryBlock}\n[END PERSISTENT MEMORY]`;
+      }
+    } catch (err) {
+      console.warn(`[Task #${task.id}] Could not load memory context:`, err.message);
+    }
 
     console.log(`[Task #${task.id}] Executing with ${Object.keys(agentTools).length} tools, timeout=${timeoutS}s, maxSteps=${maxSteps}`);
 
@@ -4665,6 +4810,22 @@ async function main() {
       if (result.success) {
         await completeTask(task.id, result.text, result.toolCalls);
         summary.succeeded++;
+
+        // ─── Phase 4: Log conversation to conversations table ───
+        // Save task input/output as a conversation entry for history
+        try {
+          const sessionId = `task:${task.id}`;
+          await pool.query(
+            `INSERT INTO conversations (session_id, agent_id, role, content, tool_calls) VALUES ($1, $2, 'user', $3, NULL)`,
+            [sessionId, task.agent_id, task.task.substring(0, 5000)]
+          );
+          await pool.query(
+            `INSERT INTO conversations (session_id, agent_id, role, content, tool_calls) VALUES ($1, $2, 'assistant', $3, $4)`,
+            [sessionId, task.agent_id, (result.text || "").substring(0, 10000), JSON.stringify((result.toolCalls || []).map(tc => tc.name))]
+          );
+        } catch (err) {
+          console.warn(`[Task #${task.id}] Could not log conversation:`, err.message);
+        }
 
         await writeAutomationLog(automationId, "success", {
           type: "github_actions_execution",

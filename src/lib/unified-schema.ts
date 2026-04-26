@@ -540,6 +540,31 @@ CREATE INDEX IF NOT EXISTS idx_agent_tasks_status_completed
 `;
 
 // ---------------------------------------------------------------------------
+// Phase 4 — Memory Schema Enhancements
+//
+// Adds the metadata column to agent_memory (missing from original DDL)
+// and extends the category CHECK constraint to support the 3-layer
+// memory architecture (episodic, semantic, procedural).
+// ---------------------------------------------------------------------------
+
+export const MEMORY_SCHEMA_ENHANCEMENTS_SQL = `
+-- Add metadata column to agent_memory (TypeScript type expects it)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agent_memory' AND column_name = 'metadata') THEN
+    ALTER TABLE agent_memory ADD COLUMN metadata JSONB DEFAULT '{}';
+  END IF;
+END $$;
+
+-- Extend category CHECK constraint to support 3-layer memory
+DO $$ BEGIN
+  ALTER TABLE agent_memory DROP CONSTRAINT IF EXISTS agent_memory_category_check;
+  ALTER TABLE agent_memory ADD CONSTRAINT agent_memory_category_check
+    CHECK (category IN ('general', 'preference', 'context', 'instruction', 'episodic', 'semantic', 'procedural'));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+`;
+
+// ---------------------------------------------------------------------------
 // Phase 3B — Proactive Scanning & Pull-Based Triggers
 //
 // These tables power the system's ability to reach OUT to external services
@@ -739,9 +764,12 @@ ${A2A_EXTENDED_TABLES_SQL}
 -- 9. Phase 3B — Proactive Scanning & Pull-Based Triggers
 ${PROACTIVE_SCANNING_SCHEMA_SQL}
 
--- 10. RLS fix (MUST be last — needs all tables to exist)
+-- 10. Phase 4 — Memory Schema Enhancements
+${MEMORY_SCHEMA_ENHANCEMENTS_SQL}
+
+-- 11. RLS fix (MUST be last — needs all tables to exist)
 ${RLS_FIX_SQL}
 
--- 11. Performance indexes (safe to re-run, uses IF NOT EXISTS)
+-- 12. Performance indexes (safe to re-run, uses IF NOT EXISTS)
 ${PERFORMANCE_INDEXES_SQL}
 `;

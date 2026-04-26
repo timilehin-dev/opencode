@@ -143,6 +143,11 @@ import {
   contactUpdateTool, contactDeleteTool,
 } from "./contacts";
 
+import {
+  memorySave, memorySearch, memoryRecall, memoryForget,
+  memoryList, memorySummary,
+} from "./memory";
+
 // ---------------------------------------------------------------------------
 // All Tools Registry — single source of truth
 // ---------------------------------------------------------------------------
@@ -321,6 +326,13 @@ export const allTools: Record<string, ToolType> = {
   get_team_status: getTeamStatusTool,
   share_progress: shareProgressTool,
   get_team_progress: getTeamProgressTool,
+  // Persistent Memory
+  memory_save: memorySave,
+  memory_search: memorySearch,
+  memory_recall: memoryRecall,
+  memory_forget: memoryForget,
+  memory_list: memoryList,
+  memory_summary: memorySummary,
 };
 
 // ---------------------------------------------------------------------------
