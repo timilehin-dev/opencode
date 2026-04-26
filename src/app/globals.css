@@ -190,3 +190,24 @@ body {
   animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   will-change: opacity;
 }
+
+/* Bento card — shared dashboard card style with subtle glass effect */
+.bento-card {
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.bento-card:hover {
+  border-color: hsl(var(--border) / 0.9);
+}
+
+/* Smooth scroll snap for agent cards on mobile */
+@media (max-width: 1023px) {
+  .bento-card {
+    padding: 0.875rem;
+  }
+}
