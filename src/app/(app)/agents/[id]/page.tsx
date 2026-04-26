@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Wrench,
@@ -11,7 +10,6 @@ import {
   Zap,
   Settings,
   Cpu,
-  Shield,
   BookOpen,
   Bot,
   Clock,
@@ -19,15 +17,12 @@ import {
   Check,
   RotateCcw,
   Save,
-  ToggleLeft,
-  ToggleRight,
   SlidersHorizontal,
   Pencil,
   ChevronDown,
   Eye,
   EyeOff,
   X,
-  AlertTriangle,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -36,8 +31,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { AgentConfig } from "@/lib/agents";
-import { AGENT_LIST } from "@/lib/agent-map";
 
 import {
   loadAgentOverrides,
@@ -49,103 +42,130 @@ import {
 } from "@/lib/agent-overrides";
 
 // ---------------------------------------------------------------------------
+// Types (mirrors AgentConfig from @/lib/agents — avoids importing server deps)
+// ---------------------------------------------------------------------------
+
+interface AgentConfig {
+  id: string;
+  name: string;
+  role: string;
+  emoji: string;
+  description: string;
+  provider: string;
+  model: string;
+  color: string;
+  systemPrompt: string;
+  tools: string[];
+  suggestedActions: { label: string; prompt: string }[];
+}
+
+interface AgentStatus {
+  id: string;
+  status: string;
+  currentTask: string | null;
+  lastActivity: string | null;
+  tasksCompleted: number;
+  messagesProcessed: number;
+}
+
+// ---------------------------------------------------------------------------
 // Tool metadata — all available tools with descriptions
 // ---------------------------------------------------------------------------
 
 const TOOL_META: Record<string, { label: string; category: string; description: string; icon: string }> = {
-  gmail_send: { label: "Send Email", category: "Gmail", description: "Send an email via Gmail", icon: "📧" },
-  gmail_fetch: { label: "Fetch Emails", category: "Gmail", description: "Fetch emails from inbox with optional filters", icon: "📧" },
-  gmail_search: { label: "Search Emails", category: "Gmail", description: "Search Gmail messages using a query", icon: "📧" },
-  gmail_labels: { label: "List Labels", category: "Gmail", description: "List all Gmail labels", icon: "📧" },
-  gmail_create_label: { label: "Create Label", category: "Gmail", description: "Create a new Gmail label", icon: "📧" },
-  gmail_delete_label: { label: "Delete Label", category: "Gmail", description: "Delete a Gmail label", icon: "📧" },
-  gmail_profile: { label: "Gmail Profile", category: "Gmail", description: "Get current Gmail profile info", icon: "📧" },
-  gmail_reply: { label: "Reply Email", category: "Gmail", description: "Reply to an email thread", icon: "📧" },
-  gmail_thread: { label: "Read Thread", category: "Gmail", description: "Read full email thread content", icon: "📧" },
-  gmail_batch: { label: "Batch Fetch", category: "Gmail", description: "Fetch multiple emails in batch", icon: "📧" },
-  calendar_list: { label: "List Calendars", category: "Calendar", description: "List all Google Calendars", icon: "📅" },
-  calendar_events: { label: "List Events", category: "Calendar", description: "List events from a calendar", icon: "📅" },
-  calendar_create: { label: "Create Event", category: "Calendar", description: "Create a calendar event with Meet link", icon: "📅" },
-  calendar_delete: { label: "Delete Event", category: "Calendar", description: "Delete a calendar event", icon: "📅" },
-  calendar_freebusy: { label: "Check Availability", category: "Calendar", description: "Check calendar free/busy slots", icon: "📅" },
-  drive_list: { label: "List Files", category: "Drive", description: "List files and folders in Google Drive", icon: "📁" },
-  drive_create_folder: { label: "Create Folder", category: "Drive", description: "Create a new folder in Drive", icon: "📁" },
-  drive_create_file: { label: "Create File", category: "Drive", description: "Create a file (Doc/Sheet/Slides)", icon: "📁" },
-  download_drive_file: { label: "Download File", category: "Drive", description: "Download a file from Drive", icon: "📁" },
-  sheets_read: { label: "Read Sheet", category: "Sheets", description: "Read spreadsheet metadata", icon: "📊" },
-  sheets_values: { label: "Get Values", category: "Sheets", description: "Get cell values from a range", icon: "📊" },
-  sheets_append: { label: "Append Rows", category: "Sheets", description: "Append rows to a spreadsheet", icon: "📊" },
-  sheets_update: { label: "Update Cells", category: "Sheets", description: "Update cell values in a range", icon: "📊" },
-  sheets_create: { label: "Create Sheet", category: "Sheets", description: "Create a new spreadsheet", icon: "📊" },
-  sheets_add_sheet: { label: "Add Tab", category: "Sheets", description: "Add a new sheet tab", icon: "📊" },
-  sheets_batch_get: { label: "Batch Get", category: "Sheets", description: "Get multiple ranges at once", icon: "📊" },
-  sheets_clear: { label: "Clear Range", category: "Sheets", description: "Clear values from a range", icon: "📊" },
-  docs_list: { label: "List Docs", category: "Docs", description: "List all Google Docs", icon: "📄" },
-  docs_read: { label: "Read Doc", category: "Docs", description: "Read content of a Google Doc", icon: "📄" },
-  docs_create: { label: "Create Doc", category: "Docs", description: "Create a new Google Doc", icon: "📄" },
-  docs_append: { label: "Append Text", category: "Docs", description: "Append text to a Google Doc", icon: "📄" },
-  github_repo: { label: "Repo Info", category: "GitHub", description: "Get repository information", icon: "🐙" },
-  github_issues: { label: "List Issues", category: "GitHub", description: "List GitHub issues", icon: "🐙" },
-  github_create_issue: { label: "Create Issue", category: "GitHub", description: "Create a new issue", icon: "🐙" },
-  github_prs: { label: "List PRs", category: "GitHub", description: "List pull requests", icon: "🐙" },
-  github_commits: { label: "List Commits", category: "GitHub", description: "List recent commits", icon: "🐙" },
-  github_files: { label: "File Tree", category: "GitHub", description: "Get repository file tree", icon: "🐙" },
-  github_read_file: { label: "Read File", category: "GitHub", description: "Read file content from repo", icon: "🐙" },
-  github_search: { label: "Search Code", category: "GitHub", description: "Search code in repository", icon: "🐙" },
-  github_branches: { label: "List Branches", category: "GitHub", description: "List all branches", icon: "🐙" },
-  github_update_issue: { label: "Update Issue", category: "GitHub", description: "Update an existing issue", icon: "🐙" },
-  github_create_pr: { label: "Create PR", category: "GitHub", description: "Create a pull request", icon: "🐙" },
-  github_pr_review: { label: "Review PR", category: "GitHub", description: "Get PR details and review", icon: "🐙" },
-  github_pr_comment: { label: "Comment PR", category: "GitHub", description: "Comment on a pull request", icon: "🐙" },
-  github_create_branch: { label: "Create Branch", category: "GitHub", description: "Create a new branch", icon: "🐙" },
-  vercel_projects: { label: "List Projects", category: "Vercel", description: "List Vercel projects", icon: "🚀" },
-  vercel_deployments: { label: "Deployments", category: "Vercel", description: "List deployments for a project", icon: "🚀" },
-  vercel_domains: { label: "Domains", category: "Vercel", description: "List Vercel domains", icon: "🚀" },
-  vercel_deploy: { label: "Deploy", category: "Vercel", description: "Trigger a new deployment", icon: "🚀" },
-  vercel_logs: { label: "Deploy Logs", category: "Vercel", description: "Get deployment logs", icon: "🚀" },
-  web_search: { label: "Web Search", category: "Web", description: "Search the web for real-time info", icon: "🌐" },
-  web_reader: { label: "Read URL", category: "Web", description: "Read and extract content from a URL", icon: "🌐" },
-  delegate_to_agent: { label: "Delegate Task", category: "Agent", description: "Delegate a task to a specialist agent", icon: "🤝" },
-  query_agent: { label: "Query Agent", category: "Agent", description: "Route tasks to other specialist agents", icon: "🤝" },
-  vision_analyze: { label: "Analyze Image", category: "Vision", description: "Analyze an image with AI vision", icon: "👁" },
-  vision_download_analyze: { label: "Download & Analyze", category: "Vision", description: "Download URL image then analyze", icon: "👁" },
-  image_generate: { label: "Generate Image", category: "Image", description: "Generate images from text prompts", icon: "🎨" },
-  tts_generate: { label: "Text to Speech", category: "Audio", description: "Convert text to natural speech", icon: "🔊" },
-  asr_transcribe: { label: "Transcribe Audio", category: "Audio", description: "Transcribe audio to text", icon: "🎙" },
-  video_generate: { label: "Generate Video", category: "Video", description: "Generate videos from text or images", icon: "🎬" },
-  design_generate: { label: "Generate Design", category: "Design", description: "Generate UI designs via Stitch", icon: "🎨" },
-  design_edit: { label: "Edit Design", category: "Design", description: "Edit an existing design", icon: "🎨" },
-  design_variants: { label: "Design Variants", category: "Design", description: "Generate design variations", icon: "🎨" },
-  data_calculate: { label: "Calculate", category: "Data", description: "Math, stats, data computations", icon: "📈" },
-  data_clean: { label: "Clean Data", category: "Data", description: "Clean and normalize data", icon: "📈" },
-  data_pivot: { label: "Pivot Data", category: "Data", description: "Pivot and aggregate data", icon: "📈" },
-  research_deep: { label: "Deep Research", category: "Research", description: "Multi-query parallel search", icon: "🔍" },
-  research_synthesize: { label: "Synthesize", category: "Research", description: "Cross-reference and synthesize sources", icon: "🔍" },
-  research_save_brief: { label: "Save Brief", category: "Research", description: "Save research as Google Doc brief", icon: "🔍" },
-  research_save_data: { label: "Save Data", category: "Research", description: "Save research data to Sheets", icon: "🔍" },
-  ops_health_check: { label: "Health Check", category: "Ops", description: "Check all service health statuses", icon: "⚡" },
-  ops_deployment_status: { label: "Deploy Status", category: "Ops", description: "Get latest deployment information", icon: "⚡" },
-  ops_github_activity: { label: "GitHub Activity", category: "Ops", description: "Monitor GitHub with anomaly detection", icon: "⚡" },
-  ops_agent_stats: { label: "Agent Stats", category: "Ops", description: "Performance metrics for all agents", icon: "⚡" },
-  create_pdf_report: { label: "Create PDF", category: "Files", description: "Generate professional PDF reports", icon: "📑" },
-  create_docx_document: { label: "Create DOCX", category: "Files", description: "Create Word documents", icon: "📝" },
-  reminder_create: { label: "Create Reminder", category: "Reminders", description: "Create a new reminder", icon: "⏰" },
-  reminder_list: { label: "List Reminders", category: "Reminders", description: "List all reminders", icon: "⏰" },
-  reminder_update: { label: "Update Reminder", category: "Reminders", description: "Update an existing reminder", icon: "⏰" },
-  reminder_delete: { label: "Delete Reminder", category: "Reminders", description: "Delete a reminder", icon: "⏰" },
-  reminder_complete: { label: "Complete Reminder", category: "Reminders", description: "Mark a reminder as complete", icon: "⏰" },
-  todo_create: { label: "Create Todo", category: "Todos", description: "Create a new todo item", icon: "✅" },
-  todo_list: { label: "List Todos", category: "Todos", description: "List all todos", icon: "✅" },
-  todo_update: { label: "Update Todo", category: "Todos", description: "Update a todo item", icon: "✅" },
-  todo_delete: { label: "Delete Todo", category: "Todos", description: "Delete a todo item", icon: "✅" },
-  todo_stats: { label: "Todo Stats", category: "Todos", description: "Get todo statistics", icon: "✅" },
-  contact_create: { label: "Create Contact", category: "Contacts", description: "Create a new contact", icon: "👤" },
-  contact_list: { label: "List Contacts", category: "Contacts", description: "List all contacts", icon: "👤" },
-  contact_search: { label: "Search Contacts", category: "Contacts", description: "Search contacts by name/email", icon: "👤" },
-  contact_update: { label: "Update Contact", category: "Contacts", description: "Update a contact", icon: "👤" },
-  contact_delete: { label: "Delete Contact", category: "Contacts", description: "Delete a contact", icon: "👤" },
-  code_execute: { label: "Run Code", category: "Code", description: "Execute code in sandbox (JS/Python/etc)", icon: "💻" },
-  weather_get: { label: "Weather", category: "Weather", description: "Get weather for any city", icon: "🌤" },
+  gmail_send: { label: "Send Email", category: "Gmail", description: "Send an email via Gmail", icon: "\uD83D\uDCE7" },
+  gmail_fetch: { label: "Fetch Emails", category: "Gmail", description: "Fetch emails from inbox with optional filters", icon: "\uD83D\uDCE7" },
+  gmail_search: { label: "Search Emails", category: "Gmail", description: "Search Gmail messages using a query", icon: "\uD83D\uDCE7" },
+  gmail_labels: { label: "List Labels", category: "Gmail", description: "List all Gmail labels", icon: "\uD83D\uDCE7" },
+  gmail_create_label: { label: "Create Label", category: "Gmail", description: "Create a new Gmail label", icon: "\uD83D\uDCE7" },
+  gmail_delete_label: { label: "Delete Label", category: "Gmail", description: "Delete a Gmail label", icon: "\uD83D\uDCE7" },
+  gmail_profile: { label: "Gmail Profile", category: "Gmail", description: "Get current Gmail profile info", icon: "\uD83D\uDCE7" },
+  gmail_reply: { label: "Reply Email", category: "Gmail", description: "Reply to an email thread", icon: "\uD83D\uDCE7" },
+  gmail_thread: { label: "Read Thread", category: "Gmail", description: "Read full email thread content", icon: "\uD83D\uDCE7" },
+  gmail_batch: { label: "Batch Fetch", category: "Gmail", description: "Fetch multiple emails in batch", icon: "\uD83D\uDCE7" },
+  calendar_list: { label: "List Calendars", category: "Calendar", description: "List all Google Calendars", icon: "\uD83D\uDCC5" },
+  calendar_events: { label: "List Events", category: "Calendar", description: "List events from a calendar", icon: "\uD83D\uDCC5" },
+  calendar_create: { label: "Create Event", category: "Calendar", description: "Create a calendar event with Meet link", icon: "\uD83D\uDCC5" },
+  calendar_delete: { label: "Delete Event", category: "Calendar", description: "Delete a calendar event", icon: "\uD83D\uDCC5" },
+  calendar_freebusy: { label: "Check Availability", category: "Calendar", description: "Check calendar free/busy slots", icon: "\uD83D\uDCC5" },
+  drive_list: { label: "List Files", category: "Drive", description: "List files and folders in Google Drive", icon: "\uD83D\uDCC1" },
+  drive_create_folder: { label: "Create Folder", category: "Drive", description: "Create a new folder in Drive", icon: "\uD83D\uDCC1" },
+  drive_create_file: { label: "Create File", category: "Drive", description: "Create a file (Doc/Sheet/Slides)", icon: "\uD83D\uDCC1" },
+  download_drive_file: { label: "Download File", category: "Drive", description: "Download a file from Drive", icon: "\uD83D\uDCC1" },
+  sheets_read: { label: "Read Sheet", category: "Sheets", description: "Read spreadsheet metadata", icon: "\uD83D\uDCCA" },
+  sheets_values: { label: "Get Values", category: "Sheets", description: "Get cell values from a range", icon: "\uD83D\uDCCA" },
+  sheets_append: { label: "Append Rows", category: "Sheets", description: "Append rows to a spreadsheet", icon: "\uD83D\uDCCA" },
+  sheets_update: { label: "Update Cells", category: "Sheets", description: "Update cell values in a range", icon: "\uD83D\uDCCA" },
+  sheets_create: { label: "Create Sheet", category: "Sheets", description: "Create a new spreadsheet", icon: "\uD83D\uDCCA" },
+  sheets_add_sheet: { label: "Add Tab", category: "Sheets", description: "Add a new sheet tab", icon: "\uD83D\uDCCA" },
+  sheets_batch_get: { label: "Batch Get", category: "Sheets", description: "Get multiple ranges at once", icon: "\uD83D\uDCCA" },
+  sheets_clear: { label: "Clear Range", category: "Sheets", description: "Clear values from a range", icon: "\uD83D\uDCCA" },
+  docs_list: { label: "List Docs", category: "Docs", description: "List all Google Docs", icon: "\uD83D\uDCC4" },
+  docs_read: { label: "Read Doc", category: "Docs", description: "Read content of a Google Doc", icon: "\uD83D\uDCC4" },
+  docs_create: { label: "Create Doc", category: "Docs", description: "Create a new Google Doc", icon: "\uD83D\uDCC4" },
+  docs_append: { label: "Append Text", category: "Docs", description: "Append text to a Google Doc", icon: "\uD83D\uDCC4" },
+  github_repo: { label: "Repo Info", category: "GitHub", description: "Get repository information", icon: "\uD83D\uDC19" },
+  github_issues: { label: "List Issues", category: "GitHub", description: "List GitHub issues", icon: "\uD83D\uDC19" },
+  github_create_issue: { label: "Create Issue", category: "GitHub", description: "Create a new issue", icon: "\uD83D\uDC19" },
+  github_prs: { label: "List PRs", category: "GitHub", description: "List pull requests", icon: "\uD83D\uDC19" },
+  github_commits: { label: "List Commits", category: "GitHub", description: "List recent commits", icon: "\uD83D\uDC19" },
+  github_files: { label: "File Tree", category: "GitHub", description: "Get repository file tree", icon: "\uD83D\uDC19" },
+  github_read_file: { label: "Read File", category: "GitHub", description: "Read file content from repo", icon: "\uD83D\uDC19" },
+  github_search: { label: "Search Code", category: "GitHub", description: "Search code in repository", icon: "\uD83D\uDC19" },
+  github_branches: { label: "List Branches", category: "GitHub", description: "List all branches", icon: "\uD83D\uDC19" },
+  github_update_issue: { label: "Update Issue", category: "GitHub", description: "Update an existing issue", icon: "\uD83D\uDC19" },
+  github_create_pr: { label: "Create PR", category: "GitHub", description: "Create a pull request", icon: "\uD83D\uDC19" },
+  github_pr_review: { label: "Review PR", category: "GitHub", description: "Get PR details and review", icon: "\uD83D\uDC19" },
+  github_pr_comment: { label: "Comment PR", category: "GitHub", description: "Comment on a pull request", icon: "\uD83D\uDC19" },
+  github_create_branch: { label: "Create Branch", category: "GitHub", description: "Create a new branch", icon: "\uD83D\uDC19" },
+  vercel_projects: { label: "List Projects", category: "Vercel", description: "List Vercel projects", icon: "\uD83D\uDE80" },
+  vercel_deployments: { label: "Deployments", category: "Vercel", description: "List deployments for a project", icon: "\uD83D\uDE80" },
+  vercel_domains: { label: "Domains", category: "Vercel", description: "List Vercel domains", icon: "\uD83D\uDE80" },
+  vercel_deploy: { label: "Deploy", category: "Vercel", description: "Trigger a new deployment", icon: "\uD83D\uDE80" },
+  vercel_logs: { label: "Deploy Logs", category: "Vercel", description: "Get deployment logs", icon: "\uD83D\uDE80" },
+  web_search: { label: "Web Search", category: "Web", description: "Search the web for real-time info", icon: "\uD83C\uDF10" },
+  web_reader: { label: "Read URL", category: "Web", description: "Read and extract content from a URL", icon: "\uD83C\uDF10" },
+  delegate_to_agent: { label: "Delegate Task", category: "Agent", description: "Delegate a task to a specialist agent", icon: "\uD83E\uDD1D" },
+  query_agent: { label: "Query Agent", category: "Agent", description: "Route tasks to other specialist agents", icon: "\uD83E\uDD1D" },
+  vision_analyze: { label: "Analyze Image", category: "Vision", description: "Analyze an image with AI vision", icon: "\uD83D\uDC41" },
+  vision_download_analyze: { label: "Download & Analyze", category: "Vision", description: "Download URL image then analyze", icon: "\uD83D\uDC41" },
+  image_generate: { label: "Generate Image", category: "Image", description: "Generate images from text prompts", icon: "\uD83C\uDFA8" },
+  tts_generate: { label: "Text to Speech", category: "Audio", description: "Convert text to natural speech", icon: "\uD83D\uDD0A" },
+  asr_transcribe: { label: "Transcribe Audio", category: "Audio", description: "Transcribe audio to text", icon: "\uD83C\uDFA4" },
+  video_generate: { label: "Generate Video", category: "Video", description: "Generate videos from text or images", icon: "\uD83C\uDFAC" },
+  design_generate: { label: "Generate Design", category: "Design", description: "Generate UI designs via Stitch", icon: "\uD83C\uDFA8" },
+  design_edit: { label: "Edit Design", category: "Design", description: "Edit an existing design", icon: "\uD83C\uDFA8" },
+  design_variants: { label: "Design Variants", category: "Design", description: "Generate design variations", icon: "\uD83C\uDFA8" },
+  data_calculate: { label: "Calculate", category: "Data", description: "Math, stats, data computations", icon: "\uD83D\uDCC8" },
+  data_clean: { label: "Clean Data", category: "Data", description: "Clean and normalize data", icon: "\uD83D\uDCC8" },
+  data_pivot: { label: "Pivot Data", category: "Data", description: "Pivot and aggregate data", icon: "\uD83D\uDCC8" },
+  research_deep: { label: "Deep Research", category: "Research", description: "Multi-query parallel search", icon: "\uD83D\uDD0D" },
+  research_synthesize: { label: "Synthesize", category: "Research", description: "Cross-reference and synthesize sources", icon: "\uD83D\uDD0D" },
+  research_save_brief: { label: "Save Brief", category: "Research", description: "Save research as Google Doc brief", icon: "\uD83D\uDD0D" },
+  research_save_data: { label: "Save Data", category: "Research", description: "Save research data to Sheets", icon: "\uD83D\uDD0D" },
+  ops_health_check: { label: "Health Check", category: "Ops", description: "Check all service health statuses", icon: "\u26A1" },
+  ops_deployment_status: { label: "Deploy Status", category: "Ops", description: "Get latest deployment information", icon: "\u26A1" },
+  ops_github_activity: { label: "GitHub Activity", category: "Ops", description: "Monitor GitHub with anomaly detection", icon: "\u26A1" },
+  ops_agent_stats: { label: "Agent Stats", category: "Ops", description: "Performance metrics for all agents", icon: "\u26A1" },
+  create_pdf_report: { label: "Create PDF", category: "Files", description: "Generate professional PDF reports", icon: "\uD83D\uDCCD" },
+  create_docx_document: { label: "Create DOCX", category: "Files", description: "Create Word documents", icon: "\uD83D\uDCDD" },
+  reminder_create: { label: "Create Reminder", category: "Reminders", description: "Create a new reminder", icon: "\u23F0" },
+  reminder_list: { label: "List Reminders", category: "Reminders", description: "List all reminders", icon: "\u23F0" },
+  reminder_update: { label: "Update Reminder", category: "Reminders", description: "Update an existing reminder", icon: "\u23F0" },
+  reminder_delete: { label: "Delete Reminder", category: "Reminders", description: "Delete a reminder", icon: "\u23F0" },
+  reminder_complete: { label: "Complete Reminder", category: "Reminders", description: "Mark a reminder as complete", icon: "\u23F0" },
+  todo_create: { label: "Create Todo", category: "Todos", description: "Create a new todo item", icon: "\u2705" },
+  todo_list: { label: "List Todos", category: "Todos", description: "List all todos", icon: "\u2705" },
+  todo_update: { label: "Update Todo", category: "Todos", description: "Update a todo item", icon: "\u2705" },
+  todo_delete: { label: "Delete Todo", category: "Todos", description: "Delete a todo item", icon: "\u2705" },
+  todo_stats: { label: "Todo Stats", category: "Todos", description: "Get todo statistics", icon: "\u2705" },
+  contact_create: { label: "Create Contact", category: "Contacts", description: "Create a new contact", icon: "\uD83D\uDC64" },
+  contact_list: { label: "List Contacts", category: "Contacts", description: "List all contacts", icon: "\uD83D\uDC64" },
+  contact_search: { label: "Search Contacts", category: "Contacts", description: "Search contacts by name/email", icon: "\uD83D\uDC64" },
+  contact_update: { label: "Update Contact", category: "Contacts", description: "Update a contact", icon: "\uD83D\uDC64" },
+  contact_delete: { label: "Delete Contact", category: "Contacts", description: "Delete a contact", icon: "\uD83D\uDC64" },
+  code_execute: { label: "Run Code", category: "Code", description: "Execute code in sandbox (JS/Python/etc)", icon: "\uD83D\uDCBB" },
+  weather_get: { label: "Weather", category: "Weather", description: "Get weather for any city", icon: "\uD83C\uDF24" },
 };
 
 const ALL_TOOL_IDS = Object.keys(TOOL_META);
@@ -178,26 +198,10 @@ const colorMap: Record<string, { bg: string; text: string; border: string; badge
 };
 
 // ---------------------------------------------------------------------------
-// Animation
-// ---------------------------------------------------------------------------
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-};
-
-// ---------------------------------------------------------------------------
 // Tab type
 // ---------------------------------------------------------------------------
 
 type Tab = "overview" | "tools" | "prompt" | "parameters";
-
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "overview", label: "Overview", icon: <BookOpen className="w-3.5 h-3.5" /> },
-  { id: "tools", label: "Tools", icon: <Wrench className="w-3.5 h-3.5" /> },
-  { id: "prompt", label: "Prompt", icon: <Cpu className="w-3.5 h-3.5" /> },
-  { id: "parameters", label: "Parameters", icon: <SlidersHorizontal className="w-3.5 h-3.5" /> },
-];
 
 // ---------------------------------------------------------------------------
 // Agent Detail Page
@@ -214,40 +218,50 @@ export default function AgentDetailPage() {
 
   // Toast state
   const [toast, setToast] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
+    setToastVisible(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2500);
+    toastTimer.current = setTimeout(() => {
+      setToastVisible(false);
+      setTimeout(() => setToast(null), 200); // let CSS transition finish
+    }, 2500);
   }, []);
 
-  // Load agent + overrides
+  // Load agent config + overrides from API
   useEffect(() => {
-    const found = AGENT_LIST.find((a) => a.id === params.id) as AgentConfig | undefined;
-    if (found) {
-      setAgent(found);
-      const o = loadAgentOverrides(found.id);
-      setOverrides(o);
-      fetch("/api/agents")
-        .then((r) => r.json())
-        .then((json) => {
-          if (json.success && json.data) {
-            const a = json.data.find((d: { id: string }) => d.id === params.id);
-            if (a?.status) {
+    const id = params.id as string;
+
+    fetch("/api/agents")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data) {
+          const found = json.data.find((d: AgentConfig & { status?: AgentStatus }) => d.id === id);
+          if (found) {
+            const { status, ...config } = found;
+            setAgent(config as AgentConfig);
+            if (status) {
               setStats({
-                tasksCompleted: a.status.tasksCompleted || 0,
-                messagesProcessed: a.status.messagesProcessed || 0,
+                tasksCompleted: status.tasksCompleted || 0,
+                messagesProcessed: status.messagesProcessed || 0,
               });
             }
           }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [params.id]);
+
+  // Load overrides from localStorage after agent is known
+  useEffect(() => {
+    if (agent) {
+      setOverrides(loadAgentOverrides(agent.id));
+    }
+  }, [agent]);
 
   // Effective tools calculation
   const effectiveTools = useMemo(() => {
@@ -271,16 +285,12 @@ export default function AgentDetailPage() {
     let newEnabled = [...(overrides.enabledTools || [])];
 
     if (isBase && !isDisabled) {
-      // Disable a base tool
       newDisabled.push(toolId);
     } else if (isBase && isDisabled) {
-      // Re-enable a base tool
       newDisabled = newDisabled.filter((t) => t !== toolId);
     } else if (!isBase && !isEnabledExtra) {
-      // Enable an extra tool
       newEnabled.push(toolId);
     } else {
-      // Disable an extra tool
       newEnabled = newEnabled.filter((t) => t !== toolId);
     }
 
@@ -328,7 +338,7 @@ export default function AgentDetailPage() {
     showToast("All overrides reset");
   }, [agent, showToast]);
 
-  // ---- Loading / Not Found ----
+  // ---- Loading ----
 
   if (loading) {
     return (
@@ -337,6 +347,8 @@ export default function AgentDetailPage() {
       </div>
     );
   }
+
+  // ---- Not Found ----
 
   if (!agent) {
     return (
@@ -368,26 +380,17 @@ export default function AgentDetailPage() {
   });
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8"
-    >
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 animate-fadeIn">
       {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a1a2e] text-white text-sm font-medium shadow-lg"
-          >
-            <Check className="w-4 h-4 text-emerald-400" />
-            {toast}
-          </motion.div>
+      <div
+        className={cn(
+          "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a1a2e] text-white text-sm font-medium shadow-lg transition-all duration-200 pointer-events-none",
+          toastVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
         )}
-      </AnimatePresence>
+      >
+        <Check className="w-4 h-4 text-emerald-400" />
+        {toast}
+      </div>
 
       {/* Back button */}
       <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
@@ -396,7 +399,7 @@ export default function AgentDetailPage() {
       </Link>
 
       {/* Agent Header */}
-      <motion.div variants={itemVariants} initial="hidden" animate="show">
+      <div className="animate-slideUp">
         <Card className="mb-6">
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -442,11 +445,16 @@ export default function AgentDetailPage() {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1 scrollbar-none">
-        {TABS.map((tab) => (
+        {([
+          { id: "overview" as Tab, label: "Overview", icon: <BookOpen className="w-3.5 h-3.5" /> },
+          { id: "tools" as Tab, label: "Tools", icon: <Wrench className="w-3.5 h-3.5" /> },
+          { id: "prompt" as Tab, label: "Prompt", icon: <Cpu className="w-3.5 h-3.5" /> },
+          { id: "parameters" as Tab, label: "Parameters", icon: <SlidersHorizontal className="w-3.5 h-3.5" /> },
+        ]).map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -473,49 +481,41 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeTab === "overview" && (
-            <OverviewTab agent={agent} colors={colors} stats={stats} effectiveTools={effectiveTools} onChat={() => {
-              localStorage.setItem("klaw-selected-agent", agent.id);
-              router.push("/chat?agent=" + agent.id);
-            }} />
-          )}
-          {activeTab === "tools" && (
-            <ToolsTab
-              agent={agent}
-              disabledToolSet={disabledToolSet}
-              enabledExtraTools={new Set(overrides.enabledTools || [])}
-              toggleTool={toggleTool}
-            />
-          )}
-          {activeTab === "prompt" && (
-            <PromptTab
-              agent={agent}
-              currentPrompt={currentPrompt}
-              isCustom={hasCustomPrompt}
-              onSave={savePrompt}
-              onReset={resetPrompt}
-            />
-          )}
-          {activeTab === "parameters" && (
-            <ParametersTab
-              agent={agent}
-              currentModel={currentModel}
-              currentTemp={currentTemp}
-              currentMaxTokens={currentMaxTokens}
-              onUpdate={updateParam}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
-    </motion.div>
+      <div className="transition-opacity duration-200" key={activeTab}>
+        {activeTab === "overview" && (
+          <OverviewTab agent={agent} colors={colors} stats={stats} effectiveTools={effectiveTools} onChat={() => {
+            localStorage.setItem("klaw-selected-agent", agent.id);
+            router.push("/chat?agent=" + agent.id);
+          }} />
+        )}
+        {activeTab === "tools" && (
+          <ToolsTab
+            agent={agent}
+            disabledToolSet={disabledToolSet}
+            enabledExtraTools={new Set(overrides.enabledTools || [])}
+            toggleTool={toggleTool}
+          />
+        )}
+        {activeTab === "prompt" && (
+          <PromptTab
+            agent={agent}
+            currentPrompt={currentPrompt}
+            isCustom={hasCustomPrompt}
+            onSave={savePrompt}
+            onReset={resetPrompt}
+          />
+        )}
+        {activeTab === "parameters" && (
+          <ParametersTab
+            agent={agent}
+            currentModel={currentModel}
+            currentTemp={currentTemp}
+            currentMaxTokens={currentMaxTokens}
+            onUpdate={updateParam}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -604,7 +604,7 @@ function OverviewTab({
               <div key={cat}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm">{TOOL_META[tools[0]]?.icon || "🔧"}</span>
+                    <span className="text-sm">{TOOL_META[tools[0]]?.icon || "\uD83D\uDD27"}</span>
                     <h4 className="text-sm font-semibold text-foreground">{cat}</h4>
                   </div>
                   <Badge variant="secondary" className="text-[10px]">{tools.length}</Badge>
@@ -637,7 +637,7 @@ function OverviewTab({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {agent.suggestedActions.map((action) => (
+            {agent.suggestedActions?.map((action) => (
               <button
                 key={action.label}
                 onClick={onChat}
@@ -720,10 +720,8 @@ function ToolsTab({
     const allEnabled = tools.every((t) => baseToolSet.has(t) && !disabledToolSet.has(t));
     for (const t of tools) {
       if (allEnabled) {
-        // Disable all
         if (baseToolSet.has(t) && !disabledToolSet.has(t)) toggleTool(t);
       } else {
-        // Enable all
         if (disabledToolSet.has(t) || !baseToolSet.has(t)) toggleTool(t);
       }
     }
@@ -775,11 +773,11 @@ function ToolsTab({
           return (
             <Card key={cat}>
               <button
-                onClick={() => search ? toggleCategory(cat) : toggleCategory(cat)}
+                onClick={() => toggleCategory(cat)}
                 className="w-full flex items-center justify-between p-4 text-left"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">{TOOL_META[tools[0]]?.icon || "🔧"}</span>
+                  <span className="text-lg">{TOOL_META[tools[0]]?.icon || "\uD83D\uDD27"}</span>
                   <div>
                     <h4 className="text-sm font-semibold text-foreground">{cat}</h4>
                     <p className="text-[10px] text-muted-foreground">
@@ -802,64 +800,56 @@ function ToolsTab({
                   <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
                 </div>
               </button>
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-4 pb-4 space-y-1">
-                      {tools.map((toolId) => {
-                        const meta = TOOL_META[toolId];
-                        const isBase = baseToolSet.has(toolId);
-                        const isActive = (isBase && !disabledToolSet.has(toolId)) || enabledExtraTools.has(toolId);
+              {isExpanded && (
+                <div className="overflow-hidden transition-all duration-200">
+                  <div className="px-4 pb-4 space-y-1">
+                    {tools.map((toolId) => {
+                      const meta = TOOL_META[toolId];
+                      const isBase = baseToolSet.has(toolId);
+                      const isActive = (isBase && !disabledToolSet.has(toolId)) || enabledExtraTools.has(toolId);
 
-                        return (
-                          <div
-                            key={toolId}
-                            className={cn(
-                              "flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-150",
-                              isActive
-                                ? "bg-card border border-border"
-                                : "bg-[#f9f8f6] border border-transparent opacity-60"
-                            )}
-                          >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <button
-                                onClick={() => toggleTool(toolId)}
+                      return (
+                        <div
+                          key={toolId}
+                          className={cn(
+                            "flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-150",
+                            isActive
+                              ? "bg-card border border-border"
+                              : "bg-[#f9f8f6] border border-transparent opacity-60"
+                          )}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <button
+                              onClick={() => toggleTool(toolId)}
+                              className={cn(
+                                "w-8 h-[18px] rounded-full transition-all duration-200 flex-shrink-0 relative",
+                                isActive ? "bg-primary" : "bg-[#d1d1d1]"
+                              )}
+                            >
+                              <span
                                 className={cn(
-                                  "w-8 h-[18px] rounded-full transition-all duration-200 flex-shrink-0 relative",
-                                  isActive ? "bg-primary" : "bg-[#d1d1d1]"
+                                  "absolute top-[2px] w-[14px] h-[14px] bg-card rounded-full shadow-sm transition-all duration-200",
+                                  isActive ? "left-[15px]" : "left-[2px]"
                                 )}
-                              >
-                                <span
-                                  className={cn(
-                                    "absolute top-[2px] w-[14px] h-[14px] bg-card rounded-full shadow-sm transition-all duration-200",
-                                    isActive ? "left-[15px]" : "left-[2px]"
-                                  )}
-                                />
-                              </button>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-medium text-foreground">{meta?.label || toolId}</span>
-                                  {!isBase && isActive && (
-                                    <Badge variant="secondary" className="text-[8px] px-1 py-0">extra</Badge>
-                                  )}
-                                </div>
-                                <p className="text-[10px] text-muted-foreground truncate">{meta?.description || ""}</p>
+                              />
+                            </button>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-foreground">{meta?.label || toolId}</span>
+                                {!isBase && isActive && (
+                                  <Badge variant="secondary" className="text-[8px] px-1 py-0">extra</Badge>
+                                )}
                               </div>
+                              <p className="text-[10px] text-muted-foreground truncate">{meta?.description || ""}</p>
                             </div>
-                            <span className="text-[9px] font-mono text-muted-foreground/60 flex-shrink-0 ml-2 hidden sm:block">{toolId}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                          <span className="text-[9px] font-mono text-muted-foreground/60 flex-shrink-0 ml-2 hidden sm:block">{toolId}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
           );
         })}
@@ -901,103 +891,111 @@ function PromptTab({
     setIsEditing(false);
   };
 
-  const handleReset = () => {
-    setDraft(agent.systemPrompt);
-    onReset();
-    setIsEditing(false);
-  };
-
-  const previewText = showFull ? draft : draft.slice(0, 1500) + (draft.length > 1500 ? "\n\n... (show more)" : "");
+  const truncated = currentPrompt.length > 300;
 
   return (
     <div className="space-y-4">
-      {/* Status bar */}
+      {/* Info bar */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {isCustom ? (
-            <Badge className="text-[10px] gap-1 bg-amber-500/20 text-amber-600 border-amber-500/30 hover:bg-amber-500/20">
-              <AlertTriangle className="w-3 h-3" />
-              Custom prompt active
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-[10px] gap-1">
-              <Shield className="w-3 h-3" />
-              Default prompt
+        <div className="flex items-center gap-3">
+          <div className="text-sm font-medium text-foreground">
+            {isCustom ? "Custom system prompt" : "Default system prompt"}
+          </div>
+          {isCustom && (
+            <Badge variant="secondary" className="text-[9px] gap-1">
+              <Pencil className="w-3 h-3" /> Modified
             </Badge>
           )}
-          <span className="text-[10px] text-muted-foreground">{charCount.toLocaleString()} chars · {lineCount} lines</span>
         </div>
         <div className="flex items-center gap-2">
-          {isCustom && (
-            <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground" onClick={handleReset}>
-              <RotateCcw className="w-3 h-3" />
-              Reset
+          {!isEditing && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => {
+                setDraft(currentPrompt);
+                setIsEditing(true);
+                setTimeout(() => textareaRef.current?.focus(), 100);
+              }}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              {isCustom ? "Edit" : "Customize"}
             </Button>
           )}
-          {!isEditing ? (
-            <Button size="sm" className="text-xs gap-1.5 bg-primary hover:bg-primary/90" onClick={() => setIsEditing(true)}>
-              <Pencil className="w-3 h-3" />
-              Edit
+          {isCustom && !isEditing && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-xs text-destructive hover:text-destructive"
+              onClick={onReset}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset
             </Button>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setDraft(currentPrompt); setIsEditing(false); }}>
-                Cancel
-              </Button>
-              <Button size="sm" className="text-xs gap-1.5 bg-primary hover:bg-primary/90" onClick={handleSave}>
-                <Save className="w-3 h-3" />
-                Save
-              </Button>
-            </>
           )}
         </div>
       </div>
 
-      {/* Prompt editor / viewer */}
+      {/* Prompt display / editor */}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-4">
           {isEditing ? (
-            <Textarea
-              ref={textareaRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={24}
-              className="w-full resize-y rounded-t-none border-0 bg-card px-4 py-3 text-xs font-mono text-foreground leading-relaxed focus:outline-none focus-visible:ring-0 custom-scrollbar"
-              placeholder="Enter system prompt..."
-            />
-          ) : (
-            <div
-              className="px-4 py-3 min-h-[200px] max-h-[500px] overflow-auto text-xs font-mono text-foreground leading-relaxed whitespace-pre-wrap bg-card custom-scrollbar"
-            >
-              {previewText}
+            <div className="space-y-3">
+              <Textarea
+                ref={textareaRef}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="font-mono text-xs min-h-[200px] resize-y"
+                placeholder="Enter custom system prompt..."
+              />
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] text-muted-foreground">
+                  {lineCount} lines / {charCount.toLocaleString()} chars
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      setDraft(currentPrompt);
+                      setIsEditing(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-2 text-xs"
+                    onClick={handleSave}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Save
+                  </Button>
+                </div>
+              </div>
             </div>
-          )}
-          {!isEditing && draft.length > 1500 && (
-            <div className="px-4 py-2 border-t border-border">
-              <button
-                onClick={() => setShowFull(!showFull)}
-                className="text-[10px] text-[#3730a3] hover:underline flex items-center gap-1"
-              >
-                {showFull ? <><EyeOff className="w-3 h-3" /> Show less</> : <><Eye className="w-3 h-3" /> Show full prompt ({charCount.toLocaleString()} chars)</>}
-              </button>
+          ) : (
+            <div className="relative">
+              <pre className="whitespace-pre-wrap text-xs text-foreground leading-relaxed font-mono">
+                {showFull ? currentPrompt : currentPrompt.slice(0, 300)}
+              </pre>
+              {truncated && !showFull && (
+                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent" />
+              )}
+              {truncated && (
+                <button
+                  onClick={() => setShowFull(!showFull)}
+                  className="mt-2 text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
+                >
+                  {showFull ? "Show less" : "Show full prompt"}
+                </button>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Tips */}
-      <div className="rounded-lg border border-border bg-secondary p-4">
-        <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Settings className="w-3.5 h-3.5" />
-          Prompt Tips
-        </h4>
-        <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
-          <li>The system prompt defines the agent&apos;s identity, behavior, and available tools</li>
-          <li>Keep tool references accurate — the agent will only have access to <strong>active tools</strong> (check the Tools tab)</li>
-          <li>Use markdown formatting for structure: headers, tables, lists</li>
-          <li>Reset to default at any time to restore the original prompt</li>
-        </ul>
-      </div>
     </div>
   );
 }
@@ -1019,265 +1017,188 @@ function ParametersTab({
   currentMaxTokens: number;
   onUpdate: (key: keyof AgentOverrides, value: string | number | undefined) => void;
 }) {
-  const [temp, setTemp] = useState(currentTemp);
-  const [maxTokens, setMaxTokens] = useState(currentMaxTokens);
-  const [model, setModel] = useState(currentModel);
+  const [showModelInput, setShowModelInput] = useState(false);
+  const [tempValue, setTempValue] = useState(currentTemp);
+  const [tokenValue, setTokenValue] = useState(currentMaxTokens);
+  const [showApiKey, setShowApiKey] = useState(false);
 
-  // Sync from props (when reset)
-  useEffect(() => { setTemp(currentTemp); }, [currentTemp]);
-  useEffect(() => { setMaxTokens(currentMaxTokens); }, [currentMaxTokens]);
-  useEffect(() => { setModel(currentModel); }, [currentModel]);
-
-  const isDefaultModel = model === agent.model;
-  const isDefaultTemp = temp === 0.7;
-  const isDefaultMaxTokens = maxTokens === 262144;
+  useEffect(() => {
+    setTempValue(currentTemp);
+    setTokenValue(currentMaxTokens);
+  }, [currentTemp, currentMaxTokens]);
 
   return (
     <div className="space-y-6">
-      {/* Model Selection */}
+      {/* Model */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-muted-foreground" />
-                Model
-              </CardTitle>
-              <CardDescription className="mt-1">Choose which LLM powers this agent</CardDescription>
-            </div>
-            {!isDefaultModel && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-[10px] text-muted-foreground"
-                onClick={() => { setModel(agent.model); onUpdate("model", undefined); }}
-              >
-                Reset
-              </Button>
-            )}
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-muted-foreground" />
+              Model
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[10px] gap-1"
+              onClick={() => setShowModelInput(!showModelInput)}
+            >
+              <Pencil className="w-3 h-3" />
+              {showModelInput ? "Close" : "Change"}
+            </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Current */}
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-primary/20 bg-primary/5">
-            <div className="w-2 h-2 rounded-full bg-primary" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-foreground truncate">{model}</p>
-              <p className="text-[10px] text-muted-foreground">
-                via {agent.provider} {!isDefaultModel && "(custom)"}
-              </p>
-            </div>
-            <Badge variant="outline" className="text-[9px]">Active</Badge>
+        <CardContent>
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-sm font-mono font-medium text-foreground">{currentModel}</span>
+            {currentModel !== agent.model && (
+              <Badge variant="secondary" className="text-[8px] px-1 py-0">custom</Badge>
+            )}
           </div>
+          <p className="text-[10px] text-muted-foreground">Default: {agent.model}</p>
 
-          {/* Model input */}
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
-              Model ID
-            </label>
-            <div className="flex items-center gap-2">
+          {showModelInput && (
+            <div className="mt-3 flex gap-2">
               <input
                 type="text"
-                value={model}
-                onChange={(e) => { setModel(e.target.value); onUpdate("model", e.target.value || undefined); }}
-                className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-xs font-mono focus:outline-none focus:border-ring/40 focus:ring-1 focus:ring-ring/20 transition-all"
-                placeholder="e.g. gpt-4o, claude-3.5-sonnet"
+                defaultValue={currentModel}
+                placeholder="e.g. gpt-4o, claude-3.5-sonnet..."
+                className="flex-1 px-3 py-2 rounded-lg border border-border bg-card text-xs font-mono focus:outline-none focus:border-ring/40 focus:ring-1 focus:ring-ring/20"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    onUpdate("model", val || undefined);
+                    setShowModelInput(false);
+                  }
+                }}
               />
               <Button
-                variant="outline"
                 size="sm"
-                className="text-[10px] px-3"
-                onClick={() => { setModel(agent.model); onUpdate("model", undefined); }}
+                className="text-xs"
+                onClick={() => setShowModelInput(false)}
               >
-                Default
+                Cancel
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1.5">
-              Default: <code className="bg-muted px-1 py-0.5 rounded text-[10px]">{agent.model}</code>
-            </p>
-          </div>
-
-          {/* Preset models */}
-          <div>
-            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
-              Quick Select
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: "coding-glm-5.1-free", label: "GLM-5.1 Free", provider: "aihubmix" },
-                { id: "gpt-4o", label: "GPT-4o", provider: "openrouter" },
-                { id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openrouter" },
-                { id: "claude-sonnet-4-20250514", label: "Claude 4 Sonnet", provider: "openrouter" },
-                { id: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", provider: "openrouter" },
-                { id: "gemma4:31b-cloud", label: "Gemma 4 31B", provider: "ollama" },
-                { id: "llama3.1:8b", label: "Llama 3.1 8B", provider: "ollama" },
-                { id: "deepseek-r1", label: "DeepSeek R1", provider: "ollama" },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => { setModel(m.id); onUpdate("model", m.id); }}
-                  className={cn(
-                    "px-2.5 py-1.5 rounded-md border text-[10px] font-medium transition-all",
-                    model === m.id
-                      ? "border-primary bg-primary/10 text-[#3730a3]"
-                      : "border-border bg-card text-muted-foreground hover:border-primary/30"
-                  )}
-                >
-                  {m.label}
-                  <span className="ml-1 opacity-50">{m.provider}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Temperature */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-                <Settings className="w-4 h-4 text-muted-foreground" />
-                Temperature
-              </CardTitle>
-              <CardDescription className="mt-1">Controls randomness — lower = more focused, higher = more creative</CardDescription>
-            </div>
-            <span className={cn(
-              "text-lg font-bold tabular-nums",
-              isDefaultTemp ? "text-foreground" : "text-[#3730a3]"
-            )}>
-              {temp.toFixed(2)}
-            </span>
-          </div>
+          <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
+            Temperature
+          </CardTitle>
+          <CardDescription>Controls randomness in outputs. Lower = more focused, Higher = more creative.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Slider */}
-          <div className="relative">
+        <CardContent>
+          <div className="flex items-center gap-4">
             <input
               type="range"
               min="0"
               max="2"
-              step="0.05"
-              value={temp}
-              onChange={(e) => { const v = parseFloat(e.target.value); setTemp(v); onUpdate("temperature", v === 0.7 ? undefined : v); }}
-              className="w-full h-2 rounded-full appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((temp / 2) * 100)}%, hsl(var(--muted)) ${((temp / 2) * 100)}%, hsl(var(--muted)) 100%)`,
+              step="0.1"
+              value={tempValue}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setTempValue(val);
+                onUpdate("temperature", val);
               }}
+              className="flex-1 h-2 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
             />
-            {/* Tick marks */}
-            <div className="flex justify-between mt-1.5">
-              {[0, 0.5, 1.0, 1.5, 2.0].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => { setTemp(v); onUpdate("temperature", v === 0.7 ? undefined : v); }}
-                  className={cn(
-                    "text-[9px] tabular-nums transition-colors",
-                    temp === v ? "text-[#3730a3] font-bold" : "text-muted-foreground"
-                  )}
-                >
-                  {v.toFixed(1)}
-                </button>
-              ))}
-            </div>
+            <span className="text-sm font-mono font-medium text-foreground w-8 text-right">{tempValue.toFixed(1)}</span>
           </div>
-
-          {/* Presets */}
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { label: "Precise", value: 0, desc: "Factual, code-heavy" },
-              { label: "Balanced", value: 0.7, desc: "Default versatility" },
-              { label: "Creative", value: 1.2, desc: "Brainstorming, writing" },
-              { label: "Wild", value: 1.8, desc: "Maximum creativity" },
-            ].map((p) => (
-              <button
-                key={p.label}
-                onClick={() => { setTemp(p.value); onUpdate("temperature", p.value === 0.7 ? undefined : p.value); }}
-                className={cn(
-                  "px-3 py-2 rounded-lg border text-left transition-all",
-                  temp === p.value
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:border-primary/30"
-                )}
-              >
-                <p className={cn("text-[10px] font-semibold", temp === p.value ? "text-[#3730a3]" : "text-foreground")}>{p.label}</p>
-                <p className="text-[9px] text-muted-foreground">{p.value.toFixed(1)} — {p.desc}</p>
-              </button>
-            ))}
+          <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
+            <span>Precise</span>
+            <span>Default: 0.7</span>
+            <span>Creative</span>
           </div>
+          {tempValue !== 0.7 && (
+            <button
+              className="mt-2 text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
+              onClick={() => {
+                setTempValue(0.7);
+                onUpdate("temperature", undefined);
+              }}
+            >
+              Reset to default
+            </button>
+          )}
         </CardContent>
       </Card>
 
       {/* Max Tokens */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-                <Activity className="w-4 h-4 text-muted-foreground" />
-                Max Output Tokens
-              </CardTitle>
-              <CardDescription className="mt-1">Maximum response length — higher values allow longer responses but cost more</CardDescription>
-            </div>
-            <span className={cn(
-              "text-lg font-bold tabular-nums",
-              isDefaultMaxTokens ? "text-foreground" : "text-[#3730a3]"
-            )}>
-              {maxTokens.toLocaleString()}
-            </span>
-          </div>
+          <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+            Max Tokens
+          </CardTitle>
+          <CardDescription>Maximum number of tokens in the model response.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <input
-            type="range"
-            min="1024"
-            max="262144"
-            step="1024"
-            value={maxTokens}
-            onChange={(e) => { const v = parseInt(e.target.value); setMaxTokens(v); onUpdate("maxTokens", v === 4096 ? undefined : v); }}
-            className="w-full h-2 rounded-full appearance-none cursor-pointer"
-            style={{
-              background: `linear-gradient(to right, #3730a3 0%, #3730a3 ${((maxTokens / 262144) * 100)}%, hsl(var(--muted)) ${((maxTokens / 262144) * 100)}%, hsl(var(--muted)) 100%)`,
-            }}
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { label: "Short", value: 4096 },
-              { label: "Default", value: 262144 },
-              { label: "Long", value: 98304 },
-              { label: "Maximum", value: 262144 },
-            ].map((p) => (
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              value={tokenValue}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) {
+                  setTokenValue(val);
+                  onUpdate("maxTokens", val);
+                }
+              }}
+              className="w-32 px-3 py-2 rounded-lg border border-border bg-card text-xs font-mono focus:outline-none focus:border-ring/40 focus:ring-1 focus:ring-ring/20"
+            />
+            <span className="text-[10px] text-muted-foreground">tokens</span>
+            {tokenValue !== 262144 && (
               <button
-                key={p.label}
-                onClick={() => { setMaxTokens(p.value); onUpdate("maxTokens", p.value === 4096 ? undefined : p.value); }}
-                className={cn(
-                  "px-3 py-1.5 rounded-md border text-[10px] font-medium transition-all",
-                  maxTokens === p.value
-                    ? "border-primary bg-primary/10 text-[#3730a3]"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/30"
-                )}
+                className="text-[10px] font-medium text-primary hover:text-primary/80 transition-colors"
+                onClick={() => {
+                  setTokenValue(262144);
+                  onUpdate("maxTokens", undefined);
+                }}
               >
-                {p.label} ({p.value.toLocaleString()})
+                Reset
               </button>
-            ))}
+            )}
           </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Default: 262,144</p>
         </CardContent>
       </Card>
 
-      {/* Info */}
-      <div className="rounded-lg border border-border bg-secondary p-4">
-        <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Shield className="w-3.5 h-3.5" />
-          How Overrides Work
-        </h4>
-        <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
-          <li>Overrides are stored locally in your browser and merged with the agent&apos;s base configuration</li>
-          <li>The agent&apos;s default tools, prompt, and model are defined in the codebase</li>
-          <li>Your customizations layer on top — defaults are restored when you reset</li>
-          <li>Model changes require a matching API key for the target provider</li>
-        </ul>
-      </div>
+      {/* Danger Zone: Show API Key (masked) */}
+      <Card className="border-destructive/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-destructive flex items-center gap-2">
+            Key Info
+          </CardTitle>
+          <CardDescription>API key configuration is managed server-side via environment variables.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 px-3 py-2 rounded-lg bg-muted text-xs font-mono text-muted-foreground">
+              {showApiKey
+                ? `${agent.provider.toUpperCase()}_*`.padEnd(40, "\u2022")
+                : "\u2022".repeat(40)
+              }
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => setShowApiKey(!showApiKey)}
+            >
+              {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showApiKey ? "Hide" : "Show"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Provider: <span className="font-mono">{agent.provider}</span> | Keys are rotated automatically based on usage and health.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

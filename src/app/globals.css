@@ -211,3 +211,19 @@ body {
     padding: 0.875rem;
   }
 }
+
+/* Page entry animations (replaces framer-motion) */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out both;
+}
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out both;
+}
