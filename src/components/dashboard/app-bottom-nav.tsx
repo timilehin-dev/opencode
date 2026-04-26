@@ -82,7 +82,9 @@ const MORE_ITEMS: { href: string; label: string; emoji: string }[] = [
   { href: "/taskboard", label: "Task Board", emoji: "\uD83D\uDCCB" },
   { href: "/routines", label: "Routines", emoji: "\u23F0" },
   { href: "/insights", label: "Insights", emoji: "\uD83D\uDCA1" },
+  { href: "/skills", label: "Skills", emoji: "\u2728" },
   { href: "/memory", label: "Memory", emoji: "\uD83D\uDCDA" },
+  { href: "/analytics", label: "Analytics", emoji: "\uD83D\uDCC8" },
   { href: "/settings", label: "Settings", emoji: "\u2699\uFE0F" },
 ];
 
@@ -93,7 +95,29 @@ const MORE_ITEMS: { href: string; label: string; emoji: string }[] = [
 export function AppBottomNav() {
   const pathname = usePathname();
   const [showMore, setShowMore] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
   const moreRef = useRef<HTMLDivElement>(null);
+
+  // Poll notification count
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const res = await fetch("/api/notifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "count" }),
+        });
+        const json = await res.json();
+        if (!cancelled && json.success && typeof json.data?.total === "number") {
+          setNotifCount(json.data.total);
+        }
+      } catch { /* silent */ }
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   // Close more menu on outside click
   useEffect(() => {
@@ -135,11 +159,16 @@ export function AppBottomNav() {
               />
               <span
                 className={cn(
-                  "text-[10px] font-medium transition-all duration-200",
+                  "text-[10px] font-medium transition-all duration-200 relative",
                   active ? "text-[#3730a3]" : "text-muted-foreground"
                 )}
               >
                 {tab.label}
+                {tab.href === "/chat" && notifCount > 0 && (
+                  <span className="absolute -top-1 -right-3 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold leading-none px-1">
+                    {notifCount > 9 ? "9+" : notifCount}
+                  </span>
+                )}
               </span>
               {active && (
                 <motion.div

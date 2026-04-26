@@ -8,6 +8,7 @@ import type { ServiceStatus } from "@/lib/types";
 import type { ActivityEventView, AgentTaskView } from "@/hooks/use-dashboard-stream";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/context/toast-context";
 import {
   MessageSquare,
   Wrench,
@@ -19,6 +20,7 @@ import {
   Send,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Activity,
   Bot,
   ArrowRight,
@@ -92,29 +94,45 @@ function formatTime(iso: string): string {
 // Agent Crew Card — shows all 7 agents with status
 // ---------------------------------------------------------------------------
 
+const AGENT_CAPABILITIES: Record<string, { role: string; tools: number; specialties: string[] }> = {
+  general: { role: "Orchestrator", tools: 140, specialties: ["Multi-agent coordination", "Task delegation", "System monitoring"] },
+  mail: { role: "Communication", tools: 24, specialties: ["Email management", "Calendar scheduling", "Contact lookup"] },
+  code: { role: "Engineering", tools: 94, specialties: ["Code generation", "GitHub operations", "Vercel deployments"] },
+  data: { role: "Analytics", tools: 28, specialties: ["Data analysis", "Spreadsheet ops", "File processing"] },
+  creative: { role: "Design", tools: 18, specialties: ["Image generation", "Content creation", "Design assets"] },
+  research: { role: "Intelligence", tools: 22, specialties: ["Web research", "Document analysis", "Knowledge synthesis"] },
+  ops: { role: "Operations", tools: 20, specialties: ["Automation", "Monitoring", "System health"] },
+};
+
 function AgentCrewCard({
   agentStatuses,
   tasks,
+  selectedAgent,
   onAgentClick,
 }: {
   agentStatuses: ReturnType<typeof useDashboardStream>["agentStatuses"];
   tasks: AgentTaskView[];
+  selectedAgent: string | null;
   onAgentClick: (agentId: string) => void;
 }) {
-  // Build a map of agentId -> taskCount, lastAction
+  const { success, error } = useToast();
+  const [quickTask, setQuickTask] = useState("");
+  const [dispatching, setDispatching] = useState(false);
+
   const agentStats = useMemo(() => {
     const stats: Record<
       string,
-      { active: number; completed: number; lastAction: string | null }
+      { active: number; completed: number; failed: number; lastAction: string | null }
     > = {};
     for (const agent of AGENT_LIST) {
-      stats[agent.id] = { active: 0, completed: 0, lastAction: null };
+      stats[agent.id] = { active: 0, completed: 0, failed: 0, lastAction: null };
     }
     for (const task of tasks) {
       if (!stats[task.agent_id]) continue;
       if (task.status === "pending" || task.status === "running")
         stats[task.agent_id].active++;
       if (task.status === "completed") stats[task.agent_id].completed++;
+      if (task.status === "failed") stats[task.agent_id].failed++;
     }
     for (const status of agentStatuses) {
       if (stats[status.id]?.lastAction === null && status.lastActivity) {
@@ -125,10 +143,37 @@ function AgentCrewCard({
   }, [agentStatuses, tasks]);
 
   const statusFromSSE = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const s of agentStatuses) map[s.id] = s.status;
+    const map: Record<string, { status: string; tasksCompleted: number; messagesProcessed: number }> = {};
+    for (const s of agentStatuses) map[s.id] = { status: s.status, tasksCompleted: s.tasksCompleted, messagesProcessed: s.messagesProcessed };
     return map;
   }, [agentStatuses]);
+
+  const handleQuickDispatch = async () => {
+    if (!selectedAgent || !quickTask.trim() || dispatching) return;
+    setDispatching(true);
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "dispatch", agentId: selectedAgent, task: quickTask.trim() }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        success(`Task dispatched to ${getAgentMeta(selectedAgent).emoji} ${getAgentMeta(selectedAgent).name}`);
+        setQuickTask("");
+      } else {
+        error(json.error || "Failed to dispatch task");
+      }
+    } catch {
+      error("Network error — could not dispatch task");
+    }
+    setDispatching(false);
+  };
+
+  const expandedAgent = selectedAgent ? getAgentMeta(selectedAgent) : null;
+  const expandedStats = selectedAgent ? agentStats[selectedAgent] : null;
+  const expandedStatus = selectedAgent ? statusFromSSE[selectedAgent] : null;
+  const expandedCaps = selectedAgent ? AGENT_CAPABILITIES[selectedAgent] : null;
 
   return (
     <div className="bento-card flex flex-col">
@@ -138,18 +183,112 @@ function AgentCrewCard({
           {agentStatuses.filter((s) => s.status === "busy").length} active
         </span>
       </div>
-      <div className="flex-1 space-y-1.5 overflow-y-auto custom-scrollbar">
+
+      {/* Expanded Agent Detail */}
+      {expandedAgent && expandedStats && expandedCaps && (
+        <div className="mb-3 p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-base"
+                style={{ backgroundColor: `${expandedAgent.color}20`, boxShadow: `0 0 12px ${expandedAgent.color}30` }}
+              >
+                {expandedAgent.emoji}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">{expandedAgent.name}</p>
+                <p className="text-[10px] text-muted-foreground">{expandedCaps.role} · {expandedCaps.tools} tools</p>
+              </div>
+            </div>
+            <button
+              onClick={() => selectedAgent && onAgentClick(selectedAgent)}
+              className="p-1 rounded-md hover:bg-muted transition-colors"
+            >
+              <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center py-1.5 rounded-lg bg-card/60">
+              <div className="text-sm font-bold text-foreground">{expandedStatus?.tasksCompleted ?? 0}</div>
+              <div className="text-[9px] text-muted-foreground">Tasks</div>
+            </div>
+            <div className="text-center py-1.5 rounded-lg bg-card/60">
+              <div className="text-sm font-bold text-foreground">{expandedStatus?.messagesProcessed ?? 0}</div>
+              <div className="text-[9px] text-muted-foreground">Messages</div>
+            </div>
+            <div className="text-center py-1.5 rounded-lg bg-card/60">
+              <div className="text-sm font-bold text-foreground">{expandedStats.active}</div>
+              <div className="text-[9px] text-muted-foreground">Active</div>
+            </div>
+          </div>
+
+          {/* Specialties */}
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Specialties</p>
+            <div className="flex flex-wrap gap-1">
+              {expandedCaps.specialties.map((s) => (
+                <span key={s} className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-card border border-border text-foreground">
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Dispatch */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Dispatch</p>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={quickTask}
+                onChange={(e) => setQuickTask(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleQuickDispatch()}
+                placeholder="Describe a task..."
+                className="flex-1 h-8 px-2.5 rounded-lg border border-border bg-card text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 transition-all"
+              />
+              <button
+                onClick={handleQuickDispatch}
+                disabled={!quickTask.trim() || dispatching}
+                className="h-8 px-3 rounded-lg bg-primary text-white text-[10px] font-semibold disabled:opacity-40 flex items-center gap-1 hover:bg-primary/90 transition-colors"
+              >
+                {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                Go
+              </button>
+            </div>
+          </div>
+
+          {/* Link to full agent page */}
+          <Link
+            href={`/agents/${selectedAgent}`}
+            className="flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors"
+          >
+            Full Configuration <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+
+      <div className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
         {AGENT_LIST.map((agent) => {
           const stats = agentStats[agent.id];
-          const status = statusFromSSE[agent.id] || "idle";
+          const sseData = statusFromSSE[agent.id];
+          const status = sseData?.status || "idle";
           const isActive = status === "busy";
+          const isExpanded = selectedAgent === agent.id;
           const meta = getAgentMeta(agent.id);
+          const caps = AGENT_CAPABILITIES[agent.id];
 
           return (
             <button
               key={agent.id}
               onClick={() => onAgentClick(agent.id)}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border border-transparent hover:border-border hover:bg-card/80 transition-all duration-200 group text-left"
+              className={cn(
+                "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border transition-all duration-200 group text-left",
+                isExpanded
+                  ? "border-primary/30 bg-primary/5"
+                  : "border-transparent hover:border-border hover:bg-card/80"
+              )}
             >
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
@@ -173,16 +312,20 @@ function AgentCrewCard({
                   />
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">
-                  {stats.lastAction || "Idle"}
+                  {isExpanded ? (caps?.role || "") : (stats.lastAction || "Idle")}
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 {stats.active > 0 && (
                   <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-                    {stats.active} active
+                    {stats.active}
                   </span>
                 )}
-                <ArrowRight className="w-3 h-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                {isExpanded ? (
+                  <ChevronUp className="w-3 h-3 text-primary" />
+                ) : (
+                  <ArrowRight className="w-3 h-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                )}
               </div>
             </button>
           );
@@ -744,6 +887,7 @@ export default function DashboardPage() {
               <AgentCrewCard
                 agentStatuses={agentStatuses}
                 tasks={tasks}
+                selectedAgent={selectedAgent}
                 onAgentClick={handleAgentClick}
               />
             </div>

@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ToastProvider } from "@/context/toast-context";
+import { ConfirmProvider } from "@/context/confirm-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -49,7 +51,11 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </ToastProvider>
+        </ThemeProvider>
         {/* Service Worker Registration */}
         <script
           dangerouslySetInnerHTML={{
