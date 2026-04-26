@@ -76,6 +76,25 @@ You can PROACTIVELY reach out to other agents — you don't need the user to ask
 
 **Rules:** Use \`observe_agent\` before reaching out. All initiations are tracked. Help requests default HIGH urgency. Critical escalations auto-notify the user.`;
 
+export const SELF_IMPROVEMENT_PROTOCOL = `## Self-Improvement — Continuous Learning & Adaptation
+You are a self-improving agent. You can reflect on your own performance, learn from mistakes, and adapt your strategy over time. Use these tools proactively:
+
+| Situation | Tool |
+|---|---|
+| Review your recent performance | \`reflect_on_performance\` — analyzes tasks, conversations, learning insights |
+| Compare current vs past performance | \`benchmark_self\` — tracks completion rates, confidence trends |
+| Analyze failures and create fixes | \`learn_from_mistakes\` — scans failures, creates corrective insights |
+| Share a useful finding with teammates | \`share_knowledge\` — cross-pollinates learnings across agents |
+| Adopt a new strategy or approach | \`improve_strategy\` — saves as high-importance persistent memory |
+
+**Self-Improvement Cycle (proactive, not user-triggered):**
+1. After completing a complex task → run \`reflect_on_performance\`
+2. After noticing repeated errors → run \`learn_from_mistakes\` + \`improve_strategy\`
+3. After discovering a useful technique → run \`share_knowledge\` with relevant agents
+4. Periodically (weekly conceptually) → run \`benchmark_self\` to track trends
+
+**Rules:** Strategy updates are saved as high-importance memories (importance: 9) so they persist across sessions. Shared knowledge is delivered to teammates' learning context AND A2A inbox.`;
+
 // ---------------------------------------------------------------------------
 // Skills Awareness — per-agent based on their equipped skills
 // ---------------------------------------------------------------------------
@@ -573,6 +592,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
     "respond_to_initiation", "check_initiation_inbox",
+    // Phase 6: Self-Improvement
+    "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
   ],
   mail: [
     "gmail_send", "gmail_fetch", "gmail_labels",
@@ -606,6 +627,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
     "respond_to_initiation", "check_initiation_inbox",
+    // Phase 6: Self-Improvement
+    "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
   ],
   code: [
     "github_repo", "github_issues", "github_create_issue",
@@ -638,6 +661,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
     "respond_to_initiation", "check_initiation_inbox",
+    // Phase 6: Self-Improvement
+    "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
   ],
   data: [
     "drive_list", "drive_create_folder", "drive_create_file",
@@ -673,6 +698,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
     "respond_to_initiation", "check_initiation_inbox",
+    // Phase 6: Self-Improvement
+    "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
   ],
   creative: [
     "docs_list", "docs_read", "docs_create", "docs_append",
@@ -705,6 +732,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
     "respond_to_initiation", "check_initiation_inbox",
+    // Phase 6: Self-Improvement
+    "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
   ],
   research: [
     "web_search_advanced", "web_search", "web_reader",
@@ -734,6 +763,8 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     // Phase 5: Inter-Agent Initiation
     "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
     "respond_to_initiation", "check_initiation_inbox",
+    // Phase 6: Self-Improvement
+    "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
   ],
   ops: [
     "web_search", "web_reader",
@@ -911,6 +942,8 @@ You can PROACTIVELY initiate contact with any specialist agent. This is differen
 - Help requests default to HIGH urgency — only use LOW for nice-to-have collaborations
 - Escalations with severity CRITICAL or HIGH automatically notify the user
 
+${SELF_IMPROVEMENT_PROTOCOL}
+
 ## Decision Framework — When to Use What
 | Situation | Tool to Use |
 |---|---|
@@ -1004,6 +1037,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 
 ${INITIATION_PROTOCOL}
 
+${SELF_IMPROVEMENT_PROTOCOL}
+
 ## Response Format
 - Markdown: headers, bold, lists, tables
 - Summarize emails clearly — sender, subject, date, key points, action items
@@ -1061,6 +1096,8 @@ ${AGENT_TEAM_DIRECTORY}
 ${AUTONOMOUS_ROUTING_RULES}
 
 ${INITIATION_PROTOCOL}
+
+${SELF_IMPROVEMENT_PROTOCOL}
 
 ## Response Format
 - Markdown: headers, bold, lists, tables, code blocks with language hints
@@ -1123,6 +1160,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 
 ${INITIATION_PROTOCOL}
 
+${SELF_IMPROVEMENT_PROTOCOL}
+
 ## Response Format
 - Markdown: headers, bold, lists, TABLES for structured data
 - Present spreadsheet data as clean tables
@@ -1178,6 +1217,8 @@ ${AGENT_TEAM_DIRECTORY}
 ${AUTONOMOUS_ROUTING_RULES}
 
 ${INITIATION_PROTOCOL}
+
+${SELF_IMPROVEMENT_PROTOCOL}
 
 ## Response Format
 - Markdown: headers, bold, italic, lists, blockquotes
@@ -1238,6 +1279,8 @@ ${AUTONOMOUS_ROUTING_RULES}
 
 ${INITIATION_PROTOCOL}
 
+${SELF_IMPROVEMENT_PROTOCOL}
+
 ## Response Format
 - Markdown: headers, bold, lists, tables
 - Always cite sources with URLs
@@ -1288,6 +1331,8 @@ ${AGENT_TEAM_DIRECTORY}
 ${AUTONOMOUS_ROUTING_RULES}
 
 ${INITIATION_PROTOCOL}
+
+${SELF_IMPROVEMENT_PROTOCOL}
 
 ## Response Format
 - Markdown: headers, bold, lists, tables

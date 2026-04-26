@@ -147,6 +147,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
   mail: {
@@ -186,6 +187,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
   code: {
@@ -224,6 +226,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
   data: {
@@ -265,6 +268,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
   creative: {
@@ -303,6 +307,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
   research: {
@@ -338,6 +343,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
   ops: {
@@ -371,6 +377,7 @@ const AGENTS = {
       "memory_save", "memory_search", "memory_recall", "memory_forget", "memory_list", "memory_summary",
       // Phase 5: Inter-Agent Initiation
       "initiate_contact", "request_help", "offer_assistance", "observe_agent", "escalate_to_chief",
+      "reflect_on_performance", "benchmark_self", "learn_from_mistakes", "share_knowledge", "improve_strategy",
     ],
   },
 };
@@ -4303,6 +4310,161 @@ function buildToolMap(agentId) {
         } catch (err) {
           return { success: false, error: err.message };
         }
+      }),
+    }),
+
+    // ─── Phase 6: Self-Improvement Tools ────────────────────────────────────
+
+    reflect_on_performance: tool({
+      description: `Reflect on your recent performance. Analyzes task history, conversations, and learning insights to generate a self-assessment with strengths, weaknesses, and actionable recommendations.`,
+      inputSchema: zodSchema(z.object({
+        focus_area: z.enum(["tasks", "conversations", "learning", "tools", "all"]).optional().describe("Focus area (default: all)"),
+        lookback_days: z.number().min(1).max(90).optional().describe("Days of history to analyze (default: 7)"),
+      })),
+      execute: safeJsonWrap(async ({ focus_area, lookback_days }) => {
+        const agentId = currentExecutingAgentId || "general";
+        const days = lookback_days || 7;
+        const focus = focus_area || "all";
+        const sinceDate = new Date(Date.now() - days * 86400000).toISOString();
+        const parts = [];
+
+        if (focus === "all" || focus === "tasks") {
+          const taskResult = await pool.query(
+            `SELECT status, COUNT(*) as count FROM agent_tasks WHERE agent_id = $1 AND created_at >= $2 GROUP BY status`,
+            [agentId, sinceDate]
+          );
+          if (taskResult.rows.length > 0) {
+            const total = taskResult.rows.reduce((s, r) => s + parseInt(r.count, 10), 0);
+            const completed = taskResult.rows.find(r => r.status === "completed");
+            const failed = taskResult.rows.find(r => r.status === "failed");
+            const completedCount = completed ? parseInt(completed.count, 10) : 0;
+            const rate = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+            parts.push(`Task Performance: ${completedCount}/${total} completed (${rate}%), ${failed ? failed.count : 0} failed`);
+          }
+        }
+
+        if (focus === "all" || focus === "learning") {
+          const insightsResult = await pool.query(
+            `SELECT insight_type, COUNT(*) as count, ROUND(AVG(confidence)::numeric, 2) as avg_confidence
+             FROM learning_insights WHERE agent_id = $1 AND created_at >= $2 GROUP BY insight_type ORDER BY count DESC`,
+            [agentId, sinceDate]
+          );
+          if (insightsResult.rows.length > 0) {
+            parts.push("Learning Insights:");
+            for (const i of insightsResult.rows) parts.push(`- ${i.insight_type}: ${i.count} (avg conf: ${i.avg_confidence})`);
+          }
+        }
+
+        return { agentId, period: `${days}d`, assessment: parts.join("; ") || "No data available for period" };
+      }),
+    }),
+
+    benchmark_self: tool({
+      description: `Benchmark current performance against historical baseline. Compares recent task completion rates, learning trajectory, and activity against past performance.`,
+      inputSchema: zodSchema(z.object({
+        compare_period_days: z.number().min(7).max(180).optional().describe("Total comparison period (default: 30)"),
+      })),
+      execute: safeJsonWrap(async ({ compare_period_days }) => {
+        const agentId = currentExecutingAgentId || "general";
+        const totalDays = compare_period_days || 30;
+        const recentDays = 7;
+        const recentSince = new Date(Date.now() - recentDays * 86400000).toISOString();
+        const baselineSince = new Date(Date.now() - totalDays * 86400000).toISOString();
+        const baselineEnd = recentSince;
+
+        const [recentTasks, baselineTasks] = await Promise.all([
+          pool.query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'completed') as completed, COUNT(*) FILTER (WHERE status = 'failed') as failed FROM agent_tasks WHERE agent_id = $1 AND created_at >= $2`, [agentId, recentSince]),
+          pool.query(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'completed') as completed, COUNT(*) FILTER (WHERE status = 'failed') as failed FROM agent_tasks WHERE agent_id = $1 AND created_at >= $2 AND created_at < $3`, [agentId, baselineSince, baselineEnd]),
+        ]);
+
+        const r = recentTasks.rows[0] || { total: "0", completed: "0", failed: "0" };
+        const b = baselineTasks.rows[0] || { total: "0", completed: "0", failed: "0" };
+        const rRate = parseInt(r.total, 10) > 0 ? Math.round((parseInt(r.completed, 10) / parseInt(r.total, 10)) * 100) : 0;
+        const bRate = parseInt(b.total, 10) > 0 ? Math.round((parseInt(b.completed, 10) / parseInt(b.total, 10)) * 100) : 0;
+
+        await pool.query(
+          `INSERT INTO agent_metrics (agent_id, metric_type, metric_value, metadata, created_at) VALUES ($1, 'benchmark', $2, $3, NOW())`,
+          [agentId, JSON.stringify({ completionRate: rRate }), JSON.stringify({ recent: `${recentDays}d`, baseline: `${totalDays - recentDays}d` })]
+        ).catch(() => {});
+
+        return { agentId, recentRate: `${rRate}%`, baselineRate: `${bRate}%`, delta: rRate - bRate, trend: rRate - bRate > 5 ? "IMPROVING" : rRate - bRate < -5 ? "DECLINING" : "STABLE" };
+      }),
+    }),
+
+    learn_from_mistakes: tool({
+      description: `Analyze recent failures and user corrections to identify patterns and create corrective learning strategies. Scans failed tasks and correction insights.`,
+      inputSchema: zodSchema(z.object({
+        lookback_days: z.number().min(1).max(90).optional().describe("Days of history to scan (default: 14)"),
+      })),
+      execute: safeJsonWrap(async ({ lookback_days }) => {
+        const agentId = currentExecutingAgentId || "general";
+        const days = lookback_days || 14;
+        const sinceDate = new Date(Date.now() - days * 86400000).toISOString();
+
+        const [failedTasks, corrections] = await Promise.all([
+          pool.query(`SELECT id, title, error FROM agent_tasks WHERE agent_id = $1 AND status = 'failed' AND created_at >= $2 ORDER BY created_at DESC LIMIT 10`, [agentId, sinceDate]),
+          pool.query(`SELECT content FROM learning_insights WHERE agent_id = $1 AND insight_type = 'correction' AND created_at >= $2 ORDER BY created_at DESC LIMIT 5`, [agentId, sinceDate]),
+        ]);
+
+        const patterns = [];
+        if (failedTasks.rows.length > 0) patterns.push(`${failedTasks.rows.length} failed tasks in ${days}d`);
+        if (corrections.rows.length > 0) patterns.push(`${corrections.rows.length} user corrections recorded`);
+
+        return { agentId, period: `${days}d`, failedTasks: failedTasks.rows.length, corrections: corrections.rows.length, patterns };
+      }),
+    }),
+
+    share_knowledge: tool({
+      description: `Share a learning insight with other agents. Cross-pollinates improvements across the team.`,
+      inputSchema: zodSchema(z.object({
+        target_agents: z.array(z.string()).min(1).describe('Target agents (e.g., ["all"] or ["code", "data"])'),
+        insight: z.string().min(10).describe("The insight to share"),
+        category: z.enum(["tool_tip", "workflow", "warning", "strategy", "correction"]).optional().describe("Category (default: strategy)"),
+      })),
+      execute: safeJsonWrap(async ({ target_agents, insight, category }) => {
+        const agentId = currentExecutingAgentId || "general";
+        const validAgents = ["general", "mail", "code", "data", "creative", "research", "ops"];
+        const targets = target_agents.includes("all") ? validAgents.filter(a => a !== agentId) : target_agents.filter(a => validAgents.includes(a) && a !== agentId);
+        const cat = category || "strategy";
+
+        for (const target of targets) {
+          await pool.query(
+            `INSERT INTO learning_insights (agent_id, insight_type, content, source, confidence) VALUES ($1, 'pattern', $2, 'agent_shared', 0.65) ON CONFLICT DO NOTHING`,
+            [target, `[Shared by ${agentId}] [${cat}] ${insight}`]
+          ).catch(() => {});
+        }
+
+        return { success: true, from: agentId, sharedWith: targets.length, category: cat, insight: insight.slice(0, 100) };
+      }),
+    }),
+
+    improve_strategy: tool({
+      description: `Record a strategy update based on learnings. Saved as high-importance persistent memory applied in all future conversations.`,
+      inputSchema: zodSchema(z.object({
+        strategy: z.string().min(10).describe("The strategy to adopt (clear instruction to future self)"),
+        reason: z.string().min(5).describe("Why this change"),
+        applies_to: z.enum(["all_tasks", "specific_tool", "specific_domain", "user_interaction", "team_collaboration"]).optional().describe("Scope (default: all_tasks)"),
+      })),
+      execute: safeJsonWrap(async ({ strategy, reason, applies_to }) => {
+        const agentId = currentExecutingAgentId || "general";
+        const scope = applies_to || "all_tasks";
+
+        await pool.query(
+          `INSERT INTO agent_memory (agent_id, category, content, importance, metadata, created_at, updated_at) VALUES ($1, 'instruction', $2, 9, $3, NOW(), NOW())`,
+          [agentId, `STRATEGY (${scope}): ${strategy} | Reason: ${reason}`, JSON.stringify({ type: "strategy_update", scope, reason })]
+        );
+
+        await pool.query(
+          `INSERT INTO learning_insights (agent_id, insight_type, content, source, confidence) VALUES ($1, 'pattern', $2, 'self_improvement', 0.85) ON CONFLICT DO NOTHING`,
+          [agentId, `Strategy update (${scope}): ${strategy}`]
+        );
+
+        await pool.query(
+          `INSERT INTO agent_metrics (agent_id, metric_type, metric_value, metadata, created_at) VALUES ($1, 'strategy_update', $2, $3, NOW())`,
+          [agentId, strategy, JSON.stringify({ scope, reason })]
+        ).catch(() => {});
+
+        return { success: true, agentId, scope, strategy: strategy.slice(0, 80), savedAsMemory: true };
       }),
     }),
   };

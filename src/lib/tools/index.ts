@@ -154,6 +154,14 @@ import {
   respondToInitiationTool, checkInitiationInboxTool,
 } from "./initiation";
 
+import {
+  reflectOnPerformance,
+  benchmarkSelf,
+  learnFromMistakes,
+  shareKnowledge,
+  improveStrategy,
+} from "./self-improvement";
+
 // ---------------------------------------------------------------------------
 // All Tools Registry — single source of truth
 // ---------------------------------------------------------------------------
@@ -347,6 +355,12 @@ export const allTools: Record<string, ToolType> = {
   escalate_to_chief: escalateToChiefTool,
   respond_to_initiation: respondToInitiationTool,
   check_initiation_inbox: checkInitiationInboxTool,
+  // Phase 6: Self-Improvement
+  reflect_on_performance: reflectOnPerformance,
+  benchmark_self: benchmarkSelf,
+  learn_from_mistakes: learnFromMistakes,
+  share_knowledge: shareKnowledge,
+  improve_strategy: improveStrategy,
 };
 
 // ---------------------------------------------------------------------------
