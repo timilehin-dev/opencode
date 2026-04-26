@@ -4,6 +4,7 @@
 # This is the HEARTBEAT of the autonomous multi-agent system. Every 2 minutes it:
 #   Phase 0:   Auto-respond to unread A2A inter-agent messages
 #   Phase 0.5: Convert due agent_routines into tool-capable agent_tasks
+#   Phase 0.75: Process pending trigger_events → fire matching triggers → create tasks
 #   Phase 1:   Evaluate automations & queue triggered tasks
 #   Phase 2:   Execute pending agent_tasks with FULL tool support
 #   Phase 3:   Execute project task graphs (dependency-resolved)

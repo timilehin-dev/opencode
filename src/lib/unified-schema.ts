@@ -345,6 +345,11 @@ export const UNIFIED_TABLE_LIST = [
   "a2a_shared_context",
   "a2a_channels",
   "a2a_channel_messages",
+  // Phase 3B — Proactive Scanning & Pull-Based Triggers
+  "triggers",
+  "scan_state",
+  "trigger_events",
+  "scan_logs",
 ] as const;
 
 export type UnifiedTableName = (typeof UNIFIED_TABLE_LIST)[number];
@@ -534,6 +539,155 @@ CREATE INDEX IF NOT EXISTS idx_agent_tasks_status_completed
   ON agent_tasks(status, completed_at DESC);
 `;
 
+// ---------------------------------------------------------------------------
+// Phase 3B — Proactive Scanning & Pull-Based Triggers
+//
+// These tables power the system's ability to reach OUT to external services
+// (GitHub, Gmail, Vercel, etc.), detect changes, and fire agent actions.
+//
+// Tables:
+//   - triggers: Declarative trigger rules (user/system-defined)
+//   - scan_state: Per-source cursor/timestamp for change detection
+//   - trigger_events: Incoming events from scanners and webhooks
+//
+// Flow:
+//   Scanner → detects change → writes trigger_events → trigger engine evaluates
+//   Webhook → writes trigger_events → trigger engine evaluates
+//   Trigger engine → matches events against triggers → creates agent_tasks
+// ---------------------------------------------------------------------------
+
+export const PROACTIVE_SCANNING_SCHEMA_SQL = `
+-- ─── Triggers: Declarative event → action rules ───
+-- Users and the system can define triggers like:
+--   "When a new GitHub issue is created, assign it to Code Agent"
+--   "When an urgent email arrives, notify Mail Agent"
+CREATE TABLE IF NOT EXISTS triggers (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+
+  -- What to watch for
+  source VARCHAR(50) NOT NULL CHECK (source IN ('github', 'gmail', 'vercel', 'webhook', 'schedule', 'condition', 'custom')),
+  event_type VARCHAR(100) NOT NULL,  -- e.g. 'issue_opened', 'pr_merged', 'email_urgent', 'deploy_failed'
+  filter_config JSONB DEFAULT '{}',  -- Advanced filters: { state: 'open', labels: ['bug'], priority: 'high' }
+
+  -- What to do when triggered
+  action_type VARCHAR(50) NOT NULL DEFAULT 'create_task' CHECK (action_type IN ('create_task', 'send_notification', 'send_a2a_message', 'run_workflow', 'run_routine', 'webhook_forward')),
+  action_config JSONB DEFAULT '{}',  -- { agent_id: 'code', priority: 'high', task_template: '...' }
+
+  -- Metadata
+  agent_id VARCHAR(100),             -- Which agent this trigger is associated with (optional)
+  enabled BOOLEAN DEFAULT TRUE,
+  cooldown_seconds INTEGER DEFAULT 300,  -- Min seconds between trigger fires (debounce)
+  max_fires_per_day INTEGER DEFAULT 50,  -- Rate limit
+  created_by VARCHAR(100) DEFAULT 'system',
+
+  -- Tracking
+  last_triggered_at TIMESTAMPTZ,
+  last_result JSONB,
+  fire_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_triggers_source_event ON triggers(source, event_type);
+CREATE INDEX IF NOT EXISTS idx_triggers_enabled ON triggers(enabled) WHERE enabled = TRUE;
+
+-- ─── Scan State: Per-source cursor for change detection ───
+-- Each scanner (GitHub, Gmail, Vercel) stores its last-seen position
+-- so it only picks up NEW changes on the next scan.
+CREATE TABLE IF NOT EXISTS scan_state (
+  id BIGSERIAL PRIMARY KEY,
+  source VARCHAR(50) NOT NULL UNIQUE,  -- 'github', 'gmail', 'vercel', etc.
+  cursor TEXT,                           -- Opaque cursor (e.g., GitHub etag, Gmail historyId, timestamp)
+  last_scan_at TIMESTAMPTZ DEFAULT NOW(),
+  last_scan_status VARCHAR(50) DEFAULT 'idle',  -- 'idle', 'running', 'success', 'error'
+  last_scan_error TEXT,
+  items_found INTEGER DEFAULT 0,
+  items_processed INTEGER DEFAULT 0,
+  metadata JSONB DEFAULT '{}',          -- Source-specific state (e.g., { repo: 'owner/repo' })
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── Trigger Events: Ingested events from scanners and webhooks ───
+-- Every external change (new issue, email, deploy) becomes a row here.
+-- The trigger engine reads unprocessed events and matches them to triggers.
+CREATE TABLE IF NOT EXISTS trigger_events (
+  id BIGSERIAL PRIMARY KEY,
+  source VARCHAR(50) NOT NULL,          -- Where the event came from: 'github', 'gmail', 'vercel', 'webhook'
+  event_type VARCHAR(100) NOT NULL,     -- What happened: 'issue_opened', 'pr_merged', 'email_urgent', etc.
+  external_id VARCHAR(255),             -- Dedup key: e.g., GitHub issue URL, Gmail message ID, Vercel deployment ID
+  title TEXT NOT NULL,                  -- Human-readable summary: 'New issue: Fix login bug'
+  payload JSONB DEFAULT '{}',           -- Full event data (GitHub issue JSON, email headers, etc.)
+  severity VARCHAR(20) DEFAULT 'normal' CHECK (severity IN ('critical', 'high', 'medium', 'low', 'normal')),
+
+  -- Processing state
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'matched', 'processed', 'skipped', 'error')),
+  matched_trigger_id BIGINT REFERENCES triggers(id) ON DELETE SET NULL,
+  matched_agent_task_id BIGINT,
+  processing_result JSONB,
+  error_message TEXT,
+  processed_at TIMESTAMPTZ,
+
+  -- Timing
+  event_timestamp TIMESTAMPTZ DEFAULT NOW(),  -- When the external event actually occurred
+  created_at TIMESTAMPTZ DEFAULT NOW()       -- When we ingested the event
+);
+
+CREATE INDEX IF NOT EXISTS idx_trigger_events_source ON trigger_events(source, event_type);
+CREATE INDEX IF NOT EXISTS idx_trigger_events_status ON trigger_events(status);
+CREATE INDEX IF NOT EXISTS idx_trigger_events_external_id ON trigger_events(external_id) WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_trigger_events_created ON trigger_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trigger_events_severity ON trigger_events(severity) WHERE status = 'pending';
+
+-- ─── Scan Logs: Audit trail for scanner runs ───
+-- Records each scanner execution for debugging and monitoring.
+CREATE TABLE IF NOT EXISTS scan_logs (
+  id BIGSERIAL PRIMARY KEY,
+  source VARCHAR(50) NOT NULL,
+  status VARCHAR(50) NOT NULL,          -- 'started', 'completed', 'error'
+  events_found INTEGER DEFAULT 0,
+  events_created INTEGER DEFAULT 0,
+  triggers_fired INTEGER DEFAULT 0,
+  error_message TEXT,
+  duration_ms INTEGER,
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_scan_logs_source ON scan_logs(source, started_at DESC);
+
+-- ─── Helper: Cleanup old trigger_events and scan_logs ───
+CREATE OR REPLACE FUNCTION cleanup_trigger_data()
+RETURNS INTEGER AS $$
+DECLARE v_events INTEGER; v_logs INTEGER;
+BEGIN
+  DELETE FROM trigger_events WHERE created_at < NOW() - INTERVAL '30 days';
+  GET DIAGNOSTICS v_events = ROW_COUNT;
+  DELETE FROM scan_logs WHERE started_at < NOW() - INTERVAL '30 days';
+  GET DIAGNOSTICS v_logs = ROW_COUNT;
+  RETURN v_events + v_logs;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ─── Trigger: Update triggers.updated_at on row change ───
+CREATE OR REPLACE FUNCTION update_triggers_updated_at() RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_triggers_updated_at ON triggers;
+CREATE TRIGGER trg_triggers_updated_at BEFORE UPDATE ON triggers FOR EACH ROW EXECUTE FUNCTION update_triggers_updated_at();
+
+-- ─── Trigger: Update scan_state.updated_at on row change ───
+CREATE OR REPLACE FUNCTION update_scan_state_updated_at() RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_scan_state_updated_at ON scan_state;
+CREATE TRIGGER trg_scan_state_updated_at BEFORE UPDATE ON scan_state FOR EACH ROW EXECUTE FUNCTION update_scan_state_updated_at();
+`;
+
 export const UNIFIED_SETUP_SQL = `
 -- ============================================================
 -- Klawhub — Unified Database Setup
@@ -551,7 +705,8 @@ export const UNIFIED_SETUP_SQL = `
 --   6. Phase 5 tables — projects, project_tasks, project_task_logs
 --   7. Workflow tables — agent_workflows, workflow_steps, workflow_executions
 --   8. A2A extended tables — a2a_shared_context, a2a_channels, a2a_channel_messages
---   9. RLS fix — enable Row Level Security + permissive policies
+--   9. Phase 3B tables — triggers, scan_state, trigger_events, scan_logs
+--  10. RLS fix — enable Row Level Security + permissive policies
 --
 -- SKIP: WORKSPACE_SCHEMA_SQL — this is a DUPLICATE of tables in SCHEMA_SQL
 --       (reminders, todos, contacts). Including it would be harmless but redundant.
@@ -581,9 +736,12 @@ ${WORKFLOW_SCHEMA_SQL}
 -- 8. A2A extended tables (shared context, channels, channel messages + functions)
 ${A2A_EXTENDED_TABLES_SQL}
 
--- 9. RLS fix (MUST be last — needs all tables to exist)
+-- 9. Phase 3B — Proactive Scanning & Pull-Based Triggers
+${PROACTIVE_SCANNING_SCHEMA_SQL}
+
+-- 10. RLS fix (MUST be last — needs all tables to exist)
 ${RLS_FIX_SQL}
 
--- 10. Performance indexes (safe to re-run, uses IF NOT EXISTS)
+-- 11. Performance indexes (safe to re-run, uses IF NOT EXISTS)
 ${PERFORMANCE_INDEXES_SQL}
 `;

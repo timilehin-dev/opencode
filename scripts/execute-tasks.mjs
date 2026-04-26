@@ -4488,6 +4488,129 @@ async function main() {
       console.warn(`[Phase 0.5] Error:`, e.message);
     }
 
+    // Phase 0.75: Process pending trigger_events (from scanners & webhooks)
+    // This is the inline trigger engine — lightweight version that runs every 2 min.
+    // The full scanner-runner.mjs does the actual external scanning every 10 min.
+    // Here we just match pending events against triggers and create agent_tasks.
+    console.log("\n[Phase 0.75] Evaluating pending trigger events...");
+    try {
+      let triggerEventsProcessed = 0;
+      let triggerTasksCreated = 0;
+
+      // Check if trigger_events table exists (may not on first run)
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_name = 'trigger_events'
+        ) as exists
+      `);
+
+      if (tableCheck.rows[0]?.exists) {
+        // Get pending trigger events
+        const pendingEvents = await pool.query(
+          `SELECT * FROM trigger_events
+           WHERE status = 'pending'
+           ORDER BY
+             CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 WHEN 'normal' THEN 4 ELSE 5 END,
+             created_at ASC
+           LIMIT 10
+           FOR UPDATE SKIP LOCKED`
+        );
+
+        // Get enabled triggers
+        const enabledTriggers = await pool.query("SELECT * FROM triggers WHERE enabled = TRUE");
+
+        for (const event of pendingEvents.rows) {
+          triggerEventsProcessed++;
+          let matched = false;
+
+          for (const trigger of enabledTriggers.rows) {
+            if (trigger.source !== event.source) continue;
+            if (trigger.event_type !== event.event_type) continue;
+
+            // Check cooldown
+            if (trigger.last_triggered_at) {
+              const elapsed = (Date.now() - new Date(trigger.last_triggered_at).getTime()) / 1000;
+              if (elapsed < (trigger.cooldown_seconds || 300)) continue;
+            }
+
+            // Match found — execute action
+            matched = true;
+            const actionConfig = trigger.action_config || {};
+            const agentId = actionConfig.agent_id || trigger.agent_id || 'general';
+            const priority = event.severity === 'critical' ? 'critical' : event.severity === 'high' ? 'high' : 'medium';
+
+            if (trigger.action_type === 'create_task') {
+              const taskTemplate = actionConfig.task_template ||
+                `[PROACTIVE SCAN] New ${event.source} event: ${event.event_type}\n\nTitle: ${event.title}\nSeverity: ${event.severity}\n\nEvent data:\n${JSON.stringify(event.payload, null, 2)}\n\nPlease investigate and take appropriate action.`;
+
+              try {
+                const taskResult = await pool.query(
+                  `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
+                   VALUES ($1, $2, $3, 'proactive_scan', $4, $5) RETURNING id`,
+                  [
+                    agentId,
+                    taskTemplate,
+                    JSON.stringify({ source: 'proactive-scanner', trigger_id: trigger.id, trigger_name: trigger.name, event_id: event.id, event_type: event.event_type, severity: event.severity }),
+                    `trigger:${trigger.id}:event:${event.id}`,
+                    priority,
+                  ]
+                );
+                triggerTasksCreated++;
+                console.log(`  [Phase 0.75] Created task #${taskResult.rows[0].id} for ${agentId}: ${event.title.slice(0, 60)}`);
+
+                await pool.query(
+                  "UPDATE trigger_events SET status = 'processed', matched_trigger_id = $1, matched_agent_task_id = $2, processed_at = NOW() WHERE id = $3",
+                  [trigger.id, taskResult.rows[0].id, event.id]
+                );
+                await pool.query(
+                  "UPDATE triggers SET last_triggered_at = NOW(), fire_count = fire_count + 1 WHERE id = $1",
+                  [trigger.id]
+                );
+              } catch (err) {
+                console.warn(`  [Phase 0.75] Error creating task:`, err.message);
+                await pool.query("UPDATE trigger_events SET status = 'error', error_message = $1 WHERE id = $2", [err.message, event.id]);
+              }
+            } else if (trigger.action_type === 'send_notification') {
+              try {
+                const notifTitle = actionConfig.notification_title || event.title;
+                const notifBody = actionConfig.notification_body || `Proactive scan detected: ${event.title}`;
+                await pool.query(
+                  `INSERT INTO proactive_notifications (agent_id, agent_name, type, title, body, priority, metadata)
+                   VALUES ($1, $2, 'event', $3, $4, $5, $6)`,
+                  [agentId, 'Scanner', notifTitle, notifBody, priority, JSON.stringify({ source: 'proactive-scanner', trigger_id: trigger.id, event_id: event.id })]
+                );
+                await pool.query(
+                  "UPDATE trigger_events SET status = 'processed', matched_trigger_id = $1, processed_at = NOW() WHERE id = $2",
+                  [trigger.id, event.id]
+                );
+                await pool.query(
+                  "UPDATE triggers SET last_triggered_at = NOW(), fire_count = fire_count + 1 WHERE id = $1",
+                  [trigger.id]
+                );
+              } catch (err) {
+                console.warn(`  [Phase 0.75] Error sending notification:`, err.message);
+                await pool.query("UPDATE trigger_events SET status = 'error', error_message = $1 WHERE id = $2", [err.message, event.id]);
+              }
+            } else {
+              await pool.query("UPDATE trigger_events SET status = 'skipped', processed_at = NOW() WHERE id = $1", [event.id]);
+            }
+            break; // Only match first trigger per event
+          }
+
+          if (!matched) {
+            await pool.query("UPDATE trigger_events SET status = 'skipped', processed_at = NOW() WHERE id = $1", [event.id]);
+          }
+        }
+      }
+
+      console.log(`[Phase 0.75] Done: ${triggerEventsProcessed} events evaluated, ${triggerTasksCreated} tasks created`);
+      summary.triggerEventsProcessed = triggerEventsProcessed;
+      summary.triggerTasksCreated = triggerTasksCreated;
+    } catch (e) {
+      console.warn(`[Phase 0.75] Error:`, e.message);
+    }
+
     // Phase 1: Evaluate automations
     console.log("\n[Phase 1] Evaluating automations...");
     const autoResult = await evaluateAutomations();
@@ -4980,7 +5103,7 @@ async function main() {
       console.log(`\n[Phase 5] Skipping proactive assessment (runs every 30 minutes, next at :${minuteOfDay < 30 ? '30' : '00'})`);
     }
 
-    console.log(`\n[Done] ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run) | ${summary.automationsTriggered} automations triggered | ${summary.inboxProcessed} agents with unread inbox messages`);
+    console.log(`\n[Done] ${summary.succeeded} succeeded, ${summary.failed} failed, ${summary.skipped} skipped (dry run) | ${summary.automationsTriggered} automations triggered | ${summary.inboxProcessed} agents with unread inbox messages | ${summary.triggerEventsProcessed || 0} trigger events evaluated, ${summary.triggerTasksCreated || 0} trigger tasks created`);
   } catch (error) {
     console.error("[Fatal Error]", error);
   } finally {
