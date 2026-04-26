@@ -28,40 +28,44 @@ export async function GET() {
 
   try {
     // ── Phase 1: Gather System State (parallel queries) ──
+    // NOTE: All queries use the ACTUAL production schema:
+    //   agent_definitions (not agent_configs)
+    //   agent_tasks.next_run_at (not next_run)
+    //   agent_tasks.attempts (integer)
+    //   a2a_messages.is_read (not read), .type (not message_type), .payload (not content)
+    //   agent_routines.is_active (not enabled)
+    //   projects has total_tasks/completed_tasks/failed_tasks/pending_tasks columns directly
+    //   activity_log may have zero columns (empty table) — handled gracefully
 
     const [
       pendingTasks,
       dueRoutines,
       a2aInbox,
-      recentActivity,
+      recentActivityResult,
       projectStatus,
       agentMemories,
       failedTasks,
-      workflowQueue,
-    ] = await Promise.all([
+      workflowResult,
+    ] = await Promise.allSettled([
       // Pending agent_tasks
       query(`
         SELECT at.id, at.agent_id, at.task, at.priority, at.status,
-               at.created_at, at.next_run,
-               ag.emoji, ag.name as agent_name
+               at.created_at, at.next_run_at as next_run, at.attempts
         FROM agent_tasks at
-        LEFT JOIN agent_configs ag ON ag.agent_id = at.agent_id
         WHERE at.status IN ('pending', 'running', 'failed')
-          AND at.next_run <= NOW() + INTERVAL '5 minutes'
+          AND (at.next_run_at IS NULL OR at.next_run_at <= NOW() + INTERVAL '5 minutes')
         ORDER BY
           CASE at.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
-          at.next_run ASC
+          at.next_run_at ASC NULLS LAST
         LIMIT 10
       `),
 
       // Due routines
       query(`
-        SELECT r.id, r.agent_id, r.name, r.schedule_cron, r.enabled,
-               r.last_run, r.next_run,
-               ag.emoji, ag.name as agent_name
+        SELECT r.id, r.agent_id, r.name, r.task,
+               r.last_run, r.next_run, r.is_active, r.last_status
         FROM agent_routines r
-        LEFT JOIN agent_configs ag ON ag.agent_id = r.agent_id
-        WHERE r.enabled = true
+        WHERE r.is_active = true
           AND r.next_run <= NOW() + INTERVAL '10 minutes'
         ORDER BY r.next_run ASC
         LIMIT 10
@@ -69,43 +73,43 @@ export async function GET() {
 
       // Unread A2A messages
       query(`
-        SELECT m.id, m.from_agent, m.to_agent, m.message_type, m.content,
-               m.priority, m.created_at,
-               fa.emoji as from_emoji, fa.name as from_name,
-               ta.emoji as to_emoji, ta.name as to_name
+        SELECT m.id, m.from_agent, m.to_agent, m.type, m.topic,
+               m.payload, m.priority, m.created_at
         FROM a2a_messages m
-        LEFT JOIN agent_configs fa ON fa.agent_id = m.from_agent
-        LEFT JOIN agent_configs ta ON ta.agent_id = m.to_agent
-        WHERE m.read = false
+        WHERE m.is_read = false
         ORDER BY
           CASE m.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 END,
           m.created_at ASC
         LIMIT 15
       `),
 
-      // Recent activity (last 30 min)
+      // Recent activity — activity_log may be empty schema, use agent_activity as fallback
       query(`
+        SELECT agent_id, agent_name, action, detail, created_at
+        FROM agent_activity
+        WHERE created_at > NOW() - INTERVAL '30 minutes'
+        ORDER BY created_at DESC
+        LIMIT 20
+      `).catch(() => query(`
         SELECT agent_id, agent_name, action, detail, created_at
         FROM activity_log
         WHERE created_at > NOW() - INTERVAL '30 minutes'
         ORDER BY created_at DESC
         LIMIT 20
-      `),
+      `)),
 
-      // Active projects
+      // Active projects — uses direct columns (no subqueries needed)
       query(`
-        SELECT p.id, p.name, p.status, p.progress,
-               (SELECT COUNT(*) FROM project_tasks WHERE project_id = p.id AND status = 'pending') as pending_tasks,
-               (SELECT COUNT(*) FROM project_tasks WHERE project_id = p.id AND status = 'completed') as completed_tasks,
-               (SELECT COUNT(*) FROM project_tasks WHERE project_id = p.id AND status = 'failed') as failed_tasks,
-               p.updated_at
+        SELECT p.id, p.name, p.status, p.priority,
+               p.total_tasks, p.completed_tasks, p.failed_tasks, p.pending_tasks,
+               p.agent_id, p.agent_name, p.updated_at
         FROM projects p
         WHERE p.status IN ('active', 'in_progress')
         ORDER BY p.updated_at DESC
         LIMIT 5
       `),
 
-      // Recent agent memories (context injection)
+      // Recent agent memories
       query(`
         SELECT agent_id, category, content, importance, created_at
         FROM agent_memory
@@ -117,25 +121,40 @@ export async function GET() {
 
       // Failed tasks needing escalation
       query(`
-        SELECT id, agent_id, task, error, attempts, last_run, created_at
+        SELECT id, agent_id, task, error, attempts, started_at as last_run, created_at
         FROM agent_tasks
         WHERE status = 'failed'
           AND attempts < 3
-          AND last_run > NOW() - INTERVAL '2 hours'
-        ORDER BY last_run DESC
+          AND started_at > NOW() - INTERVAL '2 hours'
+        ORDER BY started_at DESC
         LIMIT 5
       `),
 
-      // Scheduled workflows
+      // Scheduled workflows — workflows table may be empty schema
       query(`
-        SELECT id, name, status, next_run, agent_id
+        SELECT id, name, status, agent_id
+        FROM agent_workflows
+        WHERE status = 'scheduled'
+        ORDER BY created_at DESC
+        LIMIT 5
+      `).catch(() => query(`
+        SELECT id, name, status, agent_id
         FROM workflows
         WHERE status = 'scheduled'
-          AND next_run <= NOW() + INTERVAL '30 minutes'
-        ORDER BY next_run ASC
+        ORDER BY created_at DESC
         LIMIT 5
-      `),
+      `)),
     ]);
+
+    // Safely extract rows, defaulting to empty arrays for rejected promises
+    const pendingTasksRows = pendingTasks.status === "fulfilled" ? pendingTasks.value.rows : [];
+    const dueRoutinesRows = dueRoutines.status === "fulfilled" ? dueRoutines.value.rows : [];
+    const a2aInboxRows = a2aInbox.status === "fulfilled" ? a2aInbox.value.rows : [];
+    const recentActivityRows = recentActivityResult.status === "fulfilled" ? recentActivityResult.value.rows : [];
+    const projectStatusRows = projectStatus.status === "fulfilled" ? projectStatus.value.rows : [];
+    const agentMemoriesRows = agentMemories.status === "fulfilled" ? agentMemories.value.rows : [];
+    const failedTasksRows = failedTasks.status === "fulfilled" ? failedTasks.value.rows : [];
+    const workflowRows = workflowResult.status === "fulfilled" ? workflowResult.value.rows : [];
 
     // Get real-time agent statuses
     const agentStatuses = getAllAgentStatuses();
@@ -151,12 +170,12 @@ export async function GET() {
         lastActivity: s.lastActivity,
         tasksCompleted: s.tasksCompleted,
       })),
-      pendingTasks: pendingTasks.rows.length,
-      dueRoutines: dueRoutines.rows.length,
-      unreadA2AMessages: a2aInbox.rows.length,
-      activeProjects: projectStatus.rows.length,
-      failedTasksNeedingEscalation: failedTasks.rows.length,
-      scheduledWorkflows: workflowQueue.rows.length,
+      pendingTasks: pendingTasksRows.length,
+      dueRoutines: dueRoutinesRows.length,
+      unreadA2AMessages: a2aInboxRows.length,
+      activeProjects: projectStatusRows.length,
+      failedTasksNeedingEscalation: failedTasksRows.length,
+      scheduledWorkflows: workflowRows.length,
     };
 
     // ── Phase 3: LLM-Powered Proactive Planning ──
@@ -176,12 +195,12 @@ export async function GET() {
 
     // Only run LLM planning if there's something to act on
     const hasWork =
-      pendingTasks.rows.length > 0 ||
-      dueRoutines.rows.length > 0 ||
-      a2aInbox.rows.length > 0 ||
-      failedTasks.rows.length > 0 ||
-      workflowQueue.rows.length > 0 ||
-      projectStatus.rows.some((p: any) => (p.pending_tasks as number) > 0);
+      pendingTasksRows.length > 0 ||
+      dueRoutinesRows.length > 0 ||
+      a2aInboxRows.length > 0 ||
+      failedTasksRows.length > 0 ||
+      workflowRows.length > 0 ||
+      projectStatusRows.some((p: any) => (p.pending_tasks as number) > 0);
 
     if (hasWork) {
       try {
@@ -192,26 +211,23 @@ export async function GET() {
 
         const contextSummary = [
           `## Agent Statuses\n${agentStatuses.map((s) => `- ${s.id}: ${s.status}${s.currentTask ? ` (working on: ${s.currentTask.slice(0, 60)})` : ""}`).join("\n")}`,
-          pendingTasks.rows.length > 0
-            ? `\n## Pending Tasks (${pendingTasks.rows.length})\n${pendingTasks.rows.map((t: any) => `- [${t.priority}] ${t.agent_id}: ${t.task.slice(0, 80)}`).join("\n")}`
+          pendingTasksRows.length > 0
+            ? `\n## Pending Tasks (${pendingTasksRows.length})\n${pendingTasksRows.map((t: any) => `- [${t.priority}] ${t.agent_id}: ${t.task.slice(0, 80)}`).join("\n")}`
             : "",
-          dueRoutines.rows.length > 0
-            ? `\n## Due Routines (${dueRoutines.rows.length})\n${dueRoutines.rows.map((r: any) => `- ${r.agent_id}: ${r.name} (next: ${r.next_run})`).join("\n")}`
+          dueRoutinesRows.length > 0
+            ? `\n## Due Routines (${dueRoutinesRows.length})\n${dueRoutinesRows.map((r: any) => `- ${r.agent_id}: ${r.name} (next: ${r.next_run})`).join("\n")}`
             : "",
-          a2aInbox.rows.length > 0
-            ? `\n## Unread A2A Messages (${a2aInbox.rows.length})\n${a2aInbox.rows.map((m: any) => `- ${m.from_agent} → ${m.to_agent}: ${m.message_type} (${m.priority}): ${(m.content || "").slice(0, 60)}`).join("\n")}`
+          a2aInboxRows.length > 0
+            ? `\n## Unread A2A Messages (${a2aInboxRows.length})\n${a2aInboxRows.map((m: any) => `- ${m.from_agent} -> ${m.to_agent}: ${m.type} (${m.priority}): ${m.topic || ""}`).join("\n")}`
             : "",
-          failedTasks.rows.length > 0
-            ? `\n## Failed Tasks Needing Escalation (${failedTasks.rows.length})\n${failedTasks.rows.map((t: any) => `- ${t.agent_id}: ${t.task.slice(0, 60)} (attempts: ${t.attempts}, error: ${(t.error || "unknown").slice(0, 40)})`).join("\n")}`
+          failedTasksRows.length > 0
+            ? `\n## Failed Tasks Needing Escalation (${failedTasksRows.length})\n${failedTasksRows.map((t: any) => `- ${t.agent_id}: ${t.task.slice(0, 60)} (attempts: ${t.attempts}, error: ${(t.error || "unknown").slice(0, 40)})`).join("\n")}`
             : "",
-          projectStatus.rows.length > 0
-            ? `\n## Active Projects\n${projectStatus.rows.map((p: any) => `- ${p.name}: ${p.progress}% complete, ${p.pending_tasks} pending, ${p.failed_tasks} failed`).join("\n")}`
+          projectStatusRows.length > 0
+            ? `\n## Active Projects\n${projectStatusRows.map((p: any) => `- ${p.name}: ${p.completed_tasks}/${p.total_tasks} complete, ${p.pending_tasks} pending, ${p.failed_tasks} failed`).join("\n")}`
             : "",
-          workflowQueue.rows.length > 0
-            ? `\n## Scheduled Workflows\n${workflowQueue.rows.map((w: any) => `- ${w.name}: next run ${w.next_run}`).join("\n")}`
-            : "",
-          recentActivity.rows.length > 0
-            ? `\n## Recent Activity (last 30 min)\n${recentActivity.rows.slice(0, 5).map((a: any) => `- ${a.agent_id}: ${a.action} — ${a.detail.slice(0, 60)}`).join("\n")}`
+          recentActivityRows.length > 0
+            ? `\n## Recent Activity (last 30 min)\n${recentActivityRows.slice(0, 5).map((a: any) => `- ${a.agent_id}: ${a.action} - ${(a.detail || "").slice(0, 60)}`).join("\n")}`
             : "",
         ].join("\n");
 
@@ -271,23 +287,23 @@ Output as JSON:
         proactivePlan.recommendations = (proactivePlan.recommendations || []).slice(0, 3);
       } catch (llmErr) {
         // Fallback: generate a basic plan without LLM
-        const urgency = failedTasks.rows.length > 0 ? "high" : pendingTasks.rows.length > 3 ? "medium" : dueRoutines.rows.length > 0 ? "low" : "idle";
+        const urgency = failedTasksRows.length > 0 ? "high" : pendingTasksRows.length > 3 ? "medium" : dueRoutinesRows.length > 0 ? "low" : "idle";
 
         const actions: Array<{ type: string; agent: string; action: string; reasoning: string; priority: string }> = [];
 
         // Prioritize A2A messages
-        for (const msg of a2aInbox.rows.slice(0, 3)) {
+        for (const msg of a2aInboxRows.slice(0, 3)) {
           actions.push({
             type: "process_a2a",
             agent: (msg as any).to_agent,
-            action: `Process message from ${(msg as any).from_agent}: ${(msg as any).content || (msg as any).message_type}`,
+            action: `Process message from ${(msg as any).from_agent}: ${(msg as any).type} - ${(msg as any).topic || ""}`,
             reasoning: `Unread A2A message with ${(msg as any).priority} priority`,
             priority: (msg as any).priority || "normal",
           });
         }
 
         // Then pending tasks
-        for (const task of pendingTasks.rows.slice(0, 3)) {
+        for (const task of pendingTasksRows.slice(0, 3)) {
           actions.push({
             type: "execute_task",
             agent: (task as any).agent_id,
@@ -321,13 +337,13 @@ Output as JSON:
         systemState,
         proactivePlan,
         raw: {
-          pendingTasks: pendingTasks.rows,
-          dueRoutines: dueRoutines.rows,
-          unreadA2A: a2aInbox.rows,
-          activeProjects: projectStatus.rows,
-          failedTasks: failedTasks.rows,
-          scheduledWorkflows: workflowQueue.rows,
-          recentActivity: recentActivity.rows.slice(0, 10),
+          pendingTasks: pendingTasksRows,
+          dueRoutines: dueRoutinesRows,
+          unreadA2A: a2aInboxRows,
+          activeProjects: projectStatusRows,
+          failedTasks: failedTasksRows,
+          scheduledWorkflows: workflowRows,
+          recentActivity: recentActivityRows.slice(0, 10),
         },
         meta: {
           generatedAt: now.toISOString(),
