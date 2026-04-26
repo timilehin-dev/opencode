@@ -1,28 +1,26 @@
 ---
-Task ID: 1
+Task ID: 2
 Agent: Main Agent (Super Z)
-Task: Phase 3 — Proactive Scanning & Pull-Based Triggers
+Task: Phase 4 — Persistent Memory & Context
 
 Work Log:
-- Explored full codebase to understand current architecture after Phases 1-2
-- Designed Phase 3B architecture: triggers table, scan_state table, trigger_events table, scan_logs table
-- Added PROACTIVE_SCANNING_SCHEMA_SQL to unified-schema.ts with 4 new tables, indexes, triggers, and helper functions
-- Built scanner-runner.mjs (780+ lines) with 3 external service scanners (GitHub, Gmail, Vercel), full trigger engine, event dedup, filter_config matching, and 6 pre-seeded default triggers
-- Created 3 webhook receiver API routes: /api/webhooks/github (signature verification, 6 event types), /api/webhooks/vercel, /api/webhooks/generic (arbitrary payloads with optional auth)
-- Created /api/triggers CRUD API (GET/POST/PATCH/DELETE)
-- Created /api/setup/phase3b setup endpoint
-- Added Phase 0.75 to execute-tasks.mjs: inline trigger engine that processes pending trigger_events every 2 minutes (between Phase 0.5 and Phase 1)
-- Created scanner-runner.yml GitHub Action workflow (every 10 minutes, supports manual dispatch and repository_dispatch)
-- Updated task-executor.yml header comment to reflect new Phase 0.75
-- Applied Phase 3B schema to Supabase database (all 4 tables + indexes created successfully)
-- 0 TypeScript errors in new files (only pre-existing node_modules-related errors in existing files)
-- Committed and pushed to main (commit 6c4fa26)
+- Explored codebase to understand existing memory architecture (3-layer: episodic, semantic, procedural)
+- Identified critical gaps: no agent-callable memory tools, zero memory integration in execute-tasks.mjs, missing metadata column
+- Created src/lib/tools/memory.ts with 6 memory tools (memory_save, memory_search, memory_recall, memory_forget, memory_list, memory_summary)
+- Registered memory tools in tools/index.ts and added to all 7 agent tool lists in agent-config.ts
+- Added 6 memory tool implementations to execute-tasks.mjs standalone executor
+- Added memory context injection before each task execution in execute-tasks.mjs (loads high-importance memories, injects into system prompt as [PERSISTENT MEMORY] block)
+- Added conversation logging after each successful task (saves input/output to conversations table)
+- Added metadata JSONB column to agent_memory schema (was typed but not in DB)
+- Extended category CHECK constraint to support all 3-layer categories
+- Applied schema enhancements to Supabase
+- Fixed memory.ts insert to include metadata when present
+- Committed and pushed to main (commit 185273b)
 
 Stage Summary:
-- Phase 3 is complete: system now proactively reaches OUT to external services
-- 3 scanners (GitHub, Gmail, Vercel) detect changes and create trigger_events
-- 3 webhook receivers accept push events from external services
-- Trigger engine matches events against user-defined triggers → creates agent_tasks
-- 6 default triggers pre-seeded for common events (GitHub issues, PRs, urgent emails, Vercel deploys)
-- Scanning runs every 10 min via scanner-runner.yml; trigger evaluation runs every 2 min via execute-tasks.mjs Phase 0.75
-- Total: 11 files changed, 2017 insertions, commit 6c4fa26 on main
+- Phase 4 is complete: agents now have full read/write access to their persistent memories
+- 6 memory tools available to all 7 agents (both chat and autonomous execution)
+- Autonomous tasks in execute-tasks.mjs now start with memory context from previous runs
+- Task results are persisted to conversations table for history
+- agent_memory table now has metadata column for flexible tagging
+- Total: 6 files changed, 570 insertions, commit 185273b on main
