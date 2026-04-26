@@ -16,10 +16,10 @@
 // Usage: import { getPool, query, withPool } from "@/lib/db"
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { Pool } = require("pg");
+import { Pool } from "pg";
+import type { Pool as PoolType } from "pg";
 
-let _pool: ReturnType<typeof Pool> | null = null;
+let _pool: PoolType | null = null;
 let _creatingPool = false;
 
 /**
@@ -48,7 +48,7 @@ function buildConnectionString(): string {
 /**
  * Create a new pool instance. Does NOT cache — caller must assign to _pool.
  */
-function createPool(): ReturnType<typeof Pool> {
+function createPool(): PoolType {
   const connectionString = buildConnectionString();
 
   const pool = new Pool({
@@ -79,7 +79,7 @@ function createPool(): ReturnType<typeof Pool> {
  * Get or create the shared connection pool singleton.
  * If the pool was destroyed due to EMAXCONNSESSION, a fresh one is created.
  */
-export function getPool(): ReturnType<typeof Pool> {
+export function getPool(): PoolType {
   // Pool exists and is healthy — return it
   if (_pool) return _pool;
 
@@ -176,7 +176,7 @@ export async function query(sql: string, params?: unknown[]) {
  * The pool is NOT ended after the callback — it persists.
  */
 export async function withPool<T>(
-  fn: (pool: ReturnType<typeof Pool>) => Promise<T>,
+  fn: (pool: PoolType) => Promise<T>,
 ): Promise<T> {
   const pool = getPool();
   return fn(pool);

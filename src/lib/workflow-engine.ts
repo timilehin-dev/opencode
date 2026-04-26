@@ -38,7 +38,7 @@ interface WorkflowStepRow {
   input_context: string | null;
   output_result: string | null;
   output_summary: string | null;
-  validation_score: string | null;
+  validation_score: number | null;
   validation_feedback: string | null;
   error_message: string | null;
   attempts: number;
@@ -60,7 +60,7 @@ interface WorkflowRow {
   total_steps: number;
   completed_steps: number;
   failed_steps: number;
-  quality_score: string | null;
+  quality_score: number | null;
   error_message: string | null;
   schedule_interval: number | null;
   created_at: string;

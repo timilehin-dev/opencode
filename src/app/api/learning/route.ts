@@ -156,7 +156,7 @@ export async function POST(req: Request) {
         }
         const { query } = await import("@/lib/db");
         const result = await query("DELETE FROM learning_insights WHERE id = $1 RETURNING id", [insightId]);
-        return NextResponse.json({ success: true, deleted: result.rowCount > 0 });
+        return NextResponse.json({ success: true, deleted: (result.rowCount ?? 0) > 0 });
       }
 
       default:
