@@ -3073,7 +3073,7 @@ function buildToolMap(agentId) {
         // Queue a new task for the target agent
         const result = await pool.query(
           `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-           VALUES ($1, $2, $3, 'agent_delegation', $4, 'high') RETURNING id`,
+           VALUES ($1, $2, $3, 'delegation', $4, 'high') RETURNING id`,
           [agent_id, task, `Delegated from background task at ${new Date().toISOString()}`, `delegation:bg-${Date.now()}`],
         );
         const newTaskId = result.rows[0]?.id;
@@ -3592,7 +3592,7 @@ function buildToolMap(agentId) {
         }
         const result = await pool.query(
           `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-           VALUES ($1, $2, $3, 'agent_delegation', $4, 'high') RETURNING id`,
+           VALUES ($1, $2, $3, 'delegation', $4, 'high') RETURNING id`,
           [agent_id, task, `Delegated from background task at ${new Date().toISOString()}`, `delegation:bg-${Date.now()}`],
         );
         const newTaskId = result.rows[0]?.id;
@@ -5089,7 +5089,7 @@ async function main() {
 
         const taskResult = await pool.query(
           `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-           VALUES ($1, $2, $3, 'routine', $4, 'high') RETURNING id`,
+           VALUES ($1, $2, $3, 'cron', $4, 'high') RETURNING id`,
           [
             agentId,
             taskPrompt,
@@ -5173,7 +5173,7 @@ async function main() {
               try {
                 const taskResult = await pool.query(
                   `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-                   VALUES ($1, $2, $3, 'proactive_scan', $4, $5) RETURNING id`,
+                   VALUES ($1, $2, $3, 'proactive_assessment', $4, $5) RETURNING id`,
                   [
                     agentId,
                     taskTemplate,
@@ -5668,7 +5668,7 @@ async function main() {
       for (const row of escalateResult.rows) {
         const escalationTask = await pool.query(
           `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-           VALUES ('general', $1, $2, 'escalation', $3, 'high')
+           VALUES ('general', $1, $2, 'automation', $3, 'high')
            RETURNING id`,
           [
             `ESCALATION: Task #${row.id} has failed ${row.attempts} times and needs your attention. The original task was: "${row.task.slice(0, 300)}". The error was: "${(row.error || "unknown").slice(0, 500)}". Please analyze why this task is failing and either: (1) fix the issue and reschedule it, (2) break it into smaller subtasks, (3) route it to a more appropriate agent, or (4) mark it as not feasible.`,

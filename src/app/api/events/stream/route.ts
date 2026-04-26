@@ -119,15 +119,15 @@ export async function GET(req: Request) {
             controller.enqueue(encoder.encode(formatSSE("delegation", newDelegations.reverse())));
           }
 
-          // Check for status changes
-          const currentMerged = currentStatuses.map((s) => ({
+          // Check for status changes — deep-clone BEFORE comparison to avoid stale refs
+          const prevMerged = mergedStatuses.map((s) => ({
             id: s.id,
             status: s.status,
             currentTask: s.currentTask,
             lastActivity: s.lastActivity,
           }));
 
-          const prevMerged = mergedStatuses.map((s) => ({
+          const currentMerged = currentStatuses.map((s) => ({
             id: s.id,
             status: s.status,
             currentTask: s.currentTask,

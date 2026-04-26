@@ -30,6 +30,13 @@ export interface AgentTask {
 // createTask — Create a new task in the queue
 // ---------------------------------------------------------------------------
 
+export class TaskQueueError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = "TaskQueueError";
+  }
+}
+
 export async function createTask(params: {
   agent_id: string;
   task: string;
@@ -38,7 +45,9 @@ export async function createTask(params: {
   trigger_source?: string;
   priority?: string;
 }): Promise<number> {
-  if (!process.env.SUPABASE_DB_URL) return -1;
+  if (!process.env.SUPABASE_DB_URL) {
+    throw new TaskQueueError("SUPABASE_DB_URL not configured");
+  }
 
   try {
     const result = await query(
@@ -54,10 +63,16 @@ export async function createTask(params: {
         params.priority || "medium",
       ],
     );
-    return Number(result.rows[0]?.id || -1);
+    const id = Number(result.rows[0]?.id);
+    if (!id) {
+      throw new TaskQueueError("INSERT succeeded but no id was returned");
+    }
+    return id;
   } catch (err) {
-    console.warn("[TaskQueue] Failed to create task:", err);
-    return -1;
+    if (err instanceof TaskQueueError) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[TaskQueue] Failed to create task:", msg);
+    throw new TaskQueueError(`Database error: ${msg}`, err);
   }
 }
 

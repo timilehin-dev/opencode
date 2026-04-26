@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { TodoView } from "@/hooks/use-dashboard-stream";
 
@@ -30,9 +30,12 @@ export function ActiveTasks({ todos }: ActiveTasksProps) {
   const [localTodos, setLocalTodos] = useState<TodoView[]>(todos || []);
   const [updating, setUpdating] = useState<number | null>(null);
 
-  if (todos && todos !== localTodos && todos.length !== localTodos.length) {
-    setLocalTodos(todos);
-  }
+  // Sync parent-provided todos into local state (avoid render-time setState)
+  useEffect(() => {
+    if (todos && todos !== localTodos && todos.length !== localTodos.length) {
+      setLocalTodos(todos);
+    }
+  }, [todos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDone = useCallback(async (todo: TodoView) => {
     const newStatus = todo.status === "done" ? "open" : "done";

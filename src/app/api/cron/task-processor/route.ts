@@ -144,7 +144,7 @@ export async function GET(request: Request) {
     const { rows } = await query(`
       SELECT * FROM agent_tasks
       WHERE status = 'pending'
-        AND trigger_type IN ('automation', 'cron', 'delegation', 'proactive_assessment', 'a2a_inbox', 'project')
+        AND trigger_type IN ('automation', 'cron', 'delegation', 'proactive_assessment', 'a2a_inbox', 'project', 'autonomous', 'manual')
       ORDER BY priority DESC, created_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED

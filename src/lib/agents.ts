@@ -162,8 +162,14 @@ export function updateAgentStatus(
   agentStatuses.set(id, updated);
 
   // Also persist to database (fire-and-forget — non-async context)
-  // Uses INCREMENT semantics for counters (matches activity.ts persistAgentStatus)
-  // to avoid overwriting accumulated totals from other serverless instances.
+  // Only pass counters if they were explicitly provided in the update.
+  // This avoids double-incrementing: the SQL uses INCREMENT semantics
+  // (agent_status.tasks_completed + EXCLUDED.tasks_completed), so passing
+  // the full cumulative value on every status update would cause exponential growth.
+  const hasCounterUpdate = "tasksCompleted" in update || "messagesProcessed" in update;
+  const counterTasks = hasCounterUpdate ? (update.tasksCompleted ?? 0) : 0;
+  const counterMsgs = hasCounterUpdate ? (update.messagesProcessed ?? 0) : 0;
+
   import("@/lib/db").then(({ query }) =>
     query(
       `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed)
@@ -175,9 +181,9 @@ export function updateAgentStatus(
          tasks_completed = agent_status.tasks_completed + EXCLUDED.tasks_completed,
          messages_processed = agent_status.messages_processed + EXCLUDED.messages_processed,
          updated_at = NOW()`,
-      [id, updated.status ?? "idle", updated.currentTask ?? null, updated.lastActivity ?? new Date().toISOString(), updated.tasksCompleted ?? 0, updated.messagesProcessed ?? 0]
-    ).catch(() => { /* non-critical */ })
-  ).catch(() => { /* non-critical */ });
+      [id, updated.status ?? "idle", updated.currentTask ?? null, updated.lastActivity ?? new Date().toISOString(), counterTasks, counterMsgs]
+    ).catch((err) => { console.warn("[Agents] Failed to persist status:", err); })
+  ).catch(() => { /* module import failed */ });
 
   return updated;
 }

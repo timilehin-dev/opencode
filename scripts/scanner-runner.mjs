@@ -520,7 +520,7 @@ async function runTriggerEngine(db) {
 
               const taskResult = await db.query(
                 `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority)
-                 VALUES ($1, $2, $3, 'proactive_scan', $4, $5)
+                 VALUES ($1, $2, $3, 'proactive_assessment', $4, $5)
                  RETURNING id`,
                 [
                   agentId,

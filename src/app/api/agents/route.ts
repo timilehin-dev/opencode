@@ -14,7 +14,7 @@ import {
   sendA2AMessage,
   getAgentA2AMessages,
 } from "@/lib/a2a";
-import { createTask } from "@/lib/task-queue";
+import { createTask, TaskQueueError } from "@/lib/task-queue";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -95,17 +95,16 @@ export async function POST(req: NextRequest) {
             agent_id: agentId,
             task,
             context: instruction || "Quick task dispatched from dashboard",
-            trigger_type: "user_dispatch",
+            trigger_type: "manual",
             trigger_source: "dashboard",
             priority: "medium",
           });
         } catch (enqueueErr) {
           console.error("[Agents API] Failed to enqueue task:", enqueueErr);
-          return err("Failed to create task — database unavailable", 503);
-        }
-
-        if (taskId === -1) {
-          return err("Failed to create task — check database configuration", 503);
+          const detail = enqueueErr instanceof TaskQueueError
+            ? enqueueErr.message
+            : "Database unavailable";
+          return err(`Failed to create task — ${detail}`, 503);
         }
 
         console.log(`[Agents API] Task enqueued: id=${taskId}`);
