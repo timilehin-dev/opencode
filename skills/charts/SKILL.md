@@ -1,14 +1,31 @@
 ---
 name: charts
-tags: [charts, visualization, graph, diagram, flowchart, mind-map, dashboard]
 metadata:
   author: Z.AI
   version: "1.0"
-  category: data
-  difficulty: intermediate
 description: >
-  Professional chart and diagram creation. Covers data charts (bar, line, pie, scatter, heatmap, radar, candlestick, boxplot, histogram, area, waterfall, regression, distribution), structural diagrams (flowchart, mind map, tree, org chart, architecture, ER, class, Gantt, swimlane, sequence), and dashboards (KPI panels, multi-chart compositions, interactive visualizations).
-license: Proprietary
+  Professional chart and diagram creation skill. Covers all types of visual data
+  representation and structural diagrams:
+  - **Data charts**: bar charts, line charts, pie charts, scatter plots, heatmaps,
+    radar charts, candlestick charts, boxplots, histograms, area charts, waterfall charts,
+    regression plots, distribution plots, and statistical visualizations.
+  - **Structural diagrams**: flowcharts, mind maps, tree diagrams, org charts,
+    architecture diagrams, network/relationship graphs, ER diagrams, class diagrams,
+    Gantt charts, swimlane diagrams, and sequence diagrams.
+  - **Dashboards**: data dashboards, KPI panels, multi-chart compositions,
+    and interactive visualizations.
+  - **Design quality**: professional color systems, anti-overlap rules, layout optimization,
+    scene-based framework routing (matplotlib, seaborn, ECharts, D3.js, Mermaid, Playwright+CSS),
+    and publication-ready output.
+  Applies when the user wants to create, generate, draw, plot, visualize, or improve
+  any chart, graph, diagram, or dashboard. Also applies when the user asks for something
+  more polished, cleaner, or publication-ready.
+  NOT for: PDF document layout (use pdf skill), slide decks (use slides skill),
+  spreadsheets with embedded charts (use xlsx skill), AI image generation (use image_gen),
+  posters / infographics / creative cards (use pdf skill Creative pipeline).
+  FORBIDDEN: Using matplotlib/seaborn to draw mind maps, tree diagrams, org charts,
+  flowcharts, or any structural diagram. These MUST use Playwright+CSS.
+license: Proprietary. LICENSE.txt has complete terms
 ---
 
 # Beautiful Charts

@@ -1,12 +1,6 @@
 ---
 name: web-search
 description: Implement web search capabilities using the z-ai-web-dev-sdk. Use this skill when the user needs to search for real-time information from the web, retrieve up-to-date content beyond the knowledge cutoff, or find the latest news and data. Returns structured search results with URLs, snippets, and metadata.
-tags: [web-search, search, information-retrieval, research]
-metadata:
-  author: Z.AI
-  version: "1.0"
-  category: research
-  difficulty: beginner
 license: MIT
 ---
 
