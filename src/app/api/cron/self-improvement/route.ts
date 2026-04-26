@@ -37,8 +37,9 @@ const IMPROVEMENT_CATEGORIES = [
 // ---------------------------------------------------------------------------
 
 const SCAN_FILES = [
-  { path: "src/lib/tools.ts", desc: "Core tools & skill definitions" },
+  { path: "src/lib/tools/index.ts", desc: "Core tools & skill definitions" },
   { path: "src/lib/agents.ts", desc: "Agent configs & system prompts" },
+  { path: "src/lib/agent-config.ts", desc: "Shared agent definitions & system prompts" },
   { path: "src/app/(app)/layout.tsx", desc: "Main app layout & accessibility" },
   { path: "src/app/(app)/page.tsx", desc: "Dashboard page" },
   { path: "src/app/api/chat/route.ts", desc: "Chat API — streaming & persistence" },

@@ -297,8 +297,9 @@ export const allTools: Record<string, ToolType> = {
   a2a_share_context: a2aShareContextTool,
   a2a_query_context: a2aQueryContextTool,
   a2a_collaborate: a2aCollaborateTool,
-  // Code & Weather
+  // Code & Data Processing
   code_execute: codeExecuteTool,
+  python_data_process: pythonDataProcessTool,
   weather_get: weatherGetTool,
   // Skill Library
   skill_list: skillListTool,

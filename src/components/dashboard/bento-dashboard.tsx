@@ -37,6 +37,13 @@ const ChatView = lazy(() =>
   }))
 );
 
+// Lazy-load system intelligence
+const SystemIntelligenceCard = lazy(() =>
+  import("@/components/dashboard/system-intelligence").then((m) => ({
+    default: m.SystemIntelligenceCard,
+  }))
+);
+
 // ---------------------------------------------------------------------------
 // Service metadata
 // ---------------------------------------------------------------------------
@@ -899,6 +906,17 @@ export default function DashboardPage() {
                 metrics={metrics}
                 agentStatuses={agentStatuses}
               />
+
+              {/* System Intelligence — Proactive Agent Brain */}
+              <Suspense
+                fallback={
+                  <div className="bento-card flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  </div>
+                }
+              >
+                <SystemIntelligenceCard />
+              </Suspense>
 
               {/* Tasks + Services row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">

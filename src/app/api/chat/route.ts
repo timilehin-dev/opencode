@@ -534,7 +534,11 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
             }).catch(() => {});
 
             // Fire-and-forget pattern detection via the learning API
-            fetch("/api/learning", {
+            // Use absolute URL since this runs server-side (relative URLs won't resolve)
+            const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : "https://klawhub.xyz";
+            fetch(`${siteUrl}/api/learning`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "detect_patterns", agentId: id, conversations: recentMsgs }),

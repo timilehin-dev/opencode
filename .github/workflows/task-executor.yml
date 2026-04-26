@@ -64,6 +64,12 @@ jobs:
 
         run: node scripts/execute-tasks.mjs --tasks 5 --timeout 300 --max-steps 40
 
+      - name: Ping proactive heartbeat
+        if: success()
+        run: |
+          curl -sf "${{ secrets.KLAWHUB_CRON_URL }}/api/proactive/heartbeat" > /dev/null 2>&1 || echo "Heartbeat ping skipped (deployment may be in progress)"
+        continue-on-error: true
+
       - name: Log completion
         if: always()
         run: echo "Task executor finished at $(date -u)"
