@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://docs.composio.dev/docs/tools-direct/executing-tools",
+    "name": "Executing Tools",
+    "snippet": "In Composio , every tool is a single API action —fully described with schema, parameters, and return type. Tools live inside toolkits like Gmail , Slack, or ...\nIn Composio, every tool is a single API action—fully described with schema, parameters, and return type. Tools live inside toolkits like Gmail, Slack, or ...\nIn Composio, every tool is a single API action—fully described with schema, parameters, and return type. Tools live inside toolkits like Gmail, Slack, or GitHub ...",
+    "host_name": "docs.composio.dev",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.mintlify.com/composiohq/composio/typescript/overview",
+    "name": "TypeScript SDK Overview - Composio",
+    "snippet": "The Composio TypeScript SDK enables you to integrate third-party tools into your AI applications with minimal setup. Connect your agents to services like GitHub ...",
+    "host_name": "www.mintlify.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.composio.dev/reference",
+    "name": "API Reference",
+    "snippet": "Composio powers tool discovery, execution , authentication, and context management for your AI agents with 1000+ toolkits. This reference covers our REST ...\nComposio powers tool discovery, execution, authentication, and context management for your AI agents with 1000+ toolkits. This reference covers our REST ... Missing: Gmail | Show results with: Gmail",
+    "host_name": "docs.composio.dev",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/ComposioHQ/awesome-claude-plugins",
+    "name": "ComposioHQ/awesome-claude-plugins: A curated list",
+    "snippet": "4 days ago — Send emails, create issues, post messages, update databases - take real actions across Gmail , Slack, GitHub, Notion, and 500+ services.",
+    "host_name": "github.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dev.to/composiodev/how-to-connect-cursor-to-100-mcp-servers-within-minutes-3h74",
+    "name": "How to connect Cursor to 100+ MCP Servers within minutes",
+    "snippet": "Model Context Protocol (MCP) is the latest trend of 2025 . It makes it easier to scale your workflows and opens many powerful use cases.",
+    "host_name": "dev.to",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.mintlify.com/composiohq/composio/typescript/api/tools",
+    "name": "Tools API - Composio",
+    "snippet": "The tools API provides methods to discover and execute tools across 250+ integrations. Tools are individual actions like GITHUB_CREATE_ISSUE or GMAIL_SEND_EMAIL ...",
+    "host_name": "www.mintlify.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://composio.dev/toolkits/gmail/framework/google-adk",
+    "name": "Gmail MCP Integration with Google ADK",
+    "snippet": "Learn how to integrate Gmail with Google ADK using the Model Context Protocol (MCP). Step-by-step guide with Python and TypeScript code examples.",
+    "host_name": "composio.dev",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive",
+    "name": "Claude Agent Skills: A First Principles Deep Dive",
+    "snippet": "Oct 26, 2025 — Technical deep dive into Claude Agent Skills' prompt-based meta- tool architecture. Learn how context injection design, two-message patterns, ...",
+    "host_name": "leehanchung.github.io",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://stackoverflow.com/questions/79808549/how-to-call-a-composable-function-after-a-certain-time-in-jetpack-compose",
+    "name": "How to call a composable function after a certain time in",
+    "snippet": "delay is a suspend function and cannot be called from a composable. You have to wrap it in a LaunchedEffect first.",
+    "host_name": "stackoverflow.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.facebook.com/docker.run/posts/running-ai-agents-is-easy-running-them-safely-is-the-hard-partdocker-is-covering/1357699053060299",
+    "name": "Running AI agents is easy. Running them",
+    "snippet": "Tools - External services, APIs , and custom tools which allow agents to connect and build a network of services. - Popular Tools include Gmail , ...",
+    "host_name": "www.facebook.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://composio.dev/toolkits",
+    "name": "Toolkits - Composio",
+    "snippet": "Gmail · Outlook · Google Calendar · Google Drive · Twitter · Google Sheets · Supabase · Composio. Missing: Vercel 2025",
+    "host_name": "composio.dev",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.composio.dev/toolkits",
+    "name": "Toolkits - Composio Docs",
+    "snippet": "Gmail GMAIL. 62 2. Missing: list 2025",
+    "host_name": "docs.composio.dev",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.composio.dev/reference/api-reference/tools/getTools",
+    "name": "List available tools - Composio Docs",
+    "snippet": "Retrieve a paginated list of available tools with comprehensive filtering, sorting and search capabilities. Use query parameters to narrow down results by ...",
+    "host_name": "docs.composio.dev",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/punkpeye/awesome-mcp-servers",
+    "name": "punkpeye/awesome-mcp-servers - GitHub",
+    "snippet": "This list focuses on production-ready and experimental MCP servers that extend AI capabilities through file access, database connections, API integrations, and ...",
+    "host_name": "github.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.facebook.com/groups/miaigroup/posts/2131743124263615",
+    "name": "Composio – Hạ tầng kết nối AI Agents với 1000+ ứng dụng thực tế",
+    "snippet": "... Gmail, Slack, GitHub, Notion… thông qua tool calling. • SDK chính thức cho Python và TypeScript Dự án cung cấp SDK đầy đủ cho cả hai hệ sinh ... Missing: list Jira Vercel Supabase 2025",
+    "host_name": "www.facebook.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.composio.dev/docs/changelog",
+    "name": "Changelog - Composio Docs",
+    "snippet": "All OAuth2 toolkits (Gmail, GitHub, Slack, Google Docs, and more) now support BEARER_TOKEN as an auth scheme. Import your own access tokens ...",
+    "host_name": "docs.composio.dev",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dev.to/composiodev/13-top-open-source-tools-you-must-use-for-your-next-big-project-in-2025-5gld",
+    "name": "13 top open-source tools you must use for your next big project in",
+    "snippet": "1. Composio: Integrate AI with external SaaS for automation. 2025 is going to be the year of AI agents. However, AI agents are as useful as ...",
+    "host_name": "dev.to",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://composio.dev/content/13-mcp-servers-every-developer-should-know",
+    "name": "13 MCP servers every developer should know - Composio",
+    "snippet": "Each server, like GitHub, Slack, Supabase ... Jira MCP transforms Jira from a cumbersome tracker into a tool that supports the workflow quietly. Missing: Vercel | Show results with: Vercel",
+    "host_name": "composio.dev",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.crewai.com/en/tools/automation/composiotool",
+    "name": "Composio Tool - CrewAI Documentation",
+    "snippet": "Composio is an integration platform that allows you to connect your AI agents to 250+ tools. Key features include: Enterprise-Grade Authentication: Built-in ...",
+    "host_name": "docs.crewai.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/composiohq",
+    "name": "Composio - GitHub",
+    "snippet": "Access 1000+ third-party tools in OpenClaw via Composio — Gmail, Slack, GitHub, Notion, Linear, Jira, HubSpot, Salesforce, Google Drive, and more. Missing: Supabase 2025",
+    "host_name": "github.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

@@ -1,0 +1,46 @@
+# Claw Reminder Processor — Fires due reminders
+# Runs every 5 minutes. Triggerable via repository_dispatch from pg_cron.
+#
+# Checks the reminders table for pending reminders whose reminder_time <= NOW()
+# Marks them as fired and sends push notifications.
+
+name: Reminder Processor
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes
+  workflow_dispatch:          # manual trigger from GitHub UI
+  repository_dispatch:        # trigger from Supabase pg_cron via pg_net
+    types: [reminder-processor]
+
+concurrency:
+  group: reminder-processor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  process-reminders:
+    name: Process Due Reminders
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install pg --no-save 2>/dev/null || npm install pg
+
+      - name: Run reminder processor
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: node scripts/cron-runner.mjs --job process-reminders --max-reminders 20
+
+      - name: Log completion
+        if: always()
+        run: echo "Reminder processor finished at $(date -u)"

@@ -1,0 +1,149 @@
+# Klawhub Health Check — Monitors system health
+# Runs every hour. Also triggerable via repository_dispatch from pg_cron.
+#
+# Checks agent_status, stale tasks, and system metrics.
+# Writes results to the health check log.
+
+name: Health Check
+on:
+  schedule:
+    - cron: '0 * * * *'  # every hour
+  workflow_dispatch:          # manual trigger from GitHub UI
+  repository_dispatch:        # trigger from Supabase pg_cron via pg_net
+    types: [health-check]
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    name: System Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pg (lightweight)
+        run: npm install pg --no-save 2>/dev/null || npm install pg
+
+      - name: Run health check
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          node -e "
+          const pg = require('pg');
+          const pool = new pg.Pool({ connectionString: process.env.SUPABASE_DB_URL });
+          const now = new Date().toISOString();
+
+          async function check() {
+            // 1. Check database connectivity
+            try {
+              await pool.query('SELECT 1');
+              console.log('Database: connected');
+            } catch(e) {
+              console.error('Database: FAILED', e.message);
+              await pool.end();
+              process.exit(1);
+            }
+
+            // 2. Check for stale running tasks (>15 min)
+            const stale = await safeQuery(
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'\"
+            );
+            console.log('Stale running tasks:', stale ? stale.count : 'N/A');
+
+            // 3. Check for stale project tasks
+            const stalePT = await safeQuery(
+              \"SELECT COUNT(*) as count FROM project_tasks WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '15 minutes'\"
+            );
+            console.log('Stale project tasks:', stalePT ? stalePT.count : 'N/A');
+
+            // 4. Agent status overview
+            const agents = await safeQuery(
+              'SELECT agent_id, status, current_task, last_activity FROM agent_status ORDER BY agent_id'
+            );
+            if (agents && agents.rows) {
+              console.log('Agent status:', JSON.stringify(agents.rows));
+            } else {
+              console.log('Agent status: table not found');
+            }
+
+            // 5. Pending tasks count
+            const pending = await safeQuery(
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'pending'\"
+            );
+            console.log('Pending tasks:', pending ? pending.count : 'N/A');
+
+            // 6. Unread notifications count
+            const notifs = await safeQuery(
+              'SELECT COUNT(*) as count FROM proactive_notifications WHERE is_read = FALSE'
+            );
+            console.log('Unread notifications:', notifs ? notifs.count : 'N/A');
+
+            // 7. Recent errors
+            const errors = await safeQuery(
+              \"SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '1 hour'\"
+            );
+            console.log('Recent task failures (1h):', errors ? errors.count : 'N/A');
+
+            // 8. Active routines count
+            const routines = await safeQuery(
+              'SELECT COUNT(*) as count FROM agent_routines WHERE is_active = true'
+            );
+            console.log('Active routines:', routines ? routines.count : 'N/A');
+
+            // 9. Write health log (best-effort)
+            try {
+              await pool.query(
+                \"INSERT INTO automation_logs (automation_id, status, result, created_at) VALUES (0, 'success', \$1, NOW())\",
+                [JSON.stringify({ type: 'health_check', timestamp: now, stale_tasks: stale?.count || 0, stale_project_tasks: stalePT?.count || 0, pending_tasks: pending?.count || 0, unread_notifications: notifs?.count || 0, recent_failures: errors?.count || 0, active_routines: routines?.count || 0 })]
+              );
+            } catch(e) {
+              console.log('Could not write health log:', e.message);
+            }
+
+            // Recover stale tasks
+            if (stale && Number(stale.count) > 0) {
+              const recovered = await pool.query(
+                \"UPDATE agent_tasks SET status = 'pending', started_at = NULL WHERE status = 'running' AND started_at < NOW() - INTERVAL '15 minutes'\"
+              );
+              console.log('Recovered stale tasks:', recovered.rowCount);
+            }
+            if (stalePT && Number(stalePT.count) > 0) {
+              const recoveredPT = await pool.query(
+                \"UPDATE project_tasks SET status = 'pending', retries = COALESCE(retries, 0) WHERE status = 'in_progress' AND started_at < NOW() - INTERVAL '15 minutes'\"
+              );
+              console.log('Recovered stale project tasks:', recoveredPT.rowCount);
+            }
+
+            await pool.end();
+            console.log('Health check completed at', now);
+          }
+
+          // Helper: safely query, returning null if table doesn't exist
+          async function safeQuery(sql) {
+            try {
+              const result = await pool.query(sql);
+              return result.rows?.[0] || null;
+            } catch(e) {
+              if (e.message.includes('does not exist') || e.code === '42P01') {
+                return null; // table not found
+              }
+              console.warn('Query error:', e.message);
+              return null;
+            }
+          }
+
+          check().catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: Log completion
+        if: always()
+        run: echo "Health check finished at $(date -u)"
