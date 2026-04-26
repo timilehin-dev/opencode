@@ -53,6 +53,10 @@ jobs:
           OLLAMA_CLOUD_KEY_1: ${{ secrets.OLLAMA_CLOUD_KEY_1 }}
           OLLAMA_CLOUD_KEY_2: ${{ secrets.OLLAMA_CLOUD_KEY_2 }}
           OLLAMA_CLOUD_KEY_3: ${{ secrets.OLLAMA_CLOUD_KEY_3 }}
+          OLLAMA_CLOUD_KEY_4: ${{ secrets.OLLAMA_CLOUD_KEY_4 }}
+          OLLAMA_CLOUD_KEY_5: ${{ secrets.OLLAMA_CLOUD_KEY_5 }}
+          OLLAMA_CLOUD_KEY_6: ${{ secrets.OLLAMA_CLOUD_KEY_6 }}
+          OLLAMA_CLOUD_KEY_7: ${{ secrets.OLLAMA_CLOUD_KEY_7 }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}

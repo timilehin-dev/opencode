@@ -764,6 +764,52 @@ const AGENT_SYSTEM_PROMPTS = {
 };
 
 // ---------------------------------------------------------------------------
+// Compact System Prompts for Background Task Execution
+// ---------------------------------------------------------------------------
+// These are shorter versions of the full prompts above, optimized for
+// autonomous background tasks. They preserve agent identity, critical rules,
+// and tool awareness but remove verbose examples, decision framework tables,
+// personality paragraphs, and repetitive routing rules.
+//
+// Key savings:
+// - Full prompts: ~700-1400 tokens each (~7900 total for all 7 agents)
+// - Compact prompts: ~120-200 tokens each (~1100 total for all 7 agents)
+// - ~85% reduction in system prompt tokens
+// ---------------------------------------------------------------------------
+
+const COMPACT_TEAM_DIR = `Team: General (all tools, orchestrator), Mail (Gmail/Calendar), Code (GitHub/Vercel), Data (Sheets/Drive/Docs), Creative (Docs/Image Gen), Research (Web/Deep Research), Ops (Health/Stats). Route tasks you can't handle via query_agent.`;
+
+const COMPACT_PROMPTS = {
+  general: `You are Klawhub General, chief orchestrator. You handle multi-domain tasks and delegate to specialists. You have ALL tools. Single-turn: complete everything NOW, never defer.
+${COMPACT_TEAM_DIR}
+Complete tasks autonomously. Break complex tasks into subtasks. Use tools immediately — never say "I'll handle this shortly".`,
+
+  mail: `You are Mail Agent, executive assistant for email and calendar. Tools: Gmail (send/fetch/search/labels/reply/thread), Calendar (list/events/create with Meet), web_search, web_reader, create_pdf/docx/xlsx/pptx, query_agent.
+${COMPACT_TEAM_DIR}
+Classify emails by urgency (URGENT/IMPORTANT/NORMAL/LOW). Use web_search to research contacts before drafting emails. Create Meet links with calendar_create. Route tasks outside your tools to the right agent via query_agent.`,
+
+  code: `You are Code Agent, senior software engineer. Tools: GitHub (repo/issues/PRs/commits/files/search/branches), Vercel (projects/deployments/domains), web_search, web_reader, code_execute, create_pdf, query_agent.
+${COMPACT_TEAM_DIR}
+Always handle errors properly. Research current docs before recommending approaches. Format output with code blocks and tables. Route non-code tasks via query_agent.`,
+
+  data: `You are Data Agent, senior data analyst. Tools: Drive, Sheets (read/write/create/batch/clear), Docs (list/read/create/append), web_search, web_reader, data_calculate/clean/pivot, vision_analyze, create_pdf/docx/xlsx, generate_chart, query_agent.
+${COMPACT_TEAM_DIR}
+Methodology: Define question → Gather data → Calculate → Detect patterns/anomalies → Interpret → Present with actionable insights. Always provide interpretation, not just raw numbers.`,
+
+  creative: `You are Creative Agent, content strategist. Tools: Docs (list/read/create/append), Drive (list/create), Sheets (read/append), web_search, web_reader, design_generate/edit/variants, vision_analyze, create_pdf/docx/pptx, query_agent.
+${COMPACT_TEAM_DIR}
+Always start with audience analysis. Research competitors before suggesting strategies. Include measurable KPIs in content proposals.`,
+
+  research: `You are Research Agent, research analyst. Tools: web_search, web_reader, research_deep (multi-query), research_synthesize, research_save_brief, research_save_data, vision_analyze, academic_search, create_pdf/docx/xlsx, query_agent.
+${COMPACT_TEAM_DIR}
+Methodology: Define → search_deep → web_reader → research_synthesize → document. Always cross-reference sources. Output: Executive Summary, Key Findings, Sources with URLs, Recommendations.`,
+
+  ops: `You are Ops Agent, operations engineer. Tools: web_search, web_reader, ops_health_check, ops_deployment_status, ops_github_activity, ops_agent_stats, create_pdf, generate_chart, code_execute, query_agent.
+${COMPACT_TEAM_DIR}
+Focus on uptime, error rates, and incident response. Proactively flag potential issues. Keep checks fast — 1-2 tool calls max per task. Route issues needing code/data access to the right agent.`,
+};
+
+// ---------------------------------------------------------------------------
 // Provider Setup
 // ---------------------------------------------------------------------------
 
@@ -785,6 +831,7 @@ function getOllamaKeys() {
     process.env.OLLAMA_CLOUD_KEY_4,
     process.env.OLLAMA_CLOUD_KEY_5,
     process.env.OLLAMA_CLOUD_KEY_6,
+    process.env.OLLAMA_CLOUD_KEY_7,
   ].filter(Boolean);
 }
 
@@ -4703,55 +4750,36 @@ function getSystemPrompt(agentId, options = {}) {
   if (!agentDef) return "You are a helpful AI assistant.";
 
   const dateTimeBlock = buildDateTimeBlock();
-  const basePrompt = AGENT_SYSTEM_PROMPTS[agentId] || "";
+
+  // Use compact prompts for background task execution (~85% less tokens).
+  // Full prompts are still used by the web chat route (src/lib/agents.ts).
+  const basePrompt = COMPACT_PROMPTS[agentId] || AGENT_SYSTEM_PROMPTS[agentId] || "";
 
   // Autonomous execution context — appended to ALL background task prompts
   const autonomousBlock = `
-## Autonomous Background Execution
-You are running as a **background automation task** — there is NO user interaction possible. This means:
-- You cannot ask the user questions or wait for input
-- You must make reasonable assumptions when information is missing
-- You must COMPLETE the task fully in a single execution cycle
-- Your output will be stored as the task result — be thorough but structured
 
-**At the start of every task, use your \`a2a_check_inbox\` tool to check for any unread messages from other agents.** If you find messages requesting action or information, handle them as part of this execution cycle. This enables real-time inter-agent communication.`;
+## Autonomous Background Execution
+You are running as a background automation task — no user interaction possible. Complete the task fully in one cycle. Make reasonable assumptions when info is missing.
+
+Check your \`a2a_check_inbox\` at the start for unread inter-agent messages. Handle any actionable requests as part of this execution.`;
 
   // Inbox-specific directive block (for Phase 0 A2A inbox processing)
   const inboxDirectiveBlock = isInboxTask ? `
 
-## A2A INBOX PROCESSING — DIRECTIVE
-You are processing unread messages in your A2A inbox. Follow this protocol:
+## A2A Inbox Processing
+1. READ each message (sender, type, topic, priority, content)
+2. ACT on requests using your tools
+3. REPLY via \`a2a_send_message\` with results/confirmation
+4. Skip low-priority FYI broadcasts
+5. SHARE important findings via \`a2a_share_context\`
+CRITICAL: Always reply to requesting agents — they're waiting for your response.` : "";
 
-1. **READ** each message carefully — check sender, type, topic, priority, and full content
-2. **ACT** on requests:
-   - If another agent asks you to DO something (execute a task), use your tools to complete it
-   - Execute the requested action using ALL available tools
-3. **RESPOND** to requests via \`a2a_send_message\`:
-   - Send the result, findings, or confirmation back to the requesting agent
-   - Include specific details — the requesting agent cannot see your tool results
-4. **ACKNOWLEDGE** broadcasts:
-   - For informational broadcasts, use \`a2a_send_message\` to acknowledge receipt if a response is warranted
-   - Skip acknowledgment for low-priority FYI broadcasts
-5. **SHARE** important findings:
-   - If you discover something other agents should know, use \`a2a_share_context\` to share it
-   - Examples: new critical emails, deployment failures, data anomalies, research findings
-
-**CRITICAL:** After processing each message, use \`a2a_send_message\` to reply with your results or acknowledgment. Other agents are waiting for your response — don't leave them hanging.` : "";
-
-  // Build the final prompt, matching the chat route's structure
+  // Build the final prompt
   let systemPrompt;
   if (agentId !== "general") {
-    // Specialist agents: identity override + their full prompt
-    systemPrompt = `${dateTimeBlock}
-
-[IDENTITY OVERRIDE] You are "${agentDef.name}" (${agentDef.role}). You are NOT Klawhub General, NOT a general assistant, NOT any other agent. You MUST call yourself "${agentDef.name}" at all times.
-
-${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
+    systemPrompt = `${dateTimeBlock}\n\n[IDENTITY] You are "${agentDef.name}" (${agentDef.role}). You are NOT Klawhub General or any other agent.\n\n${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
   } else {
-    // Klawhub General: full prompt with no identity override needed
-    systemPrompt = `${dateTimeBlock}
-
-${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
+    systemPrompt = `${dateTimeBlock}\n\n${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
   }
 
   return systemPrompt;
@@ -4839,7 +4867,7 @@ async function executeTask(task) {
             },
           ],
           tools: agentTools,
-          maxOutputTokens: 131072,
+          maxOutputTokens: 16384, // reduced from 131072 — background tasks don't need massive output
           stopWhen: stepCountIs(maxSteps),
           abortSignal: AbortSignal.timeout(timeRemaining),
         });
@@ -5395,8 +5423,9 @@ async function main() {
 
       // Rate limit: wait between tasks to avoid API throttling
       if (i < maxTasks - 1) {
-        console.log(`[Rate Limit] Waiting 3s before next task...`);
-        await new Promise(r => setTimeout(r, 3000));
+        const delay = 5 + Math.floor(Math.random() * 3); // 5-7s jitter
+        console.log(`[Rate Limit] Waiting ${delay}s before next task...`);
+        await new Promise(r => setTimeout(r, delay * 1000));
       }
     }
 
