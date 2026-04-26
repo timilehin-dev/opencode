@@ -54,7 +54,15 @@ console.log(`[CronRunner] ${new Date().toISOString()} | job=${jobType}`);
 // DB Pool
 // ---------------------------------------------------------------------------
 
-const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL });
+// Use pgbouncer for transaction-mode pooling — avoids EMAXCONNSESSION errors
+let _dbUrl = process.env.SUPABASE_DB_URL;
+try {
+  const u = new URL(_dbUrl);
+  if (!u.searchParams.has("pgbouncer")) u.searchParams.set("pgbouncer", "true");
+  if (!u.searchParams.has("prepare")) u.searchParams.set("prepare", "false");
+  _dbUrl = u.toString();
+} catch { /* use raw URL */ }
+const pool = new Pool({ connectionString: _dbUrl, max: 2, connectionTimeoutMillis: 10000 });
 
 // ---------------------------------------------------------------------------
 // Provider Setup (for agent-routines)

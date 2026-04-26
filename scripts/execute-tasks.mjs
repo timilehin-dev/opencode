@@ -40,7 +40,7 @@ const { Pool } = pg;
 // ---------------------------------------------------------------------------
 
 const MAX_TASKS_DEFAULT = parseInt(process.env.MAX_TASKS || "5", 10);
-const DEFAULT_TIMEOUT_S = parseInt(process.env.DEFAULT_TIMEOUT || "300", 10);
+const DEFAULT_TIMEOUT_S = parseInt(process.env.DEFAULT_TIMEOUT || "180", 10);
 const DEFAULT_MAX_STEPS = parseInt(process.env.DEFAULT_MAX_STEPS || "40", 10);
 
 // ---------------------------------------------------------------------------
@@ -4474,7 +4474,16 @@ function buildToolMap(agentId) {
 // Database Helpers
 // ---------------------------------------------------------------------------
 
-const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, max: 3, idleTimeoutMillis: 30000 });
+// Use pgbouncer for transaction-mode pooling — avoids EMAXCONNSESSION errors.
+// Supabase limits direct sessions; pgbouncer multiplexes connections efficiently.
+let _dbUrl = process.env.SUPABASE_DB_URL;
+try {
+  const u = new URL(_dbUrl);
+  if (!u.searchParams.has("pgbouncer")) u.searchParams.set("pgbouncer", "true");
+  if (!u.searchParams.has("prepare")) u.searchParams.set("prepare", "false");
+  _dbUrl = u.toString();
+} catch { /* use raw URL if parsing fails */ }
+const pool = new Pool({ connectionString: _dbUrl, max: 3, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 });
 
 // ── Interval Parser ──
 // Parses human-readable intervals like "30m", "1h", "2h30m", "24h" into milliseconds
@@ -4809,20 +4818,49 @@ async function executeTask(task) {
 
     console.log(`[Task #${task.id}] Executing with ${Object.keys(agentTools).length} tools, timeout=${timeoutS}s, maxSteps=${maxSteps}`);
 
-    const result = await generateText({
-      model,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: `${task.task}\n\n${task.context ? `Context: ${task.context}` : ""}`,
-        },
-      ],
-      tools: agentTools,
-      maxOutputTokens: 131072,
-      stopWhen: stepCountIs(maxSteps),
-      abortSignal: AbortSignal.timeout(timeoutS * 1000),
-    });
+    // ─── Retry with backoff for transient API errors ───
+    // Ollama/OpenAI-compatible APIs can return 500 errors intermittently.
+    // Retry up to 2 times with 5s backoff, but NOT for timeouts or code errors.
+    const MAX_API_RETRIES = 2;
+    const API_RETRY_DELAY_MS = 5000;
+    let result;
+    let lastError;
+
+    for (let attempt = 0; attempt <= MAX_API_RETRIES; attempt++) {
+      try {
+        const timeRemaining = Math.max(10, timeoutS * 1000 - (Date.now() - startTime));
+        result = await generateText({
+          model,
+          system: systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content: `${task.task}\n\n${task.context ? `Context: ${task.context}` : ""}`,
+            },
+          ],
+          tools: agentTools,
+          maxOutputTokens: 131072,
+          stopWhen: stepCountIs(maxSteps),
+          abortSignal: AbortSignal.timeout(timeRemaining),
+        });
+        break; // success — exit retry loop
+      } catch (err) {
+        lastError = err;
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const isTransient = errMsg.includes("500") || errMsg.includes("Internal Server Error") ||
+          errMsg.includes("502") || errMsg.includes("503") || errMsg.includes("overloaded") ||
+          errMsg.includes("rate limit") || errMsg.includes("ECONNRESET") ||
+          errMsg.includes("ECONNREFUSED") || errMsg.includes("socket hang up");
+
+        if (isTransient && attempt < MAX_API_RETRIES) {
+          const delay = API_RETRY_DELAY_MS * (attempt + 1);
+          console.warn(`[Task #${task.id}] API error (attempt ${attempt + 1}/${MAX_API_RETRIES + 1}): ${errMsg.slice(0, 100)}. Retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw err; // non-transient or exhausted retries
+      }
+    }
 
     const durationMs = Date.now() - startTime;
     const toolCalls = result.steps
@@ -4889,6 +4927,30 @@ async function recoverStaleTasks() {
   if (ptResult.rows.length > 0) {
     console.log(`[Recovery] Reset ${ptResult.rows.length} stale project tasks to pending`);
   }
+
+  // Clean up stale failed tasks that have been failing for too long
+  // Mark them as 'cancelled' so Phase 4 stops retrying/escalating them
+  const staleFails = await pool.query(
+    `UPDATE agent_tasks SET status = 'cancelled', error = CONCAT(error, ' [Auto-cancelled: exceeded max retry window]')
+     WHERE status = 'failed' AND attempts >= 3 AND created_at < NOW() - INTERVAL '2 hours'
+     RETURNING id, agent_id, task`
+  );
+  if (staleFails.rows.length > 0) {
+    console.log(`[Recovery] Cancelled ${staleFails.rows.length} permanently failed tasks`);
+    for (const row of staleFails.rows) {
+      console.log(`  - Task #${row.id} (${row.agent_id}): ${row.task.slice(0, 60)}`);
+    }
+  }
+
+  // Mark old unread A2A messages as read to prevent inbox task spam
+  const oldMessages = await pool.query(
+    `UPDATE a2a_messages SET is_read = TRUE
+     WHERE is_read = FALSE AND created_at < NOW() - INTERVAL '2 hours'
+     RETURNING id, to_agent`
+  );
+  if (oldMessages.rows.length > 0) {
+    console.log(`[Recovery] Marked ${oldMessages.rows.length} stale A2A messages as read (older than 2h)`);
+  }
 }
 
 async function main() {
@@ -4915,10 +4977,24 @@ async function main() {
         if (inboxResult.rows.length > 0) {
           // Only create a task if one doesn't already exist for this agent's inbox processing
           const existingTask = await pool.query(
-            "SELECT id FROM agent_tasks WHERE agent_id = $1 AND status = 'pending' AND trigger_type = 'a2a_inbox' LIMIT 1",
+            "SELECT id FROM agent_tasks WHERE agent_id = $1 AND status IN ('pending', 'running') AND trigger_type = 'a2a_inbox' LIMIT 1",
             [agentId]
           );
           if (existingTask.rows.length === 0) {
+            // Also check if this agent has recently failed inbox tasks (avoid spam)
+            const recentFails = await pool.query(
+              "SELECT COUNT(*) as cnt FROM agent_tasks WHERE agent_id = $1 AND status = 'failed' AND trigger_type = 'a2a_inbox' AND completed_at > NOW() - INTERVAL '30 minutes'",
+              [agentId]
+            );
+            if (parseInt(recentFails.rows[0]?.cnt || "0", 10) >= 2) {
+              console.warn(`  [Phase 0] Skipping ${agentId} inbox: ${recentFails.rows[0].cnt} recent failures (stale messages, will be cleaned up)`);
+              // Mark old unread messages as read to break the loop
+              await pool.query(
+                "UPDATE a2a_messages SET is_read = TRUE WHERE to_agent = $1 AND is_read = FALSE AND created_at < NOW() - INTERVAL '1 hour'",
+                [agentId]
+              );
+              continue;
+            }
             // Build a task prompt from the unread messages
             const msgs = inboxResult.rows.map(m =>
               `[From: ${m.from_agent}, Type: ${m.type}, Priority: ${m.priority}, Topic: ${m.topic}] ${m.payload?.content || m.payload?.task || "(no content)"}`
@@ -5523,16 +5599,17 @@ async function main() {
 
     // Phase 4: Auto-escalate failed tasks
     // If a task has failed 2+ times, escalate to the general agent for review
-    // If a task has failed 1 time, retry it (unless it was a timeout)
+    // If a task has failed 1 time (and not a timeout), retry it once
     console.log(`\n[Phase 4] Checking for failed tasks that need escalation...`);
     try {
-      // 4a: Retry recently failed tasks (failed once, not timeout)
+      // 4a: Retry recently failed tasks (failed once, not timeout, not inbox spam)
       const retryResult = await pool.query(
         `UPDATE agent_tasks SET status = 'pending', error = NULL, attempts = COALESCE(attempts, 0) + 1
          WHERE status = 'failed'
-           AND attempts < 2
+           AND attempts < 1
            AND error NOT LIKE '%timeout%'
-           AND created_at > NOW() - INTERVAL '1 hour'
+           AND error NOT LIKE '%_zod%'
+           AND created_at > NOW() - INTERVAL '30 minutes'
          RETURNING id, agent_id, task`
       );
       if (retryResult.rows.length > 0) {
@@ -5608,7 +5685,7 @@ async function main() {
              VALUES ('ops', $1, $2, 'proactive_assessment', $3, 'normal')
              RETURNING id`,
             [
-              "PROACTIVE: Perform a quick system health check. Check: (1) Are all services reachable? (2) Any recent deployment issues? (3) Any GitHub activity that needs attention? (4) Are all agents operational? If you find anything concerning, share the details with the team using share_progress and/or schedule_agent_task for follow-up work.",
+              "PROACTIVE: Quick health check. Pick ONE check and report: (a) Are web_search and web_reader working? Test with a simple search. (b) Any GitHub activity in the last hour? Do NOT attempt more than 1 tool call. Keep it fast.",
               "Routine proactive health check. This runs automatically every 30 minutes.",
               `proactive-assessment:ops:${Date.now()}`
             ]
