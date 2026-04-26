@@ -77,20 +77,41 @@ export default function SkillEvolutionPage() {
       const res = await fetch("/api/skills/evolve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list" }),
+        body: JSON.stringify({ action: "list", limit: 100 }),
       });
       const json = await res.json();
-      // If the evolve endpoint doesn't support list, try direct DB query
       if (json.success && json.data?.length > 0) {
         setEvolutions(json.data);
       } else {
-        // Fallback: fetch all skills and their evolution history via skills list
-        const skillsRes = await fetch("/api/skills?limit=100");
-        const skillsJson = await skillsRes.json();
-        if (skillsJson.success) {
-          // We'll show skills as potential evolution candidates instead
-          setEvolutions([]);
-        }
+        // No evolution records yet — fetch skills as candidates
+        await fetchEvolutionCandidates();
+      }
+    } catch {
+      await fetchEvolutionCandidates();
+    }
+  }, []);
+
+  // Fetch skills as evolution candidates when no records exist
+  const fetchEvolutionCandidates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/skills?limit=100");
+      const json = await res.json();
+      if (json.success) {
+        const skills = json.data || [];
+        setEvolutions(
+          (skills as Array<Record<string, string | number | null>>).map((s) => ({
+            id: String(s.id),
+            skill_id: String(s.id),
+            skill_name: String(s.display_name || s.name),
+            agent_id: "system",
+            previous_version: Number(s.version || 1),
+            trigger_summary: `Candidate for evolution - score: ${s.performance_score || 0}, uses: ${s.total_uses || 0}, rating: ${s.avg_rating || 0}`,
+            evaluations_context: [],
+            status: "pending",
+            created_at: String(s.updated_at || s.created_at),
+            updated_at: String(s.updated_at || s.created_at),
+          }))
+        );
       }
     } catch {
       // silent
@@ -101,38 +122,7 @@ export default function SkillEvolutionPage() {
     fetchEvolutions().finally(() => setLoading(false));
   }, [fetchEvolutions]);
 
-  // Fetch evolution records directly
-  const fetchEvolutionHistory = useCallback(async () => {
-    try {
-      // Use a simpler approach - get skills that could be evolved
-      const res = await fetch("/api/skills?limit=100");
-      const json = await res.json();
-      if (json.success) {
-        const skills = json.data || [];
-        // Show skills as evolution candidates
-        setEvolutions(
-          skills.map((s: { id: string; name: string; display_name: string | null; version: number; performance_score: number | null; total_uses: number | null; avg_rating: number | null; created_at: string; updated_at: string; category: string }) => ({
-            id: s.id,
-            skill_id: s.id,
-            skill_name: s.display_name || s.name,
-            agent_id: "system",
-            previous_version: s.version,
-            trigger_summary: `Skill candidate for evolution — score: ${s.performance_score || 0}, uses: ${s.total_uses || 0}`,
-            evaluations_context: [],
-            status: "pending",
-            created_at: s.updated_at || s.created_at,
-            updated_at: s.updated_at || s.created_at,
-          }))
-        );
-      }
-    } catch {
-      // silent
-    }
-  }, []);
 
-  useEffect(() => {
-    fetchEvolutionHistory().finally(() => setLoading(false));
-  }, [fetchEvolutionHistory]);
 
   const handleEvolve = async (skillId: string) => {
     setEvolving(skillId);
@@ -145,7 +135,7 @@ export default function SkillEvolutionPage() {
       const json = await res.json();
       if (json.success) {
         showToast("Evolution initiated");
-        fetchEvolutionHistory();
+        fetchEvolutions();
       } else {
         showToast(json.error || "Evolution failed");
       }
@@ -210,7 +200,7 @@ export default function SkillEvolutionPage() {
             Track and trigger skill improvements based on performance feedback
           </p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => { fetchEvolutionHistory(); fetchEvolutions(); }}>
+        <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => { fetchEvolutions(); }}>
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </Button>

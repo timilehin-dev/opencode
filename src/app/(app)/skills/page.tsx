@@ -113,8 +113,9 @@ export default function SkillsPage() {
       const res = await fetch(`/api/skills?${params.toString()}`);
       const json = await res.json();
       if (json.success) setSkills(json.data || []);
-    } catch {
-      // silent
+      else console.error("Skills fetch failed:", json.error);
+    } catch (err) {
+      console.error("Skills fetch error:", err);
     }
   }, [search, category]);
 

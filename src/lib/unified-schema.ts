@@ -54,6 +54,102 @@ export {
 } from "@/lib/supabase-setup";
 
 // ---------------------------------------------------------------------------
+// Skills tables schema (Phase 6 — Self-Improvement)
+//
+// Tables: skills, skill_ratings, skill_evaluations, skill_evolution
+// These power the Skill Library and Skill Evolution pages.
+// ---------------------------------------------------------------------------
+
+export const SKILLS_SCHEMA_SQL = `
+-- Skills Library
+CREATE TABLE IF NOT EXISTS skills (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL UNIQUE,
+  slug VARCHAR(120) NOT NULL UNIQUE,
+  display_name VARCHAR(200),
+  description TEXT NOT NULL,
+  category VARCHAR(50) DEFAULT 'general',
+  difficulty VARCHAR(50) DEFAULT 'intermediate',
+  prompt_template TEXT NOT NULL,
+  workflow_steps JSONB DEFAULT '[]',
+  required_tools TEXT[] DEFAULT '{}',
+  tags TEXT[] DEFAULT '{}',
+  agent_bindings TEXT[] DEFAULT NULL,
+  version INTEGER DEFAULT 1,
+  performance_score NUMERIC(5,2),
+  avg_rating NUMERIC(3,2) DEFAULT 0,
+  total_uses INTEGER DEFAULT 0,
+  successful_uses INTEGER DEFAULT 0,
+  success_count INTEGER DEFAULT 0,
+  failure_count INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
+  is_builtin BOOLEAN DEFAULT FALSE,
+  has_embedding BOOLEAN DEFAULT FALSE,
+  created_by VARCHAR(100) DEFAULT 'system',
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_skills_active ON skills(is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category);
+CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
+
+-- Skill Ratings
+CREATE TABLE IF NOT EXISTS skill_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  agent_id VARCHAR(100) NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  feedback TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_ratings_skill ON skill_ratings(skill_id);
+
+-- Skill Evaluations
+CREATE TABLE IF NOT EXISTS skill_evaluations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  agent_id VARCHAR(100) NOT NULL,
+  task_id UUID,
+  input_summary TEXT NOT NULL,
+  output_summary TEXT NOT NULL,
+  success BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_evals_skill ON skill_evaluations(skill_id);
+
+-- Skill Evolution
+CREATE TABLE IF NOT EXISTS skill_evolution (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  agent_id VARCHAR(100) NOT NULL,
+  previous_version INTEGER NOT NULL,
+  new_version INTEGER,
+  previous_prompt TEXT NOT NULL,
+  new_prompt TEXT,
+  trigger_summary TEXT,
+  evaluations_context JSONB DEFAULT '[]',
+  improvement_summary TEXT,
+  status VARCHAR(50) DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_evolution_skill ON skill_evolution(skill_id);
+CREATE INDEX IF NOT EXISTS idx_skill_evolution_status ON skill_evolution(status);
+
+CREATE OR REPLACE FUNCTION update_skills_updated_at() RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_skills_updated_at ON skills;
+CREATE TRIGGER trg_skills_updated_at BEFORE UPDATE ON skills FOR EACH ROW EXECUTE FUNCTION update_skills_updated_at();
+`;
+
+// ---------------------------------------------------------------------------
 // Workflow tables schema (Phase 7B)
 //
 // These tables (agent_workflows, workflow_steps, workflow_executions) are
@@ -341,6 +437,11 @@ export const UNIFIED_TABLE_LIST = [
   "agent_workflows",
   "workflow_steps",
   "workflow_executions",
+  // Skills (SKILLS_SCHEMA_SQL)
+  "skills",
+  "skill_ratings",
+  "skill_evaluations",
+  "skill_evolution",
   // A2A Extended
   "a2a_shared_context",
   "a2a_channels",
@@ -758,18 +859,21 @@ ${PHASE5_SCHEMA_SQL}
 -- 7. Workflow tables (Phase 7B)
 ${WORKFLOW_SCHEMA_SQL}
 
--- 8. A2A extended tables (shared context, channels, channel messages + functions)
+-- 8. Skills tables (Phase 6 — Self-Improvement)
+${SKILLS_SCHEMA_SQL}
+
+-- 9. A2A extended tables (shared context, channels, channel messages + functions)
 ${A2A_EXTENDED_TABLES_SQL}
 
--- 9. Phase 3B — Proactive Scanning & Pull-Based Triggers
+-- 10. Phase 3B — Proactive Scanning & Pull-Based Triggers
 ${PROACTIVE_SCANNING_SCHEMA_SQL}
 
--- 10. Phase 4 — Memory Schema Enhancements
+-- 11. Phase 4 — Memory Schema Enhancements
 ${MEMORY_SCHEMA_ENHANCEMENTS_SQL}
 
--- 11. RLS fix (MUST be last — needs all tables to exist)
+-- 12. RLS fix (MUST be last — needs all tables to exist)
 ${RLS_FIX_SQL}
 
--- 12. Performance indexes (safe to re-run, uses IF NOT EXISTS)
+-- 13. Performance indexes (safe to re-run, uses IF NOT EXISTS)
 ${PERFORMANCE_INDEXES_SQL}
 `;

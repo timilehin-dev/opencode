@@ -10,7 +10,7 @@ function err(msg: string, status = 500) { return NextResponse.json({ success: fa
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const result = await query("SELECT * FROM skills WHERE id = $1", [id]);
+    const result = await query("SELECT id, name, slug, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags, agent_bindings, version, performance_score, avg_rating, total_uses, successful_uses, success_count, failure_count, is_active, is_builtin, has_embedding, created_by, metadata, created_at, updated_at FROM skills WHERE id = $1", [id]);
     if (result.rows.length === 0) return err("Skill not found", 404);
     return ok(result.rows[0]);
   } catch (e: unknown) {
@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     values.push(id);
 
     const result = await query(
-      `UPDATE skills SET ${fields.join(", ")} WHERE id = $${pi} RETURNING *`,
+      `UPDATE skills SET ${fields.join(", ")} WHERE id = $${pi} RETURNING id, name, slug, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags, agent_bindings, version, performance_score, avg_rating, total_uses, successful_uses, success_count, failure_count, is_active, is_builtin, has_embedding, created_by, metadata, created_at, updated_at`,
       values
     );
     if (result.rows.length === 0) return err("Skill not found", 404);

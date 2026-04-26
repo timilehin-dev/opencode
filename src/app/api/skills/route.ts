@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
     const agent = sp.get("agent");
     const limit = parseInt(sp.get("limit") || "50", 10);
 
-    let sql = "SELECT * FROM skills WHERE is_active = true";
+    // Exclude embedding vector from list response — it's huge (1536 floats)
+    let sql = "SELECT id, name, slug, display_name, description, category, difficulty, prompt_template, workflow_steps, required_tools, tags, agent_bindings, version, performance_score, avg_rating, total_uses, successful_uses, success_count, failure_count, is_active, is_builtin, has_embedding, created_by, created_at, updated_at FROM skills WHERE is_active = true";
     const params: unknown[] = [];
     let pi = 1;
 
