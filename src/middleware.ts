@@ -82,6 +82,8 @@ export function middleware(request: NextRequest) {
     "/api/sheets",
     "/api/github",
     "/api/stitch",
+    // Proactive intelligence (called from dashboard UI)
+    "/api/proactive",
   ];
   if (internalSkips.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
