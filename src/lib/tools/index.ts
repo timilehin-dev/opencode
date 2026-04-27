@@ -369,7 +369,7 @@ export const allTools: Record<string, ToolType> = {
 // ---------------------------------------------------------------------------
 export function getToolsForAgent(agentId: string): Record<string, ToolType> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getAgent } = require("../agents");
+  const { getAgent } = require("@/lib/agent/agents");
   const agent = getAgent(agentId as string);
   if (!agent) return {};
   const subset: Record<string, ToolType> = {};
