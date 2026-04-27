@@ -18,6 +18,43 @@ import { logActivity } from "@/lib/activity";
 
 export const maxDuration = 60;
 
+// Ensure proactive_suggestions table exists (shared with suggestions API)
+const ENSURE_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS proactive_suggestions (
+  id BIGSERIAL PRIMARY KEY,
+  suggestion_hash VARCHAR(64) NOT NULL,
+  suggestion_text TEXT NOT NULL,
+  action_taken TEXT NOT NULL CHECK (action_taken IN ('run', 'dismiss')),
+  agent_id TEXT,
+  task_id BIGINT,
+  board_item_id BIGINT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_proactive_suggestions_hash ON proactive_suggestions(suggestion_hash);
+`;
+
+let tableEnsured = false;
+async function ensureSuggestionsTable() {
+  if (tableEnsured) return;
+  try { await query(ENSURE_TABLE_SQL); tableEnsured = true; } catch { /* non-critical */ }
+}
+
+// Hash function (must match suggestions/route.ts)
+function hashSuggestion(text: string): string {
+  let hash = 0;
+  const normalized = text.toLowerCase().trim().replace(/\s+/g, " ");
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
+    hash |= 0;
+  }
+  let hash2 = 5381;
+  for (let i = 0; i < normalized.length; i++) {
+    hash2 = ((hash2 << 5) + hash2) + normalized.charCodeAt(i);
+    hash2 |= 0;
+  }
+  return `${Math.abs(hash).toString(16)}${Math.abs(hash2).toString(16)}`.padStart(16, "0").slice(0, 16);
+}
+
 // ---------------------------------------------------------------------------
 // GET: Generate a proactive intelligence snapshot + action plan
 // ---------------------------------------------------------------------------
@@ -27,6 +64,16 @@ export async function GET() {
   const now = new Date();
 
   try {
+    // Ensure suggestions table exists for dedup
+    await ensureSuggestionsTable();
+
+    // ── Phase 0: Get previously acted-on suggestion hashes for dedup ──
+    const actedSuggestions = await query(`
+      SELECT DISTINCT suggestion_hash FROM proactive_suggestions
+      WHERE created_at > NOW() - INTERVAL '7 days'
+    `).catch(() => ({ rows: [] }));
+    const actedHashes = new Set((actedSuggestions.rows || []).map((r: any) => r.suggestion_hash));
+
     // ── Phase 1: Gather System State (parallel queries) ──
     // NOTE: All queries use the ACTUAL production schema:
     //   agent_definitions (not agent_configs)
@@ -285,6 +332,16 @@ Output as JSON:
           : "low";
         proactivePlan.actions = (proactivePlan.actions || []).slice(0, 5);
         proactivePlan.recommendations = (proactivePlan.recommendations || []).slice(0, 3);
+
+        // ── Dedup: Filter out previously acted-on suggestions ──
+        if (actedHashes.size > 0) {
+          proactivePlan.recommendations = proactivePlan.recommendations.filter(
+            (rec: string) => !actedHashes.has(hashSuggestion(rec))
+          );
+          proactivePlan.actions = proactivePlan.actions.filter(
+            (a: any) => !actedHashes.has(hashSuggestion(a.action))
+          );
+        }
       } catch (llmErr) {
         // Fallback: generate a basic plan without LLM
         const urgency = failedTasksRows.length > 0 ? "high" : pendingTasksRows.length > 3 ? "medium" : dueRoutinesRows.length > 0 ? "low" : "idle";

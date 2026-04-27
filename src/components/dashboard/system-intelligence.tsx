@@ -19,6 +19,9 @@ import {
   Lightbulb,
   Play,
   Check,
+  X,
+  ListTodo,
+  ExternalLink,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -100,8 +103,11 @@ export function SystemIntelligenceCard() {
   const [heartbeat, setHeartbeat] = useState<ProactiveHeartbeat | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
-  const [dispatchingAction, setDispatchingAction] = useState<number | null>(null);
-  const [dispatchedActions, setDispatchedActions] = useState<Set<number>>(new Set());
+  const [processingAction, setProcessingAction] = useState<number | null>(null);
+  const [processedActions, setProcessedActions] = useState<Set<number>>(new Set());
+  const [processingRec, setProcessingRec] = useState<number | null>(null);
+  const [processedRecs, setProcessedRecs] = useState<Map<number, "run" | "dismiss">>(new Map());
+  const [actionResults, setActionResults] = useState<Map<string, string>>(new Map());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchHeartbeat = useCallback(async () => {
@@ -145,23 +151,70 @@ export function SystemIntelligenceCard() {
     systemState.scheduledWorkflows;
   const activeAgents = systemState.agentStatuses.filter((s) => s.status === "busy").length;
 
-  const handleDispatchAction = async (actionIndex: number, agent: string, action: string) => {
-    if (dispatchingAction === actionIndex) return;
-    setDispatchingAction(actionIndex);
+  // ── Run action: Creates task + taskboard item + records for dedup ──
+  const handleRunAction = async (actionIndex: number, agent: string, action: string, priority: string) => {
+    if (processingAction === actionIndex) return;
+    setProcessingAction(actionIndex);
     try {
-      const res = await fetch("/api/agents", {
+      const res = await fetch("/api/proactive/suggestions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dispatch", agentId: agent, task: action }),
+        body: JSON.stringify({ action: "run", suggestion: action, agent, priority }),
       });
       const json = await res.json();
       if (json.success) {
-        setDispatchedActions((prev) => new Set(prev).add(actionIndex));
+        setProcessedActions((prev) => new Set(prev).add(actionIndex));
+        const msg = json.data?.message || "Dispatched";
+        setActionResults((prev) => new Map(prev).set(String(actionIndex), msg));
       }
     } catch {
       // Silent fail
     } finally {
-      setDispatchingAction(null);
+      setProcessingAction(null);
+    }
+  };
+
+  // ── Run recommendation: Creates task + taskboard item + records for dedup ──
+  const handleRunRecommendation = async (recIndex: number, rec: string) => {
+    if (processingRec === recIndex) return;
+    setProcessingRec(recIndex);
+    try {
+      const res = await fetch("/api/proactive/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run", suggestion: rec, priority: "low" }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setProcessedRecs((prev) => new Map(prev).set(recIndex, "run"));
+        const msg = json.data?.message || "Executed";
+        setActionResults((prev) => new Map(prev).set(String(recIndex), msg));
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setProcessingRec(null);
+    }
+  };
+
+  // ── Dismiss recommendation: Records for dedup so it won't reappear ──
+  const handleDismissRecommendation = async (recIndex: number, rec: string) => {
+    if (processingRec === recIndex) return;
+    setProcessingRec(recIndex);
+    try {
+      const res = await fetch("/api/proactive/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "dismiss", suggestion: rec }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setProcessedRecs((prev) => new Map(prev).set(recIndex, "dismiss"));
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setProcessingRec(null);
     }
   };
 
@@ -288,6 +341,9 @@ export function SystemIntelligenceCard() {
             <div className="space-y-1 overflow-y-auto custom-scrollbar max-h-40">
               {proactivePlan.actions.map((action, i) => {
                 const ActionIcon = ACTION_TYPE_ICONS[action.type] || Activity;
+                const isProcessed = processedActions.has(i);
+                const isProcessing = processingAction === i;
+                const resultMsg = actionResults.get(String(i));
                 const priorityColors: Record<string, string> = {
                   critical: "bg-red-500/10 text-red-500",
                   high: "bg-orange-500/10 text-orange-500",
@@ -298,7 +354,12 @@ export function SystemIntelligenceCard() {
                 return (
                   <div
                     key={i}
-                    className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-card/60 border border-border/30 hover:border-border/50 transition-colors"
+                    className={cn(
+                      "flex items-start gap-2 px-2 py-1.5 rounded-lg bg-card/60 border transition-colors",
+                      isProcessed
+                        ? "border-emerald-500/20 bg-emerald-500/5"
+                        : "border-border/30 hover:border-border/50",
+                    )}
                   >
                     <span className="text-xs mt-0.5">
                       {AGENT_EMOJI[action.agent] || "\uD83E\uDD16"}
@@ -313,31 +374,41 @@ export function SystemIntelligenceCard() {
                       <p className="text-[9px] text-muted-foreground/70 mt-0.5 truncate">
                         {action.reasoning}
                       </p>
+                      {resultMsg && isProcessed && (
+                        <p className="text-[9px] text-emerald-600 mt-0.5 flex items-center gap-1">
+                          <ListTodo className="w-2.5 h-2.5" />
+                          {resultMsg}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDispatchAction(i, action.agent, action.action);
-                        }}
-                        disabled={dispatchingAction === i || dispatchedActions.has(i)}
-                        className={cn(
-                          "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-semibold transition-all",
-                          dispatchedActions.has(i)
-                            ? "bg-emerald-500/10 text-emerald-600"
-                            : "bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40",
-                        )}
-                        title={dispatchedActions.has(i) ? "Dispatched" : "Run this action"}
-                      >
-                        {dispatchingAction === i ? (
-                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                        ) : dispatchedActions.has(i) ? (
+                      {isProcessed && (
+                        <span className="text-[8px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center gap-0.5">
                           <Check className="w-2.5 h-2.5" />
-                        ) : (
-                          <Play className="w-2.5 h-2.5" />
-                        )}
-                        {dispatchedActions.has(i) ? "Done" : "Run"}
-                      </button>
+                          Done
+                        </span>
+                      )}
+                      {!isProcessed && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRunAction(i, action.agent, action.action, action.priority);
+                          }}
+                          disabled={isProcessing}
+                          className={cn(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-semibold transition-all",
+                            "bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40",
+                          )}
+                          title="Run this action — creates task + adds to Task Board"
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                          ) : (
+                            <Play className="w-2.5 h-2.5" />
+                          )}
+                          Run
+                        </button>
+                      )}
                       <span
                         className={cn(
                           "text-[8px] font-semibold px-1.5 py-0.5 rounded-full",
@@ -355,7 +426,7 @@ export function SystemIntelligenceCard() {
         </div>
       )}
 
-      {/* Recommendations */}
+      {/* Recommendations — with Run + Dismiss buttons */}
       {proactivePlan.recommendations.length > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -363,15 +434,82 @@ export function SystemIntelligenceCard() {
             Recommendations
           </div>
           <div className="space-y-1">
-            {proactivePlan.recommendations.map((rec, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/10"
-              >
-                <Lightbulb className="w-3 h-3 text-amber-400/60 flex-shrink-0 mt-0.5" />
-                <p className="text-[10px] text-foreground/80 leading-relaxed">{rec}</p>
-              </div>
-            ))}
+            {proactivePlan.recommendations.map((rec, i) => {
+              const recState = processedRecs.get(i);
+              const isProcessing = processingRec === i;
+              const resultMsg = actionResults.get(String(i));
+
+              // Don't show already-processed recommendations
+              if (recState === "dismiss") return null;
+
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex items-start gap-2 px-2 py-1.5 rounded-lg border transition-colors",
+                    recState === "run"
+                      ? "bg-emerald-500/5 border-emerald-500/20"
+                      : "bg-amber-500/5 border-amber-500/10",
+                  )}
+                >
+                  <Lightbulb className="w-3 h-3 text-amber-400/60 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-[10px] leading-relaxed",
+                      recState === "run" ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-foreground/80",
+                    )}>
+                      {rec}
+                    </p>
+                    {resultMsg && recState === "run" && (
+                      <p className="text-[9px] text-emerald-600 mt-0.5 flex items-center gap-1">
+                        <Check className="w-2.5 h-2.5" />
+                        {resultMsg}
+                      </p>
+                    )}
+                  </div>
+                  {!recState && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => handleRunRecommendation(i, rec)}
+                        disabled={isProcessing}
+                        className={cn(
+                          "flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-semibold transition-all",
+                          "bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40",
+                        )}
+                        title="Execute — creates task + adds to Task Board + won't reappear"
+                      >
+                        {isProcessing ? (
+                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                        ) : (
+                          <Play className="w-2.5 h-2.5" />
+                        )}
+                        Run
+                      </button>
+                      <button
+                        onClick={() => handleDismissRecommendation(i, rec)}
+                        disabled={isProcessing}
+                        className="flex items-center gap-0.5 px-1 py-0.5 rounded-md text-[8px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+                        title="Dismiss — won't appear again"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  )}
+                  {recState === "run" && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <a
+                        href="/taskboard"
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                        title="View on Task Board"
+                      >
+                        <ExternalLink className="w-2.5 h-2.5" />
+                        Board
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

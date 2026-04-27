@@ -946,7 +946,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto custom-scrollbar mobile-scroll">
+      <div className="flex-1 min-h-0">
         <div className="p-4 lg:p-6 max-w-[1600px] mx-auto space-y-4 lg:space-y-5">
           {/* ── Welcome Banner ── */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-1">
