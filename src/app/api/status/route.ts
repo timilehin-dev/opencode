@@ -1,15 +1,15 @@
-// GET /api/status — Backend health check including Supabase connectivity
+// GET /api/status — Backend health check including database connectivity
 import { NextResponse } from "next/server";
-import { isSupabaseReady } from "@/lib/schema/supabase";
+import { isDatabaseReady } from "@/lib/core/db";
 
 export async function GET() {
-  const supabaseReady = await isSupabaseReady();
+  const dbReady = await isDatabaseReady();
 
   return NextResponse.json({
     success: true,
     data: {
       status: "ok",
-      supabase: supabaseReady ? "connected" : "not_configured",
+      database: dbReady ? "connected" : "not_configured",
       timestamp: new Date().toISOString(),
     },
   });

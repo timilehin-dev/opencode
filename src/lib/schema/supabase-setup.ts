@@ -1,11 +1,14 @@
 // ---------------------------------------------------------------------------
-// Klawhub — Comprehensive Supabase Setup Script (Phase 4)
+// Klawhub — Phase 4 Schema (Unique Tables Only)
 //
-// Contains ALL table schemas needed for the full application, including
-// Phase 4 new tables (proactive_notifications, learning_insights) plus
-// all existing tables from prior phases.
+// This file contains ONLY the tables that were introduced in Phase 4 and are
+// NOT defined elsewhere. Duplicates have been removed:
 //
-// Exported as PHASE4_SCHEMA_SQL for the /api/setup/phase4 endpoint.
+//   - A2A_TABLES removed → see a2a-schema.ts (canonical, more columns)
+//   - PHASE2_TABLES removed → see supabase.ts PHASE2_SCHEMA_SQL (canonical)
+//   - MEMORY_MIGRATION removed → see unified-schema.ts MEMORY_SCHEMA_ENHANCEMENTS_SQL (canonical)
+//
+// For the complete schema setup, use UNIFIED_SETUP_SQL from unified-schema.ts.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -57,46 +60,6 @@ CREATE TABLE IF NOT EXISTS learning_insights (
 CREATE INDEX IF NOT EXISTS idx_learning_agent ON learning_insights(agent_id, insight_type);
 CREATE INDEX IF NOT EXISTS idx_learning_confidence ON learning_insights(confidence DESC, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_learning_applied ON learning_insights(last_applied_at DESC);
-`;
-
-// ---------------------------------------------------------------------------
-// A2A Communication Tables (from a2a.ts)
-// ---------------------------------------------------------------------------
-
-const A2A_TABLES = `
--- A2A Messages (Agent-to-Agent communication)
-CREATE TABLE IF NOT EXISTS a2a_messages (
-  id BIGSERIAL PRIMARY KEY,
-  from_agent TEXT NOT NULL,
-  to_agent TEXT NOT NULL,
-  type TEXT NOT NULL DEFAULT 'request' CHECK (type IN ('request', 'response', 'broadcast', 'context_share', 'handoff')),
-  topic TEXT NOT NULL DEFAULT '',
-  payload JSONB DEFAULT '{}',
-  status TEXT NOT NULL DEFAULT 'delivered' CHECK (status IN ('pending', 'delivered', 'completed', 'failed')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_a2a_msg_from ON a2a_messages(from_agent, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_a2a_msg_to ON a2a_messages(to_agent, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_a2a_msg_status ON a2a_messages(status, created_at DESC);
-
--- A2A Tasks (Agent delegation tracking)
-CREATE TABLE IF NOT EXISTS a2a_tasks (
-  id BIGSERIAL PRIMARY KEY,
-  initiator_agent TEXT NOT NULL,
-  assigned_agent TEXT NOT NULL,
-  task TEXT NOT NULL,
-  context TEXT DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
-  result TEXT,
-  delegation_chain JSONB DEFAULT '[]'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS idx_a2a_task_status ON a2a_tasks(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_a2a_task_initiator ON a2a_tasks(initiator_agent, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_a2a_task_assigned ON a2a_tasks(assigned_agent, created_at DESC);
 `;
 
 // ---------------------------------------------------------------------------
@@ -156,73 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_routines_is_active ON agent_routines(is_act
 `;
 
 // ---------------------------------------------------------------------------
-// Phase 2 tables (from supabase.ts PHASE2_SCHEMA_SQL)
-// ---------------------------------------------------------------------------
-
-const PHASE2_TABLES = `
--- Agent Activity Log (for Ops Feed)
-CREATE TABLE IF NOT EXISTS agent_activity (
-  id BIGSERIAL PRIMARY KEY,
-  agent_id TEXT NOT NULL,
-  agent_name TEXT,
-  action TEXT NOT NULL,
-  detail TEXT DEFAULT '',
-  tool_name TEXT,
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_activity_agent_time ON agent_activity(agent_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_time ON agent_activity(created_at DESC);
-
--- Agent Status (persistent)
-CREATE TABLE IF NOT EXISTS agent_status (
-  agent_id TEXT PRIMARY KEY,
-  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'busy', 'error', 'offline')),
-  current_task TEXT,
-  last_activity TIMESTAMPTZ,
-  tasks_completed INTEGER NOT NULL DEFAULT 0,
-  messages_processed INTEGER NOT NULL DEFAULT 0,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-`;
-
-// ---------------------------------------------------------------------------
-// Agent Memory — Update CHECK constraint to include new categories
-// The table may already exist from Phase 1; we ALTER the constraint.
-// ---------------------------------------------------------------------------
-
-const MEMORY_MIGRATION = `
--- Update agent_memory category CHECK to include new categories
--- Drop the existing constraint (if exists) and add the new one
-DO $$
-BEGIN
-  -- Try to drop the old constraint (ignore if it doesn't exist)
-  ALTER TABLE agent_memory DROP CONSTRAINT IF EXISTS agent_memory_category_check;
-
-  -- Add the new, expanded constraint
-  ALTER TABLE agent_memory ADD CONSTRAINT agent_memory_category_check
-    CHECK (category IN ('general', 'preference', 'context', 'instruction', 'episodic', 'semantic', 'procedural'));
-
-  -- Ensure the index exists
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_agent ON agent_memory(agent_id, category);
-EXCEPTION WHEN OTHERS THEN
-  -- If agent_memory table doesn't exist yet, create it with the full constraint
-  CREATE TABLE IF NOT EXISTS agent_memory (
-    id BIGSERIAL PRIMARY KEY,
-    agent_id TEXT NOT NULL,
-    category TEXT DEFAULT 'general' CHECK (category IN ('general', 'preference', 'context', 'instruction', 'episodic', 'semantic', 'procedural')),
-    content TEXT NOT NULL,
-    importance INTEGER DEFAULT 5 CHECK (importance BETWEEN 1 AND 10),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-  CREATE INDEX IF NOT EXISTS idx_agent_memory_agent ON agent_memory(agent_id, category);
-END $$;
-`;
-
-// ---------------------------------------------------------------------------
 // Learning Insights — Defensive migration to ensure CHECK constraints match code
-// Same pattern as MEMORY_MIGRATION: drop old constraints and re-create.
 // ---------------------------------------------------------------------------
 
 const LEARNING_MIGRATION = `
@@ -249,33 +146,30 @@ END $$;
 `;
 
 // ---------------------------------------------------------------------------
-// Complete Phase 4 Schema — Everything combined
+// Complete Phase 4 Schema — Only unique tables (no duplicates)
 // ---------------------------------------------------------------------------
 
 export const PHASE4_SCHEMA_SQL = `
 -- ============================================================
--- Klawhub — Phase 4: Complete Database Schema
--- Includes ALL tables from prior phases + new Phase 4 tables
+-- Klawhub — Phase 4: New Tables Only
+--
+-- NOTE: Duplicates removed in Step 5:
+--   - A2A tables → see a2a-schema.ts (canonical source)
+--   - Phase 2 tables → see supabase.ts PHASE2_SCHEMA_SQL
+--   - Agent memory migration → see unified-schema.ts MEMORY_SCHEMA_ENHANCEMENTS_SQL
+//
 -- Run via POST /api/setup/phase4?action=setup
+// For full setup, use UNIFIED_SETUP_SQL from unified-schema.ts.
 -- ============================================================
 
 -- Phase 4 New Tables
 ${PHASE4_NEW_TABLES}
-
--- A2A Communication
-${A2A_TABLES}
 
 -- Task Board
 ${TASK_BOARD_TABLE}
 
 -- Agent Routines
 ${AGENT_ROUTINES_TABLE}
-
--- Phase 2 Tables
-${PHASE2_TABLES}
-
--- Agent Memory Migration
-${MEMORY_MIGRATION}
 
 -- Learning Insights Migration
 ${LEARNING_MIGRATION}
@@ -287,25 +181,23 @@ ${LEARNING_MIGRATION}
 
 export const PROACTIVE_NOTIFICATIONS_TABLE_SQL = PHASE4_NEW_TABLES;
 export const LEARNING_INSIGHTS_TABLE_SQL = PHASE4_NEW_TABLES;
-export const A2A_TABLES_SQL = A2A_TABLES;
 export const TASK_BOARD_TABLE_SQL = TASK_BOARD_TABLE;
 export const AGENT_ROUTINES_TABLE_SQL = AGENT_ROUTINES_TABLE;
-export const PHASE2_TABLES_SQL = PHASE2_TABLES;
-export const MEMORY_MIGRATION_SQL = MEMORY_MIGRATION;
 export const LEARNING_MIGRATION_SQL = LEARNING_MIGRATION;
 
+// Backward-compat re-exports: these tables are defined in their canonical sources
+// NOTE: MEMORY_MIGRATION_SQL is exported from unified-schema.ts (not here)
+// to avoid circular dependency.
+export { A2A_SCHEMA_SQL as A2A_TABLES_SQL } from "./a2a-schema";
+export { PHASE2_SCHEMA_SQL as PHASE2_TABLES_SQL } from "./supabase";
+
 // ---------------------------------------------------------------------------
-// Table list for setup endpoint reporting
+// Table list for setup endpoint reporting (unique to this file only)
 // ---------------------------------------------------------------------------
 
 export const PHASE4_TABLE_LIST = [
   "proactive_notifications",
   "learning_insights",
-  "a2a_messages",
-  "a2a_tasks",
   "task_board",
   "agent_routines",
-  "agent_activity",
-  "agent_status",
-  "agent_memory",
 ];

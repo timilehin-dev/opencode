@@ -1,23 +1,17 @@
 // GET /api/analytics
-// Returns aggregated real analytics data from Supabase tables.
-// Falls back gracefully to empty/zero data if Supabase is unavailable.
+// Returns aggregated real analytics data from database tables.
+// Falls back gracefully to empty/zero data if the database is unavailable.
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/schema/supabase";
+import { query } from "@/lib/core/db";
 
 export async function GET(req: NextRequest) {
-  const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
   const days = Math.min(Math.max(Number(searchParams.get("days") || 7), 1), 90);
-
-  // If no Supabase, return empty dataset
-  if (!supabase) {
-    return NextResponse.json({ success: true, data: emptyResponse() });
-  }
-
   const since = new Date(Date.now() - days * 86400000).toISOString();
+  const sessionsSince = new Date(Date.now() - 86400000).toISOString();
 
   try {
-    // Run all queries in parallel for performance
+    // Run all independent queries in parallel for performance
     const [
       messagesRes,
       toolCallsRes,
@@ -29,106 +23,75 @@ export async function GET(req: NextRequest) {
       automationsRes,
       dailyMessagesRes,
       sessionsRes,
+      agentToolCallsRes,
+      toolCallsDataRes,
+      hourlyRes,
     ] = await Promise.all([
       // 1. Total messages
-      supabase
-        .from("analytics_events")
-        .select("id", { count: "exact", head: true })
-        .eq("type", "chat_message")
-        .gte("created_at", since),
+      query("SELECT count(*)::int as count FROM analytics_events WHERE type = 'chat_message' AND created_at >= $1", [since]),
 
       // 2. Total tool calls
-      supabase
-        .from("analytics_events")
-        .select("id", { count: "exact", head: true })
-        .eq("type", "tool_call")
-        .gte("created_at", since),
+      query("SELECT count(*)::int as count FROM analytics_events WHERE type = 'tool_call' AND created_at >= $1", [since]),
 
       // 3. Messages per agent (from analytics_events)
-      supabase
-        .from("analytics_events")
-        .select("agent_id, agent_name")
-        .eq("type", "chat_message")
-        .gte("created_at", since),
+      query("SELECT agent_id, agent_name FROM analytics_events WHERE type = 'chat_message' AND created_at >= $1", [since]),
 
       // 4. Tool calls per tool name (from agent_activity)
-      supabase
-        .from("agent_activity")
-        .select("tool_name, agent_id, agent_name")
-        .gte("created_at", since),
+      query("SELECT tool_name, agent_id, agent_name FROM agent_activity WHERE created_at >= $1", [since]),
 
       // 5. Recent activity feed (last 20 from agent_activity)
-      supabase
-        .from("agent_activity")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20),
+      query("SELECT * FROM agent_activity ORDER BY created_at DESC LIMIT 20", []),
 
       // 6. Agent status overview
-      supabase
-        .from("agent_status")
-        .select("*"),
+      query("SELECT * FROM agent_status", []),
 
       // 7. Task completion stats
-      supabase
-        .from("agent_tasks")
-        .select("status"),
+      query("SELECT status FROM agent_tasks", []),
 
       // 8. Automation stats
-      supabase
-        .from("automations")
-        .select("name, enabled, run_count, last_run_at, last_status"),
+      query("SELECT name, enabled, run_count, last_run_at, last_status FROM automations", []),
 
       // 9. Daily message counts (last N days)
-      supabase
-        .from("analytics_events")
-        .select("created_at")
-        .eq("type", "chat_message")
-        .gte("created_at", since)
-        .order("created_at", { ascending: true }),
+      query("SELECT created_at FROM analytics_events WHERE type = 'chat_message' AND created_at >= $1 ORDER BY created_at ASC", [since]),
 
       // 10. Active sessions (distinct session_id from conversations where created_at > now - 24h)
-      supabase
-        .from("conversations")
-        .select("session_id")
-        .gte("created_at", new Date(Date.now() - 86400000).toISOString()),
+      query("SELECT DISTINCT session_id FROM conversations WHERE created_at >= $1", [sessionsSince]),
+
+      // 11. Tool calls per agent (from analytics_events, type = 'tool_call')
+      query("SELECT agent_id, agent_name FROM analytics_events WHERE type = 'tool_call' AND created_at >= $1", [since]),
+
+      // 12. Tool calls data from analytics_events for tool name aggregation
+      query("SELECT data FROM analytics_events WHERE type = 'tool_call' AND created_at >= $1", [since]),
+
+      // 13. Hourly heatmap data from analytics_events
+      query("SELECT created_at FROM analytics_events WHERE created_at >= $1 ORDER BY created_at ASC", [since]),
     ]);
 
     // -----------------------------------------------------------------------
     // 1 & 2. Total counts
     // -----------------------------------------------------------------------
-    const totalMessages = messagesRes.count ?? 0;
-    const totalToolCalls = toolCallsRes.count ?? 0;
+    const totalMessages = messagesRes.rows[0]?.count ?? 0;
+    const totalToolCalls = toolCallsRes.rows[0]?.count ?? 0;
 
     // -----------------------------------------------------------------------
     // 3. Messages per agent
     // -----------------------------------------------------------------------
     const agentMsgMap = new Map<string, { agentId: string; agentName: string; messages: number; toolCalls: number }>();
-    if (agentMessagesRes.data) {
-      for (const row of agentMessagesRes.data) {
-        const id = row.agent_id;
-        if (!agentMsgMap.has(id)) {
-          agentMsgMap.set(id, { agentId: id, agentName: row.agent_name || id, messages: 0, toolCalls: 0 });
-        }
-        agentMsgMap.get(id)!.messages++;
+    for (const row of agentMessagesRes.rows) {
+      const id = row.agent_id;
+      if (!agentMsgMap.has(id)) {
+        agentMsgMap.set(id, { agentId: id, agentName: row.agent_name || id, messages: 0, toolCalls: 0 });
       }
+      agentMsgMap.get(id)!.messages++;
     }
 
     // Also count tool calls per agent from analytics_events (type = 'tool_call')
-    const agentToolCallsRes = await supabase
-      .from("analytics_events")
-      .select("agent_id, agent_name")
-      .eq("type", "tool_call")
-      .gte("created_at", since);
-
-    if (agentToolCallsRes.data) {
-      for (const row of agentToolCallsRes.data) {
-        const id = row.agent_id;
-        if (!agentMsgMap.has(id)) {
-          agentMsgMap.set(id, { agentId: id, agentName: row.agent_name || id, messages: 0, toolCalls: 0 });
-        }
-        agentMsgMap.get(id)!.toolCalls++;
+    for (const row of agentToolCallsRes.rows) {
+      const id = row.agent_id;
+      if (!agentMsgMap.has(id)) {
+        agentMsgMap.set(id, { agentId: id, agentName: row.agent_name || id, messages: 0, toolCalls: 0 });
       }
+      agentMsgMap.get(id)!.toolCalls++;
     }
 
     const agentUsage = Array.from(agentMsgMap.values())
@@ -138,26 +101,16 @@ export async function GET(req: NextRequest) {
     // 4. Tool usage (from agent_activity.tool_name)
     // -----------------------------------------------------------------------
     const toolMap = new Map<string, number>();
-    if (agentToolsRes.data) {
-      for (const row of agentToolsRes.data) {
-        if (row.tool_name) {
-          toolMap.set(row.tool_name, (toolMap.get(row.tool_name) || 0) + 1);
-        }
+    for (const row of agentToolsRes.rows) {
+      if (row.tool_name) {
+        toolMap.set(row.tool_name, (toolMap.get(row.tool_name) || 0) + 1);
       }
     }
     // Also aggregate tool calls from analytics_events data JSONB
-    const toolCallsDataRes = await supabase
-      .from("analytics_events")
-      .select("data")
-      .eq("type", "tool_call")
-      .gte("created_at", since);
-
-    if (toolCallsDataRes.data) {
-      for (const row of toolCallsDataRes.data) {
-        const d = row.data as Record<string, unknown> | null;
-        if (d?.toolName && typeof d.toolName === "string") {
-          toolMap.set(d.toolName, (toolMap.get(d.toolName) || 0) + 1);
-        }
+    for (const row of toolCallsDataRes.rows) {
+      const d = row.data as Record<string, unknown> | null;
+      if (d?.toolName && typeof d.toolName === "string") {
+        toolMap.set(d.toolName, (toolMap.get(d.toolName) || 0) + 1);
       }
     }
     const toolUsage = Array.from(toolMap.entries())
@@ -168,7 +121,7 @@ export async function GET(req: NextRequest) {
     // -----------------------------------------------------------------------
     // 5. Recent activity feed (agent_activity rows mapped to AnalyticsEvent-like shape)
     // -----------------------------------------------------------------------
-    const recentActivity = (activityRes.data || []).map((row) => ({
+    const recentActivity = (activityRes.rows || []).map((row) => ({
       id: String(row.id),
       type: mapActivityToEventType(row.action),
       agentId: row.agent_id,
@@ -183,7 +136,7 @@ export async function GET(req: NextRequest) {
     // -----------------------------------------------------------------------
     // 6. Agent status overview
     // -----------------------------------------------------------------------
-    const agentStatuses = (agentStatusRes.data || []).map((row) => ({
+    const agentStatuses = (agentStatusRes.rows || []).map((row) => ({
       agentId: row.agent_id,
       status: row.status,
       currentTask: row.current_task,
@@ -197,7 +150,7 @@ export async function GET(req: NextRequest) {
     // -----------------------------------------------------------------------
     // 7. Task stats
     // -----------------------------------------------------------------------
-    const allTasks = tasksRes.data || [];
+    const allTasks = tasksRes.rows || [];
     const tasksCompleted = allTasks.filter((t) => t.status === "completed").length;
     const tasksPending = allTasks.filter((t) => t.status === "pending" || t.status === "running").length;
     const tasksFailed = allTasks.filter((t) => t.status === "failed").length;
@@ -205,7 +158,7 @@ export async function GET(req: NextRequest) {
     // -----------------------------------------------------------------------
     // 8. Automation stats
     // -----------------------------------------------------------------------
-    const automationStats = (automationsRes.data || []).map((a) => ({
+    const automationStats = (automationsRes.rows || []).map((a) => ({
       name: a.name,
       enabled: a.enabled,
       runCount: a.run_count,
@@ -219,12 +172,10 @@ export async function GET(req: NextRequest) {
     // 9. Daily message counts
     // -----------------------------------------------------------------------
     const dayMap = new Map<string, number>();
-    if (dailyMessagesRes.data) {
-      for (const row of dailyMessagesRes.data) {
-        const day = row.created_at?.slice(0, 10);
-        if (day) {
-          dayMap.set(day, (dayMap.get(day) || 0) + 1);
-        }
+    for (const row of dailyMessagesRes.rows) {
+      const day = row.created_at?.slice(0, 10);
+      if (day) {
+        dayMap.set(day, (dayMap.get(day) || 0) + 1);
       }
     }
     // Fill in missing days
@@ -239,7 +190,7 @@ export async function GET(req: NextRequest) {
     // 10. Active sessions
     // -----------------------------------------------------------------------
     const activeSessions = new Set(
-      (sessionsRes.data || []).map((r) => r.session_id)
+      (sessionsRes.rows || []).map((r) => r.session_id)
     ).size;
 
     // -----------------------------------------------------------------------
@@ -248,17 +199,9 @@ export async function GET(req: NextRequest) {
     const hourMap: Record<number, number> = {};
     for (let h = 0; h < 24; h++) hourMap[h] = 0;
 
-    const hourlyRes = await supabase
-      .from("analytics_events")
-      .select("created_at")
-      .gte("created_at", since)
-      .order("created_at", { ascending: true });
-
-    if (hourlyRes.data) {
-      for (const row of hourlyRes.data) {
-        const hour = new Date(row.created_at).getHours();
-        hourMap[hour] = (hourMap[hour] || 0) + 1;
-      }
+    for (const row of hourlyRes.rows) {
+      const hour = new Date(row.created_at).getHours();
+      hourMap[hour] = (hourMap[hour] || 0) + 1;
     }
 
     return NextResponse.json({
@@ -289,7 +232,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[Analytics API] Error querying Supabase:", err);
+    console.error("[Analytics API] Error querying database:", err);
     return NextResponse.json({ success: true, data: emptyResponse() });
   }
 }

@@ -10,8 +10,8 @@
 //       Individual phase routes still work independently.
 // ---------------------------------------------------------------------------
 
-// Re-export all schema SQL constants from their original source files.
-// This allows consumers to import from either the original file or here.
+// Re-export all schema SQL constants from their canonical source files.
+// This is the single entry-point for importing any schema constant.
 
 // Core tables (analytics, conversations, automations, user_preferences, agent_memory,
 // reminders, todos, contacts) + their indexes
@@ -26,28 +26,28 @@ export { PHASE3_SCHEMA_SQL } from "@/lib/schema/supabase";
 // Key usage tracking (smart API key rotation)
 export { KEY_USAGE_SCHEMA_SQL } from "@/lib/schema/supabase";
 
-// DEPRECATED: Workspace tables — duplicate of SCHEMA_SQL. Use SCHEMA_SQL instead.
-export { WORKSPACE_SCHEMA_SQL } from "@/lib/schema/supabase";
-
 // RLS fix — enables Row Level Security + permissive policies on all Klawhub tables
 export { RLS_FIX_SQL } from "@/lib/schema/supabase";
 
-// DEPRECATED: LEARNING_INSIGHTS_SCHEMA removed from self-learning.ts (duplicate).
-// Import PROACTIVE_NOTIFICATIONS_TABLE_SQL from supabase-setup.ts instead.
-
-// Phase 4 tables (proactive_notifications, learning_insights, a2a_messages, a2a_tasks,
-// task_board, agent_routines, agent_activity, agent_status, agent_memory migration)
+// Phase 4 tables (proactive_notifications, learning_insights, task_board, agent_routines)
+// Duplicates removed in Step 5 — A2A, Phase2, Memory Migration now import from canonical sources.
 export { PHASE4_SCHEMA_SQL, PHASE4_TABLE_LIST } from "@/lib/schema/supabase-setup";
 
 // Individual Phase 4 sub-tables for selective setup
 export {
   PROACTIVE_NOTIFICATIONS_TABLE_SQL,
-  A2A_TABLES_SQL,
   TASK_BOARD_TABLE_SQL,
   AGENT_ROUTINES_TABLE_SQL,
-  PHASE2_TABLES_SQL as PHASE4_PHASE2_TABLES_SQL,
-  MEMORY_MIGRATION_SQL,
 } from "@/lib/schema/supabase-setup";
+
+// A2A tables — re-exported from canonical a2a-schema.ts (more columns than Phase 4 version)
+export { A2A_SCHEMA_SQL as A2A_TABLES_SQL } from "@/lib/schema/a2a-schema";
+
+// Phase 2 tables — re-exported from canonical supabase.ts
+export { PHASE2_SCHEMA_SQL as PHASE4_PHASE2_TABLES_SQL } from "@/lib/schema/supabase";
+
+// Memory migration — defined in this file as MEMORY_SCHEMA_ENHANCEMENTS_SQL
+// Re-exported as MEMORY_MIGRATION_SQL for backward compatibility
 
 // ---------------------------------------------------------------------------
 // Skills tables schema (Phase 6 — Self-Improvement)
@@ -504,6 +504,9 @@ EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;
 
+// Backward-compat alias
+export { MEMORY_SCHEMA_ENHANCEMENTS_SQL as MEMORY_MIGRATION_SQL };
+
 // ---------------------------------------------------------------------------
 // Phase 3B — Proactive Scanning & Pull-Based Triggers
 //
@@ -664,17 +667,15 @@ export const UNIFIED_SETUP_SQL = `
 --   2. Phase 2 tables — agent_activity, agent_status
 --   3. Phase 3 tables — agent_tasks, delegations
 --   4. Key usage table — key_usage
---   5. Phase 4 tables — proactive_notifications, learning_insights, a2a_messages,
---      a2a_tasks, task_board, agent_routines, agent_memory migration
---      (Phase 2 tables duplicated here — safe via IF NOT EXISTS)
+--   5. Phase 4 tables — proactive_notifications, learning_insights,
+--      task_board, agent_routines (duplicates removed in Step 5)
 --   6. Phase 5 tables — projects, project_tasks, project_task_logs
 --   7. Workflow tables — agent_workflows, workflow_steps, workflow_executions
 --   8. A2A extended tables — a2a_shared_context, a2a_channels, a2a_channel_messages
 --   9. Phase 3B tables — triggers, scan_state, trigger_events, scan_logs
 --  10. RLS fix — enable Row Level Security + permissive policies
 --
--- SKIP: WORKSPACE_SCHEMA_SQL — this is a DUPLICATE of tables in SCHEMA_SQL
---       (reminders, todos, contacts). Including it would be harmless but redundant.
+-- NOTE: WORKSPACE_SCHEMA_SQL was removed in Step 5 (was a duplicate of SCHEMA_SQL).
 -- ============================================================
 
 -- 1. Core tables
@@ -689,7 +690,7 @@ ${PHASE3_SCHEMA_SQL}
 -- 4. Key usage table
 ${KEY_USAGE_SCHEMA_SQL}
 
--- 5. Phase 4 tables (includes duplicated Phase 2 — safe via IF NOT EXISTS)
+-- 5. Phase 4 tables (unique only — no duplicates)
 ${PHASE4_SCHEMA_SQL}
 
 -- 6. Phase 5 tables (projects + task graph)

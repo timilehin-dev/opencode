@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { query } from '@/lib/core/db';
 
 const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
 
@@ -217,45 +218,20 @@ export async function POST(request: NextRequest) {
     const body = JSON.parse(bodyText);
     const eventInfo = getEventInfo(body, eventType);
 
-    // Insert into trigger_events via Supabase
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('[webhook:github] No Supabase config — storing in memory only');
-      return NextResponse.json({ ok: true, stored: false, event: eventInfo.event_type });
-    }
-
-    // Use direct postgres connection for webhook ingestion (same pattern as other routes)
-    // Import is at top level — we use the route handler
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     // Dedup check
-    const { data: existing } = await supabase
-      .from('trigger_events')
-      .select('id')
-      .eq('external_id', eventInfo.external_id)
-      .limit(1);
+    const existing = await query(
+      'SELECT id FROM trigger_events WHERE external_id = $1 LIMIT 1',
+      [eventInfo.external_id]
+    );
 
-    if (existing && existing.length > 0) {
+    if (existing.rows.length > 0) {
       return NextResponse.json({ ok: true, deduplicated: true, event: eventInfo.event_type });
     }
 
-    const { error } = await supabase.from('trigger_events').insert({
-      source: 'github',
-      event_type: eventInfo.event_type,
-      external_id: eventInfo.external_id,
-      title: eventInfo.title,
-      payload: eventInfo.payload,
-      severity: eventInfo.severity,
-      status: 'pending',
-    });
-
-    if (error) {
-      console.error('[webhook:github] DB insert error:', error);
-      return NextResponse.json({ error: 'DB insert failed' }, { status: 500 });
-    }
+    await query(
+      'INSERT INTO trigger_events (source, event_type, external_id, title, payload, severity, status) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)',
+      ['github', eventInfo.event_type, eventInfo.external_id, eventInfo.title, eventInfo.payload, eventInfo.severity, 'pending']
+    );
 
     console.log(`[webhook:github] Received ${eventType} → ${eventInfo.event_type}: ${eventInfo.title}`);
 

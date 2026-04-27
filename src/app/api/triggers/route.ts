@@ -6,38 +6,35 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-async function getSupabase() {
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase not configured');
-  }
-  const { createClient } = await import('@supabase/supabase-js');
-  return createClient(supabaseUrl, supabaseKey);
-}
+import { query } from '@/lib/core/db';
 
 // GET /api/triggers — List all triggers
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await getSupabase();
     const { searchParams } = new URL(request.url);
     const source = searchParams.get('source');
     const enabled = searchParams.get('enabled');
 
-    let query = supabase
-      .from('triggers')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let paramIdx = 1;
 
-    if (source) query = query.eq('source', source);
-    if (enabled !== null && enabled !== undefined) query = query.eq('enabled', enabled === 'true');
+    if (source) {
+      conditions.push(`source = $${paramIdx}`);
+      values.push(source);
+      paramIdx++;
+    }
+    if (enabled !== null && enabled !== undefined) {
+      conditions.push(`enabled = $${paramIdx}`);
+      values.push(enabled === 'true');
+      paramIdx++;
+    }
 
-    const { data, error } = await query;
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `SELECT * FROM triggers ${whereClause} ORDER BY created_at DESC`;
 
-    if (error) throw error;
-    return NextResponse.json({ ok: true, triggers: data, count: data?.length || 0 });
+    const res = await query(sql, values);
+    return NextResponse.json({ ok: true, triggers: res.rows, count: res.rows.length });
   } catch (err) {
     console.error('[triggers] GET error:', err);
     const message = err instanceof Error ? err.message : String(err);
@@ -55,23 +52,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name, source, and event_type are required' }, { status: 400 });
     }
 
-    const supabase = await getSupabase();
-    const { data, error } = await supabase.from('triggers').insert({
-      name,
-      description: description || '',
-      source,
-      event_type,
-      filter_config: filter_config || {},
-      action_type: action_type || 'create_task',
-      action_config: action_config || {},
-      agent_id: agent_id || null,
-      cooldown_seconds: cooldown_seconds || 300,
-      enabled: enabled !== false,
-      created_by: 'user',
-    }).select().single();
+    const res = await query(
+      `INSERT INTO triggers (name, description, source, event_type, filter_config, action_type, action_config, agent_id, cooldown_seconds, enabled, created_by)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::jsonb, $8, $9, $10, $11) RETURNING *`,
+      [
+        name,
+        description || '',
+        source,
+        event_type,
+        filter_config || {},
+        action_type || 'create_task',
+        action_config || {},
+        agent_id || null,
+        cooldown_seconds || 300,
+        enabled !== false,
+        'user',
+      ]
+    );
 
-    if (error) throw error;
-    return NextResponse.json({ ok: true, trigger: data }, { status: 201 });
+    return NextResponse.json({ ok: true, trigger: res.rows[0] }, { status: 201 });
   } catch (err) {
     console.error('[triggers] POST error:', err);
     const message = err instanceof Error ? err.message : String(err);
@@ -89,15 +88,28 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    const supabase = await getSupabase();
-    const { data, error } = await supabase
-      .from('triggers')
-      .update(updates)
-      .eq('id', id)
-      .select().single();
+    const allowedFields = ['name', 'description', 'source', 'event_type', 'filter_config', 'action_type', 'action_config', 'agent_id', 'cooldown_seconds', 'enabled'];
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let paramIdx = 1;
 
-    if (error) throw error;
-    return NextResponse.json({ ok: true, trigger: data });
+    for (const [key, val] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        sets.push(`${key} = $${paramIdx}`);
+        values.push(val);
+        paramIdx++;
+      }
+    }
+
+    if (sets.length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    values.push(id);
+    const sql = `UPDATE triggers SET ${sets.join(', ')} WHERE id = $${paramIdx} RETURNING *`;
+    const res = await query(sql, values);
+
+    return NextResponse.json({ ok: true, trigger: res.rows[0] });
   } catch (err) {
     console.error('[triggers] PATCH error:', err);
     const message = err instanceof Error ? err.message : String(err);
@@ -115,10 +127,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    const supabase = await getSupabase();
-    const { error } = await supabase.from('triggers').delete().eq('id', id);
-
-    if (error) throw error;
+    await query('DELETE FROM triggers WHERE id = $1', [id]);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[triggers] DELETE error:', err);

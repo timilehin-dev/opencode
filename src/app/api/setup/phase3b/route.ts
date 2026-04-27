@@ -14,39 +14,19 @@ import { NextResponse } from 'next/server';
 
 export async function POST() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
-    }
-
     // Import the schema SQL from the unified schema file
     const { PROACTIVE_SCANNING_SCHEMA_SQL } = await import('@/lib/schema/unified-schema');
 
-    // Execute via direct postgres connection
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Use the SQL API to execute raw SQL
-    // Note: Supabase JS client doesn't support raw SQL execution directly,
-    // so we use the RPC approach with a fallback to the tables API
     const tables = ['triggers', 'scan_state', 'trigger_events', 'scan_logs'];
-    const results = {};
 
-    // Check which tables already exist and create them via the API
-    // For now, we use the raw SQL endpoint approach
-    // The unified setup is typically run via the master setup route which
-    // has direct postgres access
-
-    // For Vercel API routes, we'll just verify the schema is importable
+    // For Vercel API routes, we verify the schema is importable
     // and provide instructions for running the SQL
 
     return NextResponse.json({
       ok: true,
       message: 'Phase 3B schema SQL prepared successfully',
       tables,
-      note: 'Run the master setup (/api/setup/master) to apply this schema to the database, or execute the PROACTIVE_SCANNING_SCHEMA_SQL directly in the Supabase SQL editor.',
+      note: 'Run the master setup (/api/setup/master) to apply this schema to the database, or execute the PROACTIVE_SCANNING_SCHEMA_SQL directly via your database tool.',
       schema_size_bytes: PROACTIVE_SCANNING_SCHEMA_SQL.length,
     });
   } catch (err) {

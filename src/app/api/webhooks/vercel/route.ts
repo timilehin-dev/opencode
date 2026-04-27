@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from 'next/server';
+import { query } from '@/lib/core/db';
 
 function getEventInfo(body: any) {
   const eventType = body.type || body.event || 'unknown';
@@ -76,42 +77,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const eventInfo = getEventInfo(body);
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('[webhook:vercel] No Supabase config');
-      return NextResponse.json({ ok: true, stored: false });
-    }
-
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     // Dedup
-    const { data: existing } = await supabase
-      .from('trigger_events')
-      .select('id')
-      .eq('external_id', eventInfo.external_id)
-      .limit(1);
+    const existing = await query(
+      'SELECT id FROM trigger_events WHERE external_id = $1 LIMIT 1',
+      [eventInfo.external_id]
+    );
 
-    if (existing && existing.length > 0) {
+    if (existing.rows.length > 0) {
       return NextResponse.json({ ok: true, deduplicated: true, event: eventInfo.event_type });
     }
 
-    const { error } = await supabase.from('trigger_events').insert({
-      source: 'vercel',
-      event_type: eventInfo.event_type,
-      external_id: eventInfo.external_id,
-      title: eventInfo.title,
-      payload: eventInfo.payload,
-      severity: eventInfo.severity,
-      status: 'pending',
-    });
-
-    if (error) {
-      console.error('[webhook:vercel] DB insert error:', error);
-      return NextResponse.json({ error: 'DB insert failed' }, { status: 500 });
-    }
+    await query(
+      'INSERT INTO trigger_events (source, event_type, external_id, title, payload, severity, status) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)',
+      ['vercel', eventInfo.event_type, eventInfo.external_id, eventInfo.title, eventInfo.payload, eventInfo.severity, 'pending']
+    );
 
     console.log(`[webhook:vercel] Received ${eventInfo.event_type}: ${eventInfo.title}`);
 

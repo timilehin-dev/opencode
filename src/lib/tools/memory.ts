@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { tool, zodSchema, z, getCurrentAgentId } from './shared';
-import { getSupabase } from '@/lib/schema/supabase';
+import { query } from '@/lib/core/db';
 
 // ─── Memory Save ─────────────────────────────────────────────────────────────
 
@@ -47,41 +47,23 @@ Categories:
     const imp = importance ?? defaultImportance[category] ?? 5;
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) return 'Error: Database not configured.';
-
       const metadata = tags ? { tags } : {};
 
-      const { data, error } = await supabase
-        .from('agent_memory')
-        .insert({
-          agent_id: agentId,
-          category,
-          content,
-          importance: imp,
-          metadata,
-        })
-        .select('id')
-        .single();
-
-      if (error) {
+      let res;
+      try {
+        res = await query(
+          'INSERT INTO agent_memory (agent_id, category, content, importance, metadata) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id',
+          [agentId, category, content, imp, metadata]
+        );
+      } catch {
         // Try without metadata column (legacy schema)
-        const { data: fallback, error: fallbackError } = await supabase
-          .from('agent_memory')
-          .insert({
-            agent_id: agentId,
-            category,
-            content,
-            importance: imp,
-          })
-          .select('id')
-          .single();
-
-        if (fallbackError) return `Error saving memory: ${fallbackError.message}`;
-        return `Memory saved (ID: ${fallback?.id}, category: ${category}, importance: ${imp})`;
+        res = await query(
+          'INSERT INTO agent_memory (agent_id, category, content, importance) VALUES ($1, $2, $3, $4) RETURNING id',
+          [agentId, category, content, imp]
+        );
       }
 
-      return `Memory saved (ID: ${data?.id}, category: ${category}, importance: ${imp})`;
+      return `Memory saved (ID: ${res.rows[0]?.id}, category: ${category}, importance: ${imp})`;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return `Error saving memory: ${message}`;
@@ -98,36 +80,32 @@ export const memorySearch = tool({
     category: z.enum(['episodic', 'semantic', 'procedural', 'preference', 'context', 'instruction', 'all']).optional().describe('Filter by category (default: all)'),
     limit: z.number().min(1).max(20).optional().describe('Max results to return (default: 10)'),
   })),
-  execute: async ({ query, category, limit }) => {
+  execute: async ({ query: searchQuery, category, limit }) => {
     const agentId = getCurrentAgentId();
     if (!agentId) return 'Error: No agent ID available.';
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) return 'Error: Database not configured.';
-
-      let queryBuilder = supabase
-        .from('agent_memory')
-        .select('id, category, content, importance, created_at, updated_at')
-        .eq('agent_id', agentId);
+      const conditions: string[] = ['agent_id = $1'];
+      const values: unknown[] = [agentId];
+      let paramIdx = 2;
 
       if (category && category !== 'all') {
-        queryBuilder = queryBuilder.eq('category', category);
+        conditions.push(`category = $${paramIdx}`);
+        values.push(category);
+        paramIdx++;
       }
 
-      // Text search via ilike (Supabase supports this)
-      queryBuilder = queryBuilder
-        .or(`content.ilike.%${query}%`)
-        .order('importance', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(limit || 10);
+      conditions.push(`content ILIKE '%' || $${paramIdx} || '%'`);
+      values.push(searchQuery);
+      paramIdx++;
 
-      const { data: memories, error } = await queryBuilder;
+      const sql = `SELECT id, category, content, importance, created_at, updated_at FROM agent_memory WHERE ${conditions.join(' AND ')} ORDER BY importance DESC, created_at DESC LIMIT ${limit || 10}`;
+      const res = await query(sql, values);
+      const memories = res.rows;
 
-      if (error) return `Error searching memories: ${error.message}`;
-      if (!memories || memories.length === 0) return `No memories found matching "${query}".`;
+      if (!memories || memories.length === 0) return `No memories found matching "${searchQuery}".`;
 
-      const formatted = memories.map(m =>
+      const formatted = memories.map((m: Record<string, unknown>) =>
         `[ID:${m.id}] [${m.category}] (importance: ${m.importance}) ${m.content}`
       ).join('\n');
 
@@ -153,27 +131,26 @@ export const memoryRecall = tool({
     if (!agentId) return 'Error: No agent ID available.';
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) return 'Error: Database not configured.';
-
-      let queryBuilder = supabase
-        .from('agent_memory')
-        .select('id, category, content, importance, created_at, updated_at')
-        .eq('agent_id', agentId);
+      const conditions: string[] = ['agent_id = $1'];
+      const values: unknown[] = [agentId];
+      let paramIdx = 2;
 
       if (category && category !== 'all') {
-        queryBuilder = queryBuilder.eq('category', category);
+        conditions.push(`category = $${paramIdx}`);
+        values.push(category);
+        paramIdx++;
       }
 
       if (min_importance) {
-        queryBuilder = queryBuilder.gte('importance', min_importance);
+        conditions.push(`importance >= $${paramIdx}`);
+        values.push(min_importance);
+        paramIdx++;
       }
 
-      const { data: memories, error } = await queryBuilder
-        .order('created_at', { ascending: false })
-        .limit(limit || 10);
+      const sql = `SELECT id, category, content, importance, created_at, updated_at FROM agent_memory WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT ${limit || 10}`;
+      const res = await query(sql, values);
+      const memories = res.rows;
 
-      if (error) return `Error recalling memories: ${error.message}`;
       if (!memories || memories.length === 0) return 'No memories found. Use memory_save to store important information.';
 
       const formatted = memories.map(m =>
@@ -200,28 +177,22 @@ export const memoryForget = tool({
     if (!agentId) return 'Error: No agent ID available.';
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) return 'Error: Database not configured.';
-
       // Verify it belongs to this agent first
-      const { data: existing, error: findError } = await supabase
-        .from('agent_memory')
-        .select('id, content')
-        .eq('id', id)
-        .eq('agent_id', agentId)
-        .single();
+      const findRes = await query(
+        'SELECT id, content FROM agent_memory WHERE id = $1 AND agent_id = $2 LIMIT 1',
+        [id, agentId]
+      );
 
-      if (findError || !existing) {
+      const existing = findRes.rows[0];
+      if (!existing) {
         return `Memory ID ${id} not found for this agent.`;
       }
 
-      const { error } = await supabase
-        .from('agent_memory')
-        .delete()
-        .eq('id', id)
-        .eq('agent_id', agentId);
+      await query(
+        'DELETE FROM agent_memory WHERE id = $1 AND agent_id = $2',
+        [id, agentId]
+      );
 
-      if (error) return `Error deleting memory: ${error.message}`;
       return `Memory deleted: "${existing.content.substring(0, 80)}..."`;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -242,37 +213,29 @@ export const memoryList = tool({
     if (!agentId) return 'Error: No agent ID available.';
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) return 'Error: Database not configured.';
-
-      // Get count by category
-      let countQuery = supabase
-        .from('agent_memory')
-        .select('category, count')
-        .eq('agent_id', agentId);
+      const conditions: string[] = ['agent_id = $1'];
+      const values: unknown[] = [agentId];
+      let paramIdx = 2;
 
       if (category && category !== 'all') {
-        countQuery = countQuery.eq('category', category);
+        conditions.push(`category = $${paramIdx}`);
+        values.push(category);
+        paramIdx++;
       }
 
-      // Get recent memories
-      let recentQuery = supabase
-        .from('agent_memory')
-        .select('id, category, content, importance, created_at')
-        .eq('agent_id', agentId)
-        .order('importance', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(15);
+      const whereClause = conditions.join(' AND ');
 
-      if (category && category !== 'all') {
-        recentQuery = recentQuery.eq('category', category);
-      }
+      // Count by category
+      const countSql = `SELECT category, count(*)::int as count FROM agent_memory WHERE ${whereClause} GROUP BY category`;
+      // Recent memories
+      const recentSql = `SELECT id, category, content, importance, created_at FROM agent_memory WHERE ${whereClause} ORDER BY importance DESC, created_at DESC LIMIT 15`;
 
-      const [countResult, recentResult] = await Promise.all([countQuery, recentQuery]);
+      const [countResult, recentResult] = await Promise.all([
+        query(countSql, values),
+        query(recentSql, values),
+      ]);
 
-      if (recentResult.error) return `Error listing memories: ${recentResult.error.message}`;
-
-      const memories = recentResult.data || [];
+      const memories = recentResult.rows;
       if (memories.length === 0) return 'No memories stored yet. Use memory_save to start building your knowledge base.';
 
       // Group by category
@@ -307,19 +270,12 @@ export const memorySummary = tool({
     if (!agentId) return 'Error: No agent ID available.';
 
     try {
-      const supabase = getSupabase();
-      if (!supabase) return 'Error: Database not configured.';
+      const res = await query(
+        'SELECT category, content, importance FROM agent_memory WHERE agent_id = $1 AND importance >= 6 ORDER BY importance DESC, created_at DESC LIMIT 20',
+        [agentId]
+      );
+      const memories = res.rows;
 
-      const { data: memories, error } = await supabase
-        .from('agent_memory')
-        .select('category, content, importance')
-        .eq('agent_id', agentId)
-        .gte('importance', 6)
-        .order('importance', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) return `Error getting memory summary: ${error.message}`;
       if (!memories || memories.length === 0) return 'No high-importance memories stored.';
 
       const byCategory: Record<string, string[]> = {};

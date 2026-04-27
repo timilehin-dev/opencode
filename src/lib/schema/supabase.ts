@@ -1,54 +1,21 @@
 // ---------------------------------------------------------------------------
-// Klawhub — Supabase Client & Database Layer
-// v2.5 — A2A routing, services sidebar, agent history persistence
+// Klawhub — Supabase Schema Definitions (DDL)
 //
-// Hybrid approach: Uses Supabase when configured (NEXT_PUBLIC_SUPABASE_URL +
-// NEXT_PUBLIC_SUPABASE_ANON_KEY env vars), falls back to localStorage when not.
+// This file contains the SQL DDL for core + early-phase tables.
+// The runtime Supabase JS client has been moved to @/lib/core/supabase-client.
 //
-// This means the app works immediately without Supabase, and gets persistent
-// cloud storage the moment you add the env vars.
+// For the runtime client, import:
+//   import { getSupabase } from "@/lib/core/supabase-client";
+//
+// For backward compatibility, getSupabase and isSupabaseReady are re-exported
+// here as well. New code should import from core/supabase-client directly.
 // ---------------------------------------------------------------------------
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+// Backward-compat re-exports of runtime functions
+export { getSupabase, isSupabaseReady } from "@/lib/core/supabase-client";
 
 // ---------------------------------------------------------------------------
-// Client Singleton
-// ---------------------------------------------------------------------------
-
-let _supabase: SupabaseClient | null = null;
-
-export function getSupabase(): SupabaseClient | null {
-  if (_supabase) return _supabase;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) return null;
-
-  _supabase = createClient(url, key, {
-    auth: {
-      persistSession: false, // We don't use auth for now — single-user app
-    },
-  });
-
-  return _supabase;
-}
-
-/** Check if Supabase is configured and reachable. */
-export async function isSupabaseReady(): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-  try {
-    // Query an actual table that exists — agent_memory
-    const { error } = await supabase.from("agent_memory").select("id").limit(1);
-    return !error;
-  } catch {
-    return false;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SQL Schema — Run this in the Supabase SQL Editor to set up tables
+// SQL Schema — Core tables (analytics, conversations, automations, etc.)
 // ---------------------------------------------------------------------------
 
 export const SCHEMA_SQL = `
@@ -135,11 +102,6 @@ CREATE INDEX IF NOT EXISTS idx_conv_session_agent ON conversations(session_id, a
 CREATE INDEX IF NOT EXISTS idx_automations_enabled ON automations(enabled) WHERE enabled = TRUE;
 CREATE INDEX IF NOT EXISTS idx_auto_logs_time ON automation_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_memory_agent ON agent_memory(agent_id, category);
-
--- ============================================================
--- Row Level Security — RLS_FIX_SQL at bottom of file handles all tables.
--- Run that SQL once in Supabase SQL Editor.
--- ============================================================
 
 -- ============================================================
 -- 7. Reminders (scheduled notifications for autonomous agents)
@@ -279,7 +241,6 @@ CREATE INDEX IF NOT EXISTS idx_delegations_assigned ON delegations(assigned_agen
 
 // ---------------------------------------------------------------------------
 // Key Usage Table — For smart API key rotation
-// Run this in the Supabase SQL Editor if key_usage table doesn't exist
 // ---------------------------------------------------------------------------
 export const KEY_USAGE_SCHEMA_SQL = `
 -- Key Usage Tracking (for smart rotation)
@@ -303,7 +264,6 @@ CREATE INDEX IF NOT EXISTS idx_key_usage_date ON key_usage(usage_date);
 
 // ---------------------------------------------------------------------------
 // Phase 2 SQL — Agent Activity Log + Persistent Agent Status
-// For the setup API route /api/setup/phase2
 // ---------------------------------------------------------------------------
 export const PHASE2_SCHEMA_SQL = `
 -- Agent Activity Log (for Ops Feed)
@@ -333,15 +293,7 @@ CREATE TABLE IF NOT EXISTS agent_status (
 `;
 
 // ---------------------------------------------------------------------------
-// Workspace Tables SQL — DEPRECATED
-// This was a DUPLICATE of tables already in SCHEMA_SQL (reminders, todos, contacts).
-// Kept as an empty export for backward compatibility. Consumers should use SCHEMA_SQL.
-// ---------------------------------------------------------------------------
-export const WORKSPACE_SCHEMA_SQL = '';
-
-// ---------------------------------------------------------------------------
-// RLS Fix SQL — Run this ONCE in Supabase SQL Editor to fix RLS on all tables
-// Supabase enables RLS by default; this adds permissive policies for anon access.
+// RLS Fix SQL — Run this ONCE in Supabase SQL Editor
 // ---------------------------------------------------------------------------
 export const RLS_FIX_SQL = `
 -- Enable RLS and add permissive policies for all Klawhub tables

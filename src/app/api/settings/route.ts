@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/schema/supabase";
+import { query } from "@/lib/core/db";
 
 // ---------------------------------------------------------------------------
-// GET /api/settings — Read settings from Supabase user_preferences or fallback
+// GET /api/settings — Read settings from user_preferences
 // ---------------------------------------------------------------------------
 export async function GET() {
   try {
-    const supabase = getSupabase();
+    const res = await query(
+      'SELECT value FROM user_preferences WHERE key = $1 LIMIT 1',
+      ['app_settings']
+    );
 
-    if (supabase) {
-      const { data, error } = await supabase
-        .from("user_preferences")
-        .select("key, value")
-        .eq("key", "app_settings")
-        .single();
-
-      if (!error && data) {
-        return NextResponse.json({
-          success: true,
-          settings: data.value,
-          source: "supabase",
-        });
-      }
+    const row = res.rows[0];
+    if (row) {
+      return NextResponse.json({
+        success: true,
+        settings: row.value,
+        source: "database",
+      });
     }
 
     return NextResponse.json({
@@ -38,7 +34,7 @@ export async function GET() {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/settings — Save settings to Supabase user_preferences
+// POST /api/settings — Save settings to user_preferences
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   try {
@@ -52,36 +48,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = getSupabase();
+    await query(
+      `INSERT INTO user_preferences (key, value, updated_at)
+       VALUES ('app_settings', $1::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = NOW()`,
+      [settings]
+    );
 
-    if (supabase) {
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert(
-          {
-            key: "app_settings",
-            value: settings,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "key" },
-        );
-
-      if (error) {
-        console.error("Settings upsert error:", error);
-        return NextResponse.json(
-          { success: false, error: "Failed to save to Supabase" },
-          { status: 500 },
-        );
-      }
-
-      return NextResponse.json({ success: true, source: "supabase" });
-    }
-
-    return NextResponse.json({
-      success: true,
-      source: "local",
-      message: "Settings saved locally (Supabase not configured)",
-    });
+    return NextResponse.json({ success: true, source: "database" });
   } catch (err) {
     return NextResponse.json(
       { success: false, error: "Failed to save settings" },
@@ -95,19 +69,7 @@ export async function POST(req: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function DELETE() {
   try {
-    const supabase = getSupabase();
-
-    if (supabase) {
-      const { error } = await supabase
-        .from("user_preferences")
-        .delete()
-        .eq("key", "app_settings");
-
-      if (error) {
-        console.error("Settings delete error:", error);
-      }
-    }
-
+    await query('DELETE FROM user_preferences WHERE key = $1', ['app_settings']);
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json(

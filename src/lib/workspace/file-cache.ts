@@ -10,7 +10,7 @@
  * within the same request lifecycle.
  */
 
-import { getSupabase } from "@/lib/schema/supabase";
+import { getSupabase } from "@/lib/core/supabase-client";
 
 const BUCKET = "agent-files";
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
