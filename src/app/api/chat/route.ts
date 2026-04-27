@@ -575,7 +575,12 @@ You MUST follow these rules in ALL your communications. This is non-negotiable.
       },
     }));
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({
+      sendFinish: true,
+      onError: () => {
+        return "An error occurred while processing your request. Please try again.";
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal server error";
     console.error("[Chat] API error:", error);

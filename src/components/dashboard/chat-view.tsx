@@ -881,6 +881,7 @@ function AgentChatSession({
 
     setInputText("");
     setAttachments([]);
+    autoRetryRef.current = false; // Reset auto-retry for new user message
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -959,7 +960,7 @@ function AgentChatSession({
 
   const visibleMessages = messages.filter((m) => m.role !== "system");
 
-  // Detect "tools executed but no text response" — show fallback UI
+  // Detect "tools executed but no text response" — show fallback UI + auto-retry
   const showToolResultFallback = !isLoading && (() => {
     const lastMsg = visibleMessages[visibleMessages.length - 1];
     if (!lastMsg || lastMsg.role !== "assistant") return false;
@@ -971,6 +972,18 @@ function AgentChatSession({
     const hasText = parts.some((p: any) => p.type === "text" && p.text?.trim()?.length > 0);
     return hasToolOutput && !hasText;
   })();
+
+  // Auto-retry: when tools complete but no text, send a follow-up to force explanation
+  const autoRetryRef = useRef(false);
+  useEffect(() => {
+    if (showToolResultFallback && !autoRetryRef.current && !isLoading) {
+      autoRetryRef.current = true;
+      const timer = setTimeout(() => {
+        sendMessage({ text: "You just processed tools but didn't explain the results. Please provide a clear text summary of what the tools found and what it means for my request." });
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [showToolResultFallback, isLoading, sendMessage]);
 
   return (
     <div className="flex flex-col h-full">
@@ -1179,10 +1192,10 @@ function AgentChatSession({
             {/* Fallback: tools executed but agent produced no text response */}
             {showToolResultFallback && (
               <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm">
-                <span className="shrink-0 mt-0.5">⚠️</span>
+                <span className="shrink-0 mt-0.5">🔄</span>
                 <div>
-                  <p className="font-medium mb-0.5">Tools completed but no response</p>
-                  <p className="text-amber-300/70 text-xs">The agent processed your request using tools but didn't generate a text explanation. This is a known issue with some models. Try rephrasing your request or asking "What did you find?" to get the results.</p>
+                  <p className="font-medium mb-0.5">Retrying — tools completed but no explanation was generated</p>
+                  <p className="text-amber-300/70 text-xs">Automatically asking the agent to explain what it found. If it still fails, try rephrasing your request.</p>
                 </div>
               </div>
             )}

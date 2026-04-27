@@ -4763,6 +4763,18 @@ You are running as a background automation task — no user interaction possible
 
 Check your \`a2a_check_inbox\` at the start for unread inter-agent messages. Handle any actionable requests as part of this execution.`;
 
+  // TASK COMPLETION RULES — structural safeguard against the "mid-task stop" bug.
+  // Without this, models (especially Gemma 4 via Ollama) sometimes stop after tool
+  // results without generating any text, producing "(Task completed with no text output)".
+  const taskCompletionBlock = `
+
+## TASK COMPLETION RULES (STRUCTURAL — THESE ARE ENFORCED BY THE SYSTEM)
+1. After calling ANY tool and receiving results, your VERY NEXT step MUST be writing a text response explaining the results. This is not optional — the system requires it.
+2. The user CANNOT see your tool results. They only see your text. If you don't write text, they see NOTHING.
+3. NEVER end a response immediately after tool results. The system will automatically give you another step to explain.
+4. If you called tools, summarize what each tool returned and what it means for the user's request.
+5. **Final response is mandatory.** Every task deserves a complete, thorough text response — never just tool results.`;
+
   // Inbox-specific directive block (for Phase 0 A2A inbox processing)
   const inboxDirectiveBlock = isInboxTask ? `
 
@@ -4777,9 +4789,9 @@ CRITICAL: Always reply to requesting agents — they're waiting for your respons
   // Build the final prompt
   let systemPrompt;
   if (agentId !== "general") {
-    systemPrompt = `${dateTimeBlock}\n\n[IDENTITY] You are "${agentDef.name}" (${agentDef.role}). You are NOT Klawhub General or any other agent.\n\n${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
+    systemPrompt = `${dateTimeBlock}\n\n[IDENTITY] You are "${agentDef.name}" (${agentDef.role}). You are NOT Klawhub General or any other agent.\n\n${basePrompt}${autonomousBlock}${taskCompletionBlock}${inboxDirectiveBlock}`;
   } else {
-    systemPrompt = `${dateTimeBlock}\n\n${basePrompt}${autonomousBlock}${inboxDirectiveBlock}`;
+    systemPrompt = `${dateTimeBlock}\n\n${basePrompt}${autonomousBlock}${taskCompletionBlock}${inboxDirectiveBlock}`;
   }
 
   return systemPrompt;
@@ -4870,6 +4882,63 @@ async function executeTask(task) {
           maxOutputTokens: 16384, // reduced from 131072 — background tasks don't need massive output
           stopWhen: stepCountIs(maxSteps),
           abortSignal: AbortSignal.timeout(timeRemaining),
+          // ── prepareStep: Mid-task completion guard ──
+          // Catches the "Tools completed but no response" bug where models stop
+          // after receiving tool results without generating any text explanation.
+          prepareStep: ({ steps, stepNumber }) => {
+            if (stepNumber <= 0) return undefined;
+
+            const anyText = steps.some(s => (s.text?.length ?? 0) > 0);
+            const lastStep = steps[steps.length - 1];
+            const lastHadToolResults = (lastStep?.toolResults?.length ?? 0) > 0;
+            const anyToolResults = steps.some(s => (s.toolResults?.length ?? 0) > 0);
+            const stepsToLimit = maxSteps - stepNumber;
+
+            // Trigger 1: Near step limit with no text — force summary NOW
+            if (stepsToLimit <= 3 && !anyText && anyToolResults) {
+              console.log(`[Task #${task.id}] prepareStep step ${stepNumber}: ${stepsToLimit} steps to limit, no text — FORCING summary.`);
+              return {
+                toolChoice: "none",
+                system: systemPrompt + "\n\n[URGENT: You are near the step limit. You MUST stop calling tools and write a comprehensive text response NOW summarizing everything you've done and found. The user is waiting for your explanation.]",
+              };
+            }
+
+            // Trigger 2: Last step had tool results but produced no text (mid-task stop)
+            if (lastHadToolResults && !anyText) {
+              console.log(`[Task #${task.id}] prepareStep step ${stepNumber}: last step had tool results but ZERO text — forcing text generation.`);
+              return {
+                toolChoice: "none",
+                system: systemPrompt + "\n\n[CRITICAL: You have received tool results but have NOT yet explained them to the user. You MUST now write a text response explaining what the tools found/did. Do NOT call any tools. Generate your explanation NOW.]",
+              };
+            }
+
+            // Trigger 3: 3+ tool calls with zero text — break tool loop
+            if (!anyText && anyToolResults && stepNumber > 2 && lastStep?.toolCalls && lastStep.toolCalls.length > 0) {
+              const toolCallCount = steps.reduce((c, s) => c + (s.toolCalls?.length || 0), 0);
+              if (toolCallCount >= 3) {
+                console.log(`[Task #${task.id}] prepareStep step ${stepNumber}: ${toolCallCount} tool calls with ZERO text — breaking tool loop, forcing summary.`);
+                return {
+                  toolChoice: "none",
+                  system: systemPrompt + "\n\n[CRITICAL: You have made " + toolCallCount + " tool calls but haven't explained ANY results to the user yet. STOP calling tools. Write a comprehensive text response NOW explaining what you found. This is not optional.]",
+                };
+              }
+            }
+
+            return undefined;
+          },
+          onStepFinish: ({ text, toolCalls, toolResults, finishReason, stepNumber }) => {
+            const stepInfo = [`[Step ${stepNumber}] finishReason=${finishReason}`];
+            if (text) stepInfo.push(`text=${text.slice(0, 80)}...`);
+            else stepInfo.push(`text=<EMPTY>`);
+            if (toolCalls?.length) stepInfo.push(`tools=[${toolCalls.map(t => t.toolName).join(", ")}]`);
+            if (toolResults?.length) stepInfo.push(`toolResults=${toolResults.length}`);
+            console.log(`[Task #${task.id}] ${stepInfo.join(" | ")}`);
+
+            // Detect the critical mid-task stop bug
+            if (!text && toolResults?.length > 0 && (!toolCalls || toolCalls.length === 0)) {
+              console.error(`[Task #${task.id}] 🚨 MID-TASK STOP: received ${toolResults.length} tool result(s) but produced NO text.`);
+            }
+          },
         });
         break; // success — exit retry loop
       } catch (err) {
@@ -4895,14 +4964,45 @@ async function executeTask(task) {
       .flatMap((step) => step.toolCalls || [])
       .map((tc) => ({ name: tc.toolName, args: tc.args }));
 
-    console.log(`[Task #${task.id}] SUCCESS in ${durationMs}ms | ${toolCalls.length} tool calls | Output: ${(result.text || "").slice(0, 100)}...`);
+    // ── onFinish watchdog: Detect incomplete response ──
+    const assistantText = result.text || "";
+    const totalToolResults = result.steps.reduce((c, s) => c + (s.toolResults?.length || 0), 0);
+    let finalText = assistantText;
+    let incomplete = false;
+
+    if (totalToolResults > 0 && assistantText.trim().length < 50) {
+      // Model processed tools but didn't generate a meaningful explanation.
+      // Build a recovery summary from tool call metadata.
+      incomplete = true;
+      const toolNames = toolCalls.map(tc => tc.name).join(", ");
+      const toolResultsSummary = result.steps
+        .flatMap(s => (s.toolResults || []))
+        .map(r => {
+          try {
+            const parsed = typeof r.result === "string" ? JSON.parse(r.result) : r.result;
+            if (parsed?.success) return `  - ${r.toolName}: OK`;
+            if (parsed?.error) return `  - ${r.toolName}: ERROR — ${String(parsed.error).slice(0, 60)}`;
+            return `  - ${r.toolName}: completed`;
+          } catch {
+            return `  - ${r.toolName}: completed`;
+          }
+        })
+        .join("\n");
+
+      finalText = `[System Note: Task completed using ${toolCalls.length} tool call(s) (${toolNames}), but the model did not generate a text explanation.\n\nTool execution summary:\n${toolResultsSummary}\n\nSteps used: ${result.steps.length}/${maxSteps}. Please ask the agent to explain the results in detail.]`;
+
+      console.error(`[Task #${task.id}] 🚨 INCOMPLETE RESPONSE: ${totalToolResults} tool result(s) across ${result.steps.length} steps but only ${assistantText.length} chars of text. Recovery summary generated.`);
+    }
+
+    console.log(`[Task #${task.id}] ${incomplete ? "INCOMPLETE" : "SUCCESS"} in ${durationMs}ms | ${toolCalls.length} tool calls | Output: ${finalText.slice(0, 100)}...`);
 
     return {
       success: true,
-      text: result.text || "(Task completed with no text output)",
+      text: finalText || "(Task completed with no text output)",
       toolCalls,
       durationMs,
       stepsUsed: result.steps.length,
+      incomplete,
     };
   } catch (error) {
     const durationMs = Date.now() - startTime;
