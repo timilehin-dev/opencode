@@ -295,8 +295,39 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, deleted: true });
       }
 
+      case "run_now": {
+        const { routineId } = body as { routineId?: number };
+        if (!routineId) {
+          return NextResponse.json({ error: "Missing routineId" }, { status: 400 });
+        }
+
+        // Look up the routine
+        const routineResult = await query("SELECT * FROM agent_routines WHERE id = $1", [routineId]);
+        if (routineResult.rows.length === 0) {
+          return NextResponse.json({ error: "Routine not found" }, { status: 404 });
+        }
+
+        const routine = routineResult.rows[0];
+        const priority = routine.priority === "high" ? 3 : routine.priority === "medium" ? 2 : 1;
+
+        // Insert a new agent_task with the routine's task, agent_id, priority
+        await query(
+          `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, status, created_at)
+           VALUES ($1, $2, $3, 'manual', 'routine_run_now', $4, 'pending', NOW())`,
+          [routine.agent_id, routine.task, routine.context || "", priority],
+        );
+
+        // Update the routine's next_run to now so the cron doesn't re-execute it immediately
+        await query(
+          "UPDATE agent_routines SET next_run = NOW() WHERE id = $1",
+          [routineId],
+        );
+
+        return NextResponse.json({ success: true, message: `Routine "${routine.name}" triggered` });
+      }
+
       default:
-        return NextResponse.json({ error: `Unknown action. Use setup, create, list, update, or delete.` }, { status: 400 });
+        return NextResponse.json({ error: `Unknown action. Use setup, create, list, update, delete, or run_now.` }, { status: 400 });
     }
     } catch (error) {
       return NextResponse.json(

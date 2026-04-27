@@ -227,3 +227,17 @@ body {
 .animate-slideUp {
   animation: slideUp 0.3s ease-out both;
 }
+
+/* Urgency glow animations for System Intelligence Card */
+@keyframes glow-red {
+  0%, 100% { box-shadow: 0 0 8px rgba(239,68,68,0.15), 0 0 20px rgba(239,68,68,0.08); }
+  50% { box-shadow: 0 0 14px rgba(239,68,68,0.3), 0 0 32px rgba(239,68,68,0.15); }
+}
+@keyframes glow-orange {
+  0%, 100% { box-shadow: 0 0 8px rgba(249,115,22,0.12), 0 0 20px rgba(249,115,22,0.06); }
+  50% { box-shadow: 0 0 14px rgba(249,115,22,0.25), 0 0 32px rgba(249,115,22,0.12); }
+}
+@keyframes glow-green {
+  0%, 100% { box-shadow: 0 0 8px rgba(16,185,129,0.1), 0 0 20px rgba(16,185,129,0.05); }
+  50% { box-shadow: 0 0 14px rgba(16,185,129,0.2), 0 0 32px rgba(16,185,129,0.1); }
+}

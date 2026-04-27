@@ -16,6 +16,9 @@ import {
   Bot,
   ChevronRight,
   Radio,
+  Lightbulb,
+  Play,
+  Check,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -97,6 +100,8 @@ export function SystemIntelligenceCard() {
   const [heartbeat, setHeartbeat] = useState<ProactiveHeartbeat | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [dispatchingAction, setDispatchingAction] = useState<number | null>(null);
+  const [dispatchedActions, setDispatchedActions] = useState<Set<number>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchHeartbeat = useCallback(async () => {
@@ -140,8 +145,37 @@ export function SystemIntelligenceCard() {
     systemState.scheduledWorkflows;
   const activeAgents = systemState.agentStatuses.filter((s) => s.status === "busy").length;
 
+  const handleDispatchAction = async (actionIndex: number, agent: string, action: string) => {
+    if (dispatchingAction === actionIndex) return;
+    setDispatchingAction(actionIndex);
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "dispatch", agentId: agent, task: action }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setDispatchedActions((prev) => new Set(prev).add(actionIndex));
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setDispatchingAction(null);
+    }
+  };
+
+  const urgencyGlowClass =
+    proactivePlan.urgency === "critical"
+      ? "shadow-[0_0_12px_rgba(239,68,68,0.25)] animate-[glow-red_2s_ease-in-out_infinite]"
+      : proactivePlan.urgency === "high"
+        ? "shadow-[0_0_12px_rgba(249,115,22,0.2)] animate-[glow-orange_2s_ease-in-out_infinite]"
+        : proactivePlan.urgency === "idle"
+          ? "shadow-[0_0_12px_rgba(16,185,129,0.15)] animate-[glow-green_2s_ease-in-out_infinite]"
+          : "";
+
   return (
-    <div className="bento-card flex flex-col">
+    <div className={cn("bento-card flex flex-col", urgencyGlowClass)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -280,19 +314,73 @@ export function SystemIntelligenceCard() {
                         {action.reasoning}
                       </p>
                     </div>
-                    <span
-                      className={cn(
-                        "text-[8px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5",
-                        priorityColors[action.priority] || priorityColors.medium,
-                      )}
-                    >
-                      {action.priority}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDispatchAction(i, action.agent, action.action);
+                        }}
+                        disabled={dispatchingAction === i || dispatchedActions.has(i)}
+                        className={cn(
+                          "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-semibold transition-all",
+                          dispatchedActions.has(i)
+                            ? "bg-emerald-500/10 text-emerald-600"
+                            : "bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40",
+                        )}
+                        title={dispatchedActions.has(i) ? "Dispatched" : "Run this action"}
+                      >
+                        {dispatchingAction === i ? (
+                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                        ) : dispatchedActions.has(i) ? (
+                          <Check className="w-2.5 h-2.5" />
+                        ) : (
+                          <Play className="w-2.5 h-2.5" />
+                        )}
+                        {dispatchedActions.has(i) ? "Done" : "Run"}
+                      </button>
+                      <span
+                        className={cn(
+                          "text-[8px] font-semibold px-1.5 py-0.5 rounded-full",
+                          priorityColors[action.priority] || priorityColors.medium,
+                        )}
+                      >
+                        {action.priority}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {proactivePlan.recommendations.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <Lightbulb className="w-3 h-3 text-amber-400" />
+            Recommendations
+          </div>
+          <div className="space-y-1">
+            {proactivePlan.recommendations.map((rec, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-2 px-2 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/10"
+              >
+                <Lightbulb className="w-3 h-3 text-amber-400/60 flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] text-foreground/80 leading-relaxed">{rec}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {proactivePlan.recommendations.length === 0 && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+          <CheckCircle2 className="w-3 h-3 text-emerald-500/60 flex-shrink-0" />
+          <p className="text-[10px] text-muted-foreground">
+            No recommendations — system is running optimally
+          </p>
         </div>
       )}
 

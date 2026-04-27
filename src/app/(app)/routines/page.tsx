@@ -14,6 +14,8 @@ import {
   Filter,
   RefreshCw,
   Timer,
+  Loader2,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -132,6 +134,7 @@ export default function RoutinesPage() {
   const [editRoutine, setEditRoutine] = useState<Routine | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [runningNowId, setRunningNowId] = useState<string | null>(null);
   const [agents, setAgents] = useState<{ id: string; name: string; role: string }[]>([]);
 
   const showToast = (msg: string) => {
@@ -202,6 +205,29 @@ export default function RoutinesPage() {
       }
     } catch {
       showToast("Failed to delete routine");
+    }
+  };
+
+  const handleRunNow = async (routineId: string) => {
+    if (runningNowId === routineId) return;
+    setRunningNowId(routineId);
+    try {
+      const res = await fetch("/api/cron/agent-routines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run_now", routineId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Routine triggered");
+        fetchRoutines();
+      } else {
+        showToast(json.error || "Failed to trigger routine");
+      }
+    } catch {
+      showToast("Failed to trigger routine");
+    } finally {
+      setRunningNowId(null);
     }
   };
 
@@ -483,8 +509,44 @@ export default function RoutinesPage() {
                       </div>
                     </div>
 
+                    {/* Execution status dot */}
+                    {routine.last_run && (
+                      <span
+                        className={cn(
+                          "w-2 h-2 rounded-full flex-shrink-0 mt-1",
+                          routine.last_result && !routine.last_result.toLowerCase().includes("error") && !routine.last_result.toLowerCase().includes("failed")
+                            ? "bg-emerald-500"
+                            : routine.last_result && (routine.last_result.toLowerCase().includes("error") || routine.last_result.toLowerCase().includes("failed"))
+                              ? "bg-red-500"
+                              : "bg-gray-400",
+                        )}
+                        title={
+                          routine.last_result && !routine.last_result.toLowerCase().includes("error") && !routine.last_result.toLowerCase().includes("failed")
+                            ? "Last run succeeded"
+                            : routine.last_result && (routine.last_result.toLowerCase().includes("error") || routine.last_result.toLowerCase().includes("failed"))
+                              ? "Last run failed"
+                              : "Never run"
+                        }
+                      />
+                    )}
+
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRunNow(routine.id);
+                        }}
+                        disabled={runningNowId === routine.id}
+                        className="p-1.5 rounded-md hover:bg-emerald-50 text-muted-foreground hover:text-emerald-600 transition-colors disabled:opacity-40"
+                        title="Run Now"
+                      >
+                        {runningNowId === routine.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

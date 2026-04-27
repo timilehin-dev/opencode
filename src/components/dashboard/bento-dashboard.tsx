@@ -490,6 +490,17 @@ const AGENT_DOT_COLORS: Record<string, string> = {
   ops: "bg-orange-500",
 };
 
+const KNOWN_AGENT_IDS = new Set(["general", "mail", "code", "data", "creative", "research", "ops"]);
+
+type ActivityFilterTab = "all" | "errors" | "agents" | "system";
+
+const FILTER_TABS: { key: ActivityFilterTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "errors", label: "Errors" },
+  { key: "agents", label: "Agents" },
+  { key: "system", label: "System" },
+];
+
 function ActivityFeedCard({
   events,
   isConnected,
@@ -497,10 +508,40 @@ function ActivityFeedCard({
   events: ActivityEventView[];
   isConnected: boolean;
 }) {
-  const displayEvents = useMemo(
-    () => [...events].reverse().slice(0, 10),
+  const [activeTab, setActiveTab] = useState<ActivityFilterTab>("all");
+  const [expandedErrorId, setExpandedErrorId] = useState<number | null>(null);
+
+  const allEvents = useMemo(
+    () => [...events].reverse().slice(0, 50),
     [events]
   );
+
+  const displayEvents = useMemo(() => {
+    let filtered = allEvents;
+    switch (activeTab) {
+      case "errors":
+        filtered = allEvents.filter((e) => e.action === "error");
+        break;
+      case "agents":
+        filtered = allEvents.filter((e) => KNOWN_AGENT_IDS.has(e.agent_id));
+        break;
+      case "system":
+        filtered = allEvents.filter(
+          (e) => e.agent_id === "system" || e.action.startsWith("system_")
+        );
+        break;
+    }
+    return filtered.slice(0, 10);
+  }, [allEvents, activeTab]);
+
+  const lastUpdated = allEvents.length > 0
+    ? new Date(allEvents[0].created_at).toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : null;
 
   return (
     <div className="bento-card flex flex-col">
@@ -523,6 +564,28 @@ function ActivityFeedCard({
           </span>
         </div>
       </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5 mb-3">
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => {
+              setActiveTab(tab.key);
+              setExpandedErrorId(null);
+            }}
+            className={cn(
+              "flex-1 px-2 py-1 text-[9px] rounded-md transition-colors text-center font-medium",
+              activeTab === tab.key
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-0.5">
         {displayEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -535,34 +598,64 @@ function ActivityFeedCard({
             </p>
           </div>
         ) : (
-          displayEvents.map((event) => (
-            <div
-              key={event.id}
-              className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-card/60 transition-colors"
-            >
+          displayEvents.map((event) => {
+            const isError = event.action === "error";
+            const isExpanded = expandedErrorId === event.id;
+
+            return (
               <div
+                key={event.id}
+                onClick={() => isError && setExpandedErrorId(isExpanded ? null : event.id)}
                 className={cn(
-                  "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
-                  event.action === "error"
-                    ? "bg-red-500"
-                    : AGENT_DOT_COLORS[event.agent_id] || "bg-gray-400"
+                  "flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-card/60 transition-colors",
+                  isError && "cursor-pointer border-l-2 border-l-red-500 pl-1",
+                  isExpanded && "bg-red-500/5",
                 )}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-foreground leading-relaxed">
-                  <span className="font-semibold">
-                    {(event.agent_name || event.agent_id).replace(" Agent", "").replace("Klawhub ", "")}
-                  </span>{" "}
-                  <span className="text-muted-foreground">{event.detail || event.action}</span>
-                </p>
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                  {formatTime(event.created_at)}
-                </p>
+              >
+                <div
+                  className={cn(
+                    "w-2 h-2 rounded-full mt-1.5 flex-shrink-0",
+                    isError
+                      ? "bg-red-500"
+                      : AGENT_DOT_COLORS[event.agent_id] || "bg-gray-400"
+                  )}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-foreground leading-relaxed">
+                    <span className="font-semibold">
+                      {(event.agent_name || event.agent_id).replace(" Agent", "").replace("Klawhub ", "")}
+                    </span>{" "}
+                    <span className="text-muted-foreground">
+                      {isExpanded && isError
+                        ? event.detail || event.action
+                        : isError
+                          ? (event.detail || event.action).slice(0, 120) + ((event.detail || event.action).length > 120 ? "..." : "")
+                          : event.detail || event.action}
+                    </span>
+                  </p>
+                  {isError && (event.detail || "").length > 120 && (
+                    <p className="text-[9px] text-red-400 mt-0.5">
+                      {isExpanded ? "Click to collapse" : "Click to see full error"}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                    {formatTime(event.created_at)}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* Last Updated */}
+      {lastUpdated && (
+        <div className="pt-2 mt-auto border-t border-border/30">
+          <p className="text-[9px] text-muted-foreground/60">
+            Last updated {lastUpdated}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
