@@ -221,6 +221,34 @@ END $$;
 `;
 
 // ---------------------------------------------------------------------------
+// Learning Insights — Defensive migration to ensure CHECK constraints match code
+// Same pattern as MEMORY_MIGRATION: drop old constraints and re-create.
+// ---------------------------------------------------------------------------
+
+const LEARNING_MIGRATION = `
+DO $$
+BEGIN
+  -- Ensure learning_insights table exists
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'learning_insights') THEN
+    RETURN;
+  END IF;
+
+  -- Drop and re-create insight_type constraint to match code types
+  ALTER TABLE learning_insights DROP CONSTRAINT IF EXISTS learning_insights_insight_type_check;
+  ALTER TABLE learning_insights ADD CONSTRAINT learning_insights_insight_type_check
+    CHECK (insight_type IN ('preference', 'correction', 'pattern', 'skill_gain', 'workflow'));
+
+  -- Drop and re-create source constraint to match code types
+  ALTER TABLE learning_insights DROP CONSTRAINT IF EXISTS learning_insights_source_check;
+  ALTER TABLE learning_insights ADD CONSTRAINT learning_insights_source_check
+    CHECK (source IN ('user_feedback', 'correction', 'pattern_detection', 'routine_result'));
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Learning insights migration skipped: %', SQLERRM;
+END $$;
+`;
+
+// ---------------------------------------------------------------------------
 // Complete Phase 4 Schema — Everything combined
 // ---------------------------------------------------------------------------
 
@@ -248,6 +276,9 @@ ${PHASE2_TABLES}
 
 -- Agent Memory Migration
 ${MEMORY_MIGRATION}
+
+-- Learning Insights Migration
+${LEARNING_MIGRATION}
 `;
 
 // ---------------------------------------------------------------------------
@@ -261,6 +292,7 @@ export const TASK_BOARD_TABLE_SQL = TASK_BOARD_TABLE;
 export const AGENT_ROUTINES_TABLE_SQL = AGENT_ROUTINES_TABLE;
 export const PHASE2_TABLES_SQL = PHASE2_TABLES;
 export const MEMORY_MIGRATION_SQL = MEMORY_MIGRATION;
+export const LEARNING_MIGRATION_SQL = LEARNING_MIGRATION;
 
 // ---------------------------------------------------------------------------
 // Table list for setup endpoint reporting

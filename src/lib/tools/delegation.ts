@@ -220,7 +220,9 @@ export const queryAgentTool = tool({
 
     try {
       console.log(`[A2A] Query from ${fromAgent} to ${agent_id}: ${question.slice(0, 100)}...`);
-      const { text, steps } = await callAgentDirectly(agent_id, question);
+      // Wrap in withAgentContext so tool execute callbacks inherit the correct agent ID
+      // via AsyncLocalStorage (same pattern as delegateToAgentTool).
+      const { text, steps } = await withAgentContext(agent_id, () => callAgentDirectly(agent_id, question));
       const durationMs = Date.now() - startTime;
       console.log(`[A2A] ${agent_id} responded in ${durationMs}ms: ${steps} steps, ${text.length} chars`);
 

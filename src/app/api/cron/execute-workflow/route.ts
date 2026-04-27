@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { executeWorkflow, listWorkflows } from "@/lib/workflow-engine";
+import { executeWorkflow, getWorkflowStatus } from "@/lib/workflow-engine";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { query } from "@/lib/db";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
@@ -52,9 +52,8 @@ export async function GET(request: Request) {
     }
 
     try {
-      // Fetch the workflow
-      const workflows = await listWorkflows(undefined, undefined, 1);
-      const workflow = workflows.find(w => w.id === workflowId);
+      // Fetch the workflow directly by ID (NOT list+find which returns wrong workflow)
+      const workflow = await getWorkflowStatus(workflowId);
 
       if (!workflow || ["completed", "failed", "cancelled"].includes(workflow.status)) {
         // Workflow not found or terminal — clean up the pg_cron job
@@ -88,9 +87,8 @@ export async function GET(request: Request) {
       // Execute the workflow
       const result = await executeWorkflow(workflowId, agentId, true);
 
-      // Re-fetch to get updated status
-      const updatedWorkflows = await listWorkflows(undefined, undefined, 1);
-      const updated = updatedWorkflows.find(w => w.id === workflowId);
+      // Re-fetch to get updated status (direct query by ID)
+      const updated = await getWorkflowStatus(workflowId);
 
       const durationMs = Date.now() - startTime;
 

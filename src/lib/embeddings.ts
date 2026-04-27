@@ -74,6 +74,16 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       return generateHashEmbedding(text, EMBEDDING_DIM);
     }
 
+    // Defensive: If the API returns a different dimension than expected, truncate or pad
+    if (embedding.length !== EMBEDDING_DIM) {
+      logger.warn("embeddings", `Dimension mismatch: API returned ${embedding.length} dims, expected ${EMBEDDING_DIM}. Truncating/padding to match.`);
+      if (embedding.length > EMBEDDING_DIM) {
+        embedding.length = EMBEDDING_DIM;
+      } else {
+        while (embedding.length < EMBEDDING_DIM) embedding.push(0);
+      }
+    }
+
     return embedding;
   } catch (error) {
     logger.warn("embeddings", "Ollama API error, falling back to hash", {

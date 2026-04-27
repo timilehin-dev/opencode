@@ -123,6 +123,17 @@ jobs:
               console.log('Recovered stale project tasks:', recoveredPT.rowCount);
             }
 
+            // Recover stale agent statuses (agents stuck in 'busy' for > 10 minutes)
+            const staleAgents = await safeQuery(
+              \"SELECT COUNT(*) as count FROM agent_status WHERE status = 'busy' AND updated_at < NOW() - INTERVAL '10 minutes'\"
+            );
+            if (staleAgents && Number(staleAgents.count) > 0) {
+              const recoveredAgents = await pool.query(
+                \"UPDATE agent_status SET status = 'idle', current_task = NULL, updated_at = NOW() WHERE status = 'busy' AND updated_at < NOW() - INTERVAL '10 minutes'\"
+              );
+              console.log('Recovered stale agent statuses:', recoveredAgents.rowCount);
+            }
+
             await pool.end();
             console.log('Health check completed at', now);
           }
