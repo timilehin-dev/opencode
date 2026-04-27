@@ -194,9 +194,12 @@ export const AGENT_TOOL_LISTS: Record<string, string[]> = {
     "skill_list", "skill_use", "skill_create", "skill_equip", "skill_rate", "skill_inspect", "skill_evaluate",
     // Phase 6C: Skill Evolution & Rollback
     "skill_evolve", "skill_rollback",
+    // Phase 6D: Skill Search & Embedding Management
+    "skill_search_hybrid", "skill_refresh_embeddings", "skill_embedding_setup",
     // Phase 7B: Multi-Step Agent Workflows
     "workflow_plan", "workflow_execute", "workflow_status",
     "workflow_list", "workflow_step_execute", "workflow_cancel",
+    "workflow_schedule", "workflow_update_schedule",
     // Agent Routines
     "routine_create", "routine_list", "routine_update", "routine_delete", "routine_toggle", "cron_sync",
     // Task Board (Kanban)

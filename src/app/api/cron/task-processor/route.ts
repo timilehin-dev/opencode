@@ -371,7 +371,7 @@ export async function GET(request: Request) {
           AND (
             SELECT COUNT(*) FROM project_tasks dep
             WHERE dep.project_id = pt.project_id
-              AND dep.title = ANY(pt.depends_on)
+              AND dep.id = ANY(pt.depends_on)
               AND dep.status NOT IN ('completed', 'skipped')
           ) = 0
         ORDER BY

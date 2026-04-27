@@ -201,12 +201,10 @@ export async function recalcWorkflowState(pool: ReturnType<typeof getPool>, work
   const avgScore = scoreResult.rows[0]?.avg_score ? Number(scoreResult.rows[0].avg_score) : null;
 
   // Determine workflow status
+  const allDone = (completed + skipped === total) && total > 0;
   let newStatus: string;
-  if ((completed + skipped === total) && total > 0) {
+  if (allDone) {
     // All steps are done (completed or skipped) — treat as completed
-    newStatus = failed > 0 ? "completed_with_errors" : "completed";
-  } else if (completed === total && total > 0) {
-    // Phase 7C Fix: Distinguish between clean completion and completion with failures
     newStatus = failed > 0 ? "completed_with_errors" : "completed";
   } else if (failed > total * 0.3) {
     newStatus = "failed";
@@ -214,10 +212,10 @@ export async function recalcWorkflowState(pool: ReturnType<typeof getPool>, work
     newStatus = "running";
   }
 
-  // Calculate quality score if all steps completed
-  const qualityScore = completed === total ? avgScore : null;
+  // Calculate quality score if all steps are done (completed or skipped)
+  const qualityScore = allDone ? avgScore : null;
 
-  if (completed === total) {
+  if (allDone) {
     await pool.query(
       `UPDATE agent_workflows
        SET status = $1,

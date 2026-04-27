@@ -59,6 +59,9 @@ const DEFAULT_CONFIGS: Record<string, RateLimitConfig> = {
 };
 
 // In-memory store (auto-cleaned on each check)
+// SERVERLESS LIMITATION: This Map resets on every cold start (Vercel serverless).
+// Rate limits will not persist across function instances. For production
+// rate limiting that survives cold starts, use an external store (Redis, Upstash).
 const store = new Map<string, RateLimitEntry>();
 
 /**

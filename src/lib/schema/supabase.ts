@@ -306,9 +306,9 @@ BEGIN
       'analytics_events','conversations','automations','automation_logs',
       'user_preferences','agent_memory','reminders','agent_tasks',
       'delegations','key_usage','agent_activity','agent_status',
-      'todos','contacts','learning_insights','skill_executions',
+      'todos','contacts','learning_insights',
       'skill_evaluations','skill_evolution','skills',
-      'agent_skills','workflows','workflow_steps','workflow_step_validations',
+      'agent_skills','agent_workflows','workflow_steps',
       'a2a_messages','a2a_shared_context','a2a_channels',
       'a2a_channel_messages','a2a_tasks','agent_routines',
       'task_board','workflow_executions'
