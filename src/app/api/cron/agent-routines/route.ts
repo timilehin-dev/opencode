@@ -308,7 +308,9 @@ export async function POST(req: Request) {
         }
 
         const routine = routineResult.rows[0];
-        const priority = routine.priority === "high" ? 3 : routine.priority === "medium" ? 2 : 1;
+        // Map routine priority to agent_tasks priority (must match CHECK constraint)
+        const priorityMap: Record<string, string> = { high: "high", medium: "medium", low: "normal" };
+        const priority = priorityMap[routine.priority] || "normal";
 
         // Insert a new agent_task with the routine's task, agent_id, priority
         await query(
