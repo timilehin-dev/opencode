@@ -77,7 +77,7 @@ vi.mock('@/lib/self-learning', () => ({
   getLearningStats: vi.fn().mockResolvedValue({
     totalInsights: 0, byAgent: {}, byType: {}, avgConfidence: 0, topApplied: 0,
   }),
-  LEARNING_INSIGHTS_SCHEMA: '',
+  // LEARNING_INSIGHTS_SCHEMA removed — DDL now in supabase-setup.ts
 }));
 
 // --- Mock: @/lib/supabase ---

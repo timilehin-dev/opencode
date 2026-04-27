@@ -9,7 +9,7 @@ import {
   getAllAgentStatuses,
   updateAgentStatus,
 } from "@/lib/agents";
-import { allTools } from "@/lib/tools";
+import { allTools } from "@/lib/tools/index";
 import {
   sendA2AMessage,
   getAgentA2AMessages,

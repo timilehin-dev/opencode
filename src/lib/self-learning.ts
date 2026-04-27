@@ -29,26 +29,11 @@ export interface LearningInsight {
 
 // ---------------------------------------------------------------------------
 // SQL Schema
+// NOTE: learning_insights table DDL is defined in supabase-setup.ts (PHASE4_NEW_TABLES).
+// It is NOT duplicated here to maintain a single source of truth.
+// Import PROACTIVE_NOTIFICATIONS_TABLE_SQL or PHASE4_SCHEMA_SQL from supabase-setup.ts
+// if you need to run the DDL directly.
 // ---------------------------------------------------------------------------
-
-export const LEARNING_INSIGHTS_SCHEMA = `
-CREATE TABLE IF NOT EXISTS learning_insights (
-  id BIGSERIAL PRIMARY KEY,
-  agent_id TEXT NOT NULL,
-  insight_type TEXT NOT NULL DEFAULT 'preference' CHECK (insight_type IN ('preference', 'correction', 'pattern', 'skill_gain', 'workflow')),
-  content TEXT NOT NULL,
-  source TEXT NOT NULL DEFAULT 'user_feedback' CHECK (source IN ('user_feedback', 'correction', 'pattern_detection', 'routine_result')),
-  confidence NUMERIC(3,2) NOT NULL DEFAULT 0.50 CHECK (confidence >= 0 AND confidence <= 1),
-  application_count INTEGER NOT NULL DEFAULT 0,
-  last_applied_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_learning_agent ON learning_insights(agent_id, insight_type);
-CREATE INDEX IF NOT EXISTS idx_learning_confidence ON learning_insights(confidence DESC, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_learning_applied ON learning_insights(last_applied_at DESC);
-`;
 
 // ---------------------------------------------------------------------------
 // recordLearning — Save a new insight

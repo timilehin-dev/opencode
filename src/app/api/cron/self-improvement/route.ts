@@ -13,7 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { getProvider, getAgent } from "@/lib/agents";
-import { withAgentContext } from "@/lib/tools";
+import { withAgentContext } from "@/lib/tools/index";
 import { logActivity } from "@/lib/activity";
 import { query } from "@/lib/db";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";

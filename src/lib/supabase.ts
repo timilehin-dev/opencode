@@ -333,79 +333,11 @@ CREATE TABLE IF NOT EXISTS agent_status (
 `;
 
 // ---------------------------------------------------------------------------
-// Workspace Tables SQL (subset — just the 3 new tables + indexes)
-// For the setup API route to run independently
+// Workspace Tables SQL — DEPRECATED
+// This was a DUPLICATE of tables already in SCHEMA_SQL (reminders, todos, contacts).
+// Kept as an empty export for backward compatibility. Consumers should use SCHEMA_SQL.
 // ---------------------------------------------------------------------------
-export const WORKSPACE_SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS reminders (
-  id BIGSERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  reminder_time TIMESTAMPTZ NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'fired', 'dismissed', 'snoozed')),
-  priority TEXT DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
-  repeat_config JSONB DEFAULT '{}',
-  assigned_agent TEXT,
-  context JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  fired_at TIMESTAMPTZ
-);
-
-CREATE TABLE IF NOT EXISTS todos (
-  id BIGSERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'done', 'archived')),
-  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'critical')),
-  due_date DATE,
-  due_time TIMESTAMPTZ,
-  category TEXT DEFAULT 'general',
-  tags TEXT[] DEFAULT '{}',
-  assigned_agent TEXT,
-  context JSONB DEFAULT '{}',
-  source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'agent', 'automation', 'delegation')),
-  source_agent TEXT,
-  completed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS contacts (
-  id BIGSERIAL PRIMARY KEY,
-  first_name TEXT,
-  last_name TEXT,
-  email TEXT UNIQUE,
-  phone TEXT,
-  company TEXT,
-  role TEXT,
-  notes TEXT DEFAULT '',
-  tags TEXT[] DEFAULT '{}',
-  context JSONB DEFAULT '{}',
-  is_vip BOOLEAN DEFAULT FALSE,
-  frequency TEXT DEFAULT 'occasional' CHECK (frequency IN ('never', 'rare', 'occasional', 'regular', 'frequent', 'vip')),
-  first_seen TIMESTAMPTZ DEFAULT NOW(),
-  last_interaction TIMESTAMPTZ,
-  interaction_count INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_reminders_status_time ON reminders(status, reminder_time ASC);
-CREATE INDEX IF NOT EXISTS idx_reminders_priority ON reminders(priority);
-CREATE INDEX IF NOT EXISTS idx_reminders_assigned_agent ON reminders(assigned_agent);
-CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
-CREATE INDEX IF NOT EXISTS idx_todos_priority ON todos(priority);
-CREATE INDEX IF NOT EXISTS idx_todos_category ON todos(category);
-CREATE INDEX IF NOT EXISTS idx_todos_assigned_agent ON todos(assigned_agent);
-CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date) WHERE due_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email) WHERE email IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_contacts_company ON contacts(company) WHERE company IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_contacts_vip ON contacts(is_vip) WHERE is_vip = TRUE;
-CREATE INDEX IF NOT EXISTS idx_contacts_name ON contacts(first_name, last_name);
-CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN(tags);
-CREATE INDEX IF NOT EXISTS idx_todos_tags ON todos USING GIN(tags);
-`;
+export const WORKSPACE_SCHEMA_SQL = '';
 
 // ---------------------------------------------------------------------------
 // RLS Fix SQL — Run this ONCE in Supabase SQL Editor to fix RLS on all tables

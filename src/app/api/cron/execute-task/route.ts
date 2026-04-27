@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { getAgent, getProvider } from "@/lib/agents";
-import { allTools, withAgentContext } from "@/lib/tools";
+import { allTools, withAgentContext } from "@/lib/tools/index";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { query } from "@/lib/db";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";

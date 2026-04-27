@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { WORKSPACE_SCHEMA_SQL } from "@/lib/supabase";
+import { SCHEMA_SQL } from "@/lib/supabase";
 import { A2A_SCHEMA_SQL } from "@/lib/a2a-schema";
 import { query } from "@/lib/db";
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   try {
     // Execute the workspace schema SQL
     // The SQL uses CREATE TABLE IF NOT EXISTS so it's safe to run multiple times
-    await query(WORKSPACE_SCHEMA_SQL);
+    await query(SCHEMA_SQL);
 
     // Also execute the A2A schema SQL
     await query(A2A_SCHEMA_SQL);

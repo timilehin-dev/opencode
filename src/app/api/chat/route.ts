@@ -13,7 +13,7 @@
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyError } from "@/lib/agents";
-import { allTools, setCurrentAgentId, withAgentContext } from "@/lib/tools";
+import { allTools, setCurrentAgentId, withAgentContext } from "@/lib/tools/index";
 import { getMemorySummary, saveMessage } from "@/lib/memory";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";

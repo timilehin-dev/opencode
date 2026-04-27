@@ -1,5 +1,12 @@
-// Notification types, constants, and utility functions for Klawhub Agent Hub
+// Klawhub — Client-Side Notifications
 // Phase 2: Real-Time Updates + Smart Notifications
+//
+// ARCHITECTURE NOTE: The notification system is intentionally split into 3 files:
+//   - notifications.ts (THIS FILE) — Client-only: types, styles, desktop push, localStorage
+//   - notification-delivery.ts — Client-only: webhook config, quiet hours, delivery routing
+//   - proactive-notifications.ts — Server-only: DB-backed CRUD via @/lib/db, dedup cache
+//
+// DO NOT merge these files — client and server code must remain separate for Next.js SSR.
 
 // ---------------------------------------------------------------------------
 // Types

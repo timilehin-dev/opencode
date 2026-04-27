@@ -26,21 +26,17 @@ export { PHASE3_SCHEMA_SQL } from "@/lib/supabase";
 // Key usage tracking (smart API key rotation)
 export { KEY_USAGE_SCHEMA_SQL } from "@/lib/supabase";
 
-// Workspace tables (reminders, todos, contacts) — DUPLICATE of tables already in SCHEMA_SQL.
-// Kept here as a re-export for backwards-compat but NOT included in the unified setup
-// to avoid double CREATE TABLE (which is harmless but wasteful).
+// DEPRECATED: Workspace tables — duplicate of SCHEMA_SQL. Use SCHEMA_SQL instead.
 export { WORKSPACE_SCHEMA_SQL } from "@/lib/supabase";
 
 // RLS fix — enables Row Level Security + permissive policies on all Klawhub tables
 export { RLS_FIX_SQL } from "@/lib/supabase";
 
-// Self-learning insights table (also duplicated inside PHASE4_SCHEMA_SQL in supabase-setup.ts)
-export { LEARNING_INSIGHTS_SCHEMA } from "@/lib/self-learning";
+// DEPRECATED: LEARNING_INSIGHTS_SCHEMA removed from self-learning.ts (duplicate).
+// Import PROACTIVE_NOTIFICATIONS_TABLE_SQL from supabase-setup.ts instead.
 
 // Phase 4 tables (proactive_notifications, learning_insights, a2a_messages, a2a_tasks,
 // task_board, agent_routines, agent_activity, agent_status, agent_memory migration)
-// NOTE: Phase 2 tables (agent_activity, agent_status) are ALSO in PHASE4_SCHEMA_SQL.
-//       This is safe due to CREATE TABLE IF NOT EXISTS.
 export { PHASE4_SCHEMA_SQL, PHASE4_TABLE_LIST } from "@/lib/supabase-setup";
 
 // Individual Phase 4 sub-tables for selective setup
@@ -231,173 +227,13 @@ CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow ON workflow_executio
 `;
 
 // ---------------------------------------------------------------------------
-// A2A Enhanced Tables (Phase 4 extended)
-//
-// The a2a.ts module uses a2a_shared_context, a2a_channels, and
-// a2a_channel_messages tables that are NOT in any existing schema file.
-// They are likely created by the Phase 4 setup or manually. We include
-// them here for completeness.
-//
-// Note: a2a_messages and a2a_tasks are already in PHASE4_SCHEMA_SQL.
+// A2A Enhanced Tables — Single source of truth is a2a-schema.ts
+// Re-exported here for convenience. The UNIFIED_SETUP_SQL below uses A2A_SCHEMA_SQL.
 // ---------------------------------------------------------------------------
 
-// NOTE: There is no dedicated a2a-schema.ts file in the codebase.
-// The a2a_shared_context, a2a_channels, and a2a_channel_messages tables
-// referenced in a2a.ts are NOT defined in any existing schema file.
-// If these tables are needed, the SQL below should be run manually
-// or via the setup endpoint. For now, we document the gap.
+// Re-export A2A_SCHEMA_SQL as A2A_EXTENDED_TABLES_SQL for backward compat
+export { A2A_SCHEMA_SQL as A2A_EXTENDED_TABLES_SQL } from "@/lib/a2a-schema";
 
-export const A2A_EXTENDED_TABLES_SQL = `
--- A2A Shared Context (versioned key-value store)
--- Referenced in a2a.ts but NOT in any existing schema file.
-CREATE TABLE IF NOT EXISTS a2a_shared_context (
-  id BIGSERIAL PRIMARY KEY,
-  context_key TEXT NOT NULL,
-  agent_id TEXT NOT NULL,
-  content JSONB DEFAULT '{}',
-  content_text TEXT DEFAULT '',
-  tags JSONB DEFAULT '[]'::jsonb,
-  access_agents TEXT[] DEFAULT '{}',
-  scope TEXT DEFAULT 'project' CHECK (scope IN ('global', 'project', 'session', 'agent')),
-  version INTEGER NOT NULL DEFAULT 1,
-  is_latest BOOLEAN DEFAULT TRUE,
-  project_id BIGINT DEFAULT NULL,
-  session_id TEXT DEFAULT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_a2a_shared_ctx_key ON a2a_shared_context(context_key);
-CREATE INDEX IF NOT EXISTS idx_a2a_shared_ctx_agent ON a2a_shared_context(agent_id);
-CREATE INDEX IF NOT EXISTS idx_a2a_shared_ctx_latest ON a2a_shared_context(is_latest) WHERE is_latest = TRUE;
-
--- A2A Collaboration Channels
-CREATE TABLE IF NOT EXISTS a2a_channels (
-  id BIGSERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  channel_type TEXT DEFAULT 'project' CHECK (channel_type IN ('project', 'team', 'direct', 'topic')),
-  project_id BIGINT DEFAULT NULL,
-  created_by TEXT NOT NULL,
-  members TEXT[] DEFAULT '{}',
-  is_active BOOLEAN DEFAULT TRUE,
-  last_message_at TIMESTAMPTZ,
-  message_count INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_a2a_channels_active ON a2a_channels(is_active) WHERE is_active = TRUE;
-
--- A2A Channel Messages
-CREATE TABLE IF NOT EXISTS a2a_channel_messages (
-  id BIGSERIAL PRIMARY KEY,
-  channel_id BIGINT NOT NULL REFERENCES a2a_channels(id) ON DELETE CASCADE,
-  agent_id TEXT NOT NULL,
-  content TEXT NOT NULL,
-  message_type TEXT DEFAULT 'message',
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_a2a_ch_msg_channel ON a2a_channel_messages(channel_id, created_at DESC);
-
--- A2A Functions: upsert_shared_context, get_agent_inbox, mark_messages_read, get_or_create_channel, expire_old_a2a_messages
-CREATE OR REPLACE FUNCTION upsert_shared_context(
-  p_context_key TEXT, p_agent_id TEXT, p_content JSONB, p_content_text TEXT,
-  p_tags TEXT[], p_access_agents TEXT[], p_scope TEXT, p_project_id BIGINT, p_session_id TEXT
-) RETURNS BIGINT AS $$
-DECLARE
-  v_version INTEGER;
-  v_id BIGINT;
-BEGIN
-  -- Mark existing latest versions as not latest
-  UPDATE a2a_shared_context SET is_latest = FALSE
-    WHERE context_key = p_context_key AND is_latest = TRUE;
-  -- Insert new version
-  INSERT INTO a2a_shared_context (context_key, agent_id, content, content_text, tags, access_agents, scope, project_id, session_id, version, is_latest)
-    VALUES (p_context_key, p_agent_id, p_content, p_content_text, p_tags, p_access_agents, p_scope, p_project_id, p_session_id,
-      COALESCE((SELECT MAX(version) FROM a2a_shared_context WHERE context_key = p_context_key), 0) + 1, TRUE)
-    RETURNING id INTO v_id;
-  RETURN v_id;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION get_agent_inbox(p_agent_id TEXT, p_limit INTEGER DEFAULT 50)
-RETURNS TABLE(id BIGINT, from_agent TEXT, type TEXT, topic TEXT, payload JSONB, priority TEXT, created_at TIMESTAMPTZ, correlation_id TEXT) AS $$
-BEGIN
-  RETURN QUERY
-    SELECT m.id, m.from_agent, m.type, m.topic, m.payload, m.priority, m.created_at, m.correlation_id::TEXT
-    FROM a2a_messages m
-    WHERE m.to_agent = p_agent_id AND m.is_read = FALSE
-    ORDER BY
-      CASE m.priority
-        WHEN 'urgent' THEN 1
-        WHEN 'high' THEN 2
-        WHEN 'normal' THEN 3
-        WHEN 'low' THEN 4
-        ELSE 5
-      END,
-      m.created_at DESC
-    LIMIT p_limit;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION mark_messages_read(p_agent_id TEXT, p_message_ids BIGINT[])
-RETURNS INTEGER AS $$
-DECLARE
-  v_count INTEGER;
-BEGIN
-  UPDATE a2a_messages SET is_read = TRUE
-    WHERE to_agent = p_agent_id AND id = ANY(p_message_ids);
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  RETURN v_count;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION get_or_create_channel(p_name TEXT, p_channel_type TEXT, p_project_id BIGINT, p_members TEXT[])
-RETURNS BIGINT AS $$
-DECLARE
-  v_id BIGINT;
-BEGIN
-  SELECT id INTO v_id FROM a2a_channels WHERE name = p_name LIMIT 1;
-  IF v_id IS NULL THEN
-    INSERT INTO a2a_channels (name, channel_type, project_id, created_by, members)
-      VALUES (p_name, p_channel_type, p_project_id, p_members[1], p_members)
-      RETURNING id INTO v_id;
-  END IF;
-  RETURN v_id;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION expire_old_a2a_messages()
-RETURNS INTEGER AS $$
-DECLARE
-  v_count INTEGER;
-BEGIN
-  DELETE FROM a2a_messages WHERE created_at < NOW() - INTERVAL '90 days';
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  RETURN v_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Also add missing columns to a2a_messages if not present
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'a2a_messages' AND column_name = 'priority') THEN
-    ALTER TABLE a2a_messages ADD COLUMN priority TEXT DEFAULT 'normal';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'a2a_messages' AND column_name = 'correlation_id') THEN
-    ALTER TABLE a2a_messages ADD COLUMN correlation_id TEXT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'a2a_messages' AND column_name = 'parent_message_id') THEN
-    ALTER TABLE a2a_messages ADD COLUMN parent_message_id BIGINT;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'a2a_messages' AND column_name = 'is_read') THEN
-    ALTER TABLE a2a_messages ADD COLUMN is_read BOOLEAN DEFAULT FALSE;
-  END IF;
-END $$;
-`;
 
 // ---------------------------------------------------------------------------
 // Complete list of tables created by the unified schema (for reporting)
@@ -472,6 +308,9 @@ import {
 } from "@/lib/supabase";
 
 import { PHASE4_SCHEMA_SQL } from "@/lib/supabase-setup";
+
+// Import A2A schema from canonical source (a2a-schema.ts)
+import { A2A_SCHEMA_SQL } from "@/lib/a2a-schema";
 
 // Phase 5 SQL (projects, project_tasks, project_task_logs)
 // Extracted from /api/setup/phase5/route.ts
@@ -862,8 +701,8 @@ ${WORKFLOW_SCHEMA_SQL}
 -- 8. Skills tables (Phase 6 — Self-Improvement)
 ${SKILLS_SCHEMA_SQL}
 
--- 9. A2A extended tables (shared context, channels, channel messages + functions)
-${A2A_EXTENDED_TABLES_SQL}
+-- 9. A2A tables (messages, shared context, channels, channel messages, tasks + functions)
+${A2A_SCHEMA_SQL}
 
 -- 10. Phase 3B — Proactive Scanning & Pull-Based Triggers
 ${PROACTIVE_SCANNING_SCHEMA_SQL}
