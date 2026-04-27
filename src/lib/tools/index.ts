@@ -8,6 +8,7 @@
 import type { ToolType } from "./shared";
 import { setCurrentAgentId, withAgentContext, getCurrentAgentId } from "./shared";
 export { setCurrentAgentId, withAgentContext, getCurrentAgentId };
+export { getTieredTools, TOOL_TIER_0, TOOL_TIER_1, TOOL_TIER_2 } from "./tiers";
 import {
   gmailSendTool, gmailFetchTool, gmailLabelsTool, gmailCreateLabelTool,
   gmailDeleteLabelTool, gmailProfileTool, gmailReplyTool, gmailThreadTool,
