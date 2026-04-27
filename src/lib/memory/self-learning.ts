@@ -176,7 +176,7 @@ export async function getInsightsForPrompt(agentId: string, maxInsights = 10): P
   parts.push("[END LEARNED BEHAVIORS]");
 
   // Mark all applied insights to update their application_count and last_applied_at
-  markInsightsApplied(insights.map(i => String(i.id))).catch(() => {});
+  markInsightsApplied(insights.map(i => Number(i.id))).catch(() => {});
 
   const result = parts.join("\n");
   _insightsCache.set(cacheKey, { data: result, ts: Date.now() });
@@ -187,7 +187,7 @@ export async function getInsightsForPrompt(agentId: string, maxInsights = 10): P
  * Mark multiple insights as applied in a single query.
  * Updates application_count, last_applied_at, confidence, and updated_at.
  */
-async function markInsightsApplied(insightIds: string[]): Promise<void> {
+async function markInsightsApplied(insightIds: number[]): Promise<void> {
   if (insightIds.length === 0) return;
   try {
     await query(
@@ -196,7 +196,7 @@ async function markInsightsApplied(insightIds: string[]): Promise<void> {
            last_applied_at = NOW(),
            confidence = LEAST(1.0, confidence + 0.02),
            updated_at = NOW()
-       WHERE id = ANY($1::text[])`,
+       WHERE id = ANY($1::bigint[])`,
       [insightIds],
     );
   } catch { /* non-critical */ }

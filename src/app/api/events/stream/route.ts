@@ -12,7 +12,7 @@ import { getRecentActivity, getAllPersistedStatuses, getDashboardMetrics } from 
 import { listTodos } from "@/lib/workspace/workspace";
 import { getRecentTasks } from "@/lib/tasks/task-queue";
 import { getRecentDelegations } from "@/lib/tasks/delegations";
-import { AGENT_MAP, getAgentMeta } from "@/lib/agent/agent-map";
+import { AGENT_MAP } from "@/lib/agent/agent-map";
 import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/tasks/activity";
 import type { AgentTask } from "@/lib/tasks/task-queue";
 import type { Delegation } from "@/lib/tasks/delegations";

@@ -188,6 +188,7 @@ export async function recalcWorkflowState(pool: ReturnType<typeof getPool>, work
   const counts = countsResult.rows[0];
   const completed = Number(counts.completed || 0);
   const failed = Number(counts.failed || 0);
+  const skipped = Number(counts.skipped || 0);
   const total = Number(counts.total || 0);
 
   // Calculate average validation score
@@ -201,7 +202,10 @@ export async function recalcWorkflowState(pool: ReturnType<typeof getPool>, work
 
   // Determine workflow status
   let newStatus: string;
-  if (completed === total && total > 0) {
+  if ((completed + skipped === total) && total > 0) {
+    // All steps are done (completed or skipped) — treat as completed
+    newStatus = failed > 0 ? "completed_with_errors" : "completed";
+  } else if (completed === total && total > 0) {
     // Phase 7C Fix: Distinguish between clean completion and completion with failures
     newStatus = failed > 0 ? "completed_with_errors" : "completed";
   } else if (failed > total * 0.3) {

@@ -234,8 +234,8 @@ export function pushAgentNotification(notif: AgentNotification): void {
     }
   }
 
-  // Send desktop notification for high-priority items
-  if ((notif.priority === "urgent" || notif.priority === "high") && notif.actionUrl) {
+  // Send desktop notification for high-priority items (regardless of actionUrl)
+  if (notif.priority === "urgent" || notif.priority === "high") {
     sendDesktopNotification(
       `${notif.agentName || "Agent"}: ${notif.title}`,
       notif.body,

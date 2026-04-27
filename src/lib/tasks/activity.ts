@@ -109,25 +109,43 @@ export async function persistAgentStatus(
   if (!process.env.SUPABASE_DB_URL) return;
 
   try {
-    await query(
-      `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())
-       ON CONFLICT (agent_id) DO UPDATE SET
-         status = EXCLUDED.status,
-         current_task = EXCLUDED.current_task,
-         last_activity = EXCLUDED.last_activity,
-         tasks_completed = agent_status.tasks_completed + EXCLUDED.tasks_completed,
-         messages_processed = agent_status.messages_processed + EXCLUDED.messages_processed,
-         updated_at = NOW()`,
-      [
-        agentId,
-        update.status || "idle",
-        update.currentTask ?? null,
-        update.lastActivity ?? null,
-        update.tasksCompleted ?? 0,
-        update.messagesProcessed ?? 0,
-      ],
-    );
+    // Build dynamic SET clause — only update columns that were explicitly provided.
+    // This prevents accidentally resetting status to "idle" when only counters are updated.
+    const setStatus = update.status !== undefined;
+    const setCurrentTask = update.currentTask !== undefined;
+    const setLastActivity = update.lastActivity !== undefined;
+    const setCounters = update.tasksCompleted !== undefined || update.messagesProcessed !== undefined;
+
+    if (!setStatus && !setCurrentTask && !setLastActivity && !setCounters) return;
+
+    const sets: string[] = ["updated_at = NOW()"];
+    const params: unknown[] = [agentId];
+    let paramIdx = 2;
+
+    if (setStatus) {
+      sets.push(`status = $${paramIdx++}`);
+      params.push(update.status);
+    }
+    if (setCurrentTask) {
+      sets.push(`current_task = $${paramIdx++}`);
+      params.push(update.currentTask ?? null);
+    }
+    if (setLastActivity) {
+      sets.push(`last_activity = $${paramIdx++}`);
+      params.push(update.lastActivity ?? null);
+    }
+    if (setCounters) {
+      sets.push(`tasks_completed = agent_status.tasks_completed + $${paramIdx++}`);
+      params.push(update.tasksCompleted ?? 0);
+      sets.push(`messages_processed = agent_status.messages_processed + $${paramIdx++}`);
+      params.push(update.messagesProcessed ?? 0);
+    }
+
+    const sql = `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed, updated_at)
+       VALUES ($1, 'idle', NULL, NULL, 0, 0, NOW())
+       ON CONFLICT (agent_id) DO UPDATE SET ${sets.join(", ")}`;
+
+    await query(sql, params);
   } catch (err) {
     console.warn("[Activity] Failed to persist agent status:", err);
   }

@@ -18,6 +18,7 @@ import { getMemorySummary, saveMessage } from "@/lib/memory/memory";
 import { logActivity, persistAgentStatus } from "@/lib/tasks/activity";
 import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
 import { getInsightsForPrompt, recordLearning } from "@/lib/memory/self-learning";
+import { detectPromptInjection } from "@/lib/security/prompt-guard";
 import { query } from "@/lib/core/db";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
@@ -90,6 +91,35 @@ export async function POST(req: Request) {
     };
 
     const id = agentId || "general";
+
+    // Prompt injection detection — check the latest user message
+    const lastUserMsg = messages.filter((m) => m.role === "user").pop();
+    if (lastUserMsg) {
+      // Extract text from UIMessage parts (AI SDK v6 uses .parts, not .content)
+      const userContent = (lastUserMsg as unknown as { content?: string; parts?: Array<{ type: string; text?: string }> })
+        .parts
+        ?.filter((p: { type: string }) => p.type === "text")
+        .map((p: { text?: string }) => p.text || "")
+        .join(" ")
+        || (lastUserMsg as unknown as { content?: string }).content
+        || "";
+      const injectionCheck = detectPromptInjection(userContent);
+      if (injectionCheck.risk === "high") {
+        return new Response(
+          JSON.stringify({
+            error: "Request blocked: potential prompt injection detected",
+            risk: injectionCheck.risk,
+            categories: injectionCheck.categories,
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // medium risk: log but allow through
+      if (injectionCheck.risk === "medium") {
+        console.warn(`[Chat] Prompt injection risk (${injectionCheck.risk}) for agent ${id}:`, injectionCheck.detected);
+      }
+    }
+
     const agent = getAgent(id);
 
     if (!agent) {

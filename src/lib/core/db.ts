@@ -124,12 +124,16 @@ function isSessionError(error: unknown): boolean {
     return (
       msg.includes("EMAXCONNSESSION") ||
       msg.includes("max clients") ||
-      msg.includes("connection") ||
+      msg.includes("connection refused") ||
+      msg.includes("connection terminated") ||
+      msg.includes("connection reset") ||
       msg.includes("terminating connection") ||
       msg.includes("too many connections") ||
+      msg.includes("not connected") ||
       msg.includes("ECONNREFUSED") ||
       msg.includes("ECONNRESET") ||
-      msg.includes("socket hang up")
+      msg.includes("socket hang up") ||
+      msg.includes("pool is destroyed")
     );
   }
   return false;

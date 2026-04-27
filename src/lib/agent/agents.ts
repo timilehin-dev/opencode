@@ -162,28 +162,49 @@ export function updateAgentStatus(
   agentStatuses.set(id, updated);
 
   // Also persist to database (fire-and-forget — non-async context)
-  // Only pass counters if they were explicitly provided in the update.
-  // This avoids double-incrementing: the SQL uses INCREMENT semantics
-  // (agent_status.tasks_completed + EXCLUDED.tasks_completed), so passing
-  // the full cumulative value on every status update would cause exponential growth.
+  // Build dynamic SET clause — only update columns that were explicitly provided.
+  // This prevents accidentally resetting status to "idle" when only counters are updated.
+  const hasStatusUpdate = "status" in update;
+  const hasTaskUpdate = "currentTask" in update;
+  const hasActivityUpdate = "lastActivity" in update;
   const hasCounterUpdate = "tasksCompleted" in update || "messagesProcessed" in update;
   const counterTasks = hasCounterUpdate ? (update.tasksCompleted ?? 0) : 0;
   const counterMsgs = hasCounterUpdate ? (update.messagesProcessed ?? 0) : 0;
 
-  import("@/lib/core/db").then(({ query }) =>
-    query(
-      `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (agent_id) DO UPDATE SET
-         status = EXCLUDED.status,
-         current_task = EXCLUDED.current_task,
-         last_activity = EXCLUDED.last_activity,
-         tasks_completed = agent_status.tasks_completed + EXCLUDED.tasks_completed,
-         messages_processed = agent_status.messages_processed + EXCLUDED.messages_processed,
-         updated_at = NOW()`,
-      [id, updated.status ?? "idle", updated.currentTask ?? null, updated.lastActivity ?? new Date().toISOString(), counterTasks, counterMsgs]
-    ).catch((err) => { console.warn("[Agents] Failed to persist status:", err); })
-  ).catch(() => { /* module import failed */ });
+  const hasAnyDbUpdate = hasStatusUpdate || hasTaskUpdate || hasActivityUpdate || hasCounterUpdate;
+  if (hasAnyDbUpdate) {
+    const sets: string[] = ["updated_at = NOW()"];
+    const params: unknown[] = [id];
+    let pIdx = 2;
+
+    if (hasStatusUpdate) {
+      sets.push(`status = $${pIdx++}`);
+      params.push(updated.status);
+    }
+    if (hasTaskUpdate) {
+      sets.push(`current_task = $${pIdx++}`);
+      params.push(updated.currentTask ?? null);
+    }
+    if (hasActivityUpdate) {
+      sets.push(`last_activity = $${pIdx++}`);
+      params.push(updated.lastActivity ?? null);
+    }
+    if (hasCounterUpdate) {
+      sets.push(`tasks_completed = agent_status.tasks_completed + $${pIdx++}`);
+      params.push(counterTasks);
+      sets.push(`messages_processed = agent_status.messages_processed + $${pIdx++}`);
+      params.push(counterMsgs);
+    }
+
+    const sql = `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed)
+       VALUES ($1, 'idle', NULL, NULL, 0, 0)
+       ON CONFLICT (agent_id) DO UPDATE SET ${sets.join(", ")}`;
+
+    import("@/lib/core/db").then(({ query }) =>
+      query(sql, params)
+        .catch((err) => { console.warn("[Agents] Failed to persist status:", err); })
+    ).catch(() => { /* module import failed */ });
+  }
 
   return updated;
 }

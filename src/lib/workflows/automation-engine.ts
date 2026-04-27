@@ -46,10 +46,10 @@ function cronShouldFire(cronExpr: string): boolean {
     { value: now.getDay(), expr: parts[4] },           // weekday (0=Sun)
   ];
 
-  // All 5 fields must match (within 1-minute window)
-  const minuteMatch = now.getSeconds() < 60; // just fire within the minute
+  // All 5 fields must match (within 1-minute window — fire within the first 10 seconds to avoid double-fire from multiple cron invocations)
+  const withinFireWindow = now.getSeconds() < 10;
 
-  return minuteMatch && fields.every(({ value, expr }) => matchesField(value, expr));
+  return withinFireWindow && fields.every(({ value, expr }) => matchesField(value, expr));
 }
 
 function matchesField(value: number, expr: string): boolean {

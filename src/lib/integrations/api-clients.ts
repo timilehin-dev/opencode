@@ -305,7 +305,7 @@ export async function getStockQuote(symbol: string): Promise<StockQuote> {
     previousClose: Math.round(previousClose * 100) / 100,
     high: Math.round((meta.regularMarketDayHigh ?? 0) * 100) / 100,
     low: Math.round((meta.regularMarketDayLow ?? 0) * 100) / 100,
-    open: Math.round((meta.regularMarketPrice ?? 0) * 100) / 100,
+    open: Math.round((meta.regularMarketDayOpen ?? 0) * 100) / 100,
     volume: meta.regularMarketVolume ?? 0,
     change: Math.round(change * 100) / 100,
     changePercent: Math.round(changePercent * 100) / 100,

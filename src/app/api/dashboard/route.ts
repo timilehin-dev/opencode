@@ -15,7 +15,7 @@ import {
 import { listTodos } from "@/lib/workspace/workspace";
 import { getRecentTasks } from "@/lib/tasks/task-queue";
 import { getRecentDelegations } from "@/lib/tasks/delegations";
-import { AGENT_MAP, getAgentMeta } from "@/lib/agent/agent-map";
+import { AGENT_MAP } from "@/lib/agent/agent-map";
 
 export async function GET() {
   try {

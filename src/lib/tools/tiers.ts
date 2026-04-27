@@ -145,7 +145,7 @@ export const TOOL_TIER_1: Record<string, string[]> = {
     // Docs (all)
     "docs_list", "docs_read", "docs_create", "docs_append",
     // Data analysis
-    "data_calculate", "data_clean", "data_pivot",
+    "data_calculate", "data_clean", "data_pivot", "python_data_process",
     // Vision (for data from images)
     "vision_analyze", "vision_download_analyze",
     // Charts & finance

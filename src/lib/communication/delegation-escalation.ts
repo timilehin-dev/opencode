@@ -160,7 +160,7 @@ async function logEscalationEvent(
 ): Promise<void> {
   try {
     await query(
-      `INSERT INTO agent_activity (agent_id, action, details, metadata)
+      `INSERT INTO agent_activity (agent_id, action, detail, metadata)
        VALUES ($1, $2, $3, $4)`,
       [
         fromAgent,

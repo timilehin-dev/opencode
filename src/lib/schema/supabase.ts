@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS automations (
   agent_id TEXT,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   last_run_at TIMESTAMPTZ,
-  last_status TEXT CHECK (last_status IN ('success', 'error')),
+  last_status TEXT CHECK (last_status IN ('success', 'error', 'queued')),
   run_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS automations (
 CREATE TABLE IF NOT EXISTS automation_logs (
   id BIGSERIAL PRIMARY KEY,
   automation_id BIGINT NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
-  status TEXT NOT NULL CHECK (status IN ('running', 'success', 'error')),
+  status TEXT NOT NULL CHECK (status IN ('running', 'success', 'error', 'queued')),
   result JSONB DEFAULT '{}',
   duration_ms INTEGER,
   error_message TEXT,
