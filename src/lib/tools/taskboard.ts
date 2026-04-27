@@ -8,7 +8,7 @@ import { z, tool, zodSchema, safeJson, query } from "./shared";
 // ---------------------------------------------------------------------------
 
 export const taskboardCreateTool = tool({
-  description: "Create a new task on the shared task board (Kanban). Use this to track work items, assign tasks to yourself or other agents, and coordinate work across the team. Tasks start in 'backlog' column. Set schedule_interval_minutes to make the task RECURRING — it will get its own pg_cron job that executes it automatically on the schedule.",
+  description: "Create a task on the shared Kanban board for HUMAN VISUAL TRACKING. WARNING: Kanban tasks do NOT auto-execute. They are sticky notes. If the user wants a task to actually RUN, use schedule_agent_task instead. Use this ONLY when the user wants a visual tracker they manage manually. Tasks start in 'backlog'. Optional: set schedule_interval_minutes to make it RECURRING with a pg_cron job.",
   inputSchema: zodSchema(z.object({
     title: z.string().describe("Task title — clear and actionable"),
     description: z.string().optional().describe("Detailed task description"),
@@ -47,7 +47,7 @@ export const taskboardCreateTool = tool({
 
       return {
         success: true,
-        task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent, scheduleInterval: schedule_interval_minutes || null },
+        task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent },
         cron: cronResult,
         message: schedule_interval_minutes
           ? `Task "${title}" created with pg_cron schedule (${cronResult?.schedule || "failed"}).${cronResult?.success ? "" : ` Cron warning: ${cronResult?.error}`}`
@@ -117,7 +117,7 @@ export const taskboardUpdateTool = tool({
       return {
         success: true,
         task: { id: task.id, title: task.title, status: task.status, priority: task.priority, assignedAgent: task.assignedAgent },
-        cron: cronResult,
+        message: `Task #${task_id} updated successfully.`,
       };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : "Failed to update task" };
