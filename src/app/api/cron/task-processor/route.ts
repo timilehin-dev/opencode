@@ -17,6 +17,7 @@ import { getAgent, getProvider, getAllAgents } from "@/lib/agent/agents";
 import { allTools, withAgentContext } from "@/lib/tools/index";
 import { logActivity, persistAgentStatus } from "@/lib/tasks/activity";
 import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
+import { triggerPostTaskReflection, runPeriodicImprovementAnalysis } from "@/lib/tasks/post-task-reflection";
 import { query, withTransaction } from "@/lib/core/db";
 
 // Vercel Hobby (free) has a 10s timeout — maxDuration is best-effort.
@@ -49,7 +50,23 @@ async function executeTaskWithAgent(
       if (allTools[toolId]) agentTools[toolId] = allTools[toolId];
     }
 
-    const systemPrompt = `You are ${agent.name}, ${agent.role}. You are executing a BACKGROUND TASK from the ${source} system. Execute the task fully and provide a concise result. Be brief — this is an automated execution, not a full conversation.\n\n${agent.systemPrompt}`;
+    // Skill routing: try to find a matching skill within 2 seconds
+    // Injects skill documentation into system prompt for better task execution
+    let skillContext = "";
+    try {
+      const { routeSkill } = await import("@/lib/skills/skill-router");
+      const routingResult = await Promise.race([
+        routeSkill(taskPrompt, agentId),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 2000)),
+      ]);
+      if (routingResult && routingResult.skill && routingResult.confidence > 0.4) {
+        skillContext = `\n\n[SKILL ROUTING] A relevant skill was found for this task:\n- Skill: ${routingResult.skill.display_name} (${routingResult.skill.category})\n- Confidence: ${Math.round(routingResult.confidence * 100)}%\n- Method: ${routingResult.method}\n${routingResult.skill.description ? `- Description: ${routingResult.skill.description.slice(0, 300)}` : ""}\nUse this skill's knowledge to inform your approach if applicable.`;
+      }
+    } catch {
+      // Skill routing failed — continue without it (graceful degradation)
+    }
+
+    const systemPrompt = `You are ${agent.name}, ${agent.role}. You are executing a BACKGROUND TASK from the ${source} system. Execute the task fully and provide a concise result. Be brief — this is an automated execution, not a full conversation.${skillContext}\n\n${agent.systemPrompt}`;
 
     const { generateText, stepCountIs } = await import("ai");
 
@@ -216,6 +233,15 @@ export async function GET(request: Request) {
           lastActivity: new Date().toISOString(),
           tasksCompleted: 1,
         }).catch(() => {});
+
+        // Post-task reflection (fire-and-forget)
+        triggerPostTaskReflection({
+          taskId: row.id,
+          agentId,
+          taskTitle: taskPrompt.slice(0, 200),
+          result: result.text || "",
+          success: true,
+        }).catch(() => {});
       } else {
         await query("UPDATE agent_tasks SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2", [
           result.error?.slice(0, 2000) || "Unknown error", row.id,
@@ -233,6 +259,16 @@ export async function GET(request: Request) {
           status: "error",
           currentTask: null,
           lastActivity: new Date().toISOString(),
+        }).catch(() => {});
+
+        // Post-task reflection on failure (fire-and-forget)
+        triggerPostTaskReflection({
+          taskId: row.id,
+          agentId,
+          taskTitle: taskPrompt.slice(0, 200),
+          result: result.error || "",
+          success: false,
+          error: result.error,
         }).catch(() => {});
       }
     }
@@ -423,6 +459,11 @@ export async function GET(request: Request) {
   } catch (error) {
     console.warn("[TaskProcessor] Phase 4 error:", error);
   }
+
+  // =========================================================================
+  // Phase 5: Periodic Self-Improvement Analysis (fire-and-forget)
+  // =========================================================================
+  runPeriodicImprovementAnalysis().catch(() => {});
 
   results.totalDurationMs = Date.now() - startTime;
   return NextResponse.json(results);

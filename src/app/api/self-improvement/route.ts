@@ -15,16 +15,35 @@ export async function GET(request: Request) {
   try {
     switch (action) {
       case "stats": {
-        const agentFilter = agentId ? `WHERE agent_id = '${agentId.replace(/'/g, "''")}'` : "";
         const [metricResult, insightResult] = await Promise.all([
-          query(`SELECT agent_id, metric_type, COUNT(*) as count, MAX(created_at) as latest
-                  FROM agent_metrics ${agentFilter}
-                  GROUP BY agent_id, metric_type
-                  ORDER BY agent_id, metric_type`),
-          query(`SELECT agent_id, insight_type, COUNT(*) as count, ROUND(AVG(confidence)::numeric, 2) as avg_confidence
-                  FROM learning_insights ${agentFilter}
-                  GROUP BY agent_id, insight_type
-                  ORDER BY agent_id, insight_type`),
+          agentId
+            ? query(
+                `SELECT agent_id, metric_type, COUNT(*) as count, MAX(created_at) as latest
+                 FROM agent_metrics WHERE agent_id = $1
+                 GROUP BY agent_id, metric_type
+                 ORDER BY agent_id, metric_type`,
+                [agentId]
+              )
+            : query(
+                `SELECT agent_id, metric_type, COUNT(*) as count, MAX(created_at) as latest
+                 FROM agent_metrics
+                 GROUP BY agent_id, metric_type
+                 ORDER BY agent_id, metric_type`
+              ),
+          agentId
+            ? query(
+                `SELECT agent_id, insight_type, COUNT(*) as count, ROUND(AVG(confidence)::numeric, 2) as avg_confidence
+                 FROM learning_insights WHERE agent_id = $1
+                 GROUP BY agent_id, insight_type
+                 ORDER BY agent_id, insight_type`,
+                [agentId]
+              )
+            : query(
+                `SELECT agent_id, insight_type, COUNT(*) as count, ROUND(AVG(confidence)::numeric, 2) as avg_confidence
+                 FROM learning_insights
+                 GROUP BY agent_id, insight_type
+                 ORDER BY agent_id, insight_type`
+              ),
         ]);
 
         return NextResponse.json({

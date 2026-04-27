@@ -543,9 +543,9 @@ Use this when:
 
         // Also send as A2A message for immediate visibility
         await query(
-          `INSERT INTO a2a_messages (sender_id, recipient_id, channel_id, content, message_type, priority)
-           VALUES ($1, $2, 'knowledge-sharing', $3, 'info', $4)`,
-          [agentId, target, `[Knowledge Share - ${cat.toUpperCase()}] ${insight}`, prio]
+          `INSERT INTO a2a_messages (from_agent, to_agent, type, topic, payload, priority)
+           VALUES ($1, $2, 'context_share', $3, $4, $5)`,
+          [agentId, target, `Knowledge Share - ${cat.toUpperCase()}`, { insight, category: cat }, prio]
         );
 
         sharedCount++;

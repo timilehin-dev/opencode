@@ -18,7 +18,21 @@ export async function POST() {
     );
 
     if (colCheck.rows.length === 0) {
-      await query("ALTER TABLE skills ADD COLUMN embedding vector(1536)");
+      await query("ALTER TABLE skills ADD COLUMN embedding vector(768)");
+    } else {
+      // MIGRATION: Fix existing columns that were created with wrong dimension (1536 → 768)
+      // nomic-embed-text outputs 768-dim vectors. Old setup used OpenAI's 1536 dimension.
+      try {
+        await query("ALTER TABLE skills ALTER COLUMN embedding TYPE vector(768)");
+      } catch {
+        // Column may already be vector(768) or may need data clearing first
+        try {
+          await query("UPDATE skills SET embedding = NULL, has_embedding = false WHERE embedding IS NOT NULL");
+          await query("ALTER TABLE skills ALTER COLUMN embedding TYPE vector(768)");
+        } catch {
+          // Already correct dimension — ignore
+        }
+      }
     }
 
     // Add has_embedding if not exists

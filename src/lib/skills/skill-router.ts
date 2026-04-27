@@ -42,6 +42,7 @@ export interface SkillMatch {
   id: string;
   name: string;
   display_name: string;
+  description?: string;
   category: string;
   difficulty: string;
   score: number;
@@ -345,6 +346,7 @@ export async function routeSkill(query: string, agentId?: string): Promise<Route
         id: skill.id,
         name: skill.name,
         display_name: skill.display_name || skill.name,
+        description: skill.description,
         category: skill.category,
         difficulty: skill.difficulty,
         score: rawScore,

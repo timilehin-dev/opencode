@@ -287,6 +287,11 @@ export const UNIFIED_TABLE_LIST = [
   "scan_state",
   "trigger_events",
   "scan_logs",
+  // Self-Improvement (SELF_IMPROVEMENT_SCHEMA_SQL)
+  "agent_metrics",
+  "agent_skills",
+  // Cron Self-Improvement (SELF_IMPROVEMENT_CRON_SCHEMA_SQL)
+  "self_improvement_runs",
 ] as const;
 
 export type UnifiedTableName = (typeof UNIFIED_TABLE_LIST)[number];
@@ -477,6 +482,76 @@ CREATE INDEX IF NOT EXISTS idx_analytics_created_at
 -- Recent completed/failed tasks: WHERE status IN (...) AND completed_at > now
 CREATE INDEX IF NOT EXISTS idx_agent_tasks_status_completed
   ON agent_tasks(status, completed_at DESC);
+`;
+
+// ---------------------------------------------------------------------------
+// Self-Improvement Tables (Phase 6 — Agent Metrics & Skills Bindings)
+//
+// Tables: agent_metrics, agent_skills
+// These power the self-improvement system (benchmarking, knowledge sharing)
+// and the skill equip system (per-agent skill bindings).
+// ---------------------------------------------------------------------------
+
+export const SELF_IMPROVEMENT_SCHEMA_SQL = `
+-- Agent Metrics — benchmark results, strategy updates, knowledge shares
+CREATE TABLE IF NOT EXISTS agent_metrics (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id VARCHAR(100) NOT NULL,
+  metric_type VARCHAR(50) NOT NULL,
+  metric_value TEXT NOT NULL DEFAULT '',
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_metrics_agent_type ON agent_metrics(agent_id, metric_type);
+CREATE INDEX IF NOT EXISTS idx_agent_metrics_created ON agent_metrics(created_at DESC);
+
+-- Unique constraint for ON CONFLICT: one benchmark per agent per day
+CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_metrics_agent_type_day
+  ON agent_metrics(agent_id, metric_type, created_at::date);
+
+-- Agent Skills — per-agent skill equip bindings
+CREATE TABLE IF NOT EXISTS agent_skills (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id VARCHAR(100) NOT NULL,
+  skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  is_equipped BOOLEAN DEFAULT TRUE,
+  proficiency NUMERIC(3,2) DEFAULT 0.50,
+  total_uses INTEGER DEFAULT 0,
+  successful_uses INTEGER DEFAULT 0,
+  equipped_at TIMESTAMPTZ DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(agent_id, skill_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_skills_agent ON agent_skills(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_skills_skill ON agent_skills(skill_id);
+CREATE INDEX IF NOT EXISTS idx_agent_skills_equipped ON agent_skills(agent_id) WHERE is_equipped = TRUE;
+`;
+
+// ---------------------------------------------------------------------------
+// Self-Improvement Cron Table
+//
+// Tracks runs of the automated self-improvement cron job (codebase scanning,
+// improvement suggestions, GitHub commit pushes).
+// ---------------------------------------------------------------------------
+
+export const SELF_IMPROVEMENT_CRON_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS self_improvement_runs (
+  id SERIAL PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  focus TEXT,
+  files_scanned INTEGER DEFAULT 0,
+  commits_pushed INTEGER DEFAULT 0,
+  improvements JSONB DEFAULT '[]',
+  error TEXT,
+  duration_ms INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_self_improvement_runs_created ON self_improvement_runs(created_at DESC);
 `;
 
 // ---------------------------------------------------------------------------
@@ -716,4 +791,17 @@ ${RLS_FIX_SQL}
 
 -- 13. Performance indexes (safe to re-run, uses IF NOT EXISTS)
 ${PERFORMANCE_INDEXES_SQL}
+
+-- 14. Self-Improvement tables (agent_metrics, agent_skills)
+${SELF_IMPROVEMENT_SCHEMA_SQL}
+
+-- 15. Self-Improvement cron tables (self_improvement_runs)
+${SELF_IMPROVEMENT_CRON_SCHEMA_SQL}
+
+-- 16. Unique constraint on learning_insights for ON CONFLICT support
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_learning_insights_agent_type_content
+    ON learning_insights(agent_id, insight_type, md5(content));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 `;
