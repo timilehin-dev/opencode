@@ -17,7 +17,7 @@
 // ---------------------------------------------------------------------------
 
 import { Pool } from "pg";
-import type { Pool as PoolType } from "pg";
+import type { Pool as PoolType, PoolClient } from "pg";
 
 let _pool: PoolType | null = null;
 let _creatingPool = false;
@@ -180,6 +180,45 @@ export async function withPool<T>(
 ): Promise<T> {
   const pool = getPool();
   return fn(pool);
+}
+
+/**
+ * Execute a callback inside a database transaction.
+ * Uses the shared pool with pgbouncer-compatible session handling.
+ *
+ * With pgbouncer in transaction mode, each `query()` call auto-commits
+ * unless explicitly wrapped in BEGIN/COMMIT. This helper provides that
+ * wrapping, which is essential for:
+ *   - FOR UPDATE SKIP LOCKED (row-level locking)
+ *   - Multi-step operations that must be atomic
+ *
+ * Usage:
+ *   const result = await withTransaction(async (client) => {
+ *     const { rows } = await client.query('SELECT ... FOR UPDATE SKIP LOCKED');
+ *     await client.query('UPDATE ...', [params]);
+ *     return rows;
+ *   });
+ */
+export async function withTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback errors
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**

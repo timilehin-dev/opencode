@@ -11,6 +11,7 @@
 
 import { getPool } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { withTransaction } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -262,48 +263,54 @@ Respond ONLY in this JSON format (no markdown, no code blocks):
       plan.steps = plan.steps.slice(0, 8);
     }
 
-    // Create the workflow record
-    const workflowResult = await pool.query(
-      `INSERT INTO agent_workflows (name, agent_id, query, status, strategy, total_steps)
-       VALUES ($1, $2, $3, 'planning', $4, $5)
-       RETURNING id`,
-      [workflowName, agentId, query, JSON.stringify(plan), plan.steps.length],
-    );
-
-    const workflowId = workflowResult.rows[0].id;
-
-    // Insert step records
-    for (let i = 0; i < plan.steps.length; i++) {
-      const step = plan.steps[i];
-      await pool.query(
-        `INSERT INTO workflow_steps (workflow_id, step_number, title, description, skill_name, input_context)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [workflowId, i + 1, step.title, step.description, step.skill_name || null, step.input_context],
+    // Create the workflow and its steps inside a transaction to ensure atomicity.
+    // Without this, a failure between inserting the workflow and its steps would
+    // leave the database in an inconsistent state (orphan workflow with no steps).
+    const { workflowId, workflowName: finalName, plan: finalPlan } = await withTransaction(async (client) => {
+      const workflowResult = await client.query(
+        `INSERT INTO agent_workflows (name, agent_id, query, status, strategy, total_steps)
+         VALUES ($1, $2, $3, 'planning', $4, $5)
+         RETURNING id`,
+        [workflowName, agentId, query, JSON.stringify(plan), plan.steps.length],
       );
-    }
 
-    // Update status to running
-    await pool.query(
-      `UPDATE agent_workflows SET status = 'running', updated_at = NOW() WHERE id = $1`,
-      [workflowId],
-    );
+      const wid = workflowResult.rows[0].id;
+
+      // Insert step records
+      for (let i = 0; i < plan.steps.length; i++) {
+        const step = plan.steps[i];
+        await client.query(
+          `INSERT INTO workflow_steps (workflow_id, step_number, title, description, skill_name, input_context)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [wid, i + 1, step.title, step.description, step.skill_name || null, step.input_context],
+        );
+      }
+
+      // Update status to running
+      await client.query(
+        `UPDATE agent_workflows SET status = 'running', updated_at = NOW() WHERE id = $1`,
+        [wid],
+      );
+
+      return { workflowId: wid, workflowName, plan };
+    });
 
     await logExecution(pool, {
       workflowId,
       phase: "plan",
       agentId,
-      action: `Planned workflow "${workflowName}" with ${plan.steps.length} steps`,
-      outputData: JSON.stringify(plan),
+      action: `Planned workflow "${finalName}" with ${finalPlan.steps.length} steps`,
+      outputData: JSON.stringify(finalPlan),
     });
 
-    logger.info("workflow-engine", `Workflow planned: "${workflowName}" with ${plan.steps.length} steps`, {
+    logger.info("workflow-engine", `Workflow planned: "${finalName}" with ${finalPlan.steps.length} steps`, {
       workflowId,
       agentId,
     });
 
     timer.end("Workflow planning completed");
 
-    return { workflowId, plan };
+    return { workflowId, plan: finalPlan };
   } catch (err) {
     logger.error("workflow-engine", "Workflow planning failed", {
       agentId,
@@ -584,6 +591,19 @@ Produce the complete output now.`;
           started_at: currentAttempts < step.max_attempts ? null : step.started_at,
           error: currentAttempts < step.max_attempts ? null : errorMsg,
         } as WorkflowStepRow);
+
+        // FIX: Break on non-retriable step failure. Workflow steps are sequential
+        // and depend on previous steps' output. Continuing after a permanently
+        // failed step means subsequent steps receive no input context from the
+        // failed step, producing garbage results.
+        if (currentAttempts >= step.max_attempts) {
+          logger.warn("workflow-engine", `Step ${step.step_number} permanently failed — stopping workflow execution`, {
+            workflowId,
+            stepId: step.id,
+            error: errorMsg,
+          });
+          break;
+        }
       }
     }
 

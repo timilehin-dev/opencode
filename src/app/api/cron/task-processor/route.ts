@@ -17,7 +17,7 @@ import { getAgent, getProvider, getAllAgents } from "@/lib/agents";
 import { allTools, withAgentContext } from "@/lib/tools";
 import { logActivity, persistAgentStatus } from "@/lib/activity";
 import { sendProactiveNotification } from "@/lib/proactive-notifications";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 
 // Vercel Hobby (free) has a 10s timeout — maxDuration is best-effort.
 // pg_cron fires every 5 min, so even with timeouts, tasks progress over time.
@@ -139,16 +139,39 @@ export async function GET(request: Request) {
 
   // =========================================================================
   // Phase 2: Execute pending agent_tasks
+  // FIX: FOR UPDATE SKIP LOCKED must be inside a transaction to actually lock
+  // rows. Also fixed priority ordering — was using alphabetical DESC which
+  // gave wrong order (low > medium > high > critical). Now uses CASE WHEN.
   // =========================================================================
   try {
-    const { rows } = await query(`
-      SELECT * FROM agent_tasks
-      WHERE status = 'pending'
-        AND trigger_type IN ('automation', 'cron', 'delegation', 'proactive_assessment', 'a2a_inbox', 'project', 'autonomous', 'manual')
-      ORDER BY priority DESC, created_at ASC
-      LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    `);
+    const { rows } = await withTransaction(async (client) => {
+      const result = await client.query(`
+        SELECT * FROM agent_tasks
+        WHERE status = 'pending'
+          AND trigger_type IN ('automation', 'cron', 'delegation', 'proactive_assessment', 'a2a_inbox', 'project', 'autonomous', 'manual')
+        ORDER BY
+          CASE priority
+            WHEN 'critical' THEN 0
+            WHEN 'high' THEN 1
+            WHEN 'medium' THEN 2
+            WHEN 'low' THEN 3
+            ELSE 2
+          END,
+          created_at ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      `);
+
+      // Lock the row within the transaction by marking it running
+      for (const row of result.rows) {
+        await client.query(
+          "UPDATE agent_tasks SET status = 'running', started_at = NOW() WHERE id = $1",
+          [row.id],
+        );
+      }
+
+      return result;
+    });
 
     for (const row of rows) {
       const agentId = row.agent_id;
@@ -157,8 +180,7 @@ export async function GET(request: Request) {
 
       results.phase2_agentTasks.processed++;
 
-      // Mark as running
-      await query("UPDATE agent_tasks SET status = 'running', started_at = NOW() WHERE id = $1", [row.id]);
+      // Already marked as running inside the transaction above
 
       logActivity({
         agentId,
@@ -220,21 +242,34 @@ export async function GET(request: Request) {
 
   // =========================================================================
   // Phase 3: Execute task board tasks
+  // FIX: FOR UPDATE SKIP LOCKED wrapped in transaction for proper row locking.
   // =========================================================================
   try {
     // Pick up tasks that are assigned and in backlog or in_progress
     // Limit to 2 per run to stay within timeout
-    const { rows } = await query(`
-      SELECT * FROM task_board
-      WHERE status IN ('backlog', 'in_progress')
-        AND assigned_agent IS NOT NULL
-        AND assigned_agent != ''
-      ORDER BY
-        CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-        created_at ASC
-      LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    `);
+    const { rows } = await withTransaction(async (client) => {
+      const result = await client.query(`
+        SELECT * FROM task_board
+        WHERE status IN ('backlog', 'in_progress')
+          AND assigned_agent IS NOT NULL
+          AND assigned_agent != ''
+        ORDER BY
+          CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
+          created_at ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      `);
+
+      // Move to in_progress within the transaction
+      for (const row of result.rows) {
+        await client.query(
+          "UPDATE task_board SET status = 'in_progress', updated_at = NOW() WHERE id = $1",
+          [row.id],
+        );
+      }
+
+      return result;
+    });
 
     for (const row of rows) {
       const agentId = row.assigned_agent;
@@ -249,8 +284,7 @@ export async function GET(request: Request) {
 
       results.phase3_taskBoard.processed++;
 
-      // Move to in_progress
-      await query("UPDATE task_board SET status = 'in_progress', updated_at = NOW() WHERE id = $1", [row.id]);
+      // Already moved to in_progress inside the transaction above
 
       const result = await executeTaskWithAgent(agentId, taskPrompt, taskContext, "Task Board");
 
@@ -287,27 +321,44 @@ export async function GET(request: Request) {
 
   // =========================================================================
   // Phase 4: Execute project tasks (dependency-resolved)
+  // FIX: FOR UPDATE SKIP LOCKED wrapped in transaction for proper row locking.
   // =========================================================================
   try {
     // Get project tasks whose dependencies are all satisfied
-    const { rows } = await query(`
-      SELECT pt.*, p.name as project_name, p.agent_id as project_owner
-      FROM project_tasks pt
-      JOIN projects p ON p.id = pt.project_id
-      WHERE pt.status IN ('pending', 'queued')
-        AND p.status NOT IN ('completed', 'failed', 'cancelled')
-        AND (
-          SELECT COUNT(*) FROM project_tasks dep
-          WHERE dep.project_id = pt.project_id
-            AND dep.title = ANY(pt.depends_on)
-            AND dep.status NOT IN ('completed', 'skipped')
-        ) = 0
-      ORDER BY
-        CASE pt.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-        pt.created_at ASC
-      LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    `);
+    const { rows } = await withTransaction(async (client) => {
+      const result = await client.query(`
+        SELECT pt.*, p.name as project_name, p.agent_id as project_owner
+        FROM project_tasks pt
+        JOIN projects p ON p.id = pt.project_id
+        WHERE pt.status IN ('pending', 'queued')
+          AND p.status NOT IN ('completed', 'failed', 'cancelled')
+          AND (
+            SELECT COUNT(*) FROM project_tasks dep
+            WHERE dep.project_id = pt.project_id
+              AND dep.title = ANY(pt.depends_on)
+              AND dep.status NOT IN ('completed', 'skipped')
+          ) = 0
+        ORDER BY
+          CASE pt.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
+          pt.created_at ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      `);
+
+      // Mark as in_progress within the transaction
+      for (const row of result.rows) {
+        await client.query(
+          "UPDATE project_tasks SET status = 'in_progress', started_at = NOW() WHERE id = $1",
+          [row.id],
+        );
+        await client.query(
+          "UPDATE projects SET status = 'in_progress' WHERE id = $1 AND status = 'planning'",
+          [row.project_id],
+        );
+      }
+
+      return result;
+    });
 
     for (const row of rows) {
       const agentId = row.assigned_agent || row.project_owner || "general";
@@ -316,11 +367,7 @@ export async function GET(request: Request) {
 
       results.phase4_projectTasks.processed++;
 
-      // Mark as in_progress
-      await query("UPDATE project_tasks SET status = 'in_progress', started_at = NOW() WHERE id = $1", [row.id]);
-
-      // Update project status to in_progress
-      await query("UPDATE projects SET status = 'in_progress' WHERE id = $1 AND status = 'planning'", [row.project_id]);
+      // Already marked as in_progress inside the transaction above
 
       persistAgentStatus(agentId, {
         status: "busy",

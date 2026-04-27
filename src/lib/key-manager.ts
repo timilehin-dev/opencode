@@ -191,29 +191,40 @@ async function persistIncrementalUsage(keyHash: string, tokens: number): Promise
     const supabase = await getSupabase();
     if (!supabase) return;
 
-    // Use Supabase RPC or update with increment via raw SQL approach
-    // Since Supabase JS doesn't have increment + conflict in one shot,
-    // we do a read-modify-write pattern
-    const { data: existing } = await supabase
-      .from("key_usage")
-      .select("tokens_used, requests_today")
-      .eq("key_hash", keyHash)
-      .single();
+    // FIX: Use raw SQL via Supabase RPC for atomic increment.
+    // The previous read-modify-write pattern had a race condition:
+    // two concurrent requests could both read the same value and
+    // overwrite each other's increments, losing token counts.
+    // Using SQL SET col = col + $1 is atomic and race-free.
+    const { error } = await supabase.rpc("increment_key_usage", {
+      p_key_hash: keyHash,
+      p_tokens: tokens,
+      p_requests: 1,
+      p_today: getTodayUTC(),
+    });
 
-    const newTokens = (existing?.tokens_used || 0) + tokens;
-    const newRequests = (existing?.requests_today || 0) + 1;
+    // Fallback: if RPC doesn't exist yet, use the non-atomic approach
+    if (error && (error.message?.includes("does not exist") || error.message?.includes("function"))) {
+      const { data: existing } = await supabase
+        .from("key_usage")
+        .select("tokens_used, requests_today")
+        .eq("key_hash", keyHash)
+        .single();
 
-    await supabase
-      .from("key_usage")
-      .update({
-        tokens_used: newTokens,
-        requests_today: newRequests,
-        last_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_error: null,
-        error_count: 0,
-      })
-      .eq("key_hash", keyHash);
+      await supabase
+        .from("key_usage")
+        .update({
+          tokens_used: (existing?.tokens_used || 0) + tokens,
+          requests_today: (existing?.requests_today || 0) + 1,
+          last_used_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_error: null,
+          error_count: 0,
+        })
+        .eq("key_hash", keyHash);
+    } else if (error) {
+      console.warn("[KeyManager] Failed to persist incremental usage:", error.message);
+    }
   } catch (err) {
     console.warn("[KeyManager] Failed to persist incremental usage:", err);
   }
@@ -249,6 +260,12 @@ async function resetDailyCounters(): Promise<void> {
     const supabase = await getSupabase();
     if (!supabase) return;
 
+    // FIX: Only reset counters for rows from PREVIOUS days.
+    // The old code reset ALL rows regardless of date, which meant:
+    // - If two serverless instances started on the same day, the second
+    //   instance would reset the first instance's counters to 0.
+    // - If no key was selected on a new day, old records with stale
+    //   usage_date would linger forever.
     const today = getTodayUTC();
     await supabase
       .from("key_usage")
@@ -259,7 +276,8 @@ async function resetDailyCounters(): Promise<void> {
         last_error: null,
         usage_date: today,
         updated_at: new Date().toISOString(),
-      });
+      })
+      .neq("usage_date", today);
   } catch (err) {
     console.warn("[KeyManager] Failed to reset daily counters:", err);
   }
@@ -487,4 +505,27 @@ CREATE TABLE IF NOT EXISTS key_usage (
 
 CREATE INDEX IF NOT EXISTS idx_key_usage_provider ON key_usage(provider);
 CREATE INDEX IF NOT EXISTS idx_key_usage_date ON key_usage(usage_date);
+
+-- Atomic increment function for key usage (race-condition safe)
+-- Avoids the read-modify-write pattern that loses increments under
+-- concurrent serverless function invocations.
+CREATE OR REPLACE FUNCTION increment_key_usage(
+  p_key_hash TEXT,
+  p_tokens BIGINT DEFAULT 1,
+  p_requests INT DEFAULT 1,
+  p_today TEXT DEFAULT CURRENT_DATE
+) RETURNS VOID AS $$
+BEGIN
+  INSERT INTO key_usage (key_hash, tokens_used, requests_today, usage_date, updated_at, last_used_at, last_error, error_count)
+  VALUES (p_key_hash, p_tokens, p_requests, p_today, NOW(), NOW(), NULL, 0)
+  ON CONFLICT (key_hash) DO UPDATE SET
+    tokens_used = key_usage.tokens_used + p_tokens,
+    requests_today = key_usage.requests_today + p_requests,
+    usage_date = p_today,
+    updated_at = NOW(),
+    last_used_at = NOW(),
+    last_error = NULL,
+    error_count = 0;
+END;
+$$ LANGUAGE plpgsql;
 `;

@@ -287,9 +287,32 @@ export async function getProvider(agent: AgentConfig): Promise<ProviderResult> {
   }
 
   // OpenRouter (single key, no rotation needed)
+  // NOTE: OpenRouter is preserved for future rotation when an API key is
+  // available. Currently only Ollama is active. If OPENROUTER_API_KEY is
+  // not set, this falls through to the Ollama pool instead of throwing.
   if (agent.provider === "openrouter") {
     if (!process.env.OPENROUTER_API_KEY) {
-      throw new Error("OPENROUTER_API_KEY not configured.");
+      // Gracefully fall back to Ollama instead of crashing
+      console.warn(`[KeyRotation] ${agent.name}: OpenRouter requested but no API key configured. Falling back to Ollama.`);
+      const fallbackKeys = ollamaKeys.length > 0 ? ollamaKeys : [];
+      const fallbackLabels = ollamaLabels.length > 0 ? ollamaLabels : [];
+
+      if (fallbackKeys.length === 0) {
+        throw new Error(`No OpenRouter API key and no Ollama fallback keys configured for agent '${agent.id}'.`);
+      }
+
+      const keyMgr = await loadKeyManager();
+      const selection = await keyMgr.selectBestKey(fallbackKeys, "ollama", fallbackLabels);
+
+      const provider = createOpenAI({
+        apiKey: selection.key,
+        baseURL: process.env.OLLAMA_BASE_URL || "https://ollama.com/v1",
+      });
+      return {
+        model: provider.chat("gemma4:31b-cloud"),
+        keySelection: selection,
+        provider: "ollama",
+      };
     }
     const provider = createOpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
