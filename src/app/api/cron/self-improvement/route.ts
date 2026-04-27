@@ -12,11 +12,11 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { getProvider, getAgent } from "@/lib/agents";
+import { getProvider, getAgent } from "@/lib/agent/agents";
 import { withAgentContext } from "@/lib/tools/index";
-import { logActivity } from "@/lib/activity";
-import { query } from "@/lib/db";
-import { sendProactiveNotification } from "@/lib/proactive-notifications";
+import { logActivity } from "@/lib/tasks/activity";
+import { query } from "@/lib/core/db";
+import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
 
 export const maxDuration = 300; // 5 min
 

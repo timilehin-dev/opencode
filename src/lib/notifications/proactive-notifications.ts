@@ -8,7 +8,7 @@
 // notification-delivery.ts (webhook config).
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // ---------------------------------------------------------------------------
 // Deduplication cache — prevents sending identical notifications repeatedly

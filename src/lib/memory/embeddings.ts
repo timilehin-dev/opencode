@@ -7,7 +7,7 @@
 // Phase 7C: Refactored to use structured logger.
 // ---------------------------------------------------------------------------
 
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/core/logger";
 
 const EMBEDDING_DIM = 768;
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "https://ollama.com/v1";

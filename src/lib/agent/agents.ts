@@ -21,7 +21,7 @@ import {
   AGENT_TOOL_LISTS,
   AGENT_SUGGESTED_ACTIONS,
   getAgentSystemPrompt,
-} from "@/lib/agent-config";
+} from "@/lib/agent/agent-config";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,7 +97,7 @@ agents.forEach((agent) => {
 
 async function hydrateAgentStatuses() {
   try {
-    const { query } = await import("@/lib/db");
+    const { query } = await import("@/lib/core/db");
     const result = await query("SELECT * FROM agent_status");
     for (const row of result.rows) {
       agentStatuses.set(row.agent_id, {
@@ -170,7 +170,7 @@ export function updateAgentStatus(
   const counterTasks = hasCounterUpdate ? (update.tasksCompleted ?? 0) : 0;
   const counterMsgs = hasCounterUpdate ? (update.messagesProcessed ?? 0) : 0;
 
-  import("@/lib/db").then(({ query }) =>
+  import("@/lib/core/db").then(({ query }) =>
     query(
       `INSERT INTO agent_status (agent_id, status, current_task, last_activity, tasks_completed, messages_processed)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -197,10 +197,10 @@ export function getAllAgentStatuses(): AgentStatus[] {
 // ---------------------------------------------------------------------------
 
 // Cached key-manager module — avoid re-importing on every getProvider() call
-let _keyManagerModule: typeof import("@/lib/key-manager") | null = null;
+let _keyManagerModule: typeof import("@/lib/settings/key-manager") | null = null;
 async function loadKeyManager() {
   if (!_keyManagerModule) {
-    _keyManagerModule = await import("@/lib/key-manager");
+    _keyManagerModule = await import("@/lib/settings/key-manager");
   }
   return _keyManagerModule;
 }
@@ -262,7 +262,7 @@ function getDedicatedKeys(agentId: string, envVars: string[]): { keys: string[];
 
 export interface ProviderResult {
   model: ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
-  keySelection: Awaited<ReturnType<typeof import("@/lib/key-manager")["selectBestKey"]>>;
+  keySelection: Awaited<ReturnType<typeof import("@/lib/settings/key-manager")["selectBestKey"]>>;
   provider: "aihubmix" | "ollama" | "openrouter";
 }
 

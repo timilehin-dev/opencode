@@ -21,7 +21,7 @@ export const taskboardCreateTool = tool({
   })),
   execute: safeJson(async ({ title, description, priority, assigned_agent, context, deadline, schedule_interval_minutes, tags }) => {
     try {
-      const { createTask } = await import("@/lib/taskboard");
+      const { createTask } = await import("@/lib/tasks/taskboard");
       const task = await createTask({
         title,
         description,
@@ -38,10 +38,10 @@ export const taskboardCreateTool = tool({
       let cronResult = null;
       if (schedule_interval_minutes && schedule_interval_minutes > 0) {
         // Update the DB with the schedule interval
-        const { query } = await import("@/lib/db");
+        const { query } = await import("@/lib/core/db");
         await query("UPDATE task_board SET schedule_interval = $1 WHERE id = $2", [schedule_interval_minutes, task.id]);
         // Register the pg_cron job
-        const { registerTaskCron } = await import("@/lib/pg-cron-manager");
+        const { registerTaskCron } = await import("@/lib/workflows/pg-cron-manager");
         cronResult = await registerTaskCron(Number(task.id), schedule_interval_minutes);
       }
 
@@ -75,7 +75,7 @@ export const taskboardUpdateTool = tool({
   })),
   execute: safeJson(async ({ task_id, title, description, status, priority, assigned_agent, context, deadline, schedule_interval_minutes, tags }) => {
     try {
-      const { updateTask } = await import("@/lib/taskboard");
+      const { updateTask } = await import("@/lib/tasks/taskboard");
       const updates: Record<string, unknown> = {};
       if (title !== undefined) updates.title = title;
       if (description !== undefined) updates.description = description;
@@ -92,8 +92,8 @@ export const taskboardUpdateTool = tool({
       // Handle schedule_interval changes — sync pg_cron job
       let cronResult = null;
       if (schedule_interval_minutes !== undefined) {
-        const { query } = await import("@/lib/db");
-        const { registerTaskCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+        const { query } = await import("@/lib/core/db");
+        const { registerTaskCron, unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
         const interval = schedule_interval_minutes === null ? 0 : schedule_interval_minutes;
 
         await query("UPDATE task_board SET schedule_interval = $1 WHERE id = $2", [
@@ -110,7 +110,7 @@ export const taskboardUpdateTool = tool({
 
       // If status changed to 'done', also clean up the cron job
       if (status === "done") {
-        const { unregisterCron } = await import("@/lib/pg-cron-manager");
+        const { unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
         await unregisterCron(`taskboard-${task_id}`);
       }
 
@@ -135,7 +135,7 @@ export const taskboardListTool = tool({
   })),
   execute: safeJson(async ({ status, assigned_agent, priority, limit }) => {
     try {
-      const { getTasks } = await import("@/lib/taskboard");
+      const { getTasks } = await import("@/lib/tasks/taskboard");
       const tasks = await getTasks({ status, assignedAgent: assigned_agent, priority, limit: limit || 50 });
       return {
         success: true,
@@ -162,9 +162,9 @@ export const taskboardDeleteTool = tool({
   execute: safeJson(async ({ task_id }) => {
     try {
       // Remove pg_cron job first
-      const { unregisterCron } = await import("@/lib/pg-cron-manager");
+      const { unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
       await unregisterCron(`taskboard-${task_id}`);
-      const { deleteTask } = await import("@/lib/taskboard");
+      const { deleteTask } = await import("@/lib/tasks/taskboard");
       const ok = await deleteTask(task_id);
       if (!ok) return { success: false, error: `Task ${task_id} not found or delete failed` };
       return { success: true, message: `Task ${task_id} deleted (pg_cron job removed)` };
@@ -179,7 +179,7 @@ export const taskboardSummaryTool = tool({
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
     try {
-      const { getTaskBoardSummary } = await import("@/lib/taskboard");
+      const { getTaskBoardSummary } = await import("@/lib/tasks/taskboard");
       const summary = await getTaskBoardSummary();
       return { success: true, ...summary };
     } catch (error) {

@@ -53,7 +53,7 @@ export const downloadDriveFileTool = tool({
     mimeType: z.string().optional().describe("Desired export MIME type (for Google Docs/Sheets). Example: 'text/plain', 'application/pdf'"),
   })),
   execute: safeJson(async ({ fileId, mimeType }) => {
-    const token = await (await import("../google")).getAccessToken();
+    const token = await (await import("@/lib/integrations/google")).getAccessToken();
 
     // First, get file metadata
     const metaRes = await fetch(

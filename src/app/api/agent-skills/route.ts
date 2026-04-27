@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { query, getPool } from "@/lib/db";
+import { query, getPool } from "@/lib/core/db";
 
 // --- GET /api/agent-skills?agent_id=... ---
 // Returns all skills equipped by an agent

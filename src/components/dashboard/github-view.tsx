@@ -12,7 +12,7 @@ import {
   labelColor,
   timeAgo,
   formatFileSize,
-} from "@/lib/helpers";
+} from "@/lib/core/helpers";
 import type {
   Issue,
   PullRequest,

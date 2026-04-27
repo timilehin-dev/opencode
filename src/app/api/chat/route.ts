@@ -12,13 +12,13 @@
 
 import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
-import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyError } from "@/lib/agents";
+import { getAgent, getProvider, updateAgentStatus, recordTokenUsage, recordKeyError } from "@/lib/agent/agents";
 import { allTools, setCurrentAgentId, withAgentContext } from "@/lib/tools/index";
-import { getMemorySummary, saveMessage } from "@/lib/memory";
-import { logActivity, persistAgentStatus } from "@/lib/activity";
-import { sendProactiveNotification } from "@/lib/proactive-notifications";
-import { getInsightsForPrompt, recordLearning } from "@/lib/self-learning";
-import { query } from "@/lib/db";
+import { getMemorySummary, saveMessage } from "@/lib/memory/memory";
+import { logActivity, persistAgentStatus } from "@/lib/tasks/activity";
+import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
+import { getInsightsForPrompt, recordLearning } from "@/lib/memory/self-learning";
+import { query } from "@/lib/core/db";
 
 export const maxDuration = 300; // Vercel Pro supports up to 300s. Free model is slow (~30s TTFT), multi-step tool calling needs time.
 
@@ -162,9 +162,9 @@ export async function POST(req: Request) {
     // If it completes before the first LLM turn, the result is injected via prepareStep.
     // Otherwise, the model has the skill_list tool and can discover skills on its own.
     let skillRoutingBlock = "";
-    let skillRouteResult: Awaited<ReturnType<typeof import("@/lib/skill-router")["routeSkill"]>> | null = null;
+    let skillRouteResult: Awaited<ReturnType<typeof import("@/lib/skills/skill-router")["routeSkill"]>> | null = null;
     if (lastContent && lastContent.length > 10 && id === "general") {
-      import("@/lib/skill-router").then(m => m.routeSkill(lastContent, id)).then(result => {
+      import("@/lib/skills/skill-router").then(m => m.routeSkill(lastContent, id)).then(result => {
         skillRouteResult = result;
       }).catch(() => {});
     }

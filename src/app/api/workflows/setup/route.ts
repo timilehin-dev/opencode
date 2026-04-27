@@ -5,7 +5,7 @@
 // POST to create tables, GET to check status.
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 export async function POST() {
   try {

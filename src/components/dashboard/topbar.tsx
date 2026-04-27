@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Bell, X } from "@/components/icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 const NAV_ITEMS: { key: PageKey; label: string }[] = [

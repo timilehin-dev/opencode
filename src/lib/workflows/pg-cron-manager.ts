@@ -10,7 +10,7 @@
 //   workflow-{id}  → /api/cron/execute-workflow?workflowId=X
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // ---------------------------------------------------------------------------
 // Helpers

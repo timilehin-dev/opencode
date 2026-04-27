@@ -11,7 +11,7 @@ import {
   gGmailDeleteMessage,
   gGmailGetMessage,
   getAccessToken,
-} from "@/lib/google";
+} from "@/lib/integrations/google";
 
 // ---------------------------------------------------------------------------
 // Helper

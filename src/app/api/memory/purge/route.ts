@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { purgeAllConversations } from "@/lib/memory";
+import { purgeAllConversations } from "@/lib/memory/memory";
 
 export async function POST() {
   try {

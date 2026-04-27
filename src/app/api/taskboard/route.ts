@@ -11,9 +11,9 @@ import {
   getTaskBoardSummary,
   deleteTask,
   TASK_BOARD_SCHEMA,
-} from "@/lib/taskboard";
-import { getAllAgents } from "@/lib/agents";
-import { query } from "@/lib/db";
+} from "@/lib/tasks/taskboard";
+import { getAllAgents } from "@/lib/agent/agents";
+import { query } from "@/lib/core/db";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });

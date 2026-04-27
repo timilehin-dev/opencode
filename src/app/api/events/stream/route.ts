@@ -7,15 +7,15 @@
 // Phase 3: Also streams task and delegation events.
 // ---------------------------------------------------------------------------
 
-import { getAllAgentStatuses } from "@/lib/agents";
-import { getRecentActivity, getAllPersistedStatuses, getDashboardMetrics } from "@/lib/activity";
-import { listTodos } from "@/lib/workspace";
-import { getRecentTasks } from "@/lib/task-queue";
-import { getRecentDelegations } from "@/lib/delegations";
-import { AGENT_MAP, getAgentMeta } from "@/lib/agent-map";
-import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/activity";
-import type { AgentTask } from "@/lib/task-queue";
-import type { Delegation } from "@/lib/delegations";
+import { getAllAgentStatuses } from "@/lib/agent/agents";
+import { getRecentActivity, getAllPersistedStatuses, getDashboardMetrics } from "@/lib/tasks/activity";
+import { listTodos } from "@/lib/workspace/workspace";
+import { getRecentTasks } from "@/lib/tasks/task-queue";
+import { getRecentDelegations } from "@/lib/tasks/delegations";
+import { AGENT_MAP, getAgentMeta } from "@/lib/agent/agent-map";
+import type { ActivityEvent, AgentStatusDB, DashboardMetrics } from "@/lib/tasks/activity";
+import type { AgentTask } from "@/lib/tasks/task-queue";
+import type { Delegation } from "@/lib/tasks/delegations";
 
 // Vercel Hobby (free) tier limits function execution to 60s.
 // The client hook (use-dashboard-stream.ts) auto-reconnects on disconnect,

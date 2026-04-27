@@ -7,8 +7,8 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAllAgents } from "@/lib/agents";
-import { sendA2AMessage, getAgentA2AMessages } from "@/lib/a2a";
+import { getAllAgents } from "@/lib/agent/agents";
+import { sendA2AMessage, getAgentA2AMessages } from "@/lib/communication/a2a";
 
 export async function POST(req: NextRequest) {
   try {

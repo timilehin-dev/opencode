@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest } from "next/server";
-import { executeWorkflow } from "@/lib/workflow-engine";
+import { executeWorkflow } from "@/lib/workflows/workflow-engine";
 
 export async function POST(
   req: NextRequest,

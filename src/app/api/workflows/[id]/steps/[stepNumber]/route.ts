@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest } from "next/server";
-import { runSingleStep, getWorkflowStatus } from "@/lib/workflow-engine";
+import { runSingleStep, getWorkflowStatus } from "@/lib/workflows/workflow-engine";
 
 export async function GET(
   _req: NextRequest,

@@ -17,7 +17,7 @@ export const a2aSendMessageTool = tool({
     msg_type: z.enum(["request", "context_share", "handoff", "collaboration"]).optional().describe("Type of message (default: request)"),
   })),
   execute: safeJson(async ({ to_agent, topic, content, priority, msg_type }) => {
-    const { sendA2AMessage } = await import("@/lib/a2a");
+    const { sendA2AMessage } = await import("@/lib/communication/a2a");
     const msg = await sendA2AMessage({
       fromAgent: getCurrentAgentId(), // Dynamically resolved from chat route / executor
       toAgent: to_agent,
@@ -42,7 +42,7 @@ export const a2aBroadcastTool = tool({
     priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Priority (default: normal)"),
   })),
   execute: safeJson(async ({ topic, content, targets, priority }) => {
-    const { broadcastA2AMessage } = await import("@/lib/a2a");
+    const { broadcastA2AMessage } = await import("@/lib/communication/a2a");
     const result = await broadcastA2AMessage({
       fromAgent: getCurrentAgentId(), // Dynamically resolved from chat route / executor
       targets,
@@ -62,7 +62,7 @@ export const a2aCheckInboxTool = tool({
     mark_as_read: z.boolean().optional().describe("Automatically mark returned messages as read (default: true)"),
   })),
   execute: safeJson(async ({ agent_id, limit, mark_as_read }) => {
-    const { getAgentInbox, markMessagesRead } = await import("@/lib/a2a");
+    const { getAgentInbox, markMessagesRead } = await import("@/lib/communication/a2a");
     const checkAgent = agent_id || getCurrentAgentId(); // Default to current agent if not specified
     const messages = await getAgentInbox(checkAgent, limit || 20);
     
@@ -98,7 +98,7 @@ export const a2aShareContextTool = tool({
     project_id: z.number().optional().describe("Project ID if this context belongs to a project"),
   })),
   execute: safeJson(async ({ context_key, content, structured_data, tags, access_agents, scope, project_id }) => {
-    const { shareContext } = await import("@/lib/a2a");
+    const { shareContext } = await import("@/lib/communication/a2a");
     const ctxId = await shareContext({
       contextKey: context_key,
       agentId: getCurrentAgentId(), // Dynamically resolved from chat route / executor
@@ -126,7 +126,7 @@ export const a2aQueryContextTool = tool({
     limit: z.number().optional().describe("Max results (default: 10)"),
   })),
   execute: safeJson(async ({ context_key, tags, scope, project_id, limit }) => {
-    const { queryContext } = await import("@/lib/a2a");
+    const { queryContext } = await import("@/lib/communication/a2a");
     const results = await queryContext({
       contextKey: context_key,
       scope,
@@ -157,7 +157,7 @@ export const a2aCollaborateTool = tool({
     project_id: z.number().optional().describe("Link channel to a project"),
   })),
   execute: safeJson(async ({ channel_name, message, members, channel_type, project_id }) => {
-    const { getOrCreateChannel, postToChannel } = await import("@/lib/a2a");
+    const { getOrCreateChannel, postToChannel } = await import("@/lib/communication/a2a");
     const allMembers = members || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== getCurrentAgentId());
     const channelId = await getOrCreateChannel({
       name: channel_name,
@@ -174,7 +174,7 @@ export const a2aCollaborateTool = tool({
     });
 
     // Also broadcast to members' inboxes
-    const { broadcastA2AMessage } = await import("@/lib/a2a");
+    const { broadcastA2AMessage } = await import("@/lib/communication/a2a");
     await broadcastA2AMessage({
       fromAgent: getCurrentAgentId(),
       targets: allMembers,

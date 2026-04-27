@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { getNotificationsSince } from "@/lib/proactive-notifications";
+import { getNotificationsSince } from "@/lib/notifications/proactive-notifications";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { listTodos, updateTodo } from "@/lib/workspace";
+import { listTodos, updateTodo } from "@/lib/workspace/workspace";
 
 export async function GET() {
   try {

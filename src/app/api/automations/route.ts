@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 export const maxDuration = 60; // Vercel Hobby plan max
 
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
         if (autoResult.rows.length === 0) return err("Automation not found", 404);
 
         const auto = autoResult.rows[0];
-        const { createTask } = await import("@/lib/task-queue");
+        const { createTask } = await import("@/lib/tasks/task-queue");
         const actionConfig = auto.action_config || {};
         const agentId = actionConfig.agent_id || auto.agent_id || "general";
         const taskDescription = actionConfig.task || auto.description || auto.name;

@@ -16,14 +16,14 @@ import {
   MonitorUp,
 } from "@/components/icons";
 import { useNotifications } from "@/context/notification-context";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import {
   TYPE_STYLES,
   PRIORITY_CONFIG,
   formatNotifTime,
   groupByTime,
-} from "@/lib/notifications";
-import type { NotificationType, AppNotification } from "@/lib/notifications";
+} from "@/lib/notifications/notifications";
+import type { NotificationType, AppNotification } from "@/lib/notifications/notifications";
 
 function NotifTypeIcon({ type }: { type: NotificationType }) {
   const iconProps = { className: "w-4 h-4" };

@@ -102,7 +102,7 @@ export const workflowCancelTool = tool({
     });
     // Clean up pg_cron job if it exists
     try {
-      const { unregisterCron } = await import("@/lib/pg-cron-manager");
+      const { unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
       const jobName = `workflow-${workflow_id.replace(/[^a-zA-Z0-9-]/g, "")}`;
       await unregisterCron(jobName);
     } catch { /* ignore */ }
@@ -124,7 +124,7 @@ export const workflowScheduleTool = tool({
   execute: safeJson(async ({ query, agent_id, schedule_interval_minutes }) => {
     try {
       // 1. Plan and create the workflow
-      const { planWorkflow } = await import("@/lib/workflow-engine");
+      const { planWorkflow } = await import("@/lib/workflows/workflow-engine");
       const planResult = await planWorkflow(query, agent_id || "general");
 
       let cronResult = null;
@@ -133,10 +133,10 @@ export const workflowScheduleTool = tool({
       // 2. If schedule is requested, register pg_cron job
       if (schedule_interval_minutes && schedule_interval_minutes > 0 && workflowId) {
         // Store schedule_interval in the workflow
-        const { query: dbQuery } = await import("@/lib/db");
+        const { query: dbQuery } = await import("@/lib/core/db");
         await dbQuery("UPDATE agent_workflows SET schedule_interval = $1 WHERE id = $2", [schedule_interval_minutes, workflowId]);
         // Register the pg_cron job
-        const { registerWorkflowCron } = await import("@/lib/pg-cron-manager");
+        const { registerWorkflowCron } = await import("@/lib/workflows/pg-cron-manager");
         cronResult = await registerWorkflowCron(workflowId, schedule_interval_minutes);
       }
 
@@ -163,8 +163,8 @@ export const workflowUpdateScheduleTool = tool({
   })),
   execute: safeJson(async ({ workflow_id, schedule_interval_minutes }) => {
     try {
-      const { query } = await import("@/lib/db");
-      const { registerWorkflowCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+      const { query } = await import("@/lib/core/db");
+      const { registerWorkflowCron, unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
       const jobName = `workflow-${workflow_id.replace(/[^a-zA-Z0-9-]/g, "")}`;
       const interval = schedule_interval_minutes === null ? 0 : schedule_interval_minutes;
 

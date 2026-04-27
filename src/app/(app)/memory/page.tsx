@@ -23,8 +23,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { timeAgo } from "@/lib/helpers";
+import { cn } from "@/lib/core/utils";
+import { timeAgo } from "@/lib/core/helpers";
 
 // ---------------------------------------------------------------------------
 // Types

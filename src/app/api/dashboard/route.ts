@@ -6,16 +6,16 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { getAllAgentStatuses } from "@/lib/agents";
+import { getAllAgentStatuses } from "@/lib/agent/agents";
 import {
   getRecentActivity,
   getAllPersistedStatuses,
   getDashboardMetrics,
-} from "@/lib/activity";
-import { listTodos } from "@/lib/workspace";
-import { getRecentTasks } from "@/lib/task-queue";
-import { getRecentDelegations } from "@/lib/delegations";
-import { AGENT_MAP, getAgentMeta } from "@/lib/agent-map";
+} from "@/lib/tasks/activity";
+import { listTodos } from "@/lib/workspace/workspace";
+import { getRecentTasks } from "@/lib/tasks/task-queue";
+import { getRecentDelegations } from "@/lib/tasks/delegations";
+import { AGENT_MAP, getAgentMeta } from "@/lib/agent/agent-map";
 
 export async function GET() {
   try {

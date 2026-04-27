@@ -81,7 +81,7 @@ For actual task delegation, use schedule_agent_task or query_agent instead.`,
     });
 
     // Send A2A message
-    const { sendA2AMessage } = await import("@/lib/a2a");
+    const { sendA2AMessage } = await import("@/lib/communication/a2a");
     const collabNote = propose_collaboration ? "\n\n**This is a collaboration proposal — please respond if interested.**" : "";
     const msg = await sendA2AMessage({
       fromAgent,
@@ -146,7 +146,7 @@ The target agent receives full context (problem + what you tried + what you need
     });
 
     // Send A2A message with structured help request
-    const { sendA2AMessage } = await import("@/lib/a2a");
+    const { sendA2AMessage } = await import("@/lib/communication/a2a");
     const contextSection = context_data ? `\n\n**Additional Context:**\n\`\`\`\n${context_data.slice(0, 2000)}\n\`\`\`` : "";
     const msg = await sendA2AMessage({
       fromAgent: effectiveFrom,
@@ -206,7 +206,7 @@ This creates a tracked offer that the target agent can accept or decline.`,
     });
 
     // Send A2A message
-    const { sendA2AMessage } = await import("@/lib/a2a");
+    const { sendA2AMessage } = await import("@/lib/communication/a2a");
     const expertiseSection = my_expertise ? `\n**My Relevant Expertise:** ${my_expertise}` : "";
     const msg = await sendA2AMessage({
       fromAgent,
@@ -381,7 +381,7 @@ The General agent will assess the escalation and either: take action directly, d
     });
 
     // Send A2A message to General with full escalation context
-    const { sendA2AMessage } = await import("@/lib/a2a");
+    const { sendA2AMessage } = await import("@/lib/communication/a2a");
     const triedSection = what_tried ? `\n**What ${fromAgent} Already Tried:** ${what_tried}` : "";
     const recommendationSection = recommended_action ? `\n**Recommended Action:** ${recommended_action}` : "";
     const msg = await sendA2AMessage({
@@ -474,7 +474,7 @@ Use this when:
     );
 
     // Send A2A response back to the initiator
-    const { sendA2AMessage } = await import("@/lib/a2a");
+    const { sendA2AMessage } = await import("@/lib/communication/a2a");
     const counterSection = counter_proposal ? `\n\n**Alternative Proposal:** ${counter_proposal}` : "";
     await sendA2AMessage({
       fromAgent: myAgent,

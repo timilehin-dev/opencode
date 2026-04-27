@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getRepo, listPullRequests, listCommits } from "@/lib/github";
-import { gGmailProfile, gGmailFetchEmails, gCalListCalendars, gCalListEvents } from "@/lib/google";
-import { listProjects } from "@/lib/vercel";
+import { getRepo, listPullRequests, listCommits } from "@/lib/integrations/github";
+import { gGmailProfile, gGmailFetchEmails, gCalListCalendars, gCalListEvents } from "@/lib/integrations/google";
+import { listProjects } from "@/lib/integrations/vercel";
 
 export async function GET() {
   // ---------------------------------------------------------------------------

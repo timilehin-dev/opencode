@@ -5,7 +5,7 @@ import {
   gCalCreateEvent,
   gCalDeleteEvent,
   getAccessToken,
-} from "@/lib/google";
+} from "@/lib/integrations/google";
 
 // ---------------------------------------------------------------------------
 // Helper

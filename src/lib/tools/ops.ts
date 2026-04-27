@@ -185,7 +185,7 @@ export const opsAgentStatsTool = tool({
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
     // Dynamically import to avoid circular dependency
-    const { getAllAgentStatuses } = await import("../agents");
+    const { getAllAgentStatuses } = await import("@/lib/agent/agents");
     const statuses = getAllAgentStatuses();
 
     return {

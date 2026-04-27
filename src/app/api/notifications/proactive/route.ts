@@ -12,7 +12,7 @@ import {
   markNotificationRead,
   markAllRead,
   getNotificationCount,
-} from "@/lib/proactive-notifications";
+} from "@/lib/notifications/proactive-notifications";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

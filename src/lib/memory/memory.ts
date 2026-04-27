@@ -13,7 +13,7 @@
 // Legacy categories (general, preference, context, instruction) still work.
 // ---------------------------------------------------------------------------
 
-import { getSupabase } from "./supabase";
+import { getSupabase } from "@/lib/schema/supabase";
 
 // ---------------------------------------------------------------------------
 // Types

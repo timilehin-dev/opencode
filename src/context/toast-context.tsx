@@ -8,7 +8,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 
 // ---------------------------------------------------------------------------

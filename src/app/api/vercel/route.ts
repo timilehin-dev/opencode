@@ -5,7 +5,7 @@ import {
   listDeployments,
   listDomains,
   listEnvVars,
-} from "@/lib/vercel";
+} from "@/lib/integrations/vercel";
 
 // ---------------------------------------------------------------------------
 // Helper

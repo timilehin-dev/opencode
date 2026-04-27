@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
     // LIST action — return evolution records with skill names
     if (action === "list") {
-      const { query } = await import("@/lib/db");
+      const { query } = await import("@/lib/core/db");
       const limit = parseInt(limitParam || "50", 10);
       const sql = `
         SELECT e.*, s.name as skill_name, s.display_name
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     // EVOLVE action — delegate to the skill evolution engine
     if (!skill_id) return err("skill_id required", 400);
 
-    const { evolveSkill } = await import("@/lib/skill-evolution-engine");
+    const { evolveSkill } = await import("@/lib/skills/skill-evolution-engine");
     const result = await evolveSkill(skill_id, agent_id || "system");
 
     return ok({

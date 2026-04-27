@@ -19,8 +19,8 @@ import {
 } from "@/components/icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { timeAgo } from "@/lib/helpers";
+import { cn } from "@/lib/core/utils";
+import { timeAgo } from "@/lib/core/helpers";
 import type { ServiceKey, ServiceStatus } from "@/lib/types";
 import type { PageKey } from "@/components/dashboard/sidebar";
 

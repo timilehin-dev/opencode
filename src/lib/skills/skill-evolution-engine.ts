@@ -9,8 +9,8 @@
 
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { getPool } from "@/lib/db";
-import { logger } from "@/lib/logger";
+import { getPool } from "@/lib/core/db";
+import { logger } from "@/lib/core/logger";
 
 // ---------------------------------------------------------------------------
 // Types

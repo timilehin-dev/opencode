@@ -11,8 +11,8 @@ function ok(data: unknown) {
 export async function GET() {
   try {
     // Fully dynamic imports to avoid client bundle issues
-    const { getKeyRotationStats, getAllKeyHealth } = await import("@/lib/agents");
-    const { getQuickStats } = await import("@/lib/key-manager");
+    const { getKeyRotationStats, getAllKeyHealth } = await import("@/lib/agent/agents");
+    const { getQuickStats } = await import("@/lib/settings/key-manager");
 
     const stats = getKeyRotationStats();
 

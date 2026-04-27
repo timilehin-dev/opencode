@@ -4,7 +4,7 @@ import {
   gDriveCreateFolder,
   gDriveCreateFile,
   getAccessToken,
-} from "@/lib/google";
+} from "@/lib/integrations/google";
 
 // ---------------------------------------------------------------------------
 // Helper

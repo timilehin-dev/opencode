@@ -7,8 +7,8 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest } from "next/server";
-import { getWorkflowStatus } from "@/lib/workflow-engine";
-import { query } from "@/lib/db";
+import { getWorkflowStatus } from "@/lib/workflows/workflow-engine";
+import { query } from "@/lib/core/db";
 
 export async function GET(
   _req: NextRequest,

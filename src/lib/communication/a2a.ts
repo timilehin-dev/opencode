@@ -106,7 +106,7 @@ export interface A2ATask {
 // Database helpers — use shared pool from @/lib/db
 // ---------------------------------------------------------------------------
 
-import { query as dbQuery } from "@/lib/db";
+import { query as dbQuery } from "@/lib/core/db";
 
 async function queryDb<T>(sql: string, params: unknown[] = []): Promise<T[]> {
   try {

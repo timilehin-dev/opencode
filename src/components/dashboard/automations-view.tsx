@@ -25,8 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { timeAgo } from "@/lib/helpers";
+import { cn } from "@/lib/core/utils";
+import { timeAgo } from "@/lib/core/helpers";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 // ---------------------------------------------------------------------------

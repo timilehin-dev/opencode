@@ -29,7 +29,7 @@ export const routineCreateTool = tool({
     );
     if (result.rows.length > 0) {
       // Auto-register pg_cron job for this routine
-      const { registerRoutineCron } = await import("@/lib/pg-cron-manager");
+      const { registerRoutineCron } = await import("@/lib/workflows/pg-cron-manager");
       const cronResult = await registerRoutineCron(result.rows[0].id, interval);
       return {
         success: true,
@@ -101,7 +101,7 @@ export const routineUpdateTool = tool({
 
     // Auto-sync pg_cron job if interval or active status changed
     if (interval_minutes || is_active !== undefined) {
-      const { registerRoutineCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+      const { registerRoutineCron, unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
       if (is_active === false) {
         await unregisterCron(`routine-${routine_id}`);
       } else {
@@ -123,7 +123,7 @@ export const routineDeleteTool = tool({
   })),
   execute: safeJson(async ({ routine_id }) => {
     // Remove pg_cron job first
-    const { unregisterCron } = await import("@/lib/pg-cron-manager");
+    const { unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
     await unregisterCron(`routine-${routine_id}`);
     await query("DELETE FROM agent_routines WHERE id = $1", [routine_id]);
     return { success: true, deleted: true };
@@ -143,7 +143,7 @@ export const routineToggleTool = tool({
     );
     if (result.rows.length > 0) {
       // Sync pg_cron job
-      const { registerRoutineCron, unregisterCron } = await import("@/lib/pg-cron-manager");
+      const { registerRoutineCron, unregisterCron } = await import("@/lib/workflows/pg-cron-manager");
       if (is_active) {
         await registerRoutineCron(routine_id, Number(result.rows[0].interval_minutes));
       } else {
@@ -163,7 +163,7 @@ export const cronSyncTool = tool({
   description: "Master synchronization tool — syncs ALL pg_cron jobs (routines, task board tasks, workflows) with the database. Ensures every active scheduled item has a pg_cron job registered, and removes jobs for completed/inactive items. Use this after bulk changes or to fix scheduling issues.",
   inputSchema: zodSchema(z.object({})),
   execute: safeJson(async () => {
-    const { syncAllCronJobs, listKlawCronJobs } = await import("@/lib/pg-cron-manager");
+    const { syncAllCronJobs, listKlawCronJobs } = await import("@/lib/workflows/pg-cron-manager");
     const syncResult = await syncAllCronJobs();
     const jobs = await listKlawCronJobs();
     return {

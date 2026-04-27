@@ -12,13 +12,13 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { getAgent, getProvider, getAllAgents } from "@/lib/agents";
+import { getAgent, getProvider, getAllAgents } from "@/lib/agent/agents";
 import { allTools, withAgentContext } from "@/lib/tools/index";
-import { logActivity, persistAgentStatus } from "@/lib/activity";
-import { AGENT_ROUTINES_SCHEMA } from "@/lib/agent-routines";
-import { sendProactiveNotification } from "@/lib/proactive-notifications";
-import { query } from "@/lib/db";
-import { withErrorHandler } from "@/lib/api-errors";
+import { logActivity, persistAgentStatus } from "@/lib/tasks/activity";
+import { AGENT_ROUTINES_SCHEMA } from "@/lib/agent/agent-routines";
+import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
+import { query } from "@/lib/core/db";
+import { withErrorHandler } from "@/lib/core/api-errors";
 
 export const maxDuration = 300; // 5 min for routine execution
 

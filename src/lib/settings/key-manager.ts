@@ -96,7 +96,7 @@ async function hashKey(key: string): Promise<string> {
 
 async function getSupabase() {
   // Dynamic import to avoid circular dependency and client bundling
-  const { getSupabase: getClient } = await import("./supabase");
+  const { getSupabase: getClient } = await import("@/lib/schema/supabase");
   return getClient();
 }
 

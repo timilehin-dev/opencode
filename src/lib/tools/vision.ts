@@ -62,7 +62,7 @@ export const visionDownloadAnalyzeTool = tool({
     prompt: z.string().optional().describe("Optional: specific question about the file (e.g., 'What is the total amount?', 'Summarize the key points')"),
   })),
   execute: safeJson(async ({ fileId, prompt }) => {
-    const token = await (await import("../google")).getAccessToken();
+    const token = await (await import("@/lib/integrations/google")).getAccessToken();
 
     // Step 1: Get file metadata
     const metaRes = await fetch(

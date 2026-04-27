@@ -26,7 +26,7 @@ import {
 } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/dashboard/notification-panel";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import type { ServiceKey, ServiceStatus } from "@/lib/types";
 
 export type PageKey =

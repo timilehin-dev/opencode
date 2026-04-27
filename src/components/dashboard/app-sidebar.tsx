@@ -25,7 +25,7 @@ import {
 } from "@/components/icons";
 import { Settings as SettingsIcon, BarChart3, ClipboardList, Clock, Lightbulb, Sparkles, TrendingUp } from "lucide-react";
 import { NotificationBell } from "@/components/dashboard/notification-panel";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Bell } from "lucide-react";
 
 // ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { tool, zodSchema, z, getCurrentAgentId } from './shared';
-import { query } from '@/lib/db';
+import { query } from '@/lib/core/db';
 
 // ─── Reflect on Performance ──────────────────────────────────────────────────
 

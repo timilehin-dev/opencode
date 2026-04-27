@@ -8,13 +8,13 @@ import {
   getAgentStatus,
   getAllAgentStatuses,
   updateAgentStatus,
-} from "@/lib/agents";
+} from "@/lib/agent/agents";
 import { allTools } from "@/lib/tools/index";
 import {
   sendA2AMessage,
   getAgentA2AMessages,
-} from "@/lib/a2a";
-import { createTask, TaskQueueError } from "@/lib/task-queue";
+} from "@/lib/communication/a2a";
+import { createTask, TaskQueueError } from "@/lib/tasks/task-queue";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });

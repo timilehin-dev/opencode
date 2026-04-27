@@ -274,7 +274,7 @@ export const createPdfReportTool = tool({
       const { join } = await import("path");
       const { writeFileSync, createWriteStream, readFileSync } = await import("fs");
       const { tmpdir } = await import("os");
-      const { convertLatexToUnicode } = await import("@/lib/latex-symbols");
+      const { convertLatexToUnicode } = await import("@/lib/core/latex-symbols");
 
       const cleanedContent = convertLatexToUnicode(content);
       const safeName = (filename || title)
@@ -1496,7 +1496,7 @@ export const createPdfReportTool = tool({
 
       const basename = filePath.split("/").pop() || "report.pdf";
       try {
-        const { cacheFile } = await import("@/lib/file-cache");
+        const { cacheFile } = await import("@/lib/workspace/file-cache");
         await cacheFile(basename, fileBuffer, "application/pdf", basename);
       } catch {
         // best-effort caching
@@ -1640,7 +1640,7 @@ export const createDocxDocumentTool = tool({
     // Packer — handle both named and default export shapes
     const Packer = (docx as unknown as { Packer: { toBuffer: (doc: unknown) => Promise<Buffer> } }).Packer;
 
-    const { convertLatexToUnicode } = await import("@/lib/latex-symbols");
+    const { convertLatexToUnicode } = await import("@/lib/core/latex-symbols");
 
     // ─── Constants & helpers ────────────────────────────────────────────
     const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -2795,7 +2795,7 @@ export const createDocxDocumentTool = tool({
     const fileBase64 = Buffer.from(docBuffer).toString("base64");
 
     try {
-      const { cacheFile } = await import("@/lib/file-cache");
+      const { cacheFile } = await import("@/lib/workspace/file-cache");
       await cacheFile(
         fileBaseName,
         Buffer.from(docBuffer),
@@ -3604,7 +3604,7 @@ export const createXlsxSpreadsheetTool = tool({
     const fileBaseName = `${safeName}.xlsx`;
 
     try {
-      const { cacheFile } = await import("@/lib/file-cache");
+      const { cacheFile } = await import("@/lib/workspace/file-cache");
       await cacheFile(fileBaseName, Buffer.from(buffer), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileBaseName);
     } catch {
       // best-effort
@@ -4759,7 +4759,7 @@ NEW FEATURES:
     const fileBase64 = buffer.toString("base64");
 
     try {
-      const { cacheFile } = await import("@/lib/file-cache");
+      const { cacheFile } = await import("@/lib/workspace/file-cache");
       await cacheFile(basename, buffer, "application/vnd.openxmlformats-officedocument.presentationml.presentation", basename);
     } catch { /* best-effort */ }
 
@@ -4991,7 +4991,7 @@ export const generateChartTool = tool({
 
     // Cache for download
     try {
-      const { cacheFile } = await import("@/lib/file-cache");
+      const { cacheFile } = await import("@/lib/workspace/file-cache");
       await cacheFile(basename, fileBuffer, mimeType, basename);
     } catch {
       // best-effort

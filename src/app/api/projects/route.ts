@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // --- GET /api/projects?status=...&agent_id=... ---
 export async function GET(req: Request) {

@@ -22,8 +22,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { timeAgo } from "@/lib/helpers";
+import { cn } from "@/lib/core/utils";
+import { timeAgo } from "@/lib/core/helpers";
 
 // ---------------------------------------------------------------------------
 // Types for the API response

@@ -5,9 +5,9 @@
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
-import { createTask } from "@/lib/task-queue";
+import { createTask } from "@/lib/tasks/task-queue";
 
 // ---------------------------------------------------------------------------
 // Types

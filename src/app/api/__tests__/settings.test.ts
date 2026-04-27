@@ -22,7 +22,7 @@ const { supabaseMock } = vi.hoisted(() => {
   return { supabaseMock };
 });
 
-vi.mock("@/lib/supabase", () => ({
+vi.mock("@/lib/schema/supabase", () => ({
   getSupabase: () => {
     if (supabaseMock._throw) throw supabaseMock._throw;
     return supabaseMock._client;

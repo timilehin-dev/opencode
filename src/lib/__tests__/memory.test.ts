@@ -30,7 +30,7 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 
 // Mock getSupabase to return null so tests exercise the localStorage path only
-vi.mock("@/lib/supabase", () => ({
+vi.mock("@/lib/schema/supabase", () => ({
   getSupabase: vi.fn(() => null),
 }));
 
@@ -40,7 +40,7 @@ const {
   getConversationHistory,
   deleteSession,
   purgeAllConversations,
-} = await import("@/lib/memory");
+} = await import("@/lib/memory/memory");
 
 describe("memory", () => {
   beforeEach(() => {

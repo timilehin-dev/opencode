@@ -6,7 +6,7 @@ import {
   gSheetsAddSheet,
   gSheetsAppendValues,
   getAccessToken,
-} from "@/lib/google";
+} from "@/lib/integrations/google";
 
 // ---------------------------------------------------------------------------
 // Helper

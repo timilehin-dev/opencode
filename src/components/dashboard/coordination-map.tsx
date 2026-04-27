@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import type { DelegationView } from "@/hooks/use-dashboard-stream";
 
 const AGENT_META: Record<string, { emoji: string; bg: string; name: string }> = {

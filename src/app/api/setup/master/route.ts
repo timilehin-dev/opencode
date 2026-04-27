@@ -9,11 +9,11 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 import {
   UNIFIED_SETUP_SQL,
   UNIFIED_TABLE_LIST,
-} from "@/lib/unified-schema";
+} from "@/lib/schema/unified-schema";
 
 // ---------------------------------------------------------------------------
 // GET — Report current database state

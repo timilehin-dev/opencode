@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

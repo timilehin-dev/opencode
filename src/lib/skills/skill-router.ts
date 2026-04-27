@@ -13,8 +13,8 @@
 // Phase 7C: Refactored to use shared connection pool + structured logger.
 // ---------------------------------------------------------------------------
 
-import { getPool } from "@/lib/db";
-import { logger } from "@/lib/logger";
+import { getPool } from "@/lib/core/db";
+import { logger } from "@/lib/core/logger";
 
 // ---------------------------------------------------------------------------
 // In-memory TTL cache for skills list (avoids DB query on every chat message)
@@ -192,7 +192,7 @@ async function runVectorSearch(
   limit: number
 ): Promise<Array<{ id: string; score: number }>> {
   try {
-    const { generateEmbedding, embeddingToPgVector } = await import("@/lib/embeddings");
+    const { generateEmbedding, embeddingToPgVector } = await import("@/lib/memory/embeddings");
 
     // Check cache first
     let embedding = queryEmbeddingCache.get(query);

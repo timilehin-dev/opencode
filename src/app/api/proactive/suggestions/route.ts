@@ -14,10 +14,10 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
-import { createTask } from "@/lib/task-queue";
-import { logActivity } from "@/lib/activity";
-import { getAllAgentStatuses, updateAgentStatus } from "@/lib/agents";
+import { query } from "@/lib/core/db";
+import { createTask } from "@/lib/tasks/task-queue";
+import { logActivity } from "@/lib/tasks/activity";
+import { getAllAgentStatuses, updateAgentStatus } from "@/lib/agent/agents";
 
 // Schema: proactive_suggestions table
 const ENSURE_TABLE_SQL = `

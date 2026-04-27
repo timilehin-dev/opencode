@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Plus, Check, Loader2 } from "lucide-react";
 import type { AgentTaskView } from "@/hooks/use-dashboard-stream";
-import { AGENT_LIST } from "@/lib/agent-map";
+import { AGENT_LIST } from "@/lib/agent/agent-map";
 
 interface DashboardTasksProps {
   tasks: AgentTaskView[];

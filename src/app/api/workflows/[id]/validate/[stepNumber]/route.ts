@@ -7,10 +7,10 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest } from "next/server";
-import { validateStep } from "@/lib/workflow-engine";
-import { getPool } from "@/lib/db";
-import { withErrorHandler, ApiError } from "@/lib/api-errors";
-import { logger } from "@/lib/logger";
+import { validateStep } from "@/lib/workflows/workflow-engine";
+import { getPool } from "@/lib/core/db";
+import { withErrorHandler, ApiError } from "@/lib/core/api-errors";
+import { logger } from "@/lib/core/logger";
 
 export async function POST(
   req: NextRequest,

@@ -7,7 +7,7 @@ import {
   deleteMemory,
   getRecentConversations,
   clearConversationHistory,
-} from "@/lib/memory";
+} from "@/lib/memory/memory";
 
 // GET — List memories (optionally filtered by ?agentId=x or ?all=true&q=search) or conversation history (?type=conversations)
 export async function GET(req: Request) {

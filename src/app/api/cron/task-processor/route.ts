@@ -12,12 +12,12 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { evaluateAutomations } from "@/lib/automation-engine";
-import { getAgent, getProvider, getAllAgents } from "@/lib/agents";
+import { evaluateAutomations } from "@/lib/workflows/automation-engine";
+import { getAgent, getProvider, getAllAgents } from "@/lib/agent/agents";
 import { allTools, withAgentContext } from "@/lib/tools/index";
-import { logActivity, persistAgentStatus } from "@/lib/activity";
-import { sendProactiveNotification } from "@/lib/proactive-notifications";
-import { query, withTransaction } from "@/lib/db";
+import { logActivity, persistAgentStatus } from "@/lib/tasks/activity";
+import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
+import { query, withTransaction } from "@/lib/core/db";
 
 // Vercel Hobby (free) has a 10s timeout — maxDuration is best-effort.
 // pg_cron fires every 5 min, so even with timeouts, tasks progress over time.

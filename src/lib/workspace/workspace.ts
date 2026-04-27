@@ -4,7 +4,7 @@
 // Pattern matches existing A2A task handling in tools.ts
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // ===========================================================================
 // REMINDERS

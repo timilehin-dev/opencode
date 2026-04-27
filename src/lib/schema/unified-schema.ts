@@ -15,29 +15,29 @@
 
 // Core tables (analytics, conversations, automations, user_preferences, agent_memory,
 // reminders, todos, contacts) + their indexes
-export { SCHEMA_SQL } from "@/lib/supabase";
+export { SCHEMA_SQL } from "@/lib/schema/supabase";
 
 // Phase 2 — Agent activity log + persistent agent status
-export { PHASE2_SCHEMA_SQL } from "@/lib/supabase";
+export { PHASE2_SCHEMA_SQL } from "@/lib/schema/supabase";
 
 // Phase 3 — Agent task queue + delegation tracking
-export { PHASE3_SCHEMA_SQL } from "@/lib/supabase";
+export { PHASE3_SCHEMA_SQL } from "@/lib/schema/supabase";
 
 // Key usage tracking (smart API key rotation)
-export { KEY_USAGE_SCHEMA_SQL } from "@/lib/supabase";
+export { KEY_USAGE_SCHEMA_SQL } from "@/lib/schema/supabase";
 
 // DEPRECATED: Workspace tables — duplicate of SCHEMA_SQL. Use SCHEMA_SQL instead.
-export { WORKSPACE_SCHEMA_SQL } from "@/lib/supabase";
+export { WORKSPACE_SCHEMA_SQL } from "@/lib/schema/supabase";
 
 // RLS fix — enables Row Level Security + permissive policies on all Klawhub tables
-export { RLS_FIX_SQL } from "@/lib/supabase";
+export { RLS_FIX_SQL } from "@/lib/schema/supabase";
 
 // DEPRECATED: LEARNING_INSIGHTS_SCHEMA removed from self-learning.ts (duplicate).
 // Import PROACTIVE_NOTIFICATIONS_TABLE_SQL from supabase-setup.ts instead.
 
 // Phase 4 tables (proactive_notifications, learning_insights, a2a_messages, a2a_tasks,
 // task_board, agent_routines, agent_activity, agent_status, agent_memory migration)
-export { PHASE4_SCHEMA_SQL, PHASE4_TABLE_LIST } from "@/lib/supabase-setup";
+export { PHASE4_SCHEMA_SQL, PHASE4_TABLE_LIST } from "@/lib/schema/supabase-setup";
 
 // Individual Phase 4 sub-tables for selective setup
 export {
@@ -47,7 +47,7 @@ export {
   AGENT_ROUTINES_TABLE_SQL,
   PHASE2_TABLES_SQL as PHASE4_PHASE2_TABLES_SQL,
   MEMORY_MIGRATION_SQL,
-} from "@/lib/supabase-setup";
+} from "@/lib/schema/supabase-setup";
 
 // ---------------------------------------------------------------------------
 // Skills tables schema (Phase 6 — Self-Improvement)
@@ -232,7 +232,7 @@ CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow ON workflow_executio
 // ---------------------------------------------------------------------------
 
 // Re-export A2A_SCHEMA_SQL as A2A_EXTENDED_TABLES_SQL for backward compat
-export { A2A_SCHEMA_SQL as A2A_EXTENDED_TABLES_SQL } from "@/lib/a2a-schema";
+export { A2A_SCHEMA_SQL as A2A_EXTENDED_TABLES_SQL } from "@/lib/schema/a2a-schema";
 
 
 // ---------------------------------------------------------------------------
@@ -305,12 +305,12 @@ import {
   PHASE3_SCHEMA_SQL,
   KEY_USAGE_SCHEMA_SQL,
   RLS_FIX_SQL,
-} from "@/lib/supabase";
+} from "@/lib/schema/supabase";
 
-import { PHASE4_SCHEMA_SQL } from "@/lib/supabase-setup";
+import { PHASE4_SCHEMA_SQL } from "@/lib/schema/supabase-setup";
 
 // Import A2A schema from canonical source (a2a-schema.ts)
-import { A2A_SCHEMA_SQL } from "@/lib/a2a-schema";
+import { A2A_SCHEMA_SQL } from "@/lib/schema/a2a-schema";
 
 // Phase 5 SQL (projects, project_tasks, project_task_logs)
 // Extracted from /api/setup/phase5/route.ts

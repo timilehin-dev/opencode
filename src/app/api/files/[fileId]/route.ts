@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, stat } from "fs/promises";
 import { join, resolve, extname } from "path";
 import { tmpdir } from "os";
-import { getCachedFile } from "@/lib/file-cache";
+import { getCachedFile } from "@/lib/workspace/file-cache";
 
 // Map of content types for generated files
 const CONTENT_TYPES: Record<string, string> = {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/schema/supabase";
 
 // ---------------------------------------------------------------------------
 // GET /api/settings — Read settings from Supabase user_preferences or fallback

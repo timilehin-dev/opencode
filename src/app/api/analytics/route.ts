@@ -2,7 +2,7 @@
 // Returns aggregated real analytics data from Supabase tables.
 // Falls back gracefully to empty/zero data if Supabase is unavailable.
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/schema/supabase";
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();

@@ -12,7 +12,7 @@ import { z, tool, zodSchema, safeJson, query, getCurrentAgentId, withAgentContex
 
 async function callAgentDirectly(agentId: string, taskPrompt: string, _delegationDepth: number = 0): Promise<{ text: string; steps: number }> {
   const { generateText, stepCountIs } = await import("ai");
-  const { getAgent, getProvider } = await import("@/lib/agents");
+  const { getAgent, getProvider } = await import("@/lib/agent/agents");
   const { allTools, setCurrentAgentId } = await import("@/lib/tools");
 
   const agent = getAgent(agentId);
@@ -107,7 +107,7 @@ export const delegateToAgentTool = tool({
     let delegationId = -1;
     const fromAgent = getCurrentAgentId() || "general";
     try {
-      const { logDelegation } = await import("@/lib/delegations");
+      const { logDelegation } = await import("@/lib/tasks/delegations");
       delegationId = await logDelegation({
         initiator_agent: fromAgent,
         assigned_agent: agent_id,
@@ -138,7 +138,7 @@ export const delegateToAgentTool = tool({
 
       // Update delegation status to completed
       if (delegationId > 0) {
-        const { updateDelegation } = await import("@/lib/delegations");
+        const { updateDelegation } = await import("@/lib/tasks/delegations");
         updateDelegation(delegationId, {
           status: "completed",
           result: text.trim().slice(0, 2000),
@@ -164,7 +164,7 @@ export const delegateToAgentTool = tool({
 
       // Update delegation status to failed
       if (delegationId > 0) {
-        const { updateDelegation } = await import("@/lib/delegations");
+        const { updateDelegation } = await import("@/lib/tasks/delegations");
         updateDelegation(delegationId, {
           status: "failed",
           result: error instanceof Error ? error.message : "Delegation failed",
@@ -197,7 +197,7 @@ export const queryAgentTool = tool({
     // Log the delegation via Phase 3 delegations table (fire-and-forget)
     let delegationId = -1;
     try {
-      const { logDelegation } = await import("@/lib/delegations");
+      const { logDelegation } = await import("@/lib/tasks/delegations");
       delegationId = await logDelegation({
         initiator_agent: fromAgent,
         assigned_agent: agent_id,
@@ -228,7 +228,7 @@ export const queryAgentTool = tool({
 
       // Update delegation status to completed
       if (delegationId > 0) {
-        const { updateDelegation } = await import("@/lib/delegations");
+        const { updateDelegation } = await import("@/lib/tasks/delegations");
         updateDelegation(delegationId, {
           status: "completed",
           result: text.trim().slice(0, 2000),
@@ -243,7 +243,7 @@ export const queryAgentTool = tool({
 
       // Update delegation status to failed
       if (delegationId > 0) {
-        const { updateDelegation } = await import("@/lib/delegations");
+        const { updateDelegation } = await import("@/lib/tasks/delegations");
         updateDelegation(delegationId, {
           status: "failed",
           result: error instanceof Error ? error.message : "Query failed",
@@ -291,7 +291,7 @@ export const scheduleAgentTaskTool = tool({
       // Also send A2A notification to target agent if different from creator
       if (agent_id !== fromAgent) {
         try {
-          const { sendA2AMessage } = await import("@/lib/a2a");
+          const { sendA2AMessage } = await import("@/lib/communication/a2a");
           const recurringNote = recurring ? `\n**Recurring**: Every ${recurring}` : "";
           const chainNote = chain_to ? `\n**Chained to**: ${chain_to}` : "";
           await sendA2AMessage({
@@ -424,7 +424,7 @@ export const shareProgressTool = tool({
     const fromAgent = getCurrentAgentId() || "system";
 
     // Share via A2A context store for persistence
-    const { shareContext } = await import("@/lib/a2a");
+    const { shareContext } = await import("@/lib/communication/a2a");
     const contextKey = `progress-${fromAgent}-${Date.now()}`;
     const ctxId = await shareContext({
       contextKey,
@@ -436,7 +436,7 @@ export const shareProgressTool = tool({
     });
 
     // Broadcast to target agents
-    const { broadcastA2AMessage } = await import("@/lib/a2a");
+    const { broadcastA2AMessage } = await import("@/lib/communication/a2a");
     const allTargets = targets || ["general", "mail", "code", "data", "creative", "research", "ops"].filter(a => a !== fromAgent);
 
     const result = await broadcastA2AMessage({
@@ -469,7 +469,7 @@ export const getTeamProgressTool = tool({
     limit: z.number().optional().describe("Max updates to return (default: 20)"),
   })),
   execute: safeJson(async ({ from_agent, limit }) => {
-    const { queryContext } = await import("@/lib/a2a");
+    const { queryContext } = await import("@/lib/communication/a2a");
     const results = await queryContext({
       tags: ["progress"],
       agentId: from_agent,

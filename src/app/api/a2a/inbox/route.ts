@@ -8,7 +8,7 @@
 // and receive new unread messages as they arrive (long-poll every 5s).
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

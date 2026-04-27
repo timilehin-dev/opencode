@@ -4,7 +4,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 // ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ export const academicSearchTool = tool({
         }
         case "paper_detail": {
           if (!paper_id) return { success: false, error: "Please provide a paper_id (DOI, ArXiv ID, or Semantic Scholar ID)." };
-          const { getPaperDetails } = await import("@/lib/api-clients");
+          const { getPaperDetails } = await import("@/lib/integrations/api-clients");
           const paper = await getPaperDetails(paper_id);
           return {
             success: true,
@@ -53,7 +53,7 @@ export const academicSearchTool = tool({
               message: `No author_id provided. Showing paper search results for "${query}" instead.`,
             };
           }
-          const { getAuthorPapers } = await import("@/lib/api-clients");
+          const { getAuthorPapers } = await import("@/lib/integrations/api-clients");
           const papers = await getAuthorPapers(author_id, num_results || 10);
           return {
             success: true,

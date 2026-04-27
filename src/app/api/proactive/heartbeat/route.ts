@@ -12,9 +12,9 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
-import { getAllAgentStatuses, getAgent, getProvider } from "@/lib/agents";
-import { logActivity } from "@/lib/activity";
+import { query } from "@/lib/core/db";
+import { getAllAgentStatuses, getAgent, getProvider } from "@/lib/agent/agents";
+import { logActivity } from "@/lib/tasks/activity";
 
 export const maxDuration = 60;
 

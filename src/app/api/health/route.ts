@@ -5,9 +5,9 @@
 // Used by uptime checks, Vercel deployment health, and dashboard status.
 // ---------------------------------------------------------------------------
 
-import { isDatabaseReady, getPoolStats } from "@/lib/db";
-import { getEnvInfo, hasMinimumConfig } from "@/lib/env-validation";
-import { logger } from "@/lib/logger";
+import { isDatabaseReady, getPoolStats } from "@/lib/core/db";
+import { getEnvInfo, hasMinimumConfig } from "@/lib/core/env-validation";
+import { logger } from "@/lib/core/logger";
 
 export const dynamic = "force-dynamic";
 

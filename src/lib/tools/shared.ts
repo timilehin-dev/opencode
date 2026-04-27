@@ -6,10 +6,10 @@
 
 import { z } from "zod";
 import { tool, zodSchema } from "ai";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // Native API clients — all tools use free, no-key-required APIs (see api-clients.ts)
-import { executeCodeJudge0, readWebPage, getStockQuote, getHistoricalData, searchPapers, duckDuckGoSearch, getMarketNews } from '@/lib/api-clients';
+import { executeCodeJudge0, readWebPage, getStockQuote, getHistoricalData, searchPapers, duckDuckGoSearch, getMarketNews } from '@/lib/integrations/api-clients';
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
@@ -44,7 +44,7 @@ import {
   googleFetch,
   plainTextToHtml,
   safeJsonParse,
-} from "../google";
+} from "@/lib/integrations/google";
 
 // GitHub API imports
 import {
@@ -63,13 +63,13 @@ import {
   getPullRequestFiles,
   createPRComment,
   createBranch,
-} from "../github";
+} from "@/lib/integrations/github";
 
 // Vercel API imports
-import { listProjects, listDeployments, listDomains, getDeployment } from "../vercel";
+import { listProjects, listDeployments, listDomains, getDeployment } from "@/lib/integrations/vercel";
 
 // Stitch design platform imports
-import { generateDesign, editScreen, generateVariants } from "../stitch";
+import { generateDesign, editScreen, generateVariants } from "@/lib/integrations/stitch";
 
 // Workspace imports (Reminders, Todos, Contacts)
 import {
@@ -77,7 +77,7 @@ import {
   createTodo, listTodos, getTodo, updateTodo, deleteTodo, getTodoStats,
   createContact, listContacts, getContact, updateContact, deleteContact,
   searchContacts,
-} from "../workspace";
+} from "@/lib/workspace/workspace";
 
 // Re-export everything for easy access from module files
 export { z, tool, zodSchema, query, executeCodeJudge0, readWebPage, getStockQuote, getHistoricalData, searchPapers, duckDuckGoSearch, getMarketNews,

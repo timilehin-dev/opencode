@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteSession, purgeAllConversations } from "@/lib/memory";
+import { deleteSession, purgeAllConversations } from "@/lib/memory/memory";
 
 // ---------------------------------------------------------------------------
 // DELETE /api/conversations — Delete a session or all conversations

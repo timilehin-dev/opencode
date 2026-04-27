@@ -10,7 +10,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { checkRateLimit } from "@/lib/core/rate-limiter";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

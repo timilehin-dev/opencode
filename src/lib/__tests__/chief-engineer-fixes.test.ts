@@ -30,7 +30,7 @@ vi.mock('next/server', () => ({
 const mockGGmailListMessages = vi.fn();
 const mockGGmailGetMessage = vi.fn();
 const mockGCalListEvents = vi.fn();
-vi.mock('@/lib/google', () => ({
+vi.mock('@/lib/integrations/google', () => ({
   gGmailListMessages: (...a: unknown[]) => mockGGmailListMessages(...a),
   gGmailGetMessage: (...a: unknown[]) => mockGGmailGetMessage(...a),
   gCalListEvents: (...a: unknown[]) => mockGCalListEvents(...a),
@@ -50,14 +50,14 @@ vi.mock('@/lib/google', () => ({
 }));
 
 // --- Mock: @/lib/github ---
-vi.mock('@/lib/github', () => ({
+vi.mock('@/lib/integrations/github', () => ({
   listIssues: vi.fn().mockResolvedValue([]),
   listPullRequests: vi.fn().mockResolvedValue([]),
 }));
 
 // --- Mock: @/lib/db ---
 const mockQuery = vi.fn();
-vi.mock('@/lib/db', () => ({
+vi.mock('@/lib/core/db', () => ({
   query: (...a: unknown[]) => mockQuery(...a),
   getPool: vi.fn(),
   withPool: vi.fn(),
@@ -67,7 +67,7 @@ vi.mock('@/lib/db', () => ({
 
 // --- Mock: @/lib/self-learning ---
 const mockDetectPatterns = vi.fn();
-vi.mock('@/lib/self-learning', () => ({
+vi.mock('@/lib/memory/self-learning', () => ({
   recordLearning: vi.fn(),
   getAgentInsights: vi.fn().mockResolvedValue([]),
   getAllInsights: vi.fn().mockResolvedValue([]),
@@ -82,7 +82,7 @@ vi.mock('@/lib/self-learning', () => ({
 
 // --- Mock: @/lib/supabase ---
 const mockGetSupabase = vi.fn(() => null);
-vi.mock('@/lib/supabase', () => ({
+vi.mock('@/lib/schema/supabase', () => ({
   getSupabase: (...a: unknown[]) => mockGetSupabase(...a),
   isSupabaseReady: vi.fn().mockResolvedValue(false),
   SCHEMA_SQL: '',
@@ -94,26 +94,26 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 // --- Mock: SSE stream dependencies ---
-vi.mock('@/lib/agents', () => ({
+vi.mock('@/lib/agent/agents', () => ({
   getAllAgentStatuses: vi.fn().mockReturnValue([]),
 }));
-vi.mock('@/lib/activity', () => ({
+vi.mock('@/lib/tasks/activity', () => ({
   getRecentActivity: vi.fn().mockResolvedValue([]),
   getAllPersistedStatuses: vi.fn().mockResolvedValue({}),
   getDashboardMetrics: vi.fn().mockResolvedValue({
     messagesToday: 0, toolCallsToday: 0, tasksDone: 0, activeDelegations: 0,
   }),
 }));
-vi.mock('@/lib/workspace', () => ({
+vi.mock('@/lib/workspace/workspace', () => ({
   listTodos: vi.fn().mockResolvedValue([]),
 }));
-vi.mock('@/lib/task-queue', () => ({
+vi.mock('@/lib/tasks/task-queue', () => ({
   getRecentTasks: vi.fn().mockResolvedValue([]),
 }));
-vi.mock('@/lib/delegations', () => ({
+vi.mock('@/lib/tasks/delegations', () => ({
   getRecentDelegations: vi.fn().mockResolvedValue([]),
 }));
-vi.mock('@/lib/agent-map', () => ({
+vi.mock('@/lib/agent/agent-map', () => ({
   AGENT_MAP: {},
   getAgentMeta: vi.fn(),
 }));
@@ -138,9 +138,9 @@ vi.mock('crypto', () => ({
 import { POST as notificationsPost } from '@/app/api/notifications/route';
 import { POST as learningPost } from '@/app/api/learning/route';
 import { maxDuration as sseMaxDuration } from '@/app/api/events/stream/route';
-import { getStockQuote, type StockQuote } from '@/lib/api-clients';
-import { intervalToCron } from '@/lib/pg-cron-manager';
-import { selectBestKey, recordTokenUsage, recordKeyError } from '@/lib/key-manager';
+import { getStockQuote, type StockQuote } from '@/lib/integrations/api-clients';
+import { intervalToCron } from '@/lib/workflows/pg-cron-manager';
+import { selectBestKey, recordTokenUsage, recordKeyError } from '@/lib/settings/key-manager';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -541,35 +541,35 @@ describe('Chief Engineer Bug Fixes — Integration Tests', () => {
   describe('5. Dead code removal verification', () => {
     it('getDb is NOT exported from supabase.ts', async () => {
       const mod = (await vi.importActual(
-        '@/lib/supabase',
+        '@/lib/schema/supabase',
       )) as Record<string, unknown>;
       expect(mod['getDb']).toBeUndefined();
     });
 
     it('getSupabase IS exported (the replacement for getDb)', async () => {
       const mod = (await vi.importActual(
-        '@/lib/supabase',
+        '@/lib/schema/supabase',
       )) as Record<string, unknown>;
       expect(typeof mod['getSupabase']).toBe('function');
     });
 
     it('applyInsight is NOT exported from self-learning.ts', async () => {
       const mod = (await vi.importActual(
-        '@/lib/self-learning',
+        '@/lib/memory/self-learning',
       )) as Record<string, unknown>;
       expect(mod['applyInsight']).toBeUndefined();
     });
 
     it('markInsightsApplied is internal (not exported) in self-learning.ts', async () => {
       const mod = (await vi.importActual(
-        '@/lib/self-learning',
+        '@/lib/memory/self-learning',
       )) as Record<string, unknown>;
       expect(mod['markInsightsApplied']).toBeUndefined();
     });
 
     it('core self-learning functions are still exported', async () => {
       const mod = (await vi.importActual(
-        '@/lib/self-learning',
+        '@/lib/memory/self-learning',
       )) as Record<string, unknown>;
       expect(typeof mod['recordLearning']).toBe('function');
       expect(typeof mod['getAgentInsights']).toBe('function');

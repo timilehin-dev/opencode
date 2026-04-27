@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import type { TodoView } from "@/hooks/use-dashboard-stream";
 
 interface ActiveTasksProps {

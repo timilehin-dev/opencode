@@ -21,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 // Agent list fetched from API to avoid importing server-only modules (pg) in client bundle
 const DEFAULT_AGENTS = [

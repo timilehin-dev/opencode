@@ -5,7 +5,7 @@
 // try/catch + console.error + Response.json patterns.
 //
 // Usage:
-//   import { apiError, apiSuccess, withErrorHandler, ApiError } from "@/lib/api-errors"
+//   import { apiError, apiSuccess, withErrorHandler, ApiError } from "@/lib/core/api-errors"
 //
 //   export async function GET(req) {
 //     return withErrorHandler(async () => {
@@ -15,7 +15,7 @@
 //   }
 // ---------------------------------------------------------------------------
 
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/core/logger";
 
 // ---------------------------------------------------------------------------
 // Custom API Error class with HTTP status codes

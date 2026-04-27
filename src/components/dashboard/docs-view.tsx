@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { DocsIcon, Spinner } from "@/components/icons";
 import { ConnectServiceCard } from "@/components/connect-service-card";
-import { timeAgo } from "@/lib/helpers";
+import { timeAgo } from "@/lib/core/helpers";
 import type { ServiceStatus } from "@/lib/types";
 
 interface DocsViewProps {

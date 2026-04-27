@@ -10,7 +10,7 @@ import {
   listBranches,
   listCommits,
   searchCode,
-} from "@/lib/github";
+} from "@/lib/integrations/github";
 
 // ---------------------------------------------------------------------------
 // Helper

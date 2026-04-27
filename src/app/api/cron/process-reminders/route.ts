@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 export const maxDuration = 30; // 30s max for cron handler
 

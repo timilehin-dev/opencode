@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { useTheme } from "next-themes";
 import {
   type AppSettings,
@@ -40,9 +40,9 @@ import {
   saveSettings,
   resetSettings,
   TIMEZONES,
-} from "@/lib/settings-store";
+} from "@/lib/settings/settings-store";
 
-import { AGENT_LIST } from "@/lib/agent-map";
+import { AGENT_LIST } from "@/lib/agent/agent-map";
 
 import { useNotifications } from "@/context/notification-context";
 

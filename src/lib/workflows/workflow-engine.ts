@@ -9,9 +9,9 @@
 // and fixed recalcWorkflowState bug (dead code when failed > 0).
 // ---------------------------------------------------------------------------
 
-import { getPool } from "@/lib/db";
-import { logger } from "@/lib/logger";
-import { withTransaction } from "@/lib/db";
+import { getPool } from "@/lib/core/db";
+import { logger } from "@/lib/core/logger";
+import { withTransaction } from "@/lib/core/db";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -10,11 +10,11 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { executeWorkflow, getWorkflowStatus } from "@/lib/workflow-engine";
-import { logActivity, persistAgentStatus } from "@/lib/activity";
-import { query } from "@/lib/db";
-import { sendProactiveNotification } from "@/lib/proactive-notifications";
-import { getAgent } from "@/lib/agents";
+import { executeWorkflow, getWorkflowStatus } from "@/lib/workflows/workflow-engine";
+import { logActivity, persistAgentStatus } from "@/lib/tasks/activity";
+import { query } from "@/lib/core/db";
+import { sendProactiveNotification } from "@/lib/notifications/proactive-notifications";
+import { getAgent } from "@/lib/agent/agents";
 
 export const maxDuration = 300;
 

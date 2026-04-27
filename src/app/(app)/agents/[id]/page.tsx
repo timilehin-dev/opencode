@@ -30,15 +30,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 // Agent config data — self-contained, zero network dependency
 import {
   AGENT_DEFINITIONS,
   AGENT_TOOL_LISTS,
   AGENT_SUGGESTED_ACTIONS,
-} from "@/lib/agent-config";
-import type { AgentDefinition } from "@/lib/agent-config";
+} from "@/lib/agent/agent-config";
+import type { AgentDefinition } from "@/lib/agent/agent-config";
 
 import {
   loadAgentOverrides,
@@ -46,7 +46,7 @@ import {
   updateAgentOverrides,
   getEffectiveTools,
   type AgentOverrides,
-} from "@/lib/agent-overrides";
+} from "@/lib/agent/agent-overrides";
 
 // ---------------------------------------------------------------------------
 // Build full agent config from static definitions (no API call needed)

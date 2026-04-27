@@ -10,7 +10,7 @@ import {
   MapPin,
 } from "@/components/icons";
 import { ConnectServiceCard } from "@/components/connect-service-card";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import type {
   CalendarEvent,
   CalendarInfo,

@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 export async function POST(request: Request) {
   // H3: Setup auth

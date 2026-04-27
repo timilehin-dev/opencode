@@ -10,7 +10,7 @@ import {
   generateVariants,
   listScreens,
   fetchHtmlContent,
-} from '@/lib/stitch';
+} from '@/lib/integrations/stitch';
 
 // ---------------------------------------------------------------------------
 // GET — status, projects, screens

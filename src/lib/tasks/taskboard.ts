@@ -27,7 +27,7 @@ export interface TaskBoardItem {
   completedAt: string | null;
 }
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // ---------------------------------------------------------------------------
 // Task Board Schema (CREATE TABLE IF NOT EXISTS)

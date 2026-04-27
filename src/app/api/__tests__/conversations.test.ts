@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const mockDeleteSession = vi.fn();
 const mockPurgeAllConversations = vi.fn();
 
-vi.mock("@/lib/memory", () => ({
+vi.mock("@/lib/memory/memory", () => ({
   deleteSession: (...args: unknown[]) => mockDeleteSession(...args),
   purgeAllConversations: (...args: unknown[]) => mockPurgeAllConversations(...args),
 }));

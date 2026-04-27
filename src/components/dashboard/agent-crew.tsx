@@ -1,7 +1,7 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import type { AgentConfig } from "@/lib/agents";
+import { cn } from "@/lib/core/utils";
+import type { AgentConfig } from "@/lib/agent/agents";
 import type { AgentStatusView } from "@/hooks/use-dashboard-stream";
 
 interface AgentCrewProps {

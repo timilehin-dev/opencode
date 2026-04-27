@@ -5,7 +5,7 @@
 // structured logging system. Supports log levels, context tagging,
 // and optional persistence to the agent_activity table.
 //
-// Usage: import { logger } from "@/lib/logger"
+// Usage: import { logger } from "@/lib/core/logger"
 //   logger.info("workflow", "Execution started", { workflowId, steps })
 //   logger.error("db", "Query failed", { error: err.message })
 // ---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ export const logger = new Logger();
 
 /**
  * Convenience re-exports for tree-shaking:
- *   import { logInfo, logError } from "@/lib/logger"
+ *   import { logInfo, logError } from "@/lib/core/logger"
  */
 export const logDebug = logger.debug.bind(logger);
 export const logInfo = logger.info.bind(logger);

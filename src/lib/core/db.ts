@@ -13,7 +13,7 @@
 // - Retry logic: transient connection errors get up to 2 retries
 // - Connection-aware: logs congestion warnings
 //
-// Usage: import { getPool, query, withPool } from "@/lib/db"
+// Usage: import { getPool, query, withPool } from "@/lib/core/db"
 // ---------------------------------------------------------------------------
 
 import { Pool } from "pg";

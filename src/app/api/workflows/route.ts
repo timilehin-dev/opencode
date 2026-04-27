@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest } from "next/server";
-import { listWorkflows, planWorkflow } from "@/lib/workflow-engine";
+import { listWorkflows, planWorkflow } from "@/lib/workflows/workflow-engine";
 
 export async function GET(req: NextRequest) {
   try {

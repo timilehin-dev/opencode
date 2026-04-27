@@ -13,8 +13,8 @@ import {
   detectPatterns,
   decayInsights,
   getLearningStats,
-} from "@/lib/self-learning";
-import type { LearningInsight } from "@/lib/self-learning";
+} from "@/lib/memory/self-learning";
+import type { LearningInsight } from "@/lib/memory/self-learning";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
         let effectiveConversations = conversations;
         if (!effectiveConversations || !Array.isArray(effectiveConversations) || effectiveConversations.length === 0) {
           try {
-            const { query } = await import("@/lib/db");
+            const { query } = await import("@/lib/core/db");
             const effectiveAgentId = agentId || "general";
             const convResult = await query(
               `SELECT role, content FROM conversations
@@ -154,7 +154,7 @@ export async function POST(req: Request) {
         if (!insightId) {
           return NextResponse.json({ error: "Missing insightId" }, { status: 400 });
         }
-        const { query } = await import("@/lib/db");
+        const { query } = await import("@/lib/core/db");
         const result = await query("DELETE FROM learning_insights WHERE id = $1 RETURNING id", [insightId]);
         return NextResponse.json({ success: true, deleted: (result.rowCount ?? 0) > 0 });
       }

@@ -6,8 +6,8 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { A2A_SCHEMA_SQL } from "@/lib/a2a-schema";
-import { query } from "@/lib/db";
+import { A2A_SCHEMA_SQL } from "@/lib/schema/a2a-schema";
+import { query } from "@/lib/core/db";
 
 export async function POST(request: Request) {
   const setupSecret = process.env.SETUP_SECRET;

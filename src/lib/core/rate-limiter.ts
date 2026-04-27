@@ -5,7 +5,7 @@
 // Configurable per-route with different limits for GET vs mutating requests.
 //
 // Usage:
-//   import { rateLimit, checkRateLimit } from "@/lib/rate-limiter"
+//   import { rateLimit, checkRateLimit } from "@/lib/core/rate-limiter"
 //
 //   // In an API route:
 //   export async function POST(req) {

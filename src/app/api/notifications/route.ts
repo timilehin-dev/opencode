@@ -10,8 +10,8 @@ import {
   gGmailListMessages,
   gGmailGetMessage,
   gCalListEvents,
-} from '@/lib/google';
-import { listIssues, listPullRequests } from '@/lib/github';
+} from '@/lib/integrations/google';
+import { listIssues, listPullRequests } from '@/lib/integrations/github';
 
 // ---------------------------------------------------------------------------
 // Types

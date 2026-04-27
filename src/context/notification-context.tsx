@@ -13,13 +13,13 @@ import type {
   AppNotification,
   NotificationPreferences,
   NotificationType,
-} from "@/lib/notifications";
+} from "@/lib/notifications/notifications";
 import {
   DEFAULT_PREFERENCES,
   requestDesktopPermission,
   sendDesktopNotification,
   PRIORITY_CONFIG,
-} from "@/lib/notifications";
+} from "@/lib/notifications/notifications";
 import type { PageKey } from "@/components/dashboard/sidebar";
 
 // ---------------------------------------------------------------------------

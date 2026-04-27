@@ -3,7 +3,7 @@
 // Uses raw pg Pool (same pattern as activity.ts)
 // ---------------------------------------------------------------------------
 
-import { query } from "@/lib/db";
+import { query } from "@/lib/core/db";
 
 // ---------------------------------------------------------------------------
 // Types

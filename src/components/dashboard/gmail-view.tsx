@@ -17,8 +17,8 @@ import {
   stripHtml,
   truncate,
   timeAgoMs,
-} from "@/lib/helpers";
-import { cn } from "@/lib/utils";
+} from "@/lib/core/helpers";
+import { cn } from "@/lib/core/utils";
 import type {
   GmailMessage,
   GmailLabel,

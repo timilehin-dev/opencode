@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { tool, zodSchema, z, getCurrentAgentId } from './shared';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/schema/supabase';
 
 // ─── Memory Save ─────────────────────────────────────────────────────────────
 

@@ -3,10 +3,10 @@
 import { useState, useEffect, useMemo, Suspense, lazy, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useDashboardStream } from "@/hooks/use-dashboard-stream";
-import { AGENT_MAP, AGENT_LIST, getAgentMeta } from "@/lib/agent-map";
+import { AGENT_MAP, AGENT_LIST, getAgentMeta } from "@/lib/agent/agent-map";
 import type { ServiceStatus } from "@/lib/types";
 import type { ActivityEventView, AgentTaskView } from "@/hooks/use-dashboard-stream";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/context/toast-context";
 import {

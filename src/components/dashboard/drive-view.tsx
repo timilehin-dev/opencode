@@ -10,7 +10,7 @@ import {
   Spinner,
 } from "@/components/icons";
 import { ConnectServiceCard } from "@/components/connect-service-card";
-import { timeAgo, formatFileSize } from "@/lib/helpers";
+import { timeAgo, formatFileSize } from "@/lib/core/helpers";
 import type {
   DriveFile,
   DriveTab,

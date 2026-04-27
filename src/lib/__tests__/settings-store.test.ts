@@ -40,7 +40,7 @@ const {
   updateSettings,
   resetSettings,
   invalidateSettingsCache,
-} = await import("@/lib/settings-store");
+} = await import("@/lib/settings/settings-store");
 
 describe("settings-store", () => {
   beforeEach(() => {

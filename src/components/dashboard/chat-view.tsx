@@ -25,10 +25,10 @@ import {
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/analytics-store";
-import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage, purgeAllConversations, deleteSession } from "@/lib/memory";
-import { loadAgentOverrides } from "@/lib/agent-overrides";
+import { cn } from "@/lib/core/utils";
+import { trackChatMessage, trackToolCall, trackAgentSwitch } from "@/lib/settings/analytics-store";
+import { getSessionMessages, getAgentSessions, getAllRecentSessions, saveMessage, purgeAllConversations, deleteSession } from "@/lib/memory/memory";
+import { loadAgentOverrides } from "@/lib/agent/agent-overrides";
 
 // ---------------------------------------------------------------------------
 // Chat History Version — bump this to trigger a fresh purge on next visit

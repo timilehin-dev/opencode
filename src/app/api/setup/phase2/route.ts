@@ -6,8 +6,8 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { PHASE2_SCHEMA_SQL } from "@/lib/supabase";
-import { query } from "@/lib/db";
+import { PHASE2_SCHEMA_SQL } from "@/lib/schema/supabase";
+import { query } from "@/lib/core/db";
 
 export async function POST(request: Request) {
   const setupSecret = process.env.SETUP_SECRET;

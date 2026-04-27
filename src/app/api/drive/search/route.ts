@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
-import { gDriveListFiles, googleFetch, getAccessToken } from "@/lib/google";
+import { gDriveListFiles, googleFetch, getAccessToken } from "@/lib/integrations/google";
 
 export async function GET(req: NextRequest) {
   try {

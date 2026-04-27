@@ -5,7 +5,7 @@
 // Called at build time and startup to fail fast on missing config.
 //
 // Usage:
-//   import { validateEnv, getEnvInfo } from "@/lib/env-validation"
+//   import { validateEnv, getEnvInfo } from "@/lib/core/env-validation"
 //   // Call once at app startup
 //   const envStatus = validateEnv();
 // ---------------------------------------------------------------------------

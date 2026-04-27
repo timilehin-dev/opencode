@@ -26,13 +26,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import {
   type AppNotification,
   TYPE_STYLES,
   PRIORITY_CONFIG,
   formatNotifTime,
-} from "@/lib/notifications";
+} from "@/lib/notifications/notifications";
 import {
   loadDeliveryConfig,
   saveDeliveryConfig,
@@ -43,7 +43,7 @@ import {
   type WebhookConfig,
   shouldDeliver,
   deliverWebhook,
-} from "@/lib/notification-delivery";
+} from "@/lib/notifications/notification-delivery";
 
 // ---------------------------------------------------------------------------
 // Types

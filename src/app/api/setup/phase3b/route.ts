@@ -22,7 +22,7 @@ export async function POST() {
     }
 
     // Import the schema SQL from the unified schema file
-    const { PROACTIVE_SCANNING_SCHEMA_SQL } = await import('@/lib/unified-schema');
+    const { PROACTIVE_SCANNING_SCHEMA_SQL } = await import('@/lib/schema/unified-schema');
 
     // Execute via direct postgres connection
     const { createClient } = await import('@supabase/supabase-js');
