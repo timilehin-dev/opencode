@@ -26,6 +26,32 @@ export function middleware(request: NextRequest) {
     if (limit.limited) return limit.response!;
   }
 
+  // Additional rate limits for other mutating routes
+  if (pathname.startsWith("/api/workflows") && request.method === "POST") {
+    const limit = checkRateLimit(request, "workflows", { maxRequests: 20, windowMs: 60000 });
+    if (limit.limited) return limit.response!;
+  }
+
+  if (pathname.startsWith("/api/skills/embeddings") && request.method === "POST") {
+    const limit = checkRateLimit(request, "embeddings", { maxRequests: 5, windowMs: 60000 });
+    if (limit.limited) return limit.response!;
+  }
+
+  if (pathname.startsWith("/api/skills/search") && request.method === "POST") {
+    const limit = checkRateLimit(request, "search", { maxRequests: 30, windowMs: 60000 });
+    if (limit.limited) return limit.response!;
+  }
+
+  if (pathname.startsWith("/api/self-improvement") && request.method === "POST") {
+    const limit = checkRateLimit(request, "evolution", { maxRequests: 10, windowMs: 60000 });
+    if (limit.limited) return limit.response!;
+  }
+
+  if (pathname.startsWith("/api/dashboard") && request.method !== "GET" && request.method !== "HEAD" && request.method !== "OPTIONS") {
+    const limit = checkRateLimit(request, "workflows", { maxRequests: 20, windowMs: 60000 });
+    if (limit.limited) return limit.response!;
+  }
+
   // Skip GET/HEAD/OPTIONS requests (needed for SSE, health checks, page loads)
   const method = request.method;
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {

@@ -172,7 +172,8 @@ CREATE TABLE IF NOT EXISTS agent_workflows (
   schedule_interval INTEGER DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
+  completed_at TIMESTAMPTZ,
+  resumable_from_step INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_workflows_agent ON agent_workflows(agent_id);
@@ -197,6 +198,7 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
   attempts INTEGER DEFAULT 0,
   max_attempts INTEGER DEFAULT 2,
   duration_ms INTEGER,
+  next_retry_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -205,6 +207,7 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
 
 CREATE INDEX IF NOT EXISTS idx_workflow_steps_workflow ON workflow_steps(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_steps_status ON workflow_steps(status);
+CREATE INDEX IF NOT EXISTS idx_workflow_steps_next_retry ON workflow_steps(next_retry_at) WHERE next_retry_at IS NOT NULL AND status = 'failed';
 
 -- Workflow Executions (audit log for workflow engine events)
 -- NOTE: This table was referenced in workflow-engine.ts logExecution() but was

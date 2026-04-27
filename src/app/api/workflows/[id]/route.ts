@@ -63,12 +63,49 @@ export async function PATCH(
     }
 
     // If resuming, reset failed steps to pending (for retry)
+    // Enhanced: only reset steps >= resumable_from_step if set, and implement
+    // exponential backoff for retry timing.
     if (status === "running") {
-      await query(
-        `UPDATE workflow_steps SET status = 'pending', started_at = NULL, error_message = NULL
-         WHERE workflow_id = $1 AND status = 'failed' AND attempts < max_attempts`,
+      // First fetch the workflow to check for resumable_from_step
+      const wfResult = await query(
+        `SELECT resumable_from_step FROM agent_workflows WHERE id = $1`,
         [id],
       );
+
+      const resumableFromStep = wfResult.rows[0]?.resumable_from_step;
+
+      if (resumableFromStep !== null && resumableFromStep !== undefined) {
+        // Only reset failed steps at or after the resumable step
+        const stepsResult = await query(
+          `UPDATE workflow_steps
+           SET status = 'pending', started_at = NULL, error_message = NULL
+           WHERE workflow_id = $1
+             AND status = 'failed'
+             AND step_number >= $2
+             AND attempts < max_attempts
+           RETURNING id, step_number, attempts`,
+          [id, resumableFromStep],
+        );
+
+        // Set next_retry_at with exponential backoff for each reset step
+        for (const step of stepsResult.rows) {
+          const attempts = Number(step.attempts) || 0;
+          // Exponential backoff: 60000 * 2^attempts, max 4 hours
+          const backoffMs = Math.min(60000 * Math.pow(2, attempts), 4 * 60 * 60 * 1000);
+          await query(
+            `UPDATE workflow_steps SET next_retry_at = NOW() + ($1 || ' milliseconds')::interval
+             WHERE id = $2`,
+            [String(backoffMs), step.id],
+          );
+        }
+      } else {
+        // Original behavior: reset all failed steps
+        await query(
+          `UPDATE workflow_steps SET status = 'pending', started_at = NULL, error_message = NULL
+           WHERE workflow_id = $1 AND status = 'failed' AND attempts < max_attempts`,
+          [id],
+        );
+      }
     }
 
     return Response.json({

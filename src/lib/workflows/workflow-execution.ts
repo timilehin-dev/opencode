@@ -37,14 +37,23 @@ export async function executeWorkflow(
       throw new Error("Workflow is cancelled");
     }
 
-    // Fetch pending steps
-    const stepsResult = await pool.query(
-      `SELECT * FROM workflow_steps
+    // Determine the minimum step to fetch based on resumable_from_step
+    const resumableFromStep = (workflow as unknown as Record<string, unknown>).resumable_from_step as number | null | undefined;
+
+    // Fetch pending steps — only those >= resumable_from_step if set
+    let stepsQuery = `SELECT * FROM workflow_steps
        WHERE workflow_id = $1
-         AND (status = 'pending' OR status = 'running')
-       ORDER BY step_number ASC`,
-      [workflowId],
-    );
+         AND (status = 'pending' OR status = 'running')`;
+    const queryParams: unknown[] = [workflowId];
+
+    if (resumableFromStep !== null && resumableFromStep !== undefined) {
+      stepsQuery += ` AND step_number >= $2`;
+      queryParams.push(resumableFromStep);
+    }
+
+    stepsQuery += ` ORDER BY step_number ASC`;
+
+    const stepsResult = await pool.query(stepsQuery, queryParams);
 
     const steps = stepsResult.rows as WorkflowStepRow[];
     if (steps.length === 0) {
