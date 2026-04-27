@@ -1,0 +1,29 @@
+name: Task Executor
+# Fallback/primary cron executor for KlawHub tasks.
+# Runs every 5 minutes. Calls the Vercel task-processor endpoint
+# which picks up pending agent_tasks, task_board items, and project tasks.
+#
+# IMPORTANT: Set CRON_SECRET in GitHub repo secrets (Settings > Secrets).
+# Also set VERCEL_URL (e.g. klawhub-xxx.vercel.app) in repo secrets.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # Every 5 minutes
+
+jobs:
+  execute-tasks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Task Processor
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$VERCEL_URL" ]; then
+            echo "ERROR: CRON_SECRET and/or VERCEL_URL not set in GitHub secrets"
+            exit 1
+          fi
+          curl -sf --max-time 290 \
+            "${VERCEL_URL}/api/cron/task-processor?secret=${CRON_SECRET}" \
+            || echo "Task processor request failed (may timeout on Hobby tier)"

@@ -20,6 +20,21 @@ import { sendProactiveNotification } from "@/lib/notifications/proactive-notific
 import { triggerPostTaskReflection, runPeriodicImprovementAnalysis } from "@/lib/tasks/post-task-reflection";
 import { query, withTransaction } from "@/lib/core/db";
 
+// ---------------------------------------------------------------------------
+// Helper: parse interval string (e.g. "30m", "1h", "2h", "24h") to Date
+// ---------------------------------------------------------------------------
+
+function parseInterval(interval: string): Date {
+  const match = interval.match(/^(\d+)(m|h|d)$/);
+  if (!match) return new Date(Date.now() + 60 * 60 * 1000); // default 1 hour
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  const ms = unit === "m" ? value * 60 * 1000
+    : unit === "h" ? value * 60 * 60 * 1000
+    : value * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() + ms);
+}
+
 // Vercel Hobby (free) has a 10s timeout — maxDuration is best-effort.
 // pg_cron fires every 5 min, so even with timeouts, tasks progress over time.
 // If you upgrade to Vercel Pro, change this to 300 for 5-min execution windows.
@@ -143,6 +158,33 @@ export async function GET(request: Request) {
   };
 
   // =========================================================================
+  // Phase 0: Auto-register pg_cron job (self-healing)
+  // Ensures the task-processor is called every minute by pg_cron even if
+  // the Vercel cron config is empty (Hobby tier) or pg_cron setup was missed.
+  // =========================================================================
+  try {
+    const appUrl = process.env.CRON_WEBHOOK_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : process.env.NEXT_PUBLIC_BASE_URL);
+    if (appUrl && process.env.CRON_SECRET) {
+      await query(`CREATE EXTENSION IF NOT EXISTS pg_cron`).catch(() => {});
+      await query(`CREATE EXTENSION IF NOT EXISTS pg_net`).catch(() => {});
+      const taskProcessorUrl = `${appUrl}/api/cron/task-processor?secret=${encodeURIComponent(process.env.CRON_SECRET)}`;
+      // Check if job already exists before registering
+      const { rows: existingJobs } = await query(
+        `SELECT jobid FROM cron.job WHERE jobname = 'klaw-task-processor'`,
+      );
+      if (existingJobs.length === 0) {
+        await query(
+          `SELECT cron.schedule('klaw-task-processor', '* * * * *', $$SELECT net.http_get('${taskProcessorUrl}')$$)`,
+        ).catch(() => {});
+        console.log("[TaskProcessor] Auto-registered pg_cron job: klaw-task-processor (every minute)");
+      }
+    }
+  } catch {
+    // Non-critical — pg_cron auto-setup is best-effort
+  }
+
+  // =========================================================================
   // Phase 1: Evaluate Automations
   // =========================================================================
   try {
@@ -220,6 +262,47 @@ export async function GET(request: Request) {
         ]);
         results.phase2_agentTasks.succeeded++;
 
+        // Handle recurring tasks — reschedule for next run
+        if (row.recurring_enabled && row.recurring_interval) {
+          try {
+            const nextRun = parseInterval(row.recurring_interval);
+            await query(
+              `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, recurring_enabled, recurring_interval, next_run_at, parent_task_id)
+               VALUES ($1, $2, $3, 'cron', $4, $5, $6, $7, $8, $9)`,
+              [row.agent_id, row.task, row.context || "", `recurring:${row.id}:${Date.now()}`, row.priority || "medium",
+               true, row.recurring_interval, nextRun, row.id],
+            );
+            logActivity({
+              agentId,
+              agentName: getAgent(agentId)?.name || agentId,
+              action: "task_rescheduled",
+              detail: `[Recurring] Next run at ${nextRun.toISOString()} (${row.recurring_interval})`,
+            }).catch(() => {});
+          } catch (recurringErr) {
+            console.warn("[TaskProcessor] Recurring reschedule failed:", recurringErr);
+          }
+        }
+
+        // Handle task chaining — create follow-up task for another agent (on success)
+        if (row.chain_to_agent && row.chain_task && row.chain_on_success !== false) {
+          try {
+            await query(
+              `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, parent_task_id)
+               VALUES ($1, $2, $3, 'delegation', $4, $5, $6)`,
+              [row.chain_to_agent, row.chain_task, `Chained from task #${row.id}. Previous result: ${result.text?.slice(0, 1000) || "N/A"}`,
+               `chain:${row.id}:${Date.now()}`, row.priority || "medium", row.id],
+            );
+            logActivity({
+              agentId: row.chain_to_agent,
+              agentName: getAgent(row.chain_to_agent)?.name || row.chain_to_agent,
+              action: "task_chained",
+              detail: `[Chain] Received chained task from ${agentId}: ${row.chain_task.slice(0, 100)}`,
+            }).catch(() => {});
+          } catch (chainErr) {
+            console.warn("[TaskProcessor] Task chaining failed:", chainErr);
+          }
+        }
+
         logActivity({
           agentId,
           agentName: getAgent(agentId)?.name || agentId,
@@ -254,6 +337,18 @@ export async function GET(request: Request) {
           action: "task_failed",
           detail: `[Agent Task] ${taskPrompt.slice(0, 200)} — ${result.error || "Unknown error"}`,
         }).catch(() => {});
+
+        // Handle task chaining on failure (if chain_on_fail enabled)
+        if (row.chain_to_agent && row.chain_task && row.chain_on_success === false) {
+          try {
+            await query(
+              `INSERT INTO agent_tasks (agent_id, task, context, trigger_type, trigger_source, priority, parent_task_id)
+               VALUES ($1, $2, $3, 'delegation', $4, $5, $6)`,
+              [row.chain_to_agent, row.chain_task, `Chained from FAILED task #${row.id}. Error: ${result.error?.slice(0, 500) || "Unknown"}`,
+               `chain-fail:${row.id}:${Date.now()}`, row.priority || "medium", row.id],
+            );
+          } catch { /* chain on fail non-critical */ }
+        }
 
         persistAgentStatus(agentId, {
           status: "error",

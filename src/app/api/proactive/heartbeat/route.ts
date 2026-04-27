@@ -78,7 +78,7 @@ export async function GET() {
     // NOTE: All queries use the ACTUAL production schema:
     //   agent_definitions (not agent_configs)
     //   agent_tasks.next_run_at (not next_run)
-    //   agent_tasks.attempts (integer)
+    //   agent_tasks — no attempts column (use error presence for retry logic)
     //   a2a_messages.is_read (not read), .type (not message_type), .payload (not content)
     //   agent_routines.is_active (not enabled)
     //   projects has total_tasks/completed_tasks/failed_tasks/pending_tasks columns directly
@@ -97,7 +97,7 @@ export async function GET() {
       // Pending agent_tasks
       query(`
         SELECT at.id, at.agent_id, at.task, at.priority, at.status,
-               at.created_at, at.next_run_at as next_run, at.attempts
+               at.created_at, at.next_run_at as next_run
         FROM agent_tasks at
         WHERE at.status IN ('pending', 'running', 'failed')
           AND (at.next_run_at IS NULL OR at.next_run_at <= NOW() + INTERVAL '5 minutes')
@@ -168,10 +168,9 @@ export async function GET() {
 
       // Failed tasks needing escalation
       query(`
-        SELECT id, agent_id, task, error, attempts, started_at as last_run, created_at
+        SELECT id, agent_id, task, error, started_at as last_run, created_at
         FROM agent_tasks
         WHERE status = 'failed'
-          AND attempts < 3
           AND started_at > NOW() - INTERVAL '2 hours'
         ORDER BY started_at DESC
         LIMIT 5
@@ -268,7 +267,7 @@ export async function GET() {
             ? `\n## Unread A2A Messages (${a2aInboxRows.length})\n${a2aInboxRows.map((m: any) => `- ${m.from_agent} -> ${m.to_agent}: ${m.type} (${m.priority}): ${m.topic || ""}`).join("\n")}`
             : "",
           failedTasksRows.length > 0
-            ? `\n## Failed Tasks Needing Escalation (${failedTasksRows.length})\n${failedTasksRows.map((t: any) => `- ${t.agent_id}: ${t.task.slice(0, 60)} (attempts: ${t.attempts}, error: ${(t.error || "unknown").slice(0, 40)})`).join("\n")}`
+            ? `\n## Failed Tasks Needing Escalation (${failedTasksRows.length})\n${failedTasksRows.map((t: any) => `- ${t.agent_id}: ${t.task.slice(0, 60)} (error: ${(t.error || "unknown").slice(0, 40)})`).join("\n")}`
             : "",
           projectStatusRows.length > 0
             ? `\n## Active Projects\n${projectStatusRows.map((p: any) => `- ${p.name}: ${p.completed_tasks}/${p.total_tasks} complete, ${p.pending_tasks} pending, ${p.failed_tasks} failed`).join("\n")}`
